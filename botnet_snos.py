@@ -199,6 +199,7 @@ def set_bot(b):
     global bot
     bot = b
 session_folder = 'sessions'
+os.makedirs(session_folder, exist_ok=True)
 sessions = [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
 
 LOG_FOLDER = "logs"
