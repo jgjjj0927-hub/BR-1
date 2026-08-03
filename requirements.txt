@@ -1,7 +1,7 @@
 aiogram==2.25.2
 telethon==1.40.0
-aiohttp
-aiofiles
-Pillow
-pyCryptoPayAPI
-asyncpg
+aiohttp==3.9.5
+aiofiles==23.2.1
+Pillow==10.4.0
+pyCryptoPayAPI==1.0.7
+asyncpg==0.29.0
