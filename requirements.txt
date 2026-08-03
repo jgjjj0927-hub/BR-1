@@ -1,0 +1,7 @@
+aiogram==2.25.2
+telethon==1.40.0
+aiosqlite
+aiohttp
+aiofiles
+Pillow
+pyCryptoPayAPI

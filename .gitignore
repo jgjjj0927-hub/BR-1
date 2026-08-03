@@ -1,0 +1,24 @@
+# Секреты
+config.py
+mails.txt
+
+# Сессии Telegram
+sessions/
+prem_sessions/
+
+# Базы данных
+*.db
+*.sqlite3
+
+# Логи
+logs/
+breakruin_*.txt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.venv/
