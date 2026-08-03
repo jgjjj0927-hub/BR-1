@@ -193,7 +193,11 @@ reasons_texts = [
     "I ask you to block the user for violating the rules."
 ]
 
-bot = Bot(token=config.TOKEN)
+bot = None  # инициализируется из main.py через set_bot()
+
+def set_bot(b):
+    global bot
+    bot = b
 session_folder = 'sessions'
 sessions = [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
 

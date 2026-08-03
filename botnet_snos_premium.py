@@ -1042,7 +1042,11 @@ reasons_texts = [
 ]
 
 
-bot = Bot(token=config.TOKEN)
+bot = None  # инициализируется из main.py через set_bot2()
+
+def set_bot2(b):
+    global bot
+    bot = b
 session_folder = 'prem_sessions'
 sessions = [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
 

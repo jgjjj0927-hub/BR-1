@@ -14,8 +14,8 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 import aiohttp
 from web_snos import web, generate_log_filename
 from mail_snos import send_bulk_emails, load_mails
-from botnet_snos import extract_username_and_message_id, main as botnet_main
-from botnet_snos_premium import extract_username_and_message_id2, main2 as botnet_main2
+from botnet_snos import extract_username_and_message_id, main as botnet_main, set_bot as botnet_set_bot
+from botnet_snos_premium import extract_username_and_message_id2, main2 as botnet_main2, set_bot2 as botnet_set_bot2
 from captcha import generate_captcha_text, generate_captcha_image
 import db
 
@@ -623,6 +623,8 @@ async def enter_promo(message: types.Message, state: FSMContext):
 
 async def on_startup(dp):
 	await db.init_db()
+	botnet_set_bot(bot)
+	botnet_set_bot2(bot)
 	print("БД инициализирована, бот запущен.")
 
 if __name__ == "__main__":
