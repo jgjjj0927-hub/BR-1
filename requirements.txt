@@ -5,3 +5,4 @@ aiofiles==23.2.1
 Pillow==10.4.0
 pyCryptoPayAPI
 asyncpg==0.29.0
+aiosqlite
