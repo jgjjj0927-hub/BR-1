@@ -531,6 +531,9 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 		await botnet_main(chat_username, message_id, uid, username, url)
 	except ValueError:
 		await bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
+	except Exception as e:
+		print(f"[BOTNET] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await bot.send_message(uid, f'❌ *Ошибка ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 
 @dp.message_handler(state=WaitLinkPREMFSM.link)
 async def botnet_step1_premium(message: types.Message, state: FSMContext):
@@ -545,6 +548,9 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		await botnet_main2(chat_username, message_id, uid, username, url)
 	except ValueError:
 		await bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
+	except Exception as e:
+		print(f"[PREM] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 
 # ─── Управление подписками (админ) ────────────────────────────────────────────
 

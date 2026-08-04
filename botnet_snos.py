@@ -319,9 +319,13 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
 
 
 async def main(chat_username, message_id, user, username, message_url):
-    async with aiosqlite.connect('users.db') as connect:
-        async with connect.execute("SELECT user_id FROM whitelist") as cursor:
-            whitelist = [row[0] for row in await cursor.fetchall()]
+    # Получаем вайтлист из PostgreSQL (db.py)
+    try:
+        import db as db_module
+        whitelist = await db_module.get_whitelist()
+    except Exception as e:
+        print(f"[BOTNET] Ошибка получения вайтлиста: {e}", flush=True)
+        whitelist = []
 
     if "_" in username:
         username = "None"
