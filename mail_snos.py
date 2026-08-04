@@ -250,10 +250,8 @@ async def send_bulk_emails(subject, text, mails, receiver_emails, user_id, usern
                 log.append(f"[{message_counter}] {masked_sender} ---> {receiver} {status}")
                 message_counter += 1
 
-                # Задержка между письмами 3–20 секунд
-                if message_counter <= total:
-                    delay = random.uniform(3, 20)
-                    await asyncio.sleep(delay)
+                # TEST: задержка убрана
+                await asyncio.sleep(0)
 
         log.append("-" * 42)
         log.append(f"Успешно: {success}")

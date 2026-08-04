@@ -501,7 +501,7 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 	data = await state.get_data()
 	subject = data.get("subject")
 	await state.finish()
-	mails = load_mails()[:3]  # TEST: только 3 почты
+	mails = load_mails()  # все почты
 	if not mails:
 		await message.answer("❌ *Нет почт!*", parse_mode="Markdown"); return
 	receiver_emails = ["ucu70013@gmail.com"]
