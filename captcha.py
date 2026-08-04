@@ -44,7 +44,22 @@ def generate_captcha_image(text: str) -> io.BytesIO:
 
     # Текст — каждая буква чуть повёрнута и смещена
     try:
-        font = ImageFont.truetype("arial.ttf", size=38)
+        # Пробуем найти шрифт в стандартных местах Linux/Railway
+        font_paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+        ]
+        font = None
+        for fp in font_paths:
+            try:
+                font = ImageFont.truetype(fp, size=38)
+                break
+            except Exception:
+                continue
+        if font is None:
+            font = ImageFont.load_default(size=38)
     except Exception:
         font = ImageFont.load_default()
 

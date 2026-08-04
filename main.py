@@ -74,16 +74,14 @@ async def set_verified(user_id: int):
 	await db.set_verified(user_id)
 
 def check_rate_limit(user_id: int) -> bool:
-	now = datetime.now()
-	if user_id not in user_requests:
-		user_requests[user_id] = []
-	user_requests[user_id] = [t for t in user_requests[user_id] if (now - t).total_seconds() < TIME_FRAME]
-	user_requests[user_id].append(now)
-	return len(user_requests[user_id]) > REQUEST_LIMIT
+	return False  # авто-блокировка отключена, блокировка только вручную через админ
 
 async def subsribe_channel(user_id, chan):
-	chat_member = await bot.get_chat_member(chan, user_id)
-	return chat_member.status != 'left'
+	try:
+		chat_member = await bot.get_chat_member(chan, user_id)
+		return chat_member.status != 'left'
+	except Exception:
+		return True  # если канал недоступен — не блокируем пользователя
 
 # ─── FSM ──────────────────────────────────────────────────────────────────────
 
@@ -123,6 +121,12 @@ class WaitLinkPREMFSM(StatesGroup):
 
 class WaitCaptchaFSM(StatesGroup):
 	code = State()
+
+class BlockUserFSM(StatesGroup):
+	user_id = State()
+
+class UnblockUserFSM(StatesGroup):
+	user_id = State()
 
 global bot_status
 bot_status = 1
@@ -403,7 +407,12 @@ async def callback_inline(call: types.CallbackQuery):
 		elif d == 'send_all' and uid in admins and uid in admins2:
 			await bot.send_message(call.message.chat.id, '🎱 *Рассылка*\n*└─Введите текст:*', parse_mode="Markdown")
 			await WaitTextZFSM.text.set()
-		elif d == 'promo':
+		elif d == 'block_user_admin' and uid in admins:
+			await bot.send_message(call.message.chat.id, '🚫 *Блокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
+			await BlockUserFSM.user_id.set()
+		elif d == 'unblock_user_admin' and uid in admins:
+			await bot.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
+			await UnblockUserFSM.user_id.set()		elif d == 'promo':
 			await bot.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
 			await WaitPromoFSM.promo.set()
 
@@ -619,13 +628,44 @@ async def enter_promo(message: types.Message, state: FSMContext):
 	await message.answer(f"*✅ Промокод активирован!*\n*Ваш подарок: {days} дней!*", parse_mode='Markdown')
 	await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — {days} дней", parse_mode='Markdown')
 
+# ─── Блокировка/разблокировка (админ) ────────────────────────────────────────
+
+@dp.message_handler(state=BlockUserFSM.user_id)
+async def admin_block_user(message: types.Message, state: FSMContext):
+	try:
+		target = int(message.text.strip())
+		await db.block_user(target)
+		await state.finish()
+		await message.answer(f"🚫 *Пользователь {target} заблокирован.*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🚫 *Заблокирован* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
+	except ValueError:
+		await message.answer("❌ ID должен быть числом.")
+		await state.finish()
+
+@dp.message_handler(state=UnblockUserFSM.user_id)
+async def admin_unblock_user(message: types.Message, state: FSMContext):
+	try:
+		target = int(message.text.strip())
+		await db.unblock_user(target)
+		await state.finish()
+		await message.answer(f"✅ *Пользователь {target} разблокирован.*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"✅ *Разблокирован* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
+	except ValueError:
+		await message.answer("❌ ID должен быть числом.")
+		await state.finish()
+
 # ─── Запуск ───────────────────────────────────────────────────────────────────
 
 async def on_startup(dp):
-	await db.init_db()
+	try:
+		print(f"DATABASE_URL = {os.environ.get('DATABASE_URL', 'НЕ УСТАНОВЛЕНА')[:50]}")
+		await db.init_db()
+		print("БД инициализирована успешно.")
+	except Exception as e:
+		print(f"ОШИБКА БД при старте: {e}")
 	botnet_set_bot(bot)
 	botnet_set_bot2(bot)
-	print("БД инициализирована, бот запущен.")
+	print("Бот запущен.")
 
 if __name__ == "__main__":
 	while True:

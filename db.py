@@ -142,6 +142,11 @@ async def block_user(user_id: int):
             user_id
         )
 
+async def unblock_user(user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM blocked WHERE user_id = $1", user_id)
+
 
 # ─── Whitelist ────────────────────────────────────────────────────────────────
 

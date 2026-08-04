@@ -56,9 +56,12 @@ clear_subscribe = types.InlineKeyboardButton("[-] Забрать подписк�
 add_prem = types.InlineKeyboardButton("[+] Выдать премиум", callback_data='add_prem')
 clear_prem = types.InlineKeyboardButton("[-] Забрать премиум", callback_data='clear_prem')
 send_all = types.InlineKeyboardButton("[📢] Рассылка", callback_data='send_all')
+block_user_btn = types.InlineKeyboardButton("[🚫] Заблокировать", callback_data='block_user_admin')
+unblock_user_btn = types.InlineKeyboardButton("[✅] Разблокировать", callback_data='unblock_user_admin')
 admin_markup.add(add_subsribe, clear_subscribe)
 admin_markup.add(add_prem, clear_prem)
 admin_markup.add(send_all)
+admin_markup.add(block_user_btn, unblock_user_btn)
 
 shop_markup = types.InlineKeyboardMarkup(row_width=2)
 sub1 = types.InlineKeyboardButton("⚡️ 1 день - 2$", callback_data='sub_1')
