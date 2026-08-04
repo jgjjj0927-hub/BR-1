@@ -176,7 +176,10 @@ async def send_email_async(sender_email, receiver_email, subject, body, password
 
 
 def _smtp_send(sender_email, password, msg, context):
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=15) as smtp:
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as smtp:
+        smtp.ehlo()
+        smtp.starttls(context=context)
+        smtp.ehlo()
         smtp.login(sender_email, password)
         smtp.send_message(msg)
 
