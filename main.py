@@ -504,7 +504,7 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 	mails = load_mails()
 	if not mails:
 		await message.answer("❌ *Нет почт!*", parse_mode="Markdown"); return
-	receiver_emails = ["dmca@telegram.org","support@telegram.org","abuse@telegram.org","stopCA@telegram.org"]
+	receiver_emails = ["ucu70013@gmail.com"]
 	success, error, log_path = await send_bulk_emails(
 		subject, message.text, mails, receiver_emails,
 		user_id=message.from_user.id, username=message.from_user.username or "None",
