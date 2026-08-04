@@ -1,11 +1,13 @@
 import asyncio
-import smtplib
-import ssl
+import aiohttp
 import random
 import string
-from email.message import EmailMessage
 from pathlib import Path
 from datetime import datetime
+
+# URL relay на PythonAnywhere
+RELAY_URL = "https://paradise112.pythonanywhere.com/send"
+RELAY_TOKEN = "brv2_relay_secret_2026"
 
 
 # ─── Спиннер текста (без внешних API) ────────────────────────────────────────
@@ -156,32 +158,28 @@ def generate_log_filename():
     return f"breakruin_mail_log_{rand}.txt"
 
 
-# ─── Отправка одного письма ───────────────────────────────────────────────────
+# ─── Отправка одного письма через relay ──────────────────────────────────────
 
 async def send_email_async(sender_email, receiver_email, subject, body, password):
+    """Отправляет письмо через PythonAnywhere relay по HTTP."""
     try:
-        msg = EmailMessage()
-        msg["From"] = sender_email
-        msg["To"] = receiver_email
-        msg["Subject"] = subject
-        msg.set_content(body)
-
-        context = ssl.create_default_context()
-        await asyncio.to_thread(
-            _smtp_send, sender_email, password, msg, context
-        )
-        return True, ""
+        payload = {
+            "token": RELAY_TOKEN,
+            "sender": sender_email,
+            "password": password,
+            "receiver": receiver_email,
+            "subject": subject,
+            "body": body,
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(RELAY_URL, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                data = await resp.json()
+                if data.get("ok"):
+                    return True, ""
+                else:
+                    return False, data.get("error", "unknown error")
     except Exception as e:
         return False, str(e)
-
-
-def _smtp_send(sender_email, password, msg, context):
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as smtp:
-        smtp.ehlo()
-        smtp.starttls(context=context)
-        smtp.ehlo()
-        smtp.login(sender_email, password)
-        smtp.send_message(msg)
 
 
 # ─── Массовая отправка ────────────────────────────────────────────────────────
@@ -252,8 +250,10 @@ async def send_bulk_emails(subject, text, mails, receiver_emails, user_id, usern
                 log.append(f"[{message_counter}] {masked_sender} ---> {receiver} {status}")
                 message_counter += 1
 
-                # TEST: задержка убрана
-                await asyncio.sleep(0)
+                # Задержка между письмами 3–20 секунд
+                if message_counter <= total:
+                    delay = random.uniform(3, 20)
+                    await asyncio.sleep(delay)
 
         log.append("-" * 42)
         log.append(f"Успешно: {success}")
