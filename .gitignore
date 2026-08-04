@@ -21,3 +21,8 @@ __pycache__/
 .env
 venv/
 .venv/
+
+# Резервные копии оригиналов изображений
+material/_originals_backup/
+
+
