@@ -1081,6 +1081,8 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
     random_reason = random.choice(reasons)
     random_reason_text = random.choice(reasons_texts)
 
+    print(f"[PREM] [{session}] Подключаемся (api_id={api_id})...")
+
     client = TelegramClient(
         f"./prem_sessions/{session}", int(api_id), api_hash,
         system_version='4.16.30-vxCUSTOM'
@@ -1089,13 +1091,16 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
         try:
             await asyncio.wait_for(client.connect(), timeout=6)
         except asyncio.TimeoutError:
+            print(f"[PREM] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)")
             return "ОШИБКА СОЕДИНЕНИЯ", None
 
         if not await client.is_user_authorized():
+            print(f"[PREM] [{session}] ❌ НЕВАЛИД (не авторизован)")
             return "НЕВАЛИД", None
 
         await client.start()
         chat = await client.get_entity(chat_username)
+        print(f"[PREM] [{session}] ✅ Подключён, чат получен: {chat_username}")
 
         if target_ref[0] is None:
             msg = await client.get_messages(chat, ids=message_id)
@@ -1103,40 +1108,53 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
                 user_entity = await client.get_entity(msg.from_id)
                 target_ref[0] = msg.from_id.user_id if isinstance(msg.from_id, PeerUser) else "?"
                 target_ref[1] = user_entity.username or "Нет username"
+                print(f"[PREM] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, @{target_ref[1]}")
                 if target_ref[0] in whitelist:
+                    print(f"[PREM] [{session}] 🍕 WHITELIST — таргет в белом списке")
                     return "WHITELIST", None
             else:
+                print(f"[PREM] [{session}] ⚠️ NO_ID — не удалось получить from_id сообщения")
                 return "NO_ID", None
 
         # Получаем список причин от сервера динамически (3-шаговый флоу)
         try:
             # Шаг 1: получаем категории
+            print(f"[PREM] [{session}] 📤 Шаг 1: запрашиваем категории жалоб...")
             r1 = await client(ReportRequest(peer=chat, id=[message_id], option=b'', message=''))
             if hasattr(r1, 'options') and r1.options:
                 cat = random.choice(r1.options).option
+                print(f"[PREM] [{session}] 📤 Шаг 2: выбрана категория {cat!r}")
             else:
                 cat = random_reason
+                print(f"[PREM] [{session}] 📤 Шаг 2: категории не получены, используем fallback {cat!r}")
 
             # Шаг 2: выбираем категорию — может вернуть подкатегории
             r2 = await client(ReportRequest(peer=chat, id=[message_id], option=cat, message=''))
             if hasattr(r2, 'options') and r2.options:
                 sub = random.choice(r2.options).option
+                print(f"[PREM] [{session}] 📤 Шаг 3: выбрана подкатегория {sub!r}, отправляем текст...")
                 # Шаг 3: выбираем подкатегорию и передаём текст
                 await client(ReportRequest(peer=chat, id=[message_id], option=sub, message=random_reason_text))
             else:
+                print(f"[PREM] [{session}] 📤 Шаг 3: подкатегорий нет, отправляем с текстом напрямую...")
                 # r2 уже ReportResultAddComment или Reported — отправляем с текстом
                 await client(ReportRequest(peer=chat, id=[message_id], option=cat, message=random_reason_text))
-        except Exception:
+        except Exception as report_err:
             # Fallback — просто отправляем с hardcoded option
+            print(f"[PREM] [{session}] ⚠️ Ошибка в 3-шаговом флоу ({report_err!s:.60}), используем fallback...")
             await client(ReportRequest(peer=chat, id=[message_id], option=random_reason, message=random_reason_text))
         await asyncio.sleep(random.uniform(0.05, 0.5))
+        print(f"[PREM] [{session}] ✅ ДОСТАВЛЕНО")
         return "ДОСТАВЛЕНО", None
 
     except FloodWaitError as e:
+        print(f"[PREM] [{session}] 🌊 FLOOD — ждать {e.seconds}с")
         return "FLOOD", e.seconds
     except Exception as e:
         if "Could not find" in str(e):
+            print(f"[PREM] [{session}] ❌ NOT_FOUND — {e!s:.80}")
             return "NOT_FOUND", None
+        print(f"[PREM] [{session}] ❌ ОШИБКА — {e!s:.80}")
         return f"ОШИБКА: {str(e)[:50]}", None
     finally:
         if client.is_connected():
@@ -1150,6 +1168,13 @@ async def main2(chat_username, message_id, user, username, message_url):
 
     if "_" in username:
         username = "None"
+
+    print(f"\n{'='*50}")
+    print(f"[PREM] 🚀 Запуск премиум-ботнета")
+    print(f"[PREM] 👤 Пользователь: {user} (@{username})")
+    print(f"[PREM] 🔗 Ссылка: {message_url}")
+    print(f"[PREM] 📦 Сессий загружено: {len(sessions)}")
+    print(f"{'='*50}")
 
     target_ref = [None, "Неизвестный пользователь"]
 
@@ -1168,12 +1193,14 @@ async def main2(chat_username, message_id, user, username, message_url):
     for session, result in zip(sessions, results):
         if isinstance(result, Exception):
             ne_valid += 1
+            print(f"[PREM] [{session}] 💥 ИСКЛЮЧЕНИЕ: {str(result)[:80]}")
             log_lines.append(format_log_line(session, message_url, f"ИСКЛЮЧЕНИЕ: {str(result)[:50]}"))
             continue
 
         status, flood_sec = result
 
         if status == "WHITELIST":
+            print(f"[PREM] ⛔ Таргет в вайтлисте, прерываем")
             await bot.send_message(user, "🍕 *Какая-то ошибка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
             try:
                 await bot.send_message(target_ref[0], f"⚠️ *Попытка жалобы на* [сообщение]({message_url}) *от ID {user}!*", parse_mode="Markdown", disable_web_page_preview=True)
@@ -1181,9 +1208,11 @@ async def main2(chat_username, message_id, user, username, message_url):
                 pass
             return
         elif status == "NO_ID":
+            print(f"[PREM] ⚠️ Не удалось получить ID пользователя")
             await bot.send_message(user, "🍕 *Не удалось получить ID пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
             return
         elif status == "NOT_FOUND":
+            print(f"[PREM] ❌ Не могу получить ID — NOT_FOUND")
             await bot.send_message(user, "🍕 *Не могу получить ID этого пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
             return
         elif status == "ДОСТАВЛЕНО":
@@ -1198,6 +1227,14 @@ async def main2(chat_username, message_id, user, username, message_url):
 
     TARGET = target_ref[0]
     target_username = target_ref[1]
+
+    print(f"\n[PREM] {'='*50}")
+    print(f"[PREM] 🏁 Итоги:")
+    print(f"[PREM] 🎯 Таргет: ID={TARGET}, @{target_username}")
+    print(f"[PREM] ✅ Доставлено: {valid}")
+    print(f"[PREM] ❌ Не доставлено: {ne_valid}")
+    print(f"[PREM] 🌊 Флудов: {flood}")
+    print(f"[PREM] {'='*50}\n")
 
     log_lines.append("-" * 42)
     log_lines.append("[TARGET]")

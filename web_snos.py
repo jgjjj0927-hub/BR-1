@@ -31,7 +31,7 @@ def generate_log_filename():
     return os.path.join(LOGS_DIR, f"breakruin_web_log_{rand}.txt")
 
 # Семафор для ограничения параллельных запросов (не перегружать сервер)
-_SEMAPHORE = asyncio.Semaphore(20)
+_SEMAPHORE = asyncio.Semaphore(100)  # Увеличено с 20 до 100 для максимальной скорости
 
 async def _send_one(session, i, message_text, subject, log_file):
     """Отправляет одну жалобу, возвращает (success: bool, log_line: str)."""
@@ -48,21 +48,32 @@ async def _send_one(session, i, message_text, subject, log_file):
             async with session.post(url, data=payload, ssl=False) as response:
                 if response.status == 200:
                     line = f"{timestamp} Жалоба #{i} — ДОШЛА ✅\n"
+                    print(f"[WEB] #{i} ✅ ДОШЛА (200)")
                     return True, line
                 else:
                     line = f"{timestamp} Жалоба #{i} — НЕ ДОШЛА ❌ (статус: {response.status})\n"
+                    print(f"[WEB] #{i} ❌ НЕ ДОШЛА (статус: {response.status})")
                     return False, line
     except aiohttp.ClientError as e:
         line = f"{timestamp} Жалоба #{i} — ОШИБКА ❌ ({type(e).__name__}: {e})\n"
+        print(f"[WEB] #{i} ❌ ОШИБКА ({type(e).__name__}: {str(e)[:60]})")
         return False, line
     except Exception as e:
         line = f"{timestamp} Жалоба #{i} — НЕОЖИДАННАЯ ОШИБКА ❌ ({type(e).__name__}: {e})\n"
+        print(f"[WEB] #{i} ❌ НЕОЖИДАННАЯ ОШИБКА ({type(e).__name__}: {str(e)[:60]})")
         return False, line
 
 
 async def web(session, message_text, count, log_path=None, user_id=None, username=None):
     subject = "Complaint About Fraudulent Telegram Group"
     success, error = 0, 0
+
+    print(f"\n{'='*50}")
+    print(f"[WEB] 🚀 Запуск веб-жалоб")
+    print(f"[WEB] 👤 Пользователь: {user_id} (@{username})")
+    print(f"[WEB] 📝 Текст: {message_text[:80]}{'...' if len(message_text) > 80 else ''}")
+    print(f"[WEB] 📊 Количество жалоб: {count}")
+    print(f"{'='*50}")
 
     if log_path:
         os.makedirs(LOGS_DIR, exist_ok=True)
@@ -78,6 +89,10 @@ async def web(session, message_text, count, log_path=None, user_id=None, usernam
         else:
             error += 1
         log_lines.append(line)
+
+    print(f"\n[WEB] {'='*50}")
+    print(f"[WEB] 🏁 Итоги: ✅ {success} дошло, ❌ {error} не дошло")
+    print(f"[WEB] {'='*50}\n")
 
     if log_path:
         header = (
