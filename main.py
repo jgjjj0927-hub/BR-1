@@ -22,13 +22,13 @@ import db
 channel_id = config.channel_id
 channel2_id = config.channel2_id
 admins = config.ADMINS
-admins2 = [69717177, 60693380, 8316051968]
+admins2 = [8904492648]
 no_kd = config.NO_KD
 bot_logs = config.bot_logs
 report_count333 = 200
 
 bot = Bot(token=config.TOKEN)
-bot_username = "@abilityddd_bot"
+bot_username = "@Brown_V2_bot"
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 crypto = pyCryptoPayAPI(api_token=config.CRYPTO)
@@ -412,10 +412,11 @@ async def callback_inline(call: types.CallbackQuery):
 			await BlockUserFSM.user_id.set()
 		elif d == 'unblock_user_admin' and uid in admins:
 			await bot.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
-			await UnblockUserFSM.user_id.set()		elif d == 'promo':
+			await UnblockUserFSM.user_id.set()
+		elif d == 'promo':
 			await bot.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
 			await WaitPromoFSM.promo.set()
-
+		
 		# Методы
 		def sub_expired():
 			return subscribe < datetime.now()
