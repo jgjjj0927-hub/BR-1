@@ -374,14 +374,18 @@ async def callback_inline(call: types.CallbackQuery):
 		elif d == "buyforadmins":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=">*💳 Выберите способ оплаты\:*", parse_mode="MarkdownV2", reply_markup=keyboards.pay_method)
+		elif d == "yoomoney":
+			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+				caption=f"🇷🇺 *ЮMoney \(Юмани\)*\n\nРеквизиты: `5599002073240212`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @TariSmit",
+				parse_mode="MarkdownV2", reply_markup=back_markup)
 		elif d == "tinkoff":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=f"🟡 *Тинькофф*\n\nРеквизиты: `2200700746639045`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @LaurisW",
-				parse_mode="Markdown", reply_markup=back_markup)
+				caption=f"🇷🇺 *ЮMoney \(Юмани\)*\n\nРеквизиты: `5599002073240212`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @TariSmit",
+				parse_mode="MarkdownV2", reply_markup=back_markup)
 		elif d == "sberbank":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=f"🟢 *Сбербанк*\n\nРеквизиты: `2202208196531124`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @KoTik2k8",
-				parse_mode="Markdown", reply_markup=back_markup)
+				caption=f"🇷🇺 *ЮMoney \(Юмани\)*\n\nРеквизиты: `5599002073240212`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @TariSmit",
+				parse_mode="MarkdownV2", reply_markup=back_markup)
 		elif d == "preminfo":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="👑 *Премиум*\n\n>*└─ почты, веб, прем отправку*\n\n‼️ Покупается как ДОПОЛНЕНИЕ к подписке ‼️",

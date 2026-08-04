@@ -27,9 +27,8 @@ functions.add(prem_botnet_method)
 functions.add(back)
 
 pay_method = types.InlineKeyboardMarkup(row_width=1)
-sberbank = types.InlineKeyboardButton("🟢 Сбербанк", callback_data='sberbank')
-tinkoff = types.InlineKeyboardButton("🟡 Тинькофф", callback_data='tinkoff')
-pay_method.add(sberbank, tinkoff, back)
+yoomoney = types.InlineKeyboardButton("🇷🇺 ЮMoney (Юмани)", callback_data='yoomoney')
+pay_method.add(yoomoney, back)
 
 info_markup = types.InlineKeyboardMarkup(row_width=1)
 info = types.InlineKeyboardButton("🔥 Канал", url=config.bot_channel_link)
