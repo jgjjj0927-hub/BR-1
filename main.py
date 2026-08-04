@@ -430,7 +430,6 @@ async def callback_inline(call: types.CallbackQuery):
 			if uid in last_used_web and (datetime.now() - last_used_web[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_web[uid])
 				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
-			last_used_web[uid] = datetime.now()
 			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown")
 			await WaitTextFSM.text.set()
 
@@ -441,7 +440,6 @@ async def callback_inline(call: types.CallbackQuery):
 			if uid in last_used_mail and (datetime.now() - last_used_mail[uid]) < timedelta(minutes=300):
 				rem = timedelta(minutes=300) - (datetime.now() - last_used_mail[uid])
 				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
-			last_used_mail[uid] = datetime.now()
 			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown")
 			await WaitMailTopicFSM.topic.set()
 
@@ -451,7 +449,6 @@ async def callback_inline(call: types.CallbackQuery):
 			if uid in last_used_botnet and (datetime.now() - last_used_botnet[uid]) < timedelta(minutes=5):
 				rem = timedelta(minutes=5) - (datetime.now() - last_used_botnet[uid])
 				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
-			last_used_botnet[uid] = datetime.now()
 			await bot.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
 			await WaitLinkFSM.link.set()
 
@@ -462,7 +459,6 @@ async def callback_inline(call: types.CallbackQuery):
 			if uid in last_used_botnet2 and (datetime.now() - last_used_botnet2[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_botnet2[uid])
 				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
-			last_used_botnet2[uid] = datetime.now()
 			await bot.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
 			await WaitLinkPREMFSM.link.set()
 
@@ -475,6 +471,7 @@ async def callback_inline(call: types.CallbackQuery):
 async def send_web_reports(message: types.Message, state: FSMContext):
 	await state.finish()
 	uid = message.from_user.id
+	last_used_web[uid] = datetime.now()  # КД ставится только после реального запуска
 	username = message.from_user.username or "без username"
 	log_path = generate_log_filename()
 	async with aiohttp.ClientSession() as session:
@@ -495,6 +492,7 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 @dp.message_handler(state=WaitMailTopicFSM.topic)
 async def get_mail_subject(message: types.Message, state: FSMContext):
 	await state.update_data(subject=message.text)
+	last_used_mail[message.from_user.id] = datetime.now()  # КД ставится после ввода темы (реальный старт)
 	await message.answer("✉️ *Введите текст письма:*", parse_mode="Markdown")
 	await WaitMailTextFSM.text.set()
 
@@ -528,6 +526,7 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 	username = message.from_user.username or "None"
 	try:
 		chat_username, message_id = await extract_username_and_message_id(url)
+		last_used_botnet[uid] = datetime.now()  # КД ставится только после валидной ссылки
 		await bot.send_message(uid, '📤 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		await botnet_main(chat_username, message_id, uid, username, url)
 	except ValueError:
@@ -541,6 +540,7 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 	username = message.from_user.username or "None"
 	try:
 		chat_username, message_id = await extract_username_and_message_id2(url)
+		last_used_botnet2[uid] = datetime.now()  # КД ставится только после валидной ссылки
 		await bot.send_message(uid, '👑 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		await botnet_main2(chat_username, message_id, uid, username, url)
 	except ValueError:
