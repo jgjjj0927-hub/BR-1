@@ -236,7 +236,7 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
     random_reason = random.choice(reasons)
     random_reason_text = random.choice(reasons_texts)
 
-    print(f"[BOTNET] [{session}] Подключаемся (api_id={api_id})...")
+    print(f"[BOTNET] [{session}] Подключаемся (api_id={api_id})...", flush=True)
 
     client = TelegramClient(
         f"./sessions/{session}", int(api_id), api_hash,
@@ -246,16 +246,16 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
         try:
             await asyncio.wait_for(client.connect(), timeout=3)
         except asyncio.TimeoutError:
-            print(f"[BOTNET] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)")
+            print(f"[BOTNET] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)", flush=True)
             return "ОШИБКА СОЕДИНЕНИЯ", None
 
         if not await client.is_user_authorized():
-            print(f"[BOTNET] [{session}] ❌ НЕВАЛИД (не авторизован)")
+            print(f"[BOTNET] [{session}] ❌ НЕВАЛИД (не авторизован)", flush=True)
             return "НЕВАЛИД", None
 
         await client.start()
         chat = await client.get_entity(chat_username)
-        print(f"[BOTNET] [{session}] ✅ Подключён, чат получен: {chat_username}")
+        print(f"[BOTNET] [{session}] ✅ Подключён, чат получен: {chat_username}", flush=True)
 
         # Получаем TARGET только один раз (первая сессия, которая успела)
         if target_ref[0] is None:
@@ -264,54 +264,54 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
                 user_entity = await client.get_entity(msg.from_id)
                 target_ref[0] = msg.from_id.user_id if isinstance(msg.from_id, PeerUser) else "?"
                 target_ref[1] = user_entity.username or "Нет username"
-                print(f"[BOTNET] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, @{target_ref[1]}")
+                print(f"[BOTNET] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, @{target_ref[1]}", flush=True)
                 if target_ref[0] in whitelist:
-                    print(f"[BOTNET] [{session}] 🍕 WHITELIST — таргет в белом списке")
+                    print(f"[BOTNET] [{session}] 🍕 WHITELIST — таргет в белом списке", flush=True)
                     return "WHITELIST", None
             else:
-                print(f"[BOTNET] [{session}] ⚠️ NO_ID — не удалось получить from_id сообщения")
+                print(f"[BOTNET] [{session}] ⚠️ NO_ID — не удалось получить from_id сообщения", flush=True)
                 return "NO_ID", None
 
         # Получаем список причин от сервера динамически (3-шаговый флоу)
         try:
             # Шаг 1: получаем категории
-            print(f"[BOTNET] [{session}] 📤 Шаг 1: запрашиваем категории жалоб...")
+            print(f"[BOTNET] [{session}] 📤 Шаг 1: запрашиваем категории жалоб...", flush=True)
             r1 = await client(ReportRequest(peer=chat, id=[message_id], option=b'', message=''))
             if hasattr(r1, 'options') and r1.options:
                 cat = random.choice(r1.options).option
-                print(f"[BOTNET] [{session}] 📤 Шаг 2: выбрана категория {cat!r}")
+                print(f"[BOTNET] [{session}] 📤 Шаг 2: выбрана категория {cat!r}", flush=True)
             else:
                 cat = random_reason
-                print(f"[BOTNET] [{session}] 📤 Шаг 2: категории не получены, используем fallback {cat!r}")
+                print(f"[BOTNET] [{session}] 📤 Шаг 2: категории не получены, используем fallback {cat!r}", flush=True)
 
             # Шаг 2: выбираем категорию — может вернуть подкатегории
             r2 = await client(ReportRequest(peer=chat, id=[message_id], option=cat, message=''))
             if hasattr(r2, 'options') and r2.options:
                 sub = random.choice(r2.options).option
-                print(f"[BOTNET] [{session}] 📤 Шаг 3: выбрана подкатегория {sub!r}, отправляем текст...")
+                print(f"[BOTNET] [{session}] 📤 Шаг 3: выбрана подкатегория {sub!r}, отправляем текст...", flush=True)
                 # Шаг 3: выбираем подкатегорию и передаём текст
                 await client(ReportRequest(peer=chat, id=[message_id], option=sub, message=random_reason_text))
             else:
-                print(f"[BOTNET] [{session}] 📤 Шаг 3: подкатегорий нет, отправляем с текстом напрямую...")
+                print(f"[BOTNET] [{session}] 📤 Шаг 3: подкатегорий нет, отправляем с текстом напрямую...", flush=True)
                 # r2 уже ReportResultAddComment или Reported — отправляем с текстом
                 await client(ReportRequest(peer=chat, id=[message_id], option=cat, message=random_reason_text))
         except Exception as report_err:
             # Fallback — просто отправляем с hardcoded option
-            print(f"[BOTNET] [{session}] ⚠️ Ошибка в 3-шаговом флоу ({report_err!s:.60}), используем fallback...")
+            print(f"[BOTNET] [{session}] ⚠️ Ошибка в 3-шаговом флоу ({report_err!s:.60}), используем fallback...", flush=True)
             await client(ReportRequest(peer=chat, id=[message_id], option=random_reason, message=random_reason_text))
 
         await asyncio.sleep(random.uniform(0.05, 0.5))
-        print(f"[BOTNET] [{session}] ✅ ДОСТАВЛЕНО")
+        print(f"[BOTNET] [{session}] ✅ ДОСТАВЛЕНО", flush=True)
         return "ДОСТАВЛЕНО", None
 
     except FloodWaitError as e:
-        print(f"[BOTNET] [{session}] 🌊 FLOOD — ждать {e.seconds}с")
+        print(f"[BOTNET] [{session}] 🌊 FLOOD — ждать {e.seconds}с", flush=True)
         return "FLOOD", e.seconds
     except Exception as e:
         if "Could not find" in str(e):
-            print(f"[BOTNET] [{session}] ❌ NOT_FOUND — {e!s:.80}")
+            print(f"[BOTNET] [{session}] ❌ NOT_FOUND — {e!s:.80}", flush=True)
             return "NOT_FOUND", None
-        print(f"[BOTNET] [{session}] ❌ ОШИБКА — {e!s:.80}")
+        print(f"[BOTNET] [{session}] ❌ ОШИБКА — {e!s:.80}", flush=True)
         return f"ОШИБКА: {str(e)[:50]}", None
     finally:
         if client.is_connected():
@@ -326,12 +326,12 @@ async def main(chat_username, message_id, user, username, message_url):
     if "_" in username:
         username = "None"
 
-    print(f"\n{'='*50}")
-    print(f"[BOTNET] 🚀 Запуск ботнета")
-    print(f"[BOTNET] 👤 Пользователь: {user} (@{username})")
-    print(f"[BOTNET] 🔗 Ссылка: {message_url}")
-    print(f"[BOTNET] 📦 Сессий загружено: {len(sessions)}")
-    print(f"{'='*50}")
+    print(f"\n{'='*50}", flush=True)
+    print(f"[BOTNET] 🚀 Запуск ботнета", flush=True)
+    print(f"[BOTNET] 👤 Пользователь: {user} (@{username})", flush=True)
+    print(f"[BOTNET] 🔗 Ссылка: {message_url}", flush=True)
+    print(f"[BOTNET] 📦 Сессий загружено: {len(sessions)}", flush=True)
+    print(f"{'='*50}", flush=True)
 
     # Общий изменяемый объект для TARGET между параллельными задачами
     target_ref = [None, "Неизвестный пользователь"]
@@ -352,14 +352,14 @@ async def main(chat_username, message_id, user, username, message_url):
     for session, result in zip(sessions, results):
         if isinstance(result, Exception):
             ne_valid += 1
-            print(f"[BOTNET] [{session}] 💥 ИСКЛЮЧЕНИЕ: {str(result)[:80]}")
+            print(f"[BOTNET] [{session}] 💥 ИСКЛЮЧЕНИЕ: {str(result)[:80]}", flush=True)
             log_lines.append(format_log_line(session, message_url, f"ИСКЛЮЧЕНИЕ: {str(result)[:50]}"))
             continue
 
         status, flood_sec = result
 
         if status == "WHITELIST":
-            print(f"[BOTNET] ⛔ Таргет в вайтлисте, прерываем")
+            print(f"[BOTNET] ⛔ Таргет в вайтлисте, прерываем", flush=True)
             await bot.send_message(user, "🍕 *Какая-то ошибка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
             try:
                 await bot.send_message(target_ref[0], f"🍕 *Попытка жалобы на* [сообщение]({message_url}) *от ID {user}!*", parse_mode="Markdown", disable_web_page_preview=True)
@@ -367,11 +367,11 @@ async def main(chat_username, message_id, user, username, message_url):
                 pass
             return
         elif status == "NO_ID":
-            print(f"[BOTNET] ⚠️ Не удалось получить ID пользователя")
+            print(f"[BOTNET] ⚠️ Не удалось получить ID пользователя", flush=True)
             await bot.send_message(user, "🍕 *Не удалось получить ID пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
             return
         elif status == "NOT_FOUND":
-            print(f"[BOTNET] ❌ Не могу получить ID — NOT_FOUND")
+            print(f"[BOTNET] ❌ Не могу получить ID — NOT_FOUND", flush=True)
             await bot.send_message(user, "❌ *Не могу получить ID этого пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
             return
         elif status == "ДОСТАВЛЕНО":
@@ -387,13 +387,13 @@ async def main(chat_username, message_id, user, username, message_url):
     TARGET = target_ref[0]
     target_username = target_ref[1]
 
-    print(f"\n[BOTNET] {'='*50}")
-    print(f"[BOTNET] 🏁 Итоги:")
-    print(f"[BOTNET] 🎯 Таргет: ID={TARGET}, @{target_username}")
-    print(f"[BOTNET] ✅ Доставлено: {valid}")
-    print(f"[BOTNET] ❌ Не доставлено: {ne_valid}")
-    print(f"[BOTNET] 🌊 Флудов: {flood}")
-    print(f"[BOTNET] {'='*50}\n")
+    print(f"\n[BOTNET] {'='*50}", flush=True)
+    print(f"[BOTNET] 🏁 Итоги:", flush=True)
+    print(f"[BOTNET] 🎯 Таргет: ID={TARGET}, @{target_username}", flush=True)
+    print(f"[BOTNET] ✅ Доставлено: {valid}", flush=True)
+    print(f"[BOTNET] ❌ Не доставлено: {ne_valid}", flush=True)
+    print(f"[BOTNET] 🌊 Флудов: {flood}", flush=True)
+    print(f"[BOTNET] {'='*50}\n", flush=True)
 
     log_lines.append("-" * 42)
     log_lines.append("[TARGET]")

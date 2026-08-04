@@ -48,19 +48,19 @@ async def _send_one(session, i, message_text, subject, log_file):
             async with session.post(url, data=payload, ssl=False) as response:
                 if response.status == 200:
                     line = f"{timestamp} Жалоба #{i} — ДОШЛА ✅\n"
-                    print(f"[WEB] #{i} ✅ ДОШЛА (200)")
+                    print(f"[WEB] #{i} ✅ ДОШЛА (200)", flush=True)
                     return True, line
                 else:
                     line = f"{timestamp} Жалоба #{i} — НЕ ДОШЛА ❌ (статус: {response.status})\n"
-                    print(f"[WEB] #{i} ❌ НЕ ДОШЛА (статус: {response.status})")
+                    print(f"[WEB] #{i} ❌ НЕ ДОШЛА (статус: {response.status})", flush=True)
                     return False, line
     except aiohttp.ClientError as e:
         line = f"{timestamp} Жалоба #{i} — ОШИБКА ❌ ({type(e).__name__}: {e})\n"
-        print(f"[WEB] #{i} ❌ ОШИБКА ({type(e).__name__}: {str(e)[:60]})")
+        print(f"[WEB] #{i} ❌ ОШИБКА ({type(e).__name__}: {str(e)[:60]})", flush=True)
         return False, line
     except Exception as e:
         line = f"{timestamp} Жалоба #{i} — НЕОЖИДАННАЯ ОШИБКА ❌ ({type(e).__name__}: {e})\n"
-        print(f"[WEB] #{i} ❌ НЕОЖИДАННАЯ ОШИБКА ({type(e).__name__}: {str(e)[:60]})")
+        print(f"[WEB] #{i} ❌ НЕОЖИДАННАЯ ОШИБКА ({type(e).__name__}: {str(e)[:60]})", flush=True)
         return False, line
 
 
@@ -68,12 +68,12 @@ async def web(session, message_text, count, log_path=None, user_id=None, usernam
     subject = "Complaint About Fraudulent Telegram Group"
     success, error = 0, 0
 
-    print(f"\n{'='*50}")
-    print(f"[WEB] 🚀 Запуск веб-жалоб")
-    print(f"[WEB] 👤 Пользователь: {user_id} (@{username})")
-    print(f"[WEB] 📝 Текст: {message_text[:80]}{'...' if len(message_text) > 80 else ''}")
-    print(f"[WEB] 📊 Количество жалоб: {count}")
-    print(f"{'='*50}")
+    print(f"\n{'='*50}", flush=True)
+    print(f"[WEB] 🚀 Запуск веб-жалоб", flush=True)
+    print(f"[WEB] 👤 Пользователь: {user_id} (@{username})", flush=True)
+    print(f"[WEB] 📝 Текст: {message_text[:80]}{'...' if len(message_text) > 80 else ''}", flush=True)
+    print(f"[WEB] 📊 Количество жалоб: {count}", flush=True)
+    print(f"{'='*50}", flush=True)
 
     if log_path:
         os.makedirs(LOGS_DIR, exist_ok=True)
@@ -90,9 +90,9 @@ async def web(session, message_text, count, log_path=None, user_id=None, usernam
             error += 1
         log_lines.append(line)
 
-    print(f"\n[WEB] {'='*50}")
-    print(f"[WEB] 🏁 Итоги: ✅ {success} дошло, ❌ {error} не дошло")
-    print(f"[WEB] {'='*50}\n")
+    print(f"\n[WEB] {'='*50}", flush=True)
+    print(f"[WEB] 🏁 Итоги: ✅ {success} дошло, ❌ {error} не дошло", flush=True)
+    print(f"[WEB] {'='*50}\n", flush=True)
 
     if log_path:
         header = (

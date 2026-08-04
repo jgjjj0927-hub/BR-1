@@ -669,12 +669,15 @@ async def on_startup(dp):
 	print("Бот запущен.")
 
 if __name__ == "__main__":
+	import sys
+	# Отключаем буферизацию вывода — логи сразу видны в Railway/консоли
+	sys.stdout.reconfigure(line_buffering=True)
 	while True:
 		try:
-			print("Бот запускается...")
+			print("Бот запускается...", flush=True)
 			executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
 		except KeyboardInterrupt:
 			exit()
 		except Exception as e:
-			print(f"Ошибка: {e}. Перезапуск через 5 сек...")
-			time.sleep(5)
+			print(f"Ошибка: {e}. Перезапуск через 10 сек...", flush=True)
+			time.sleep(10)
