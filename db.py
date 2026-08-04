@@ -4,6 +4,7 @@
 """
 import asyncpg
 import os
+from datetime import datetime
 
 # Connection string берётся из переменной окружения DATABASE_URL
 # На сервере (Render) задаётся через Environment Variables
@@ -66,8 +67,8 @@ async def add_user(user_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO users (user_id) VALUES ($1) ON CONFLICT DO NOTHING",
-            user_id
+            "INSERT INTO users (user_id, subscribe, premium, verified) VALUES ($1, $2, 0, 0) ON CONFLICT DO NOTHING",
+            user_id, datetime(1999, 1, 1, 20, 0, 0)
         )
 
 
@@ -78,8 +79,11 @@ async def get_user(user_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-async def set_subscribe(user_id: int, new_date: str):
+async def set_subscribe(user_id: int, new_date):
     pool = await get_pool()
+    # asyncpg требует datetime объект, не строку
+    if isinstance(new_date, str):
+        new_date = datetime.strptime(new_date[:19], "%Y-%m-%d %H:%M:%S")
     async with pool.acquire() as conn:
         await conn.execute(
             "UPDATE users SET subscribe = $1 WHERE user_id = $2",
@@ -184,7 +188,9 @@ async def create_promo(code: str, days: int, activations: int):
         )
 
 
-async def use_promo(code: str, user_id: int, new_date: str):
+async def use_promo(code: str, user_id: int, new_date):
+    if isinstance(new_date, str):
+        new_date = datetime.strptime(new_date[:19], "%Y-%m-%d %H:%M:%S")
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
