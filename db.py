@@ -334,3 +334,14 @@ async def set_wheel_prize(user_id: int, prize: str):
             )
         except Exception:
             pass
+
+
+async def get_users_page(offset: int = 0, limit: int = 10) -> list[dict]:
+    """Возвращает страницу пользователей с основными данными."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT user_id, subscribe, premium, free_reports FROM users ORDER BY user_id DESC LIMIT $1 OFFSET $2",
+            limit, offset
+        )
+        return [dict(r) for r in rows]

@@ -503,6 +503,40 @@ async def callback_inline(call: types.CallbackQuery):
 		elif d == 'unblock_user_admin' and uid in admins:
 			await bot.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await UnblockUserFSM.user_id.set()
+		elif d.startswith('users_list_') and uid in admins:
+			page = int(d.split('_')[2])
+			PAGE_SIZE = 10
+			users = await db.get_users_page(offset=page * PAGE_SIZE, limit=PAGE_SIZE)
+			total = await db.get_users_count()
+			total_pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+
+			if not users:
+				await bot.answer_callback_query(call.id, "Больше пользователей нет", show_alert=False)
+				return
+
+			lines = [f"👥 *Пользователи* (стр. {page+1}/{total_pages})\n"]
+			now = datetime.now()
+			for u in users:
+				uid_u = u['user_id']
+				sub = u['subscribe']
+				sub_str = "✅ активна" if isinstance(sub, datetime) and sub > now else "❌ нет"
+				prem = "👑" if u['premium'] else ""
+				free = f"🎯{u['free_reports']}" if u['free_reports'] > 0 else ""
+				lines.append(f"`{uid_u}` — {sub_str} {prem}{free}")
+
+			text = "\n".join(lines)
+
+			nav = types.InlineKeyboardMarkup(row_width=2)
+			btns = []
+			if page > 0:
+				btns.append(types.InlineKeyboardButton("◀️ Назад", callback_data=f'users_list_{page-1}'))
+			if (page + 1) < total_pages:
+				btns.append(types.InlineKeyboardButton("Вперёд ▶️", callback_data=f'users_list_{page+1}'))
+			if btns:
+				nav.row(*btns)
+			nav.add(types.InlineKeyboardButton("🔙 Закрыть", callback_data='close'))
+
+			await bot.send_message(call.message.chat.id, text, parse_mode="Markdown", reply_markup=nav)
 		elif d == 'promo':
 			await bot.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
 			await WaitPromoFSM.promo.set()
