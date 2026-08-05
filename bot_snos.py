@@ -1,6 +1,7 @@
 """
 Brown V2 | bot-method
 Жалобы на Telegram-ботов через ReportPeerRequest
+Схема: /start → ReportPeerRequest (основная причина) + ReportPeerRequest(Spam) → ContactsBlockRequest
 """
 
 import os
@@ -8,14 +9,18 @@ import random
 import asyncio
 from datetime import datetime
 from telethon import TelegramClient
-from telethon.errors import FloodWaitError
+from telethon.errors import FloodWaitError, UserBotError, ChatWriteForbiddenError
 from telethon.tl.functions.account import ReportPeerRequest
+from telethon.tl.functions.contacts import BlockRequest
+from telethon.tl.functions.messages import SendMessageRequest
 from telethon.tl.types import (
     InputReportReasonSpam,
     InputReportReasonChildAbuse,
     InputReportReasonPornography,
     InputReportReasonOther,
     InputReportReasonPersonalDetails,
+    InputReportReasonFake,
+    InputReportReasonScam,
 )
 import config
 from config import bot_logs
@@ -76,13 +81,13 @@ TEXTS = {
     ],
 }
 
-# Маппинг причины → Telethon тип
+# Маппинг причины → Telethon тип (основная + дополнительная для двойного удара)
 REASONS = {
-    "personal": InputReportReasonPersonalDetails(),
-    "adult": InputReportReasonPornography(),
-    "children": InputReportReasonChildAbuse(),
-    "snoser": InputReportReasonSpam(),
-    "other": InputReportReasonOther(),
+    "personal": (InputReportReasonPersonalDetails(), InputReportReasonSpam()),
+    "adult":    (InputReportReasonPornography(),     InputReportReasonSpam()),
+    "children": (InputReportReasonChildAbuse(),      InputReportReasonChildAbuse()),
+    "snoser":   (InputReportReasonScam(),            InputReportReasonSpam()),
+    "other":    (InputReportReasonOther(),           InputReportReasonFake()),
 }
 
 REASON_LABELS = {
@@ -125,10 +130,14 @@ def format_log_line(session, target, status):
 
 
 async def _report_one_bot_session(session, bot_username, reason_key):
-    """Отправляет жалобу на бота от одной сессии."""
+    """
+    Отправляет жалобу на бота от одной сессии.
+    Схема: /start → report(основная) → report(spam) → block
+    Взаимодействие перед репортом критично — без него Telegram игнорирует жалобу.
+    """
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":")
-    reason = REASONS[reason_key]
+    reason_main, reason_secondary = REASONS[reason_key]
     text = random.choice(TEXTS[reason_key])
 
     print(f"[BOT-SNOS] [{session}] Подключаемся...", flush=True)
@@ -150,12 +159,40 @@ async def _report_one_bot_session(session, bot_username, reason_key):
 
         await client.start()
         peer = await client.get_entity(bot_username)
-        print(f"[BOT-SNOS] [{session}] ✅ Подключён, отправляем жалобу на {bot_username}...", flush=True)
+        print(f"[BOT-SNOS] [{session}] ✅ Подключён к {bot_username}", flush=True)
 
-        result = await client(ReportPeerRequest(peer=peer, reason=reason, message=text))
-        print(f"[BOT-SNOS] [{session}] 📥 Ответ сервера: {type(result).__name__} | {result}", flush=True)
+        # ── Шаг 1: отправляем /start чтобы "познакомиться" с ботом ──────────
+        # Без этого Telegram тихо отклоняет репорт на бота
+        try:
+            await client(SendMessageRequest(peer=peer, message='/start', random_id=random.randint(1, 2**31)))
+            print(f"[BOT-SNOS] [{session}] 📨 /start отправлен", flush=True)
+            await asyncio.sleep(random.uniform(0.5, 1.5))
+        except (ChatWriteForbiddenError, UserBotError):
+            pass  # бот не принимает сообщения — всё равно пробуем репортить
+        except Exception as e:
+            print(f"[BOT-SNOS] [{session}] ⚠️ /start не удался: {str(e)[:50]}", flush=True)
 
-        if result:
+        # ── Шаг 2: основной репорт с выбранной причиной ──────────────────────
+        r1 = await client(ReportPeerRequest(peer=peer, reason=reason_main, message=text))
+        print(f"[BOT-SNOS] [{session}] 📥 Репорт 1 ({type(reason_main).__name__}): {r1}", flush=True)
+
+        await asyncio.sleep(random.uniform(0.3, 0.8))
+
+        # ── Шаг 3: второй репорт с дополнительной причиной (двойной удар) ────
+        text2 = random.choice(TEXTS[reason_key])
+        r2 = await client(ReportPeerRequest(peer=peer, reason=reason_secondary, message=text2))
+        print(f"[BOT-SNOS] [{session}] 📥 Репорт 2 ({type(reason_secondary).__name__}): {r2}", flush=True)
+
+        await asyncio.sleep(random.uniform(0.2, 0.5))
+
+        # ── Шаг 4: блокировка бота — дополнительный сигнал модераторам ───────
+        try:
+            await client(BlockRequest(id=peer))
+            print(f"[BOT-SNOS] [{session}] 🚫 Бот заблокирован", flush=True)
+        except Exception as e:
+            print(f"[BOT-SNOS] [{session}] ⚠️ Block не удался: {str(e)[:40]}", flush=True)
+
+        if r1 or r2:
             print(f"[BOT-SNOS] [{session}] ✅ ДОСТАВЛЕНО", flush=True)
             return "ДОСТАВЛЕНО"
         else:
