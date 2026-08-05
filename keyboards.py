@@ -36,7 +36,7 @@ pay_method.add(yoomoney, back)
 info_markup = types.InlineKeyboardMarkup(row_width=1)
 info = types.InlineKeyboardButton("🔥 Канал", url=config.bot_channel_link)
 chatik = types.InlineKeyboardButton("💬 Наш чат", url='https://t.me/+7dPUgUyYQ1g5YjY6')
-manual = types.InlineKeyboardButton("📄 Мануал", url='https://teletype.in/@kotik2k8/brownv2_manual')
+manual = types.InlineKeyboardButton("📄 Мануал", url='https://teletype.in/@brownv2/manual')
 info_markup.add(info,chatik, manual, back)
 
 del_message = types.InlineKeyboardMarkup(row_width=1)
