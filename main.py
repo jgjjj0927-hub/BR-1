@@ -418,8 +418,23 @@ async def callback_inline(call: types.CallbackQuery):
 				caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 				parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == "information":
+			# Генерируем временную ссылку на канал на 1 минуту
+			try:
+				import time as _time
+				expire = int(_time.time()) + 60
+				link = await bot.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
+				channel_invite = link.invite_link
+			except Exception as e:
+				print(f"Ошибка создания invite link для информации: {e}", flush=True)
+				channel_invite = config.bot_channel_link
+			dyn_info_markup = types.InlineKeyboardMarkup(row_width=1)
+			dyn_info_markup.add(
+				types.InlineKeyboardButton("🔥 Канал (1 мин)", url=channel_invite),
+				types.InlineKeyboardButton("📄 Мануал", url='https://teletype.in/@brownv2/manual'),
+				keyboards.back
+			)
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=">*Информация*", parse_mode="MarkdownV2", reply_markup=info_markup)
+				caption=">*Информация*", parse_mode="MarkdownV2", reply_markup=dyn_info_markup)
 		elif d == "shop":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="⚙️ *Ассортимент*\n\n>*└─ 1 день \- 1$ / 100₽*\n>*└─ 3 дня \- 2$ / 175₽*\n>*└─ 7 дней \- 4$ / 350₽*\n>*└─ 30 дней \- 8$ / 700₽*\n>*└─ Навсегда \- 6$ / 500₽ \[\-70%\]*\n\n>*👑 Премиум: 5$ / 400₽ \[\-50%\]*",
