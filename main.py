@@ -351,6 +351,7 @@ async def check_captcha(message: types.Message, state: FSMContext):
 		await state.finish()
 		_captcha_codes.pop(uid, None)
 		await set_verified(uid)
+		await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 			caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
