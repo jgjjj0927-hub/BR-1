@@ -335,7 +335,7 @@ async def welcome(message: types.Message):
 		return
 	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-		caption='>*Добро пожаловать в Ability\!*\n\n*Инструмент для работы с файлами\.*',
+		caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 		parse_mode="MarkdownV2", reply_markup=menu)
 
 @dp.message_handler(state=WaitCaptchaFSM.code)
@@ -347,7 +347,7 @@ async def check_captcha(message: types.Message, state: FSMContext):
 		await set_verified(uid)
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-			caption='>*Добро пожаловать в Ability\!*\n\n*Инструмент для работы с файлами\.*',
+			caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 			parse_mode="MarkdownV2", reply_markup=menu)
 	else:
 		code = generate_captcha_text()
@@ -415,7 +415,7 @@ async def callback_inline(call: types.CallbackQuery):
 				parse_mode="Markdown", reply_markup=back_markup)
 		elif d == "back":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption='>*Добро пожаловать в Ability\!*\n\n*Инструмент для работы с файлами\.*',
+				caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 				parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == "information":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
@@ -448,7 +448,7 @@ async def callback_inline(call: types.CallbackQuery):
 		elif d == "go_to_main_menu":
 			await bot.delete_message(call.message.chat.id, call.message.message_id)
 			await bot.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
-				caption='>*Добро пожаловать\!*', parse_mode="MarkdownV2", reply_markup=menu)
+				caption='>*Добро пожаловать в Brown V2\!*', parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == 'add_subsribe' and uid in admins:
 			await bot.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID:*', parse_mode="Markdown")
 			await AddSubscribeFSM.user_id.set()
