@@ -16,6 +16,7 @@ from web_snos import web, generate_log_filename
 from mail_snos import send_bulk_emails, load_mails
 from botnet_snos import extract_username_and_message_id, main as botnet_main, set_bot as botnet_set_bot
 from botnet_snos_premium import extract_username_and_message_id2, main2 as botnet_main2, set_bot2 as botnet_set_bot2
+from bot_snos import main_bot_snos, set_bot_snos
 from captcha import generate_captcha_text, generate_captcha_image
 import db
 
@@ -40,6 +41,7 @@ last_used_web = {}
 last_used_mail = {}
 last_used_botnet = {}
 last_used_botnet2 = {}
+last_used_bot_snos = {}
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
@@ -118,6 +120,10 @@ class AddPremFSM(StatesGroup):
 
 class WaitLinkPREMFSM(StatesGroup):
 	link = State()
+
+class WaitBotLinkFSM(StatesGroup):
+	link = State()
+	reason = State()
 
 class WaitCaptchaFSM(StatesGroup):
 	code = State()
@@ -696,6 +702,39 @@ async def callback_inline(call: types.CallbackQuery):
 			await bot.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
 			await WaitLinkPREMFSM.link.set()
 
+		# ─── Бот-метод ────────────────────────────────────────────────────────
+		elif d == "bot_method":
+			if sub_expired():
+				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if bot_off():
+				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(minutes=30):
+				rem = timedelta(minutes=30) - (datetime.now() - last_used_bot_snos[uid])
+				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
+			await bot.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption="🤖 *Бот-метод*\n\n*└─ Выберите причину жалобы:*",
+				parse_mode="Markdown", reply_markup=keyboards.bot_reason_markup
+			)
+
+		elif d in ("bot_reason_personal", "bot_reason_adult", "bot_reason_children", "bot_reason_snoser", "bot_reason_other"):
+			reason_map = {
+				"bot_reason_personal": ("personal", "🔐 Персональные данные"),
+				"bot_reason_adult": ("adult", "🔞 18+ контент"),
+				"bot_reason_children": ("children", "👶 Детский контент"),
+				"bot_reason_snoser": ("snoser", "💥 Сносер"),
+				"bot_reason_other": ("other", "📝 Прочее"),
+			}
+			reason_key, reason_label = reason_map[d]
+			async with dp.current_state(user=uid).proxy() as data_fsm:
+				data_fsm['bot_reason'] = reason_key
+			await WaitBotLinkFSM.link.set()
+			await bot.send_message(
+				call.message.chat.id,
+				f"🤖 *Причина: {reason_label}*\n\n*Введите username бота или ссылку:*\n`@username` или `https://t.me/botname`",
+				parse_mode="Markdown"
+			)
+
 	except Exception as e:
 		print(f"callback_inline: {e}")
 
@@ -795,6 +834,35 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 	except Exception as e:
 		print(f"[PREM] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+
+@dp.message_handler(state=WaitBotLinkFSM.link)
+async def bot_snos_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip()
+
+	# Нормализуем — принимаем @username или t.me/username или полный URL
+	if raw.startswith("https://t.me/"):
+		bot_target = "@" + raw.replace("https://t.me/", "").split("/")[0].split("?")[0]
+	elif raw.startswith("t.me/"):
+		bot_target = "@" + raw.replace("t.me/", "").split("/")[0].split("?")[0]
+	elif raw.startswith("@"):
+		bot_target = raw.split("/")[0]
+	else:
+		bot_target = "@" + raw.split("/")[0].split("?")[0]
+
+	data_fsm = await state.get_data()
+	reason_key = data_fsm.get('bot_reason', 'other')
+	await state.finish()
+
+	last_used_bot_snos[uid] = datetime.now()
+	await bot.send_message(uid, f'🤖 *Запустил жалобы на {bot_target}...*', parse_mode=ParseMode.MARKDOWN)
+
+	try:
+		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
+	except Exception as e:
+		print(f"[BOT-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 
 # ─── Управление подписками (админ) ────────────────────────────────────────────
 
@@ -916,6 +984,7 @@ async def on_startup(dp):
 		print(f"ОШИБКА БД при старте: {e}")
 	botnet_set_bot(bot)
 	botnet_set_bot2(bot)
+	set_bot_snos(bot)
 	print("Бот запущен.")
 
 if __name__ == "__main__":

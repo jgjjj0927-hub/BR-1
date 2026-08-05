@@ -24,10 +24,23 @@ web_method = types.InlineKeyboardButton("🌐 Веб", callback_data='web_method
 mail_method = types.InlineKeyboardButton("✉️ Почты", callback_data='mail_method')
 botnet_method = types.InlineKeyboardButton("🤖 Обычный", callback_data='botnet_method')
 prem_botnet_method = types.InlineKeyboardButton("👑 Премиальная отправка", callback_data='prem_botnet_method')
+bot_method_btn = types.InlineKeyboardButton("🤖 Бот", callback_data='bot_method')
 functions.add(botnet_method)
 functions.add(web_method, mail_method)
 functions.add(prem_botnet_method)
+functions.add(bot_method_btn)
 functions.add(back)
+
+# ─── Под-меню бот-метода ───────────────────────────────────────────────────────
+bot_reason_markup = types.InlineKeyboardMarkup(row_width=1)
+bot_reason_markup.add(
+    types.InlineKeyboardButton("🔐 Персональные Данные", callback_data='bot_reason_personal'),
+    types.InlineKeyboardButton("🔞 18+ Контент", callback_data='bot_reason_adult'),
+    types.InlineKeyboardButton("👶 Детский Контент", callback_data='bot_reason_children'),
+    types.InlineKeyboardButton("💥 Сносер", callback_data='bot_reason_snoser'),
+    types.InlineKeyboardButton("📝 Прочее", callback_data='bot_reason_other'),
+    back
+)
 
 pay_method = types.InlineKeyboardMarkup(row_width=1)
 yoomoney = types.InlineKeyboardButton("🇷🇺 ЮMoney (Юмани)", callback_data='yoomoney')
