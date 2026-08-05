@@ -256,6 +256,19 @@ async def check_status_callback(callback_query: types.CallbackQuery):
 			new_date = (datetime.now() + timedelta(days=int(sub_days))).strftime("%Y-%m-%d %H:%M:%S")
 			await db.set_subscribe(user_id, new_date)
 			await bot.send_message(bot_logs, f"💳 *Оплата подписки* `{user_id}` *до* `{new_date}`", parse_mode="Markdown")
+			# Реферальный бонус — 10% от дней подписки рефереру
+			referrer_id = await db.get_referrer_id(user_id)
+			if referrer_id:
+				bonus_days = max(1, int(int(sub_days) * 0.1))
+				ref_new_date = (datetime.now() + timedelta(days=bonus_days)).strftime("%Y-%m-%d %H:%M:%S")
+				await db.set_subscribe(referrer_id, ref_new_date)
+				await bot.send_message(
+					referrer_id,
+					f"💰 *Реферальный бонус!*\n"
+					f"*└─ Ваш реферал купил подписку*\n"
+					f"*└─ Вам начислено: +{bonus_days} день подписки*",
+					parse_mode="Markdown"
+				)
 		else:
 			await db.set_premium(user_id, 1)
 			await bot.send_message(bot_logs, f"💳 *Premium* `{user_id}`", parse_mode="Markdown")
@@ -290,7 +303,27 @@ async def welcome(message: types.Message):
 		await message.reply("Превысили лимит запросов, заблокированы.")
 		return
 	uid = message.chat.id
+	is_new = not await db.user_exists(uid)
 	await db.add_user(uid)
+
+	# Реферальная логика — только для новых пользователей
+	if is_new:
+		args = message.get_args()
+		if args and args.startswith("ref_"):
+			try:
+				referrer_id = int(args[4:])
+				if referrer_id != uid and await db.user_exists(referrer_id):
+					await db.set_referrer(uid, referrer_id)
+					new_count = await db.increment_referral_count(referrer_id)
+					await bot.send_message(
+						referrer_id,
+						f"👥 *По вашей ссылке зарегистрировался новый пользователь!*\n"
+						f"*└─ Всего рефералов: {new_count}*",
+						parse_mode="Markdown"
+					)
+			except (ValueError, Exception):
+				pass
+
 	if not await is_verified(uid):
 		code = generate_captcha_text()
 		_captcha_codes[uid] = code
@@ -357,8 +390,10 @@ async def callback_inline(call: types.CallbackQuery):
 		elif d == 'profile':
 			sub_text = "Истекла" if subscribe < datetime.now() else f"осталось {(subscribe - datetime.now()).days} дней"
 			prem = "Да" if premium == 1 else "Нет"
+			free_reports = await db.get_free_reports(uid)
+			ref_count = await db.get_referral_count(uid)
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n\n⏳ *{sub_text}*",
+				caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
 				parse_mode="Markdown", reply_markup=back_markup)
 		elif d == "back":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
@@ -420,6 +455,166 @@ async def callback_inline(call: types.CallbackQuery):
 		elif d == 'promo':
 			await bot.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
 			await WaitPromoFSM.promo.set()
+
+		# ─── Реферальная система ───────────────────────────────────────────────
+		elif d == 'referral':
+			ref_count = await db.get_referral_count(uid)
+			ref_link = f"https://t.me/{bot_username[1:]}?start=ref_{uid}"
+			await bot.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					f"👥 *Реферальная система*\n\n"
+					f"*└─ Ваших рефералов: {ref_count}*\n\n"
+					f"📎 *Ваша ссылка:*\n`{ref_link}`\n\n"
+					f"*За каждые 10 рефералов — 1 день подписки*\n"
+					f"*Также вы получаете 10% от покупки подписки вашим рефералом*"
+				),
+				parse_mode="Markdown", reply_markup=keyboards.referral_markup
+			)
+
+		elif d == 'exchange_refs':
+			ref_count = await db.get_referral_count(uid)
+			if ref_count < 10:
+				await bot.answer_callback_query(call.id, f"❌ Недостаточно рефералов! У вас {ref_count}/10", show_alert=True)
+			else:
+				await db.spend_referrals(uid, 10)
+				new_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+				await db.set_subscribe(uid, new_date)
+				remaining = ref_count - 10
+				await bot.answer_callback_query(call.id, "✅ Обменяно! +1 день подписки", show_alert=True)
+				await bot.edit_message_caption(
+					call.message.chat.id, call.message.message_id,
+					caption=(
+						f"👥 *Реферальная система*\n\n"
+						f"*└─ Ваших рефералов: {remaining}*\n\n"
+						f"📎 *Ваша ссылка:*\n`https://t.me/{bot_username[1:]}?start=ref_{uid}`\n\n"
+						f"*✅ Успешно обменяно 10 рефералов на 1 день подписки!*"
+					),
+					parse_mode="Markdown", reply_markup=keyboards.referral_markup
+				)
+				await bot.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
+
+		# ─── Колесо удачи ──────────────────────────────────────────────────────
+		elif d == 'wheel':
+			last_spin = await db.get_wheel_last_spin(uid)
+			now = datetime.now()
+			if last_spin and (now - last_spin).total_seconds() < 6 * 3600:
+				remaining = timedelta(seconds=6*3600) - (now - last_spin)
+				h = int(remaining.total_seconds() // 3600)
+				m = int((remaining.total_seconds() % 3600) // 60)
+				await bot.edit_message_caption(
+					call.message.chat.id, call.message.message_id,
+					caption=(
+						f"🎡 *Колесо удачи*\n\n"
+						f"⏳ *Следующий спин через: {h}ч {m}м*\n\n"
+						f"🎰 *Призы:*\n"
+						f"▪️ 55% — Ничего\n"
+						f"▪️ 20% — 1 бесплатный репорт\n"
+						f"▪️ 10% — Подписка на 1 день\n"
+						f"▪️ 9% — 3 бесплатных репорта\n"
+						f"▪️ 5% — Премиум\n"
+						f"▪️ 1% — Подписка навсегда 🍀"
+					),
+					parse_mode="Markdown", reply_markup=keyboards.wheel_markup
+				)
+			else:
+				await bot.edit_message_caption(
+					call.message.chat.id, call.message.message_id,
+					caption=(
+						f"🎡 *Колесо удачи*\n\n"
+						f"🎰 *Призы:*\n"
+						f"▪️ 55% — Ничего\n"
+						f"▪️ 20% — 1 бесплатный репорт\n"
+						f"▪️ 10% — Подписка на 1 день\n"
+						f"▪️ 9% — 3 бесплатных репорта\n"
+						f"▪️ 5% — Премиум\n"
+						f"▪️ 1% — Подписка навсегда 🍀\n\n"
+						f"✅ *Можно крутить!*"
+					),
+					parse_mode="Markdown", reply_markup=keyboards.wheel_markup
+				)
+
+		elif d == 'spin_wheel':
+			last_spin = await db.get_wheel_last_spin(uid)
+			now = datetime.now()
+
+			# Проверяем — выиграна ли подписка/премиум и она ещё активна
+			last_prize = await db.get_wheel_prize(uid)
+			if last_prize in ("forever", "sub_1d", "premium"):
+				if last_prize == "premium" and premium == 1:
+					await bot.answer_callback_query(
+						call.id, "❌ Крутить нельзя — у вас активный выигранный премиум!", show_alert=True
+					)
+					return
+				if last_prize in ("forever", "sub_1d") and subscribe > now:
+					await bot.answer_callback_query(
+						call.id, "❌ Крутить нельзя — у вас активная выигранная подписка!", show_alert=True
+					)
+					return
+
+			if last_spin and (now - last_spin).total_seconds() < 6 * 3600:
+				remaining = timedelta(seconds=6*3600) - (now - last_spin)
+				h = int(remaining.total_seconds() // 3600)
+				m = int((remaining.total_seconds() % 3600) // 60)
+				await bot.answer_callback_query(call.id, f"⏳ Следующий спин через {h}ч {m}м", show_alert=True)
+				return
+
+			await db.set_wheel_last_spin(uid, now)
+
+			import random as _random
+			roll = _random.random() * 100
+			if roll < 1:
+				prize = "forever"
+			elif roll < 6:
+				prize = "premium"
+			elif roll < 15:
+				prize = "sub_1d"
+			elif roll < 24:
+				prize = "reports_3"
+			elif roll < 44:
+				prize = "reports_1"
+			else:
+				prize = "nothing"
+
+			await db.set_wheel_prize(uid, prize)
+
+			prize_texts = {
+				"forever": ("🍀 *Невероятно! Подписка навсегда!*", "🍀 Подписка навсегда"),
+				"premium": ("⭐️ *Вам выдан Премиум!*", "⭐️ Премиум"),
+				"sub_1d": ("🎉 *Подписка на 1 день!*", "🎉 Подписка 1 день"),
+				"reports_3": ("🎯 *3 бесплатных репорта!*", "🎯 3 репорта"),
+				"reports_1": ("🎯 *1 бесплатный репорт!*", "🎯 1 репорт"),
+				"nothing": ("😔 *Ничего... Повезёт в следующий раз!*", "😔 Ничего"),
+			}
+			text, log_text = prize_texts[prize]
+
+			if prize == "forever":
+				await db.set_subscribe(uid, "2099-12-31 23:59:59")
+			elif prize == "premium":
+				await db.set_premium(uid, 1)
+			elif prize == "sub_1d":
+				new_date = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+				await db.set_subscribe(uid, new_date)
+			elif prize == "reports_3":
+				await db.add_free_reports(uid, 3)
+			elif prize == "reports_1":
+				await db.add_free_reports(uid, 1)
+
+			if prize in ("forever", "premium", "sub_1d"):
+				next_spin_note = "🔒 *Следующий спин доступен после истечения выигранной подписки*"
+			else:
+				next_spin_note = "⏳ *Следующий спин через 6 часов*"
+
+			await bot.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					f"🎡 *Колесо удачи*\n\n"
+					f"🎰 Результат:\n{text}\n\n"
+					f"{next_spin_note}"
+				),
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+			await bot.send_message(bot_logs, f"🎡 `{uid}` крутил колесо — {log_text}", parse_mode="Markdown")
 		
 		# Методы
 		def sub_expired():
@@ -448,7 +643,9 @@ async def callback_inline(call: types.CallbackQuery):
 			await WaitMailTopicFSM.topic.set()
 
 		elif d == "botnet_method":
-			if sub_expired(): await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			free_reports = await db.get_free_reports(uid)
+			if sub_expired() and free_reports == 0:
+				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати или получи бесплатный репорт\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if bot_off(): await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid in last_used_botnet and (datetime.now() - last_used_botnet[uid]) < timedelta(minutes=5):
 				rem = timedelta(minutes=5) - (datetime.now() - last_used_botnet[uid])
@@ -530,7 +727,17 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 	username = message.from_user.username or "None"
 	try:
 		chat_username, message_id = await extract_username_and_message_id(url)
-		last_used_botnet[uid] = datetime.now()  # КД ставится только после валидной ссылки
+		# Проверяем подписку — если истекла, пробуем использовать бесплатный репорт
+		user_data = await db.get_user(uid)
+		subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
+		if subscribe < datetime.now():
+			used = await db.use_free_report(uid)
+			if not used:
+				await bot.send_message(uid, '❌ *Нет подписки и бесплатных репортов!*', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+				return
+			free_left = await db.get_free_reports(uid)
+			await bot.send_message(uid, f'🎯 *Использован бесплатный репорт! Осталось: {free_left}*', parse_mode=ParseMode.MARKDOWN)
+		last_used_botnet[uid] = datetime.now()
 		await bot.send_message(uid, '📤 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		await botnet_main(chat_username, message_id, uid, username, url)
 	except ValueError:

@@ -7,9 +7,12 @@ information = types.InlineKeyboardButton("❓ Информация", callback_da
 shop = types.InlineKeyboardButton("🛍 Цены", callback_data='shop')
 snoser = types.InlineKeyboardButton("🔥 Открыть редактор", callback_data='functions')
 promo = types.InlineKeyboardButton("🎁 Промокод", callback_data='promo')
+referral_btn = types.InlineKeyboardButton("👥 Рефералы", callback_data='referral')
+wheel_btn = types.InlineKeyboardButton("🎡 Колесо удачи", callback_data='wheel')
 menu.add(snoser)
 menu.add(information, profile)
 menu.add(shop, promo)
+menu.add(referral_btn, wheel_btn)
 
 
 back_markup = types.InlineKeyboardMarkup(row_width=2)
@@ -83,3 +86,13 @@ channel = types.InlineKeyboardButton("[1️⃣] Подпишись", url=config.
 channel2 = types.InlineKeyboardButton("[2️⃣] Подпишись", url=config.bot_channel2_link)
 check_sub = types.InlineKeyboardButton("[🔎] Проверить", callback_data='back')
 check_markup.add(channel, channel2, check_sub)
+
+# ─── Рефералы ─────────────────────────────────────────────────────────────────
+referral_markup = types.InlineKeyboardMarkup(row_width=1)
+exchange_refs_btn = types.InlineKeyboardButton("🔄 Обменять 10 рефералов → 1 день", callback_data='exchange_refs')
+referral_markup.add(exchange_refs_btn, back)
+
+# ─── Колесо удачи ─────────────────────────────────────────────────────────────
+wheel_markup = types.InlineKeyboardMarkup(row_width=1)
+spin_btn = types.InlineKeyboardButton("🎡 Крутить!", callback_data='spin_wheel')
+wheel_markup.add(spin_btn, back)

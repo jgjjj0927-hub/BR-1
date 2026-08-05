@@ -1121,6 +1121,7 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
             # Шаг 1: получаем категории
             print(f"[PREM] [{session}] 📤 Шаг 1: запрашиваем категории жалоб...", flush=True)
             r1 = await client(ReportRequest(peer=chat, id=[message_id], option=b'', message=''))
+            print(f"[PREM] [{session}] 📥 Шаг 1 ответ: {type(r1).__name__} | options={[o.option for o in r1.options] if hasattr(r1, 'options') and r1.options else 'нет'}", flush=True)
             if hasattr(r1, 'options') and r1.options:
                 cat = random.choice(r1.options).option
                 print(f"[PREM] [{session}] 📤 Шаг 2: выбрана категория {cat!r}", flush=True)
@@ -1130,19 +1131,20 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
 
             # Шаг 2: выбираем категорию — может вернуть подкатегории
             r2 = await client(ReportRequest(peer=chat, id=[message_id], option=cat, message=''))
+            print(f"[PREM] [{session}] 📥 Шаг 2 ответ: {type(r2).__name__} | options={[o.option for o in r2.options] if hasattr(r2, 'options') and r2.options else 'нет'}", flush=True)
             if hasattr(r2, 'options') and r2.options:
                 sub = random.choice(r2.options).option
                 print(f"[PREM] [{session}] 📤 Шаг 3: выбрана подкатегория {sub!r}, отправляем текст...", flush=True)
-                # Шаг 3: выбираем подкатегорию и передаём текст
-                await client(ReportRequest(peer=chat, id=[message_id], option=sub, message=random_reason_text))
+                r3 = await client(ReportRequest(peer=chat, id=[message_id], option=sub, message=random_reason_text))
+                print(f"[PREM] [{session}] 📥 Шаг 3 ответ: {type(r3).__name__} | result={r3}", flush=True)
             else:
                 print(f"[PREM] [{session}] 📤 Шаг 3: подкатегорий нет, отправляем с текстом напрямую...", flush=True)
-                # r2 уже ReportResultAddComment или Reported — отправляем с текстом
-                await client(ReportRequest(peer=chat, id=[message_id], option=cat, message=random_reason_text))
+                r3 = await client(ReportRequest(peer=chat, id=[message_id], option=cat, message=random_reason_text))
+                print(f"[PREM] [{session}] 📥 Шаг 3 ответ: {type(r3).__name__} | result={r3}", flush=True)
         except Exception as report_err:
-            # Fallback — просто отправляем с hardcoded option
             print(f"[PREM] [{session}] ⚠️ Ошибка в 3-шаговом флоу ({report_err!s:.60}), используем fallback...", flush=True)
-            await client(ReportRequest(peer=chat, id=[message_id], option=random_reason, message=random_reason_text))
+            r_fb = await client(ReportRequest(peer=chat, id=[message_id], option=random_reason, message=random_reason_text))
+            print(f"[PREM] [{session}] 📥 Fallback ответ: {type(r_fb).__name__} | result={r_fb}", flush=True)
         await asyncio.sleep(random.uniform(0.05, 0.5))
         print(f"[PREM] [{session}] ✅ ДОСТАВЛЕНО", flush=True)
         return "ДОСТАВЛЕНО", None
@@ -1182,19 +1184,29 @@ async def main2(chat_username, message_id, user, username, message_url):
 
     target_ref = [None, "Неизвестный пользователь"]
 
-    tasks = [_report_one_session_prem(s, chat_username, message_id, message_url, whitelist, target_ref) for s in sessions]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    # Запускаем сессии пачками по 8 с задержкой 3-5 сек между пачками
+    BATCH_SIZE = 8
+    results = []
+    for i in range(0, len(sessions), BATCH_SIZE):
+        batch = sessions[i:i + BATCH_SIZE]
+        batch_tasks = [_report_one_session_prem(s, chat_username, message_id, message_url, whitelist, target_ref) for s in batch]
+        batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+        results.extend(zip(batch, batch_results))
+        if i + BATCH_SIZE < len(sessions):
+            delay = random.uniform(3, 5)
+            print(f"[PREM] ⏳ Пачка {i//BATCH_SIZE + 1} завершена, ждём {delay:.1f}с перед следующей...", flush=True)
+            await asyncio.sleep(delay)
 
     valid, ne_valid, flood = 0, 0, 0
     log_lines = [
-        "BreakRuin log | botnet-method [PREMIUM]",
+        "Brown V2 log | botnet-method [PREMIUM]",
         "-" * 42,
         f"Пользователь: {user} (@{username})",
         f"Ссылка: {message_url}",
         "-" * 42
     ]
 
-    for session, result in zip(sessions, results):
+    for session, result in results:
         if isinstance(result, Exception):
             ne_valid += 1
             print(f"[PREM] [{session}] 💥 ИСКЛЮЧЕНИЕ: {str(result)[:80]}", flush=True)
@@ -1249,7 +1261,7 @@ async def main2(chat_username, message_id, user, username, message_url):
     log_lines.append(f"Неуспешно: {ne_valid}")
     log_lines.append(f"Флудов: {flood}")
 
-    log_name = f"breakruin_botnet_log_{os.urandom(10).hex()}.txt"
+    log_name = f"brown_v2_botnet_log_{os.urandom(10).hex()}.txt"
     log_path = os.path.join(LOG_FOLDER, log_name)
 
     with open(log_path, "w", encoding="utf-8") as f:

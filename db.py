@@ -32,9 +32,25 @@ async def init_db():
                 user_id BIGINT PRIMARY KEY,
                 subscribe TIMESTAMP DEFAULT '1999-01-01 20:00:00',
                 premium INT DEFAULT 0,
-                verified INT DEFAULT 0
+                verified INT DEFAULT 0,
+                referrer_id BIGINT DEFAULT NULL,
+                referral_count INT DEFAULT 0,
+                free_reports INT DEFAULT 0,
+                wheel_last_spin TIMESTAMP DEFAULT '1999-01-01 00:00:00'
             )
         """)
+        # Добавляем новые колонки если их нет (для существующих БД)
+        for col, definition in [
+            ("referrer_id", "BIGINT DEFAULT NULL"),
+            ("referral_count", "INT DEFAULT 0"),
+            ("free_reports", "INT DEFAULT 0"),
+            ("wheel_last_spin", "TIMESTAMP DEFAULT '1999-01-01 00:00:00'"),
+            ("wheel_prize", "TEXT DEFAULT ''"),
+        ]:
+            try:
+                await conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
+            except Exception:
+                pass
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS promocode (
                 code TEXT UNIQUE,
@@ -201,3 +217,120 @@ async def use_promo(code: str, user_id: int, new_date):
             "UPDATE users SET subscribe = $1 WHERE user_id = $2",
             new_date, user_id
         )
+
+
+# ─── Рефералы ─────────────────────────────────────────────────────────────────
+
+async def set_referrer(user_id: int, referrer_id: int):
+    """Устанавливает реферера для нового пользователя."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET referrer_id = $1 WHERE user_id = $2 AND referrer_id IS NULL",
+            referrer_id, user_id
+        )
+
+
+async def increment_referral_count(referrer_id: int) -> int:
+    """Увеличивает счётчик рефералов и возвращает новое значение."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE users SET referral_count = referral_count + 1 WHERE user_id = $1 RETURNING referral_count",
+            referrer_id
+        )
+        return row["referral_count"] if row else 0
+
+
+async def get_referral_count(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT referral_count FROM users WHERE user_id = $1", user_id)
+        return row["referral_count"] if row else 0
+
+
+async def spend_referrals(user_id: int, amount: int = 10):
+    """Снимает amount рефералов у пользователя."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET referral_count = referral_count - $1 WHERE user_id = $2",
+            amount, user_id
+        )
+
+
+async def get_referrer_id(user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT referrer_id FROM users WHERE user_id = $1", user_id)
+        return row["referrer_id"] if row else None
+
+
+# ─── Бесплатные репорты ───────────────────────────────────────────────────────
+
+async def get_free_reports(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT free_reports FROM users WHERE user_id = $1", user_id)
+        return row["free_reports"] if row else 0
+
+
+async def add_free_reports(user_id: int, amount: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET free_reports = free_reports + $1 WHERE user_id = $2",
+            amount, user_id
+        )
+
+
+async def use_free_report(user_id: int) -> bool:
+    """Использует 1 бесплатный репорт. Возвращает True если успешно."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE users SET free_reports = free_reports - 1 WHERE user_id = $1 AND free_reports > 0 RETURNING free_reports",
+            user_id
+        )
+        return row is not None
+
+
+# ─── Колесо удачи ─────────────────────────────────────────────────────────────
+
+async def get_wheel_last_spin(user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT wheel_last_spin FROM users WHERE user_id = $1", user_id)
+        return row["wheel_last_spin"] if row else None
+
+
+async def set_wheel_last_spin(user_id: int, dt):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET wheel_last_spin = $1 WHERE user_id = $2",
+            dt, user_id
+        )
+
+
+async def get_wheel_prize(user_id: int) -> str:
+    """Возвращает последний выигрыш колеса (чтобы знать, заблокирован ли спин)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow("SELECT wheel_prize FROM users WHERE user_id = $1", user_id)
+            return row["wheel_prize"] if row and row["wheel_prize"] else ""
+        except Exception:
+            return ""
+
+
+async def set_wheel_prize(user_id: int, prize: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute(
+                "UPDATE users SET wheel_prize = $1 WHERE user_id = $2",
+                prize, user_id
+            )
+        except Exception:
+            pass

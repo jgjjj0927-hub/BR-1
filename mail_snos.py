@@ -155,7 +155,7 @@ def mask_email(email):
 
 def generate_log_filename():
     rand = ''.join(random.choices(string.ascii_letters + string.digits, k=20))
-    return f"breakruin_mail_log_{rand}.txt"
+    return f"brown_v2_mail_log_{rand}.txt"
 
 
 # ─── Отправка одного письма через relay ──────────────────────────────────────
@@ -189,7 +189,7 @@ async def send_bulk_emails(subject, text, mails, receiver_emails, user_id, usern
         success = 0
         error = 0
         log = []
-        log.append("BreakRuin log | mail-method")
+        log.append("Brown V2 log | mail-method")
         log.append("-" * 42)
         log.append(f"Пользователь: {user_id} (@{username})")
         log.append(f"Тема: {subject}")

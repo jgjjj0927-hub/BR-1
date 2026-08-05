@@ -28,7 +28,7 @@ LOGS_DIR = "logs"
 
 def generate_log_filename():
     rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=20))
-    return os.path.join(LOGS_DIR, f"breakruin_web_log_{rand}.txt")
+    return os.path.join(LOGS_DIR, f"brown_v2_web_log_{rand}.txt")
 
 # Семафор для ограничения параллельных запросов (не перегружать сервер)
 _SEMAPHORE = asyncio.Semaphore(100)  # Увеличено с 20 до 100 для максимальной скорости
@@ -96,7 +96,7 @@ async def web(session, message_text, count, log_path=None, user_id=None, usernam
 
     if log_path:
         header = (
-            "BreakRuin log | web-method\n"
+            "Brown V2 log | web-method\n"
             "------------------------------------------\n"
             f"Пользователь: {user_id} (@{username if username else 'без username'})\n"
             f"Текст: {message_text}\n"
