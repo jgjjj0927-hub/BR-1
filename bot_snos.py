@@ -19,8 +19,9 @@ from telethon.tl.types import (
     InputReportReasonPornography,
     InputReportReasonOther,
     InputReportReasonPersonalDetails,
-    InputReportReasonFake,
-    InputReportReasonScam,
+    InputReportReasonViolence,
+    InputReportReasonCopyright,
+    InputReportReasonGeoIrrelevant,
 )
 import config
 from config import bot_logs
@@ -86,8 +87,8 @@ REASONS = {
     "personal": (InputReportReasonPersonalDetails(), InputReportReasonSpam()),
     "adult":    (InputReportReasonPornography(),     InputReportReasonSpam()),
     "children": (InputReportReasonChildAbuse(),      InputReportReasonChildAbuse()),
-    "snoser":   (InputReportReasonScam(),            InputReportReasonSpam()),
-    "other":    (InputReportReasonOther(),           InputReportReasonFake()),
+    "snoser":   (InputReportReasonViolence(),        InputReportReasonSpam()),
+    "other":    (InputReportReasonOther(),           InputReportReasonGeoIrrelevant()),
 }
 
 REASON_LABELS = {
