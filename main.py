@@ -372,8 +372,26 @@ async def callback_inline(call: types.CallbackQuery):
 				caption="*Пропишите /start*", parse_mode="Markdown")
 			return
 		if not await subsribe_channel(uid, channel_id) or not await subsribe_channel(uid, channel2_id):
+			# Создаём временные invite links на 1 минуту
+			try:
+				import time as _time
+				expire = int(_time.time()) + 60
+				link1 = await bot.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
+				link2 = await bot.create_chat_invite_link(channel2_id, expire_date=expire, member_limit=1)
+				invite1 = link1.invite_link
+				invite2 = link2.invite_link
+			except Exception as e:
+				print(f"Ошибка создания invite link: {e}", flush=True)
+				invite1 = config.bot_channel_link
+				invite2 = config.bot_channel2_link
+			temp_check_markup = types.InlineKeyboardMarkup(row_width=1)
+			temp_check_markup.add(
+				types.InlineKeyboardButton("[1️⃣] Подпишись (1 мин)", url=invite1),
+				types.InlineKeyboardButton("[2️⃣] Подпишись (1 мин)", url=invite2),
+				types.InlineKeyboardButton("[🔎] Проверить", callback_data='back')
+			)
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="*Подпишитесь на канал!*", parse_mode="Markdown", reply_markup=check_markup)
+				caption="*⚠️ Подпишитесь на каналы!*\n*└─ Ссылки действуют 1 минуту*", parse_mode="Markdown", reply_markup=temp_check_markup)
 			return
 
 		user_data = await db.get_user(uid)
