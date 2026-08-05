@@ -704,13 +704,8 @@ async def callback_inline(call: types.CallbackQuery):
 
 		# ─── Бот-метод ────────────────────────────────────────────────────────
 		elif d == "bot_method":
-			if sub_expired():
-				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if bot_off():
 				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(minutes=30):
-				rem = timedelta(minutes=30) - (datetime.now() - last_used_bot_snos[uid])
-				await bot.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption="🤖 *Бот-метод*\n\n*└─ Выберите причину жалобы:*",
@@ -840,6 +835,19 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	raw = message.text.strip()
+
+	# Проверяем подписку и КД здесь — на этапе ввода ссылки
+	user_data = await db.get_user(uid)
+	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
+	if subscribe < datetime.now():
+		await state.finish()
+		await bot.send_message(uid, ">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=main_menu)
+		return
+	if uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(minutes=30):
+		rem = timedelta(minutes=30) - (datetime.now() - last_used_bot_snos[uid])
+		await state.finish()
+		await bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
+		return
 
 	# Нормализуем — принимаем @username или t.me/username или полный URL
 	if raw.startswith("https://t.me/"):
