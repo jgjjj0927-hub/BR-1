@@ -340,6 +340,12 @@ async def welcome(message: types.Message):
 		await WaitCaptchaFSM.code.set()
 		return
 	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+	# Закреплённое сообщение при каждом /start
+	pin_msg = await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
+	try:
+		await bot.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
+	except Exception:
+		pass
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 		caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 		parse_mode="MarkdownV2", reply_markup=menu)
@@ -351,8 +357,13 @@ async def check_captcha(message: types.Message, state: FSMContext):
 		await state.finish()
 		_captcha_codes.pop(uid, None)
 		await set_verified(uid)
-		await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+		# Закреплённое сообщение после капчи
+		pin_msg = await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
+		try:
+			await bot.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
+		except Exception:
+			pass
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 			caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 			parse_mode="MarkdownV2", reply_markup=menu)
