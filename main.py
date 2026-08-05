@@ -206,12 +206,12 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 		if not await check_user_in_db(user_id):
 			return
 		sub_map = {
-			"1": ("2", "1", "на 1 день"),
-			"3": ("3", "3", "на 3 дня"),
-			"7": (5, "7", "на 7 дней"),
-			"30": (9, "30", "на 30 дней"),
+			"1": ("1", "1", "на 1 день"),
+			"3": ("2", "3", "на 3 дня"),
+			"7": (4, "7", "на 7 дней"),
+			"30": (8, "30", "на 30 дней"),
 			"forever": (6, "999", "навсегда"),
-			"premupgrade": (7, "1", "Премиум"),
+			"premupgrade": (5, "1", "Премиум"),
 		}
 		st = callback_query.data.split('_')[1]
 		if st not in sub_map:
@@ -422,7 +422,7 @@ async def callback_inline(call: types.CallbackQuery):
 				caption=">*Информация*", parse_mode="MarkdownV2", reply_markup=info_markup)
 		elif d == "shop":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="⚙️ *Ассортимент*\n\n>*└─ 1 день \- 2$*\n>*└─ 3 дня \- 3$*\n>*└─ 7 дней \- 5$*\n>*└─ 30 дней \- 9$*\n>*└─ Навсегда \- 6$*\n\n>*👑 Премиум: 7$*",
+				caption="⚙️ *Ассортимент*\n\n>*└─ 1 день \- 1$ / 100₽*\n>*└─ 3 дня \- 2$ / 175₽*\n>*└─ 7 дней \- 4$ / 350₽*\n>*└─ 30 дней \- 8$ / 700₽*\n>*└─ Навсегда \- 6$ / 500₽ \[\-70%\]*\n\n>*👑 Премиум: 5$ / 400₽ \[\-50%\]*",
 				parse_mode="MarkdownV2", reply_markup=shop_markup)
 		elif d == "buyforadmins":
 			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
