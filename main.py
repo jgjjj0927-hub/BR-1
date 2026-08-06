@@ -18,6 +18,7 @@ from botnet_snos import extract_username_and_message_id, main as botnet_main, se
 from botnet_snos_premium import extract_username_and_message_id2, main2 as botnet_main2, set_bot2 as botnet_set_bot2
 from bot_snos import main_bot_snos, set_bot_snos
 from captcha import generate_captcha_text, generate_captcha_image
+from mirror_manager import validate_token, start_mirror, start_all_mirrors
 import db
 
 channel_id = config.channel_id
@@ -133,6 +134,9 @@ class BlockUserFSM(StatesGroup):
 
 class UnblockUserFSM(StatesGroup):
 	user_id = State()
+
+class WaitMirrorTokenFSM(StatesGroup):
+	token = State()
 
 global bot_status
 bot_status = 1
@@ -586,6 +590,57 @@ async def callback_inline(call: types.CallbackQuery):
 				)
 				await bot.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
 
+		# ─── Бесплатно / Зеркала ──────────────────────────────────────────────
+		elif d == 'free_menu':
+			mirror_count = await db.count_user_mirrors(uid)
+			free_reports = await db.get_free_reports(uid)
+			await bot.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					f"🆓 *Бесплатные репорты*\n\n"
+					f"▪️ *Бесплатных репортов: {free_reports}*\n"
+					f"▪️ *Зеркал создано: {mirror_count}/3*\n\n"
+					f"🪞 *Зеркало* — это копия бота на твоём токене\n"
+					f"*└─ Создай бота через @BotFather*\n"
+					f"*└─ Скинь нам токен*\n"
+					f"*└─ Бот запустится и ты получишь +3 репорта*\n\n"
+					f"*Максимум 3 зеркала = 9 бесплатных репортов*"
+				),
+				parse_mode="Markdown", reply_markup=keyboards.free_menu_markup
+			)
+
+		elif d == 'mirror_create':
+			mirror_count = await db.count_user_mirrors(uid)
+			if mirror_count >= 3:
+				await bot.answer_callback_query(call.id, "❌ Максимум 3 зеркала! Больше нельзя.", show_alert=True)
+				return
+			await bot.send_message(
+				call.message.chat.id,
+				"🪞 *Создание зеркала*\n\n"
+				"*1.* Открой @BotFather\n"
+				"*2.* Напиши /newbot\n"
+				"*3.* Придумай имя и username боту\n"
+				"*4.* Скопируй токен и отправь его сюда:\n\n"
+				"*Формат:* `1234567890:ABCdef...`",
+				parse_mode="Markdown"
+			)
+			await WaitMirrorTokenFSM.token.set()
+
+		elif d == 'mirror_list':
+			mirrors = await db.get_user_mirrors(uid)
+			if not mirrors:
+				await bot.answer_callback_query(call.id, "У вас нет зеркал.", show_alert=True)
+				return
+			lines = ["🪞 *Ваши зеркала:*\n"]
+			for i, m in enumerate(mirrors, 1):
+				lines.append(f"*{i}.* `{m['bot_username']}`")
+			await bot.send_message(
+				call.message.chat.id,
+				"\n".join(lines),
+				parse_mode="Markdown",
+				reply_markup=keyboards.back_markup
+			)
+
 		# ─── Колесо удачи ──────────────────────────────────────────────────────
 		elif d == 'wheel':
 			last_spin = await db.get_wheel_last_spin(uid)
@@ -883,6 +938,62 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		print(f"[PREM] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 
+@dp.message_handler(state=WaitMirrorTokenFSM.token)
+async def mirror_token_received(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	token = message.text.strip()
+	await state.finish()
+
+	# Базовая проверка формата токена
+	if ':' not in token or len(token) < 30:
+		await bot.send_message(uid, "❌ *Неверный формат токена!*\n*Пример:* `1234567890:ABCdef...`", parse_mode="Markdown")
+		return
+
+	# Лимит зеркал
+	mirror_count = await db.count_user_mirrors(uid)
+	if mirror_count >= 3:
+		await bot.send_message(uid, "❌ *Максимум 3 зеркала!*", parse_mode="Markdown", reply_markup=main_menu)
+		return
+
+	# Проверяем не сдан ли токен уже
+	if await db.token_exists(token):
+		await bot.send_message(uid, "❌ *Этот токен уже зарегистрирован!*", parse_mode="Markdown")
+		return
+
+	# Проверяем токен через getMe
+	wait_msg = await bot.send_message(uid, "⏳ *Проверяем токен...*", parse_mode="Markdown")
+	bot_username = await validate_token(token)
+	try:
+		await bot.delete_message(uid, wait_msg.message_id)
+	except Exception:
+		pass
+
+	if not bot_username:
+		await bot.send_message(uid, "❌ *Токен невалидный или бот не существует!*\n*Проверь и попробуй снова.*", parse_mode="Markdown")
+		return
+
+	# Сохраняем и запускаем зеркало
+	await db.add_mirror(uid, token, bot_username)
+	await start_mirror(token)
+	await db.add_free_reports(uid, 3)
+
+	await bot.send_message(
+		uid,
+		f"✅ *Зеркало создано!*\n\n"
+		f"🤖 *Бот:* `{bot_username}`\n"
+		f"🎯 *Начислено: +3 бесплатных репорта*\n\n"
+		f"*Зеркало уже работает и принимает пользователей!*",
+		parse_mode="Markdown", reply_markup=main_menu
+	)
+	await bot.send_message(
+		bot_logs,
+		f"🪞 *Новое зеркало*\n"
+		f"*└─ Пользователь:* `{uid}`\n"
+		f"*└─ Бот:* `{bot_username}`\n"
+		f"*└─ Всего зеркал:* `{mirror_count + 1}/3`",
+		parse_mode="Markdown"
+	)
+
 @dp.message_handler(state=WaitBotLinkFSM.link)
 async def bot_snos_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
@@ -1046,6 +1157,7 @@ async def on_startup(dp):
 	botnet_set_bot(bot)
 	botnet_set_bot2(bot)
 	set_bot_snos(bot)
+	await start_all_mirrors()
 	print("Бот запущен.")
 
 if __name__ == "__main__":

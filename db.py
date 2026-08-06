@@ -68,6 +68,7 @@ async def init_db():
                 user_id BIGINT PRIMARY KEY
             )
         """)
+    await init_mirrors_table()
 
 
 # ─── Users ────────────────────────────────────────────────────────────────────
@@ -334,6 +335,60 @@ async def set_wheel_prize(user_id: int, prize: str):
             )
         except Exception:
             pass
+
+
+# ─── Зеркала ──────────────────────────────────────────────────────────────────
+
+async def init_mirrors_table():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS mirrors (
+                token TEXT PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                bot_username TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+
+async def add_mirror(user_id: int, token: str, bot_username: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO mirrors (token, user_id, bot_username) VALUES ($1, $2, $3)",
+            token, user_id, bot_username
+        )
+
+
+async def get_user_mirrors(user_id: int) -> list[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT token, bot_username, created_at FROM mirrors WHERE user_id = $1 ORDER BY created_at",
+            user_id
+        )
+        return [dict(r) for r in rows]
+
+
+async def count_user_mirrors(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval("SELECT COUNT(*) FROM mirrors WHERE user_id = $1", user_id)
+
+
+async def token_exists(token: str) -> bool:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT 1 FROM mirrors WHERE token = $1", token)
+        return row is not None
+
+
+async def get_all_mirror_tokens() -> list[str]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT token FROM mirrors")
+        return [r["token"] for r in rows]
 
 
 async def get_users_page(offset: int = 0, limit: int = 10) -> list[dict]:
