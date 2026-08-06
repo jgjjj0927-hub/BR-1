@@ -147,7 +147,7 @@ async def _report_one_bot_session(session, bot_username, reason_key):
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":")
     reason_main, reason_secondary = REASONS[reason_key]
-    text = random.choice(TEXTS[reason_key])
+    text = random.choice(TEXTS[reason_key])[:200]
 
     print(f"[BOT-SNOS] [{session}] Подключаемся...", flush=True)
 

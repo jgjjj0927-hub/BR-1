@@ -835,8 +835,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_web[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown")
-			async with dp_instance.current_state(user=uid).proxy() as d_: d_['_bot_instance'] = bot_instance
 			await WaitTextFSM.text.set()
+			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
 
 		elif d == "mail_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
@@ -846,8 +846,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=300) - (datetime.now() - last_used_mail[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown")
-			async with dp_instance.current_state(user=uid).proxy() as d_: d_['_bot_instance'] = bot_instance
 			await WaitMailTopicFSM.topic.set()
+			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
 
 		elif d == "botnet_method":
 			free_reports = await db.get_free_reports(uid)
@@ -858,8 +858,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=5) - (datetime.now() - last_used_botnet[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
-			async with dp_instance.current_state(user=uid).proxy() as d_: d_['_bot_instance'] = bot_instance
 			await WaitLinkFSM.link.set()
+			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
 
 		elif d == "prem_botnet_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
@@ -869,8 +869,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_botnet2[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
-			async with dp_instance.current_state(user=uid).proxy() as d_: d_['_bot_instance'] = bot_instance
 			await WaitLinkPREMFSM.link.set()
+			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
 
 		# ─── Бот-метод ────────────────────────────────────────────────────────
 		elif d == "bot_method":
@@ -892,10 +892,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"bot_reason_funstat": ("funstat", "📊 FunStat (парсинг)"),
 			}
 			reason_key, reason_label = reason_map[d]
-			async with dp_instance.current_state(user=uid).proxy() as data_fsm:
-				data_fsm['bot_reason'] = reason_key
-				data_fsm['_bot_instance'] = bot_instance
 			await WaitBotLinkFSM.link.set()
+			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_instance=bot_instance)
 			await bot_instance.send_message(
 				call.message.chat.id,
 				f"🤖 *Причина: {reason_label}*\n\n*Введите username бота или ссылку:*\n`@username` или `https://t.me/botname`",
