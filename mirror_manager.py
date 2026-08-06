@@ -118,14 +118,27 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
 
 async def _run_mirror(token: str):
     """Запускает polling для одного зеркала."""
+    mirror_bot, dp = _build_mirror_dispatcher(token)
     try:
-        mirror_bot, dp = _build_mirror_dispatcher(token)
         print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}...", flush=True)
-        await dp.start_polling(reset_webhook=True)
+        # Сбрасываем webhook и пропускаем накопившиеся апдейты
+        await mirror_bot.delete_webhook(drop_pending_updates=True)
+        await dp.start_polling()
     except Exception as e:
         print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
     finally:
+        try:
+            await dp.storage.close()
+            await dp.storage.wait_closed()
+        except Exception:
+            pass
+        try:
+            session = await mirror_bot.get_session()
+            await session.close()
+        except Exception:
+            pass
         _running_mirrors.pop(token, None)
+        print(f"[MIRROR] 🔴 Зеркало {token[:20]} остановлено", flush=True)
 
 
 async def start_mirror(token: str):
