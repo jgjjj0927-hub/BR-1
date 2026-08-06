@@ -19,6 +19,7 @@ from botnet_snos_premium import extract_username_and_message_id2, main2 as botne
 from bot_snos import main_bot_snos, set_bot_snos
 from captcha import generate_captcha_text, generate_captcha_image
 from mirror_manager import validate_token, start_mirror, start_all_mirrors
+from bot_stress import main_bot_stress, set_bot_stress
 import db
 
 channel_id = config.channel_id
@@ -43,6 +44,7 @@ last_used_mail = {}
 last_used_botnet = {}
 last_used_botnet2 = {}
 last_used_bot_snos = {}
+last_used_stress = {}
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
@@ -137,6 +139,9 @@ class UnblockUserFSM(StatesGroup):
 
 class WaitMirrorTokenFSM(StatesGroup):
 	token = State()
+
+class WaitStressFSM(StatesGroup):
+	link = State()
 
 class AdminAddReportsFSM(StatesGroup):
 	user_id = State()
@@ -882,6 +887,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=keyboards.bot_reason_markup
 			)
 
+		# ─── Стрессер ─────────────────────────────────────────────────────────
+		elif d == "stress_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			free_reports = await db.get_free_reports(uid)
+			if sub_expired() and free_reports == 0:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати или получи бесплатный репорт\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			# КД 2 часа (кроме админов)
+			if uid not in admins and uid in last_used_stress and (datetime.now() - last_used_stress[uid]) < timedelta(hours=2):
+				rem = timedelta(hours=2) - (datetime.now() - last_used_stress[uid])
+				h = rem.seconds // 3600
+				m = (rem.seconds % 3600) // 60
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return
+			await bot_instance.send_message(
+				call.message.chat.id,
+				"⚡️ *Стрессер*\n\n*└─ Введите @username бота или ссылку:*\n`@username` или `https://t.me/botname`",
+				parse_mode="Markdown"
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitStressFSM.link.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
+
 		elif d in ("bot_reason_personal", "bot_reason_adult", "bot_reason_children", "bot_reason_snoser", "bot_reason_other", "bot_reason_funstat"):
 			reason_map = {
 				"bot_reason_personal": ("personal", "🔐 Персональные данные"),
@@ -1127,6 +1153,53 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
 		set_bot_snos(bot)  # восстанавливаем основного бота
+
+@dp.message_handler(state=WaitStressFSM.link)
+async def stress_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if _bot_token else bot
+
+	# Нормализуем username
+	if raw.startswith("https://t.me/"):
+		bot_target = "@" + raw.replace("https://t.me/", "").split("/")[0].split("?")[0]
+	elif raw.startswith("t.me/"):
+		bot_target = "@" + raw.replace("t.me/", "").split("/")[0].split("?")[0]
+	elif raw.startswith("@"):
+		bot_target = raw.split("/")[0]
+	else:
+		bot_target = "@" + raw.split("/")[0].split("?")[0]
+
+	await state.finish()
+
+	is_admin = uid in admins
+	free_reports = await db.get_free_reports(uid)
+	user_data = await db.get_user(uid)
+	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
+
+	# Списываем бесплатный репорт если нет подписки
+	if subscribe < datetime.now() and free_reports > 0 and not is_admin:
+		used = await db.use_free_report(uid)
+		if not used:
+			await _bot.send_message(uid, '❌ *Нет подписки и бесплатных репортов!*', parse_mode="Markdown", reply_markup=main_menu)
+			return
+
+	await _bot.send_message(uid, f'⚡️ *Запускаем стрессер на {bot_target}...*', parse_mode="Markdown")
+	set_bot_stress(_bot)
+
+	try:
+		started = await main_bot_stress(bot_target, uid, username, is_admin)
+		# КД только если атака успешно запустилась (нашлись кнопки)
+		if started and not is_admin:
+			last_used_stress[uid] = datetime.now()
+	except Exception as e:
+		print(f"[STRESS] ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка стрессера:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_stress(bot)
 		await bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 
 # ─── Управление подписками (админ) ────────────────────────────────────────────
@@ -1305,6 +1378,7 @@ async def on_startup(dp):
 	botnet_set_bot(bot)
 	botnet_set_bot2(bot)
 	set_bot_snos(bot)
+	set_bot_stress(bot)
 	await start_all_mirrors()
 	print("Бот запущен.")
 
