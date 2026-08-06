@@ -145,8 +145,12 @@ async def start_mirror(token: str):
     """Запускает зеркало если оно ещё не запущено."""
     if token in _running_mirrors:
         return
-    task = asyncio.create_task(_run_mirror(token))
+    # Используем asyncio.ensure_future чтобы задача запустилась
+    # после завершения текущего хендлера, не блокируя его
+    task = asyncio.ensure_future(_run_mirror(token))
     _running_mirrors[token] = task
+    # Даём event loop шанс переключиться на новую задачу
+    await asyncio.sleep(0)
 
 
 async def start_all_mirrors():
