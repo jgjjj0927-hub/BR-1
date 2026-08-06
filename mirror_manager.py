@@ -111,17 +111,20 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         elif d == 'free_menu':
             mirror_count = await db.count_user_mirrors(uid)
             free_reports = await db.get_free_reports(uid)
+            bonus_given = await db.get_mirror_bonus_given(uid)
+            bonus_status = "✅ Получен" if bonus_given else ("🔒 Нужно 2 зеркала" if mirror_count < 2 else "⬆️ Создай ещё зеркало!")
             await mirror_bot.edit_message_caption(
                 call.message.chat.id, call.message.message_id,
                 caption=(
                     f"🆓 *Бесплатные репорты*\n\n"
                     f"▪️ *Бесплатных репортов: {free_reports}*\n"
-                    f"▪️ *Зеркал создано: {mirror_count}/3*\n\n"
-                    f"🪞 *Зеркало* — это копия бота на твоём токене\n"
+                    f"▪️ *Зеркал создано: {mirror_count}*\n"
+                    f"▪️ *Бонус за зеркала: {bonus_status}*\n\n"
+                    f"🪞 *Как получить бонус:*\n"
                     f"*└─ Создай бота через @BotFather*\n"
                     f"*└─ Скинь нам токен*\n"
-                    f"*└─ Бот запустится и ты получишь +3 репорта*\n\n"
-                    f"*Максимум 3 зеркала = 9 бесплатных репортов*"
+                    f"*└─ При 2-м зеркале — +1 репорт (1 раз)*\n\n"
+                    f"*Зеркал можно создавать неограниченно*"
                 ),
                 parse_mode="Markdown", reply_markup=keyboards.free_menu_markup
             )
@@ -200,9 +203,6 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
 
         await state.finish()
         mirror_count = await db.count_user_mirrors(uid)
-        if mirror_count >= MIRROR_LIMIT:
-            await mirror_bot.send_message(uid, "❌ *Максимум 3 зеркала!*", parse_mode="Markdown")
-            return
 
         if await db.token_exists(new_token):
             await mirror_bot.send_message(uid, "❌ *Этот токен уже зарегистрирован!*", parse_mode="Markdown")
@@ -274,12 +274,9 @@ async def start_mirror(token: str):
     """Запускает зеркало если оно ещё не запущено."""
     if token in _running_mirrors:
         return
-    # Используем asyncio.ensure_future чтобы задача запустилась
-    # после завершения текущего хендлера, не блокируя его
     task = asyncio.ensure_future(_run_mirror(token))
     _running_mirrors[token] = task
-    # Даём event loop шанс переключиться на новую задачу
-    await asyncio.sleep(0)
+    await asyncio.sleep(0.1)
 
 
 async def start_all_mirrors():

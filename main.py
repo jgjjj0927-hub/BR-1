@@ -1148,9 +1148,9 @@ async def sendall(message: types.Message, state: FSMContext):
 	for user_id in users:
 		try:
 			if message.text:
-				await bot.send_message(user_id, message.text, parse_mode='Markdown', reply_markup=del_message)
+				await bot.send_message(user_id, message.text, parse_mode='Markdown', reply_markup=del_message2)
 			elif message.photo:
-				await bot.send_photo(user_id, message.photo[-1].file_id, caption=message.caption, parse_mode='Markdown', reply_markup=del_message)
+				await bot.send_photo(user_id, message.photo[-1].file_id, caption=message.caption, parse_mode='Markdown', reply_markup=del_message2)
 			else:
 				await message.copy_to(user_id)
 			ok += 1
