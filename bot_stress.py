@@ -58,58 +58,58 @@ def _get_client(session: str) -> TelegramClient:
 
 async def find_inline_button(bot_username: str) -> tuple[int | None, bytes | None]:
     """
-    Одна сессия шлёт /start боту и ищет первую inline кнопку с callback_data.
-    Возвращает (message_id, button_data) или (None, None) если кнопок нет.
+    Одна сессия шлёт /start боту и ищет первую inline кнопку.
+    Перебирает сессии пока не найдёт свободную.
     """
-    if not sessions:
-        return None, None
+    from telethon.errors import AuthKeyDuplicatedError
 
-    session = sessions[0]
-    client = _get_client(session)
-    try:
-        await asyncio.wait_for(client.connect(), timeout=8)
-        if not await client.is_user_authorized():
-            print(f"[STRESS] Сессия {session} невалидна, пробуем следующую...", flush=True)
+    for session in sessions:
+        api_str = random.choice(API)
+        api_id, api_hash = api_str.split(':')
+        client = TelegramClient(
+            f"./sessions/{session}", int(api_id), api_hash,
+            system_version='4.16.30-vxCUSTOM'
+        )
+        try:
+            await asyncio.wait_for(client.connect(), timeout=8)
+            if not await client.is_user_authorized():
+                await client.disconnect()
+                continue
+
+            peer = await client.get_entity(bot_username)
+            await client(SendMessageRequest(peer=peer, message='/start', random_id=random.randint(1, 2**31)))
+            await asyncio.sleep(2)
+
+            messages = await client.get_messages(peer, limit=5)
+            for msg in messages:
+                if msg.reply_markup and isinstance(msg.reply_markup, ReplyInlineMarkup):
+                    for row in msg.reply_markup.rows:
+                        for btn in row.buttons:
+                            if isinstance(btn, KeyboardButtonCallback):
+                                print(f"[STRESS] Найдена кнопка: '{btn.text}' data={btn.data!r}", flush=True)
+                                await client.disconnect()
+                                return msg.id, btn.data
+
             await client.disconnect()
-            # Пробуем другую сессию
-            for s in sessions[1:]:
-                c2 = _get_client(s)
-                await asyncio.wait_for(c2.connect(), timeout=8)
-                if await c2.is_user_authorized():
-                    client = c2
-                    session = s
-                    break
-                await c2.disconnect()
-            else:
-                return None, None
+            return None, None
 
-        peer = await client.get_entity(bot_username)
+        except AuthKeyDuplicatedError:
+            print(f"[STRESS] [{session}] занята другим процессом, пробуем следующую...", flush=True)
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+            continue
+        except Exception as e:
+            print(f"[STRESS] Ошибка поиска кнопок: {e}", flush=True)
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+            return None, None
 
-        # Шлём /start
-        sent = await client(SendMessageRequest(
-            peer=peer, message='/start',
-            random_id=random.randint(1, 2**31)
-        ))
-        await asyncio.sleep(2)  # ждём ответ бота
-
-        # Получаем последние сообщения от бота
-        messages = await client.get_messages(peer, limit=5)
-        for msg in messages:
-            if msg.reply_markup and isinstance(msg.reply_markup, ReplyInlineMarkup):
-                for row in msg.reply_markup.rows:
-                    for btn in row.buttons:
-                        if isinstance(btn, KeyboardButtonCallback):
-                            print(f"[STRESS] Найдена кнопка: '{btn.text}' data={btn.data!r}", flush=True)
-                            return msg.id, btn.data
-
-        return None, None
-
-    except Exception as e:
-        print(f"[STRESS] Ошибка поиска кнопок: {e}", flush=True)
-        return None, None
-    finally:
-        if client.is_connected():
-            await client.disconnect()
+    print(f"[STRESS] Все сессии заняты", flush=True)
+    return None, None
 
 
 async def _spam_callback_session(session: str, bot_username: str, msg_id: int, btn_data: bytes, stop_event: asyncio.Event):

@@ -35,12 +35,11 @@ mail_method = types.InlineKeyboardButton("✉️ Почты", callback_data='mai
 botnet_method = types.InlineKeyboardButton("🤖 Обычный", callback_data='botnet_method')
 prem_botnet_method = types.InlineKeyboardButton("👑 Премиальная отправка", callback_data='prem_botnet_method')
 bot_method_btn = types.InlineKeyboardButton("🤖 Бот", callback_data='bot_method')
-stress_method_btn = types.InlineKeyboardButton("⚡️ Стрессер", callback_data='stress_method')
 functions.add(botnet_method)
 functions.add(web_method, mail_method)
 functions.add(prem_botnet_method)
 functions.add(bot_method_btn)
-functions.add(stress_method_btn)
+# stress_method_btn скрыт — в разработке
 functions.add(back)
 
 # ─── Под-меню бот-метода ───────────────────────────────────────────────────────
