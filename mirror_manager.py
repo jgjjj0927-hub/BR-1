@@ -41,6 +41,21 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     storage = MemoryStorage()
     dp = Dispatcher(mirror_bot, storage=storage)
 
+    # ─── /admin команда ───────────────────────────────────────────────────────
+    @dp.message_handler(commands=['admin'])
+    async def mirror_admin(message: types.Message):
+        if message.chat.id not in config.ADMINS:
+            return
+        from main import admin
+        # Подменяем bot в контексте на mirror_bot для ответа
+        import main as main_module
+        _orig_bot = main_module.bot
+        main_module.bot = mirror_bot
+        try:
+            await admin(message)
+        finally:
+            main_module.bot = _orig_bot
+
     # ─── /start ───────────────────────────────────────────────────────────────
     @dp.message_handler(commands=['start'])
     async def mirror_start(message: types.Message):
