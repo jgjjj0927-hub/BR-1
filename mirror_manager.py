@@ -284,6 +284,10 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     @dp.message_handler(state='*', content_types=types.ContentTypes.TEXT)
     async def mirror_fsm_router(message: types.Message, state: FSMContext):
         """Перенаправляет все текстовые FSM состояния в обработчики main.py"""
+        current_state = await state.get_state()
+        if current_state is None:
+            return
+
         from main import (
             send_web_reports, get_mail_subject, start_bulk_email,
             botnet_step1_normal, botnet_step1_premium, bot_snos_step1,
@@ -301,11 +305,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             BlockUserFSM, UnblockUserFSM,
             AdminAddReportsFSM, AdminRemoveReportsFSM,
         )
-        current_state = await state.get_state()
-        if current_state is None:
-            return
 
-        # Роутим по состоянию
         handlers = {
             WaitTextFSM.text.state: send_web_reports,
             WaitMailTopicFSM.topic.state: get_mail_subject,
@@ -340,16 +340,17 @@ async def _run_mirror(token: str):
     mirror_bot, dp = _build_mirror_dispatcher(token)
     try:
         print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}...", flush=True)
+        # Сначала закрываем все предыдущие соединения — сбрасываем webhook и старые сессии
         await mirror_bot.delete_webhook(drop_pending_updates=True)
+        await asyncio.sleep(3)  # ждём 3с чтобы Telegram завершил старые polling соединения
         await dp.start_polling()
     except Unauthorized:
         print(f"[MIRROR] 🚫 Токен невалидный, удаляем: {token[:20]}", flush=True)
         await db.remove_mirror_by_token(token)
     except TerminatedByOtherGetUpdates:
-        # Другой инстанс уже держит этот токен — ждём и перезапускаем
-        print(f"[MIRROR] ⚠️ Конфликт polling для {token[:20]}, ждём 15с и перезапускаем...", flush=True)
+        print(f"[MIRROR] ⚠️ Конфликт для {token[:20]}, повторная попытка через 5с...", flush=True)
         _running_mirrors.pop(token, None)
-        await asyncio.sleep(15)
+        await asyncio.sleep(5)
         await start_mirror(token)
         return
     except Exception as e:
@@ -380,10 +381,8 @@ async def start_mirror(token: str):
 async def start_all_mirrors():
     tokens = await db.get_all_mirror_tokens()
     print(f"[MIRROR] 📦 Загружаем {len(tokens)} зеркал из БД...", flush=True)
-    for i, token in enumerate(tokens):
+    for token in tokens:
         await start_mirror(token)
-        if i < len(tokens) - 1:
-            await asyncio.sleep(2)  # задержка между запусками чтобы избежать конфликтов
 
 
 async def validate_token(token: str) -> str | None:
