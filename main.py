@@ -1197,6 +1197,8 @@ async def stress_step1(message: types.Message, state: FSMContext):
 			last_used_stress[uid] = datetime.now()
 	except Exception as e:
 		print(f"[STRESS] ОШИБКА: {e}", flush=True)
+		import traceback
+		traceback.print_exc()
 		await _bot.send_message(uid, f'❌ *Ошибка стрессера:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		set_bot_stress(bot)
