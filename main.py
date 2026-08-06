@@ -507,25 +507,25 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption='>*Добро пожаловать в Brown V2\!*', parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == 'add_subsribe' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID:*', parse_mode="Markdown")
-			await AddSubscribeFSM.user_id.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(AddSubscribeFSM.user_id.state)
 		elif d == 'clear_subscribe' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс подписки*\n*└─Введите ID:*', parse_mode="Markdown")
-			await ClearSubscribeFSM.user_id.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(ClearSubscribeFSM.user_id.state)
 		elif d == 'add_prem' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача премиума*\n*└─Введите ID:*', parse_mode="Markdown")
-			await AddPremFSM.user_id.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(AddPremFSM.user_id.state)
 		elif d == 'clear_prem' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс премиума*\n*└─Введите ID:*', parse_mode="Markdown")
-			await ClearPremFSM.user_id.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(ClearPremFSM.user_id.state)
 		elif d == 'send_all' and uid in admins and uid in admins2:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Рассылка*\n*└─Введите текст:*', parse_mode="Markdown")
-			await WaitTextZFSM.text.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTextZFSM.text.state)
 		elif d == 'block_user_admin' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🚫 *Блокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
-			await BlockUserFSM.user_id.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(BlockUserFSM.user_id.state)
 		elif d == 'unblock_user_admin' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
-			await UnblockUserFSM.user_id.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(UnblockUserFSM.user_id.state)
 		elif d.startswith('users_list_') and uid in admins:
 			page = int(d.split('_')[2])
 			PAGE_SIZE = 10
@@ -591,14 +591,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d == 'admin_add_reports' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎯 *Выдача репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
-			await AdminAddReportsFSM.user_id.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminAddReportsFSM.user_id.state)
 
 		elif d == 'admin_remove_reports' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎯 *Отзыв репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
-			await AdminRemoveReportsFSM.user_id.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminRemoveReportsFSM.user_id.state)
 		elif d == 'promo':
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
-			await WaitPromoFSM.promo.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPromoFSM.promo.state)
 
 		# ─── Реферальная система ───────────────────────────────────────────────
 		elif d == 'referral':
@@ -682,7 +682,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"*Формат:* `1234567890:ABCdef...`",
 				parse_mode="Markdown"
 			)
-			await WaitMirrorTokenFSM.token.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitMirrorTokenFSM.token.state)
 
 		elif d == 'mirror_list':
 			mirrors = await db.get_user_mirrors(uid)
@@ -835,7 +835,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_web[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown")
-			await WaitTextFSM.text.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTextFSM.text.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
 
 		elif d == "mail_method":
@@ -846,7 +846,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=300) - (datetime.now() - last_used_mail[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown")
-			await WaitMailTopicFSM.topic.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitMailTopicFSM.topic.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
 
 		elif d == "botnet_method":
@@ -858,7 +858,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=5) - (datetime.now() - last_used_botnet[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
-			await WaitLinkFSM.link.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
 
 		elif d == "prem_botnet_method":
@@ -869,7 +869,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_botnet2[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
-			await WaitLinkPREMFSM.link.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkPREMFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
 
 		# ─── Бот-метод ────────────────────────────────────────────────────────
@@ -892,7 +892,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"bot_reason_funstat": ("funstat", "📊 FunStat (парсинг)"),
 			}
 			reason_key, reason_label = reason_map[d]
-			await WaitBotLinkFSM.link.set()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_instance=bot_instance)
 			await bot_instance.send_message(
 				call.message.chat.id,
