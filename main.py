@@ -312,24 +312,6 @@ async def welcome(message: types.Message):
 	is_new = not await db.user_exists(uid)
 	await db.add_user(uid)
 
-	# Реферальная логика — только для новых пользователей
-	if is_new:
-		args = message.get_args()
-		if args and args.startswith("ref_"):
-			try:
-				referrer_id = int(args[4:])
-				if referrer_id != uid and await db.user_exists(referrer_id):
-					await db.set_referrer(uid, referrer_id)
-					new_count = await db.increment_referral_count(referrer_id)
-					await bot.send_message(
-						referrer_id,
-						f"👥 *По вашей ссылке зарегистрировался новый пользователь!*\n"
-						f"*└─ Всего рефералов: {new_count}*",
-						parse_mode="Markdown"
-					)
-			except (ValueError, Exception):
-				pass
-
 	if not await is_verified(uid):
 		code = generate_captcha_text()
 		_captcha_codes[uid] = code
@@ -337,7 +319,13 @@ async def welcome(message: types.Message):
 		await bot.send_photo(uid, photo=img,
 			caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",
 			parse_mode="Markdown")
+		# Сохраняем реф-аргумент в FSM — применим только после прохождения капчи
 		await WaitCaptchaFSM.code.set()
+		if is_new:
+			args = message.get_args()
+			if args and args.startswith("ref_"):
+				async with dp.current_state(user=uid).proxy() as fsm_data:
+					fsm_data['ref_arg'] = args
 		return
 	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 	# Закреплённое сообщение при каждом /start
@@ -354,9 +342,28 @@ async def welcome(message: types.Message):
 async def check_captcha(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	if message.text.strip().lower() == _captcha_codes.get(uid, "").lower():
+		fsm_data = await state.get_data()
 		await state.finish()
 		_captcha_codes.pop(uid, None)
 		await set_verified(uid)
+
+		# Реферальная логика — только после прохождения капчи
+		ref_arg = fsm_data.get('ref_arg')
+		if ref_arg and ref_arg.startswith("ref_"):
+			try:
+				referrer_id = int(ref_arg[4:])
+				if referrer_id != uid and await db.user_exists(referrer_id):
+					await db.set_referrer(uid, referrer_id)
+					new_count = await db.increment_referral_count(referrer_id)
+					await bot.send_message(
+						referrer_id,
+						f"👥 *По вашей ссылке зарегистрировался новый пользователь!*\n"
+						f"*└─ Всего рефералов: {new_count}*",
+						parse_mode="Markdown"
+					)
+			except (ValueError, Exception):
+				pass
+
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 		# Закреплённое сообщение после капчи
 		pin_msg = await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
