@@ -26,6 +26,9 @@ MIRROR_LIMIT = 3
 class MirrorCaptchaFSM(StatesGroup):
     code = State()
 
+class MirrorCreateFSM(StatesGroup):
+    token = State()
+
 
 def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     """Создаёт Bot + Dispatcher для зеркала."""
@@ -83,8 +86,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             await mirror_bot.send_photo(uid, photo=generate_captcha_image(code),
                 caption="*❌ Неверно! Попробуй ещё раз:*", parse_mode="Markdown")
 
-    # ─── Все callback_query перенаправляем в основной бот через redirect ──────
-    # Зеркало имеет своё меню, но функции используют общую БД
+    # ─── Callback хендлер зеркала ─────────────────────────────────────────────
     @dp.callback_query_handler(lambda call: True, state='*')
     async def mirror_callback(call: types.CallbackQuery, state: FSMContext):
         uid = call.from_user.id
@@ -106,13 +108,103 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             await mirror_bot.delete_message(call.message.chat.id, call.message.message_id)
             await mirror_bot.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
                 caption='>*Добро пожаловать в Brown V2\!*', parse_mode="MarkdownV2", reply_markup=keyboards.menu)
+        elif d == 'free_menu':
+            mirror_count = await db.count_user_mirrors(uid)
+            free_reports = await db.get_free_reports(uid)
+            await mirror_bot.edit_message_caption(
+                call.message.chat.id, call.message.message_id,
+                caption=(
+                    f"🆓 *Бесплатные репорты*\n\n"
+                    f"▪️ *Бесплатных репортов: {free_reports}*\n"
+                    f"▪️ *Зеркал создано: {mirror_count}/3*\n\n"
+                    f"🪞 *Зеркало* — это копия бота на твоём токене\n"
+                    f"*└─ Создай бота через @BotFather*\n"
+                    f"*└─ Скинь нам токен*\n"
+                    f"*└─ Бот запустится и ты получишь +3 репорта*\n\n"
+                    f"*Максимум 3 зеркала = 9 бесплатных репортов*"
+                ),
+                parse_mode="Markdown", reply_markup=keyboards.free_menu_markup
+            )
+        elif d == 'mirror_create':
+            mirror_count = await db.count_user_mirrors(uid)
+            if mirror_count >= MIRROR_LIMIT:
+                await mirror_bot.answer_callback_query(call.id, "❌ Максимум 3 зеркала!", show_alert=True)
+                return
+            await mirror_bot.send_message(
+                call.message.chat.id,
+                "🪞 *Создание зеркала*\n\n"
+                "*1.* Открой @BotFather\n"
+                "*2.* Напиши /newbot\n"
+                "*3.* Придумай имя и username боту\n"
+                "*4.* Скопируй токен и отправь его сюда:\n\n"
+                "*Формат:* `1234567890:ABCdef...`",
+                parse_mode="Markdown"
+            )
+            await MirrorCreateFSM.token.set()
+        elif d == 'mirror_list':
+            mirrors = await db.get_user_mirrors(uid)
+            if not mirrors:
+                await mirror_bot.answer_callback_query(call.id, "У вас нет зеркал.", show_alert=True)
+                return
+            lines = ["🪞 *Ваши зеркала:*\n"]
+            for i, m in enumerate(mirrors, 1):
+                lines.append(f"*{i}.* `{m['bot_username']}`")
+            await mirror_bot.send_message(
+                call.message.chat.id,
+                "\n".join(lines),
+                parse_mode="Markdown",
+                reply_markup=keyboards.back_markup
+            )
         else:
-            # Всё остальное — предлагаем перейти в основной бот
             await mirror_bot.answer_callback_query(
                 call.id,
                 f"➡️ Для использования функций перейди в основной бот: {config.bot_channel_link}",
                 show_alert=True
             )
+
+    # ─── FSM создания зеркала внутри зеркала ──────────────────────────────────
+    @dp.message_handler(state=MirrorCreateFSM.token)
+    async def mirror_create_token(message: types.Message, state: FSMContext):
+        uid = message.from_user.id
+        new_token = message.text.strip()
+        await state.finish()
+
+        if ':' not in new_token or len(new_token) < 30:
+            await mirror_bot.send_message(uid, "❌ *Неверный формат токена!*", parse_mode="Markdown")
+            return
+
+        mirror_count = await db.count_user_mirrors(uid)
+        if mirror_count >= MIRROR_LIMIT:
+            await mirror_bot.send_message(uid, "❌ *Максимум 3 зеркала!*", parse_mode="Markdown")
+            return
+
+        if await db.token_exists(new_token):
+            await mirror_bot.send_message(uid, "❌ *Этот токен уже зарегистрирован!*", parse_mode="Markdown")
+            return
+
+        wait_msg = await mirror_bot.send_message(uid, "⏳ *Проверяем токен...*", parse_mode="Markdown")
+        bot_username = await validate_token(new_token)
+        try:
+            await mirror_bot.delete_message(uid, wait_msg.message_id)
+        except Exception:
+            pass
+
+        if not bot_username:
+            await mirror_bot.send_message(uid, "❌ *Токен невалидный!* Проверь и попробуй снова.", parse_mode="Markdown")
+            return
+
+        await db.add_mirror(uid, new_token, bot_username)
+        await start_mirror(new_token)
+        await db.add_free_reports(uid, 3)
+
+        await mirror_bot.send_message(
+            uid,
+            f"✅ *Зеркало создано!*\n\n"
+            f"🤖 *Бот:* `{bot_username}`\n"
+            f"🎯 *Начислено: +3 бесплатных репорта*\n\n"
+            f"*Зеркало уже работает!*",
+            parse_mode="Markdown"
+        )
 
     return mirror_bot, dp
 
