@@ -6,6 +6,7 @@ Brown V2 | mirror_manager.py
 
 import asyncio
 import logging
+from aiogram.utils.exceptions import Unauthorized
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ParseMode, InputFile
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -121,9 +122,11 @@ async def _run_mirror(token: str):
     mirror_bot, dp = _build_mirror_dispatcher(token)
     try:
         print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}...", flush=True)
-        # Сбрасываем webhook и пропускаем накопившиеся апдейты
         await mirror_bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling()
+    except Unauthorized:
+        print(f"[MIRROR] 🚫 Токен невалидный, удаляем из БД: {token[:20]}", flush=True)
+        await db.remove_mirror_by_token(token)
     except Exception as e:
         print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
     finally:

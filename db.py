@@ -391,6 +391,12 @@ async def get_all_mirror_tokens() -> list[str]:
         return [r["token"] for r in rows]
 
 
+async def remove_mirror_by_token(token: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM mirrors WHERE token = $1", token)
+
+
 async def get_users_page(offset: int = 0, limit: int = 10) -> list[dict]:
     """Возвращает страницу пользователей с основными данными."""
     pool = await get_pool()
