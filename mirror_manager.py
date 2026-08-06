@@ -16,7 +16,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import InputFile, ParseMode
-from aiogram.utils.exceptions import Unauthorized
+from aiogram.utils.exceptions import Unauthorized, TerminatedByOtherGetUpdates
 
 import config
 import db
@@ -345,6 +345,13 @@ async def _run_mirror(token: str):
     except Unauthorized:
         print(f"[MIRROR] 🚫 Токен невалидный, удаляем: {token[:20]}", flush=True)
         await db.remove_mirror_by_token(token)
+    except TerminatedByOtherGetUpdates:
+        # Другой инстанс уже держит этот токен — ждём и перезапускаем
+        print(f"[MIRROR] ⚠️ Конфликт polling для {token[:20]}, ждём 15с и перезапускаем...", flush=True)
+        _running_mirrors.pop(token, None)
+        await asyncio.sleep(15)
+        await start_mirror(token)
+        return
     except Exception as e:
         print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
     finally:
@@ -373,8 +380,10 @@ async def start_mirror(token: str):
 async def start_all_mirrors():
     tokens = await db.get_all_mirror_tokens()
     print(f"[MIRROR] 📦 Загружаем {len(tokens)} зеркал из БД...", flush=True)
-    for token in tokens:
+    for i, token in enumerate(tokens):
         await start_mirror(token)
+        if i < len(tokens) - 1:
+            await asyncio.sleep(2)  # задержка между запусками чтобы избежать конфликтов
 
 
 async def validate_token(token: str) -> str | None:
