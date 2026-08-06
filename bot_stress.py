@@ -113,7 +113,7 @@ async def find_inline_button(bot_username: str) -> tuple[int | None, bytes | Non
 
 
 async def _spam_callback_session(session: str, bot_username: str, msg_id: int, btn_data: bytes, stop_event: asyncio.Event):
-    """Одна сессия: 5 параллельных callback без задержки — безопасно для сессий."""
+    """Одна сессия: шлёт рандомные сообщения боту — создаёт реальную нагрузку на обработчики."""
     client = _get_client(session)
     count = 0
     errors = 0
@@ -125,27 +125,31 @@ async def _spam_callback_session(session: str, bot_username: str, msg_id: int, b
 
         await client.start()
         peer = await client.get_entity(bot_username)
-        print(f"[STRESS] [{session}] ✅ Старт callback-спама...", flush=True)
+        print(f"[STRESS] [{session}] ✅ Старт message-спама...", flush=True)
 
-        async def fire_callback():
-            nonlocal count, errors
+        chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+
+        while not stop_event.is_set():
             try:
-                await client(GetBotCallbackAnswerRequest(
-                    peer=peer, msg_id=msg_id, data=btn_data
+                # Рандомный текст — создаёт message апдейт который бот ОБЯЗАН обработать
+                text = ''.join(random.choices(chars, k=random.randint(4, 12)))
+                await client(SendMessageRequest(
+                    peer=peer,
+                    message=text,
+                    random_id=random.randint(1, 2**31)
                 ))
                 count += 1
+                if count % 20 == 0:
+                    print(f"[STRESS] [{session}] 📨 {count} сообщений", flush=True)
+                await asyncio.sleep(0.5)  # 2 сообщения/сек — не триггерит флуд
             except FloodWaitError as e:
+                print(f"[STRESS] [{session}] 🌊 FLOOD {e.seconds}s — пропускаем", flush=True)
                 await asyncio.sleep(e.seconds)
             except Exception as e:
                 errors += 1
                 if errors <= 3:
                     print(f"[STRESS] [{session}] ⚠️ #{errors}: {str(e)[:50]}", flush=True)
-
-        while not stop_event.is_set():
-            tasks = [asyncio.create_task(fire_callback()) for _ in range(5)]
-            await asyncio.gather(*tasks, return_exceptions=True)
-            if count % 50 == 0 and count > 0:
-                print(f"[STRESS] [{session}] 📥 {count} callback", flush=True)
+                await asyncio.sleep(1)
 
     except Exception as e:
         print(f"[STRESS] [{session}] ❌ КРИТИЧЕСКАЯ: {str(e)[:60]}", flush=True)
@@ -153,7 +157,7 @@ async def _spam_callback_session(session: str, bot_username: str, msg_id: int, b
         if client.is_connected():
             await client.disconnect()
 
-    print(f"[STRESS] [{session}] 🏁 {count} callback | {errors} ошибок", flush=True)
+    print(f"[STRESS] [{session}] 🏁 {count} сообщений | {errors} ошибок", flush=True)
     return count
 
 
