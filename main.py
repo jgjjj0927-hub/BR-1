@@ -835,6 +835,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_web[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown")
+			async with dp_instance.current_state(user=uid).proxy() as d_: d_['_bot_instance'] = bot_instance
 			await WaitTextFSM.text.set()
 
 		elif d == "mail_method":
@@ -845,6 +846,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=300) - (datetime.now() - last_used_mail[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown")
+			async with dp_instance.current_state(user=uid).proxy() as d_: d_['_bot_instance'] = bot_instance
 			await WaitMailTopicFSM.topic.set()
 
 		elif d == "botnet_method":
@@ -856,6 +858,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=5) - (datetime.now() - last_used_botnet[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
+			async with dp_instance.current_state(user=uid).proxy() as d_: d_['_bot_instance'] = bot_instance
 			await WaitLinkFSM.link.set()
 
 		elif d == "prem_botnet_method":
@@ -866,6 +869,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_botnet2[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
+			async with dp_instance.current_state(user=uid).proxy() as d_: d_['_bot_instance'] = bot_instance
 			await WaitLinkPREMFSM.link.set()
 
 		# ─── Бот-метод ────────────────────────────────────────────────────────
@@ -890,6 +894,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			reason_key, reason_label = reason_map[d]
 			async with dp_instance.current_state(user=uid).proxy() as data_fsm:
 				data_fsm['bot_reason'] = reason_key
+				data_fsm['_bot_instance'] = bot_instance
 			await WaitBotLinkFSM.link.set()
 			await bot_instance.send_message(
 				call.message.chat.id,
@@ -904,16 +909,18 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 @dp.message_handler(state=WaitTextFSM.text)
 async def send_web_reports(message: types.Message, state: FSMContext):
+	fsm_data = await state.get_data()
 	await state.finish()
 	uid = message.from_user.id
-	last_used_web[uid] = datetime.now()  # КД ставится только после реального запуска
+	_bot = fsm_data.get('_bot_instance', bot)
+	last_used_web[uid] = datetime.now()
 	username = message.from_user.username or "без username"
 	log_path = generate_log_filename()
 	async with aiohttp.ClientSession() as session:
 		success, error = await web(session=session, message_text=message.text,
 			count=report_count333, log_path=log_path, user_id=uid, username=username)
 	try:
-		await message.answer_document(types.InputFile(log_path),
+		await _bot.send_document(uid, types.InputFile(log_path),
 			caption=f"⚙️ *Веб*\n🟢 *Успешно: {success}*\n🔴 *Не удалось: {error}*",
 			reply_markup=main_menu, parse_mode="Markdown")
 	except Exception: pass
@@ -927,7 +934,7 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 @dp.message_handler(state=WaitMailTopicFSM.topic)
 async def get_mail_subject(message: types.Message, state: FSMContext):
 	await state.update_data(subject=message.text)
-	last_used_mail[message.from_user.id] = datetime.now()  # КД ставится после ввода темы (реальный старт)
+	last_used_mail[message.from_user.id] = datetime.now()
 	await message.answer("✉️ *Введите текст письма:*", parse_mode="Markdown")
 	await WaitMailTextFSM.text.set()
 
@@ -935,6 +942,7 @@ async def get_mail_subject(message: types.Message, state: FSMContext):
 async def start_bulk_email(message: types.Message, state: FSMContext):
 	data = await state.get_data()
 	subject = data.get("subject")
+	_bot = data.get('_bot_instance', bot)
 	await state.finish()
 	mails = load_mails()
 	if not mails:
@@ -943,9 +951,9 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 	success, error, log_path = await send_bulk_emails(
 		subject, message.text, mails, receiver_emails,
 		user_id=message.from_user.id, username=message.from_user.username or "None",
-		bot=bot, chat_id=message.from_user.id)
+		bot=_bot, chat_id=message.from_user.id)
 	try:
-		await bot.send_document(message.from_user.id, types.InputFile(log_path),
+		await _bot.send_document(message.from_user.id, types.InputFile(log_path),
 			caption=f"⚙️ *Почты*\n🟢 {success}\n🔴 {error}", parse_mode="Markdown", reply_markup=main_menu)
 		await bot.send_document(bot_logs, types.InputFile(log_path),
 			caption=f"📈 *Почты*\n🟢 {success}\n🔴 {error}\n👤 {message.from_user.id}", parse_mode="Markdown")
@@ -956,46 +964,56 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 @dp.message_handler(state=WaitLinkFSM.link)
 async def botnet_step1_normal(message: types.Message, state: FSMContext):
 	url = message.text
+	fsm_data = await state.get_data()
 	await state.finish()
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
+	# Определяем какой бот используется (основной или зеркало)
+	_bot = fsm_data.get('_bot_instance', bot)
 	try:
 		chat_username, message_id = await extract_username_and_message_id(url)
-		# Проверяем подписку — если истекла, пробуем использовать бесплатный репорт
 		user_data = await db.get_user(uid)
 		subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 		if subscribe < datetime.now():
 			used = await db.use_free_report(uid)
 			if not used:
-				await bot.send_message(uid, '❌ *Нет подписки и бесплатных репортов!*', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+				await _bot.send_message(uid, '❌ *Нет подписки и бесплатных репортов!*', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 				return
 			free_left = await db.get_free_reports(uid)
-			await bot.send_message(uid, f'🎯 *Использован бесплатный репорт! Осталось: {free_left}*', parse_mode=ParseMode.MARKDOWN)
+			await _bot.send_message(uid, f'🎯 *Использован бесплатный репорт! Осталось: {free_left}*', parse_mode=ParseMode.MARKDOWN)
 		last_used_botnet[uid] = datetime.now()
-		await bot.send_message(uid, '📤 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
+		await _bot.send_message(uid, '📤 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
+		botnet_set_bot(_bot)
 		await botnet_main(chat_username, message_id, uid, username, url)
 	except ValueError:
-		await bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
+		await _bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
 		print(f"[BOTNET] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await bot.send_message(uid, f'❌ *Ошибка ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+	finally:
+		botnet_set_bot(bot)  # восстанавливаем основного бота
 
 @dp.message_handler(state=WaitLinkPREMFSM.link)
 async def botnet_step1_premium(message: types.Message, state: FSMContext):
 	url = message.text
+	fsm_data = await state.get_data()
 	await state.finish()
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
+	_bot = fsm_data.get('_bot_instance', bot)
 	try:
 		chat_username, message_id = await extract_username_and_message_id2(url)
-		last_used_botnet2[uid] = datetime.now()  # КД ставится только после валидной ссылки
-		await bot.send_message(uid, '👑 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
+		last_used_botnet2[uid] = datetime.now()
+		await _bot.send_message(uid, '👑 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
+		botnet_set_bot2(_bot)
 		await botnet_main2(chat_username, message_id, uid, username, url)
 	except ValueError:
-		await bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
+		await _bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
 		print(f"[PREM] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+	finally:
+		botnet_set_bot2(bot)
 
 @dp.message_handler(state=WaitMirrorTokenFSM.token)
 async def mirror_token_received(message: types.Message, state: FSMContext):
@@ -1069,20 +1087,21 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	username = message.from_user.username or "None"
 	raw = message.text.strip()
 
-	# Проверяем подписку и КД здесь — на этапе ввода ссылки
 	user_data = await db.get_user(uid)
 	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
+	fsm_data = await state.get_data()
+	_bot = fsm_data.get('_bot_instance', bot)
+
 	if subscribe < datetime.now():
 		await state.finish()
-		await bot.send_message(uid, ">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=main_menu)
+		await _bot.send_message(uid, ">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=main_menu)
 		return
 	if uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(minutes=30):
 		rem = timedelta(minutes=30) - (datetime.now() - last_used_bot_snos[uid])
 		await state.finish()
-		await bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
 		return
 
-	# Нормализуем — принимаем @username или t.me/username или полный URL
 	if raw.startswith("https://t.me/"):
 		bot_target = "@" + raw.replace("https://t.me/", "").split("/")[0].split("?")[0]
 	elif raw.startswith("t.me/"):
@@ -1092,17 +1111,20 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	else:
 		bot_target = "@" + raw.split("/")[0].split("?")[0]
 
-	data_fsm = await state.get_data()
-	reason_key = data_fsm.get('bot_reason', 'other')
+	reason_key = fsm_data.get('bot_reason', 'other')
 	await state.finish()
 
 	last_used_bot_snos[uid] = datetime.now()
-	await bot.send_message(uid, f'🤖 *Запустил жалобы на {bot_target}...*', parse_mode=ParseMode.MARKDOWN)
+	await _bot.send_message(uid, f'🤖 *Запустил жалобы на {bot_target}...*', parse_mode=ParseMode.MARKDOWN)
 
 	try:
+		set_bot_snos(_bot)
 		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
 	except Exception as e:
 		print(f"[BOT-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+	finally:
+		set_bot_snos(bot)  # восстанавливаем основного бота
 		await bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 
 # ─── Управление подписками (админ) ────────────────────────────────────────────
