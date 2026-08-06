@@ -350,6 +350,11 @@ async def init_mirrors_table():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Флаг что бонус за зеркало уже выдан
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS mirror_bonus_given INT DEFAULT 0")
+        except Exception:
+            pass
 
 
 async def add_mirror(user_id: int, token: str, bot_username: str):
@@ -395,6 +400,36 @@ async def remove_mirror_by_token(token: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM mirrors WHERE token = $1", token)
+
+
+async def get_mirror_bonus_given(user_id: int) -> bool:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT mirror_bonus_given FROM users WHERE user_id = $1", user_id)
+        return bool(row["mirror_bonus_given"]) if row else False
+
+
+async def set_mirror_bonus_given(user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE users SET mirror_bonus_given = 1 WHERE user_id = $1", user_id)
+
+
+async def get_all_mirrors() -> list[dict]:
+    """Возвращает все зеркала для админ-панели."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT token, user_id, bot_username, created_at FROM mirrors ORDER BY created_at DESC"
+        )
+        return [dict(r) for r in rows]
+
+
+async def set_free_reports(user_id: int, amount: int):
+    """Устанавливает точное количество бесплатных репортов."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE users SET free_reports = $1 WHERE user_id = $2", amount, user_id)
 
 
 async def get_users_page(offset: int = 0, limit: int = 10) -> list[dict]:

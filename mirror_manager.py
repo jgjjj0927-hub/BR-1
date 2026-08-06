@@ -126,10 +126,6 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 parse_mode="Markdown", reply_markup=keyboards.free_menu_markup
             )
         elif d == 'mirror_create':
-            mirror_count = await db.count_user_mirrors(uid)
-            if mirror_count >= MIRROR_LIMIT:
-                await mirror_bot.answer_callback_query(call.id, "❌ Максимум 3 зеркала!", show_alert=True)
-                return
             await mirror_bot.send_message(
                 call.message.chat.id,
                 "🪞 *Создание зеркала*\n\n"
@@ -225,13 +221,21 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
 
         await db.add_mirror(uid, new_token, bot_username)
         await start_mirror(new_token)
-        await db.add_free_reports(uid, 3)
+
+        # Бонус +1 репорт при 2-м зеркале — только 1 раз
+        mirror_count = await db.count_user_mirrors(uid)
+        bonus_msg = ""
+        if mirror_count >= 2 and not await db.get_mirror_bonus_given(uid):
+            await db.add_free_reports(uid, 1)
+            await db.set_mirror_bonus_given(uid)
+            bonus_msg = "\n🎯 *Бонус: +1 бесплатный репорт за 2 зеркала!*"
 
         await mirror_bot.send_message(
             uid,
             f"✅ *Зеркало создано!*\n\n"
             f"🤖 *Бот:* `{bot_username}`\n"
-            f"🎯 *Начислено: +3 бесплатных репорта*\n\n"
+            f"📊 *Всего зеркал: {mirror_count}*"
+            f"{bonus_msg}\n\n"
             f"*Зеркало уже работает!*",
             parse_mode="Markdown"
         )

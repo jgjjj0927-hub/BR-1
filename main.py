@@ -138,6 +138,14 @@ class UnblockUserFSM(StatesGroup):
 class WaitMirrorTokenFSM(StatesGroup):
 	token = State()
 
+class AdminAddReportsFSM(StatesGroup):
+	user_id = State()
+	amount = State()
+
+class AdminRemoveReportsFSM(StatesGroup):
+	user_id = State()
+	amount = State()
+
 global bot_status
 bot_status = 1
 
@@ -548,6 +556,42 @@ async def callback_inline(call: types.CallbackQuery):
 			nav.add(types.InlineKeyboardButton("🔙 Закрыть", callback_data='close'))
 
 			await bot.send_message(call.message.chat.id, text, parse_mode="Markdown", reply_markup=nav)
+
+		elif d.startswith('admin_mirrors_') and uid in admins:
+			page = int(d.split('_')[2])
+			PAGE_SIZE = 8
+			all_mirrors = await db.get_all_mirrors()
+			total = len(all_mirrors)
+			total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+			page_mirrors = all_mirrors[page * PAGE_SIZE:(page + 1) * PAGE_SIZE]
+
+			if not all_mirrors:
+				await bot.answer_callback_query(call.id, "Зеркал нет.", show_alert=False)
+				return
+
+			lines = [f"🪞 *Зеркала* (стр. {page+1}/{total_pages}, всего: {total})\n"]
+			for m in page_mirrors:
+				lines.append(f"`{m['bot_username']}` — `{m['user_id']}`\n`{m['token'][:25]}...`\n")
+
+			nav = types.InlineKeyboardMarkup(row_width=2)
+			btns = []
+			if page > 0:
+				btns.append(types.InlineKeyboardButton("◀️", callback_data=f'admin_mirrors_{page-1}'))
+			if (page + 1) < total_pages:
+				btns.append(types.InlineKeyboardButton("▶️", callback_data=f'admin_mirrors_{page+1}'))
+			if btns:
+				nav.row(*btns)
+			nav.add(types.InlineKeyboardButton("🔙 Закрыть", callback_data='close'))
+
+			await bot.send_message(call.message.chat.id, "\n".join(lines), parse_mode="Markdown", reply_markup=nav)
+
+		elif d == 'admin_add_reports' and uid in admins:
+			await bot.send_message(call.message.chat.id, '🎯 *Выдача репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
+			await AdminAddReportsFSM.user_id.set()
+
+		elif d == 'admin_remove_reports' and uid in admins:
+			await bot.send_message(call.message.chat.id, '🎯 *Отзыв репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
+			await AdminRemoveReportsFSM.user_id.set()
 		elif d == 'promo':
 			await bot.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
 			await WaitPromoFSM.promo.set()
@@ -594,26 +638,25 @@ async def callback_inline(call: types.CallbackQuery):
 		elif d == 'free_menu':
 			mirror_count = await db.count_user_mirrors(uid)
 			free_reports = await db.get_free_reports(uid)
+			bonus_given = await db.get_mirror_bonus_given(uid)
+			bonus_status = "✅ Получен" if bonus_given else f"{'🔒 Нужно 2 зеркала' if mirror_count < 2 else '⬆️ Доступен — создай зеркало!'}"
 			await bot.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
 					f"🆓 *Бесплатные репорты*\n\n"
 					f"▪️ *Бесплатных репортов: {free_reports}*\n"
-					f"▪️ *Зеркал создано: {mirror_count}/3*\n\n"
-					f"🪞 *Зеркало* — это копия бота на твоём токене\n"
+					f"▪️ *Зеркал создано: {mirror_count}*\n"
+					f"▪️ *Бонус за зеркала: {bonus_status}*\n\n"
+					f"🪞 *Как получить бонус:*\n"
 					f"*└─ Создай бота через @BotFather*\n"
 					f"*└─ Скинь нам токен*\n"
-					f"*└─ Бот запустится и ты получишь +3 репорта*\n\n"
-					f"*Максимум 3 зеркала = 9 бесплатных репортов*"
+					f"*└─ При 2-м зеркале — +1 репорт (1 раз)*\n\n"
+					f"*Зеркал можно создавать неограниченно*"
 				),
 				parse_mode="Markdown", reply_markup=keyboards.free_menu_markup
 			)
 
 		elif d == 'mirror_create':
-			mirror_count = await db.count_user_mirrors(uid)
-			if mirror_count >= 3:
-				await bot.answer_callback_query(call.id, "❌ Максимум 3 зеркала! Больше нельзя.", show_alert=True)
-				return
 			await bot.send_message(
 				call.message.chat.id,
 				"🪞 *Создание зеркала*\n\n"
@@ -957,11 +1000,8 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 
 	await state.finish()
 
-	# Лимит зеркал
-	mirror_count = await db.count_user_mirrors(uid)
-	if mirror_count >= 3:
-		await bot.send_message(uid, "❌ *Максимум 3 зеркала!*", parse_mode="Markdown", reply_markup=main_menu)
-		return
+		# Лимит зеркал убран — неограниченно
+	await state.finish()
 
 	# Проверяем не сдан ли токен уже
 	if await db.token_exists(token):
@@ -983,13 +1023,21 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 	# Сохраняем и запускаем зеркало
 	await db.add_mirror(uid, token, bot_username)
 	await start_mirror(token)
-	await db.add_free_reports(uid, 3)
+
+	# Бонус +1 репорт при создании 2-го зеркала — только 1 раз
+	mirror_count = await db.count_user_mirrors(uid)
+	bonus_msg = ""
+	if mirror_count >= 2 and not await db.get_mirror_bonus_given(uid):
+		await db.add_free_reports(uid, 1)
+		await db.set_mirror_bonus_given(uid)
+		bonus_msg = "\n🎯 *Бонус: +1 бесплатный репорт за 2 зеркала!*"
 
 	await bot.send_message(
 		uid,
 		f"✅ *Зеркало создано!*\n\n"
 		f"🤖 *Бот:* `{bot_username}`\n"
-		f"🎯 *Начислено: +3 бесплатных репорта*\n\n"
+		f"📊 *Всего зеркал: {mirror_count}*"
+		f"{bonus_msg}\n\n"
 		f"*Зеркало уже работает и принимает пользователей!*",
 		parse_mode="Markdown", reply_markup=main_menu
 	)
@@ -998,7 +1046,7 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 		f"🪞 *Новое зеркало*\n"
 		f"*└─ Пользователь:* `{uid}`\n"
 		f"*└─ Бот:* `{bot_username}`\n"
-		f"*└─ Всего зеркал:* `{mirror_count + 1}/3`",
+		f"*└─ Всего зеркал:* `{mirror_count}`",
 		parse_mode="Markdown"
 	)
 
@@ -1151,6 +1199,61 @@ async def admin_unblock_user(message: types.Message, state: FSMContext):
 		await bot.send_message(bot_logs, f"✅ *Разблокирован* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ ID должен быть числом.")
+		await state.finish()
+
+@dp.message_handler(state=AdminAddReportsFSM.user_id)
+async def admin_add_reports_uid(message: types.Message, state: FSMContext):
+	try:
+		await state.update_data(user_id=int(message.text.strip()))
+		await message.answer("🎯 *Сколько репортов выдать?*", parse_mode="Markdown")
+		await AdminAddReportsFSM.amount.set()
+	except ValueError:
+		await message.answer("❌ ID должен быть числом.")
+		await state.finish()
+
+@dp.message_handler(state=AdminAddReportsFSM.amount)
+async def admin_add_reports_amount(message: types.Message, state: FSMContext):
+	try:
+		data = await state.get_data()
+		target = data['user_id']
+		amount = int(message.text.strip())
+		await db.add_free_reports(target, amount)
+		await state.finish()
+		current = await db.get_free_reports(target)
+		await message.answer(f"✅ *Выдано {amount} репортов* `{target}`\n*Итого: {current}*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎯 *+{amount} репортов* `{target}` *от админа*", parse_mode="Markdown")
+		try:
+			await bot.send_message(target, f"🎯 *Вам выдано {amount} бесплатных репортов!*\n*Итого: {current}*", parse_mode="Markdown")
+		except Exception:
+			pass
+	except ValueError:
+		await message.answer("❌ Введите число.")
+		await state.finish()
+
+@dp.message_handler(state=AdminRemoveReportsFSM.user_id)
+async def admin_remove_reports_uid(message: types.Message, state: FSMContext):
+	try:
+		await state.update_data(user_id=int(message.text.strip()))
+		await message.answer("🎯 *Сколько репортов забрать?*", parse_mode="Markdown")
+		await AdminRemoveReportsFSM.amount.set()
+	except ValueError:
+		await message.answer("❌ ID должен быть числом.")
+		await state.finish()
+
+@dp.message_handler(state=AdminRemoveReportsFSM.amount)
+async def admin_remove_reports_amount(message: types.Message, state: FSMContext):
+	try:
+		data = await state.get_data()
+		target = data['user_id']
+		amount = int(message.text.strip())
+		current = await db.get_free_reports(target)
+		new_amount = max(0, current - amount)
+		await db.set_free_reports(target, new_amount)
+		await state.finish()
+		await message.answer(f"✅ *Забрано {amount} репортов* `{target}`\n*Осталось: {new_amount}*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎯 *-{amount} репортов* `{target}` *от админа*", parse_mode="Markdown")
+	except ValueError:
+		await message.answer("❌ Введите число.")
 		await state.finish()
 
 # ─── Запуск ───────────────────────────────────────────────────────────────────
