@@ -11,7 +11,6 @@ from datetime import datetime
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError, UserBotError, ChatWriteForbiddenError
 from telethon.tl.functions.account import ReportPeerRequest
-from telethon.tl.functions.contacts import BlockRequest
 from telethon.tl.functions.messages import SendMessageRequest
 from telethon.tl.types import (
     InputReportReasonSpam,
@@ -141,8 +140,9 @@ def format_log_line(session, target, status):
 async def _report_one_bot_session(session, bot_username, reason_key):
     """
     Отправляет жалобу на бота от одной сессии.
-    Схема: /start → report(основная) → report(spam) → block
-    Взаимодействие перед репортом критично — без него Telegram игнорирует жалобу.
+    - Обычные причины: /start → ReportPeerRequest × 2
+    - funstat: /start → получаем сообщение → 3-шаговый ReportRequest × 4
+      (Персональные данные → Другие личные данные → текст funstat)
     """
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":")
@@ -171,43 +171,85 @@ async def _report_one_bot_session(session, bot_username, reason_key):
         print(f"[BOT-SNOS] [{session}] ✅ Подключён к {bot_username}", flush=True)
 
         # ── Шаг 1: отправляем /start чтобы "познакомиться" с ботом ──────────
-        # Без этого Telegram тихо отклоняет репорт на бота
+        msg_id = None
         try:
-            await client(SendMessageRequest(peer=peer, message='/start', random_id=random.randint(1, 2**31)))
-            print(f"[BOT-SNOS] [{session}] 📨 /start отправлен", flush=True)
+            sent = await client(SendMessageRequest(peer=peer, message='/start', random_id=random.randint(1, 2**31)))
+            # Получаем ID отправленного сообщения для использования в ReportRequest
+            if hasattr(sent, 'id'):
+                msg_id = sent.id
+            elif hasattr(sent, 'updates'):
+                for upd in sent.updates:
+                    if hasattr(upd, 'id'):
+                        msg_id = upd.id
+                        break
+            print(f"[BOT-SNOS] [{session}] 📨 /start отправлен, msg_id={msg_id}", flush=True)
             await asyncio.sleep(random.uniform(0.5, 1.5))
         except (ChatWriteForbiddenError, UserBotError):
-            pass  # бот не принимает сообщения — всё равно пробуем репортить
+            pass
         except Exception as e:
             print(f"[BOT-SNOS] [{session}] ⚠️ /start не удался: {str(e)[:50]}", flush=True)
 
-        # ── Шаг 2: основной репорт с выбранной причиной ──────────────────────
+        # ── FunStat: 3-шаговый флоу через messages.ReportRequest × 4 ─────────
+        if reason_key == "funstat" and msg_id:
+            from telethon.tl.functions.messages import ReportRequest
+            funstat_text = TEXTS["funstat"][0]
+            reported = False
+            for attempt in range(4):
+                try:
+                    # Шаг 1: получаем категории
+                    r1 = await client(ReportRequest(peer=peer, id=[msg_id], option=b'', message=''))
+                    print(f"[BOT-SNOS] [{session}] 📋 Категории: {[o.option for o in r1.options] if hasattr(r1, 'options') and r1.options else 'нет'}", flush=True)
+
+                    # Шаг 2: ищем "Персональные данные" (b'6' или берём первую подходящую)
+                    personal_opt = None
+                    if hasattr(r1, 'options') and r1.options:
+                        # Пробуем найти категорию личных данных по байту b'6'
+                        for opt in r1.options:
+                            if opt.option == b'6':
+                                personal_opt = opt.option
+                                break
+                        if personal_opt is None:
+                            # Берём последнюю категорию (обычно "Другое/Личные данные")
+                            personal_opt = r1.options[-1].option
+                    else:
+                        personal_opt = b'6'  # fallback
+
+                    print(f"[BOT-SNOS] [{session}] 🔎 Выбрана категория: {personal_opt!r}", flush=True)
+                    r2 = await client(ReportRequest(peer=peer, id=[msg_id], option=personal_opt, message=''))
+
+                    # Шаг 3: выбираем подкатегорию — берём последнюю ("Другие личные данные")
+                    if hasattr(r2, 'options') and r2.options:
+                        sub_opt = r2.options[-1].option
+                        print(f"[BOT-SNOS] [{session}] 🔎 Подкатегория: {sub_opt!r}", flush=True)
+                        r3 = await client(ReportRequest(peer=peer, id=[msg_id], option=sub_opt, message=funstat_text))
+                    else:
+                        # Нет подкатегорий — отправляем с текстом напрямую
+                        r3 = await client(ReportRequest(peer=peer, id=[msg_id], option=personal_opt, message=funstat_text))
+
+                    print(f"[BOT-SNOS] [{session}] 📥 Репорт {attempt+1}/4 (funstat 3-шаг): {type(r3).__name__}", flush=True)
+                    reported = True
+                    await asyncio.sleep(random.uniform(0.3, 0.7))
+                except Exception as e:
+                    print(f"[BOT-SNOS] [{session}] ⚠️ Ошибка репорта {attempt+1}/4: {str(e)[:60]}", flush=True)
+                    break
+
+            if reported:
+                print(f"[BOT-SNOS] [{session}] ✅ ДОСТАВЛЕНО (funstat)", flush=True)
+                return "ДОСТАВЛЕНО"
+            else:
+                print(f"[BOT-SNOS] [{session}] ⚠️ ОТКЛОНЕНО (funstat)", flush=True)
+                return "ОТКЛОНЕНО"
+
+        # ── Обычные причины: 2 репорта через ReportPeerRequest ───────────────
         r1 = await client(ReportPeerRequest(peer=peer, reason=reason_main, message=text))
         print(f"[BOT-SNOS] [{session}] 📥 Репорт 1 ({type(reason_main).__name__}): {r1}", flush=True)
         print(f"[BOT-SNOS] [{session}] 📝 Текст 1: {text[:60]}...", flush=True)
 
         await asyncio.sleep(random.uniform(0.3, 0.8))
 
-        # ── Шаг 3: второй репорт с дополнительной причиной (двойной удар) ────
-        text2 = random.choice(TEXTS[reason_key])
+        text2 = random.choice(TEXTS[reason_key])[:200]
         r2 = await client(ReportPeerRequest(peer=peer, reason=reason_secondary, message=text2))
         print(f"[BOT-SNOS] [{session}] 📥 Репорт 2 ({type(reason_secondary).__name__}): {r2}", flush=True)
-
-        # ── Для funstat — 4 репорта подряд с одной сессии ────────────────────
-        if reason_key == "funstat":
-            for i in range(3, 5):
-                await asyncio.sleep(random.uniform(0.2, 0.5))
-                ri = await client(ReportPeerRequest(peer=peer, reason=reason_main, message=TEXTS["funstat"][0]))
-                print(f"[BOT-SNOS] [{session}] 📥 Репорт {i} (funstat): {ri}", flush=True)
-
-        await asyncio.sleep(random.uniform(0.2, 0.5))
-
-        # ── Шаг 4: блокировка бота — дополнительный сигнал модераторам ───────
-        try:
-            await client(BlockRequest(id=peer))
-            print(f"[BOT-SNOS] [{session}] 🚫 Бот заблокирован", flush=True)
-        except Exception as e:
-            print(f"[BOT-SNOS] [{session}] ⚠️ Block не удался: {str(e)[:40]}", flush=True)
 
         if r1 or r2:
             print(f"[BOT-SNOS] [{session}] ✅ ДОСТАВЛЕНО", flush=True)
