@@ -19,7 +19,7 @@ menu.add(free_btn)
 # ─── Меню Бесплатно ───────────────────────────────────────────────────────────
 free_menu_markup = types.InlineKeyboardMarkup(row_width=1)
 free_menu_markup.add(
-    types.InlineKeyboardButton("🪞 Создать зеркало (+3 репорта)", callback_data='mirror_create'),
+    types.InlineKeyboardButton("🪞 Создать зеркало", callback_data='mirror_create'),
     types.InlineKeyboardButton("📋 Мои зеркала", callback_data='mirror_list'),
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back')
 )
