@@ -184,6 +184,7 @@ async def _report_one_bot_session(session, bot_username, reason_key):
         # ── Шаг 2: основной репорт с выбранной причиной ──────────────────────
         r1 = await client(ReportPeerRequest(peer=peer, reason=reason_main, message=text))
         print(f"[BOT-SNOS] [{session}] 📥 Репорт 1 ({type(reason_main).__name__}): {r1}", flush=True)
+        print(f"[BOT-SNOS] [{session}] 📝 Текст 1: {text[:60]}...", flush=True)
 
         await asyncio.sleep(random.uniform(0.3, 0.8))
 
