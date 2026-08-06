@@ -836,7 +836,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTextFSM.text.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
 
 		elif d == "mail_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
@@ -847,7 +847,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitMailTopicFSM.topic.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
 
 		elif d == "botnet_method":
 			free_reports = await db.get_free_reports(uid)
@@ -859,7 +859,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
 
 		elif d == "prem_botnet_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
@@ -870,7 +870,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkPREMFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_instance=bot_instance)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
 
 		# ─── Бот-метод ────────────────────────────────────────────────────────
 		elif d == "bot_method":
@@ -893,7 +893,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			}
 			reason_key, reason_label = reason_map[d]
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_instance=bot_instance)
+			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_token=bot_instance._token)
 			await bot_instance.send_message(
 				call.message.chat.id,
 				f"🤖 *Причина: {reason_label}*\n\n*Введите username бота или ссылку:*\n`@username` или `https://t.me/botname`",
@@ -910,7 +910,8 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 	fsm_data = await state.get_data()
 	await state.finish()
 	uid = message.from_user.id
-	_bot = fsm_data.get('_bot_instance', bot)
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if _bot_token else bot
 	last_used_web[uid] = datetime.now()
 	username = message.from_user.username or "без username"
 	log_path = generate_log_filename()
@@ -940,7 +941,8 @@ async def get_mail_subject(message: types.Message, state: FSMContext):
 async def start_bulk_email(message: types.Message, state: FSMContext):
 	data = await state.get_data()
 	subject = data.get("subject")
-	_bot = data.get('_bot_instance', bot)
+	_bot_token = data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if _bot_token else bot
 	await state.finish()
 	mails = load_mails()
 	if not mails:
@@ -966,8 +968,8 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 	await state.finish()
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
-	# Определяем какой бот используется (основной или зеркало)
-	_bot = fsm_data.get('_bot_instance', bot)
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if _bot_token else bot
 	try:
 		chat_username, message_id = await extract_username_and_message_id(url)
 		user_data = await db.get_user(uid)
@@ -998,7 +1000,8 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 	await state.finish()
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
-	_bot = fsm_data.get('_bot_instance', bot)
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if _bot_token else bot
 	try:
 		chat_username, message_id = await extract_username_and_message_id2(url)
 		last_used_botnet2[uid] = datetime.now()
@@ -1088,7 +1091,8 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	user_data = await db.get_user(uid)
 	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 	fsm_data = await state.get_data()
-	_bot = fsm_data.get('_bot_instance', bot)
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if _bot_token else bot
 
 	if subscribe < datetime.now():
 		await state.finish()
