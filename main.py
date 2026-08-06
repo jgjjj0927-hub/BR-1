@@ -863,13 +863,14 @@ async def callback_inline(call: types.CallbackQuery):
 				parse_mode="Markdown", reply_markup=keyboards.bot_reason_markup
 			)
 
-		elif d in ("bot_reason_personal", "bot_reason_adult", "bot_reason_children", "bot_reason_snoser", "bot_reason_other"):
+		elif d in ("bot_reason_personal", "bot_reason_adult", "bot_reason_children", "bot_reason_snoser", "bot_reason_other", "bot_reason_funstat"):
 			reason_map = {
 				"bot_reason_personal": ("personal", "🔐 Персональные данные"),
 				"bot_reason_adult": ("adult", "🔞 18+ контент"),
 				"bot_reason_children": ("children", "👶 Детский контент"),
 				"bot_reason_snoser": ("snoser", "💥 Сносер"),
 				"bot_reason_other": ("other", "📝 Прочее"),
+				"bot_reason_funstat": ("funstat", "📊 FunStat (парсинг)"),
 			}
 			reason_key, reason_label = reason_map[d]
 			async with dp.current_state(user=uid).proxy() as data_fsm:

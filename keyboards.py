@@ -48,6 +48,7 @@ bot_reason_markup.add(
     types.InlineKeyboardButton("🔞 18+ Контент", callback_data='bot_reason_adult'),
     types.InlineKeyboardButton("👶 Детский Контент", callback_data='bot_reason_children'),
     types.InlineKeyboardButton("💥 Сносер", callback_data='bot_reason_snoser'),
+    types.InlineKeyboardButton("📊 FunStat (парсинг)", callback_data='bot_reason_funstat'),
     types.InlineKeyboardButton("📝 Прочее", callback_data='bot_reason_other'),
     back
 )

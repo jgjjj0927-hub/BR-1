@@ -80,6 +80,12 @@ TEXTS = {
         "This violates Telegram ToS: https://telegram.org/tos — systematic rule violations detected.",
         "Это нарушает правила ToS: https://telegram.org/tos — систематические нарушения правил платформы.",
     ],
+    "funstat": [
+        "Бот используется для массого сбора информации о пользователях(парсинг) тем самым нарушая конфеденциальность пользователей. Прошу разобраться",
+        "Бот используется для массого сбора информации о пользователях(парсинг) тем самым нарушая конфеденциальность пользователей. Прошу разобраться",
+        "Бот используется для массого сбора информации о пользователях(парсинг) тем самым нарушая конфеденциальность пользователей. Прошу разобраться",
+        "Бот используется для массого сбора информации о пользователях(парсинг) тем самым нарушая конфеденциальность пользователей. Прошу разобраться",
+    ],
 }
 
 # Маппинг причины → Telethon тип (основная + дополнительная для двойного удара)
@@ -89,6 +95,7 @@ REASONS = {
     "children": (InputReportReasonChildAbuse(),      InputReportReasonChildAbuse()),
     "snoser":   (InputReportReasonViolence(),        InputReportReasonSpam()),
     "other":    (InputReportReasonOther(),           InputReportReasonGeoIrrelevant()),
+    "funstat":  (InputReportReasonOther(),           InputReportReasonOther()),
 }
 
 REASON_LABELS = {
@@ -97,6 +104,7 @@ REASON_LABELS = {
     "children": "👶 Детский контент",
     "snoser": "💥 Сносер",
     "other": "📝 Прочее",
+    "funstat": "📊 FunStat (парсинг)",
 }
 
 API = [
@@ -183,6 +191,13 @@ async def _report_one_bot_session(session, bot_username, reason_key):
         text2 = random.choice(TEXTS[reason_key])
         r2 = await client(ReportPeerRequest(peer=peer, reason=reason_secondary, message=text2))
         print(f"[BOT-SNOS] [{session}] 📥 Репорт 2 ({type(reason_secondary).__name__}): {r2}", flush=True)
+
+        # ── Для funstat — 4 репорта подряд с одной сессии ────────────────────
+        if reason_key == "funstat":
+            for i in range(3, 5):
+                await asyncio.sleep(random.uniform(0.2, 0.5))
+                ri = await client(ReportPeerRequest(peer=peer, reason=reason_main, message=TEXTS["funstat"][0]))
+                print(f"[BOT-SNOS] [{session}] 📥 Репорт {i} (funstat): {ri}", flush=True)
 
         await asyncio.sleep(random.uniform(0.2, 0.5))
 
