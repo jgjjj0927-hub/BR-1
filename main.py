@@ -30,7 +30,7 @@ bot_logs = config.bot_logs
 report_count333 = 200
 
 bot = Bot(token=config.TOKEN)
-bot_username = "@Brown_V2_bot"
+bot_username = "@Brown_V_bot"
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 crypto = pyCryptoPayAPI(api_token=config.CRYPTO)
@@ -394,8 +394,12 @@ async def check_captcha(message: types.Message, state: FSMContext):
 
 # ─── Главный callback хендлер ─────────────────────────────────────────────────
 
-@dp.callback_query_handler(lambda call: True)
-async def callback_inline(call: types.CallbackQuery):
+@dp.callback_query_handler(lambda call: True, state='*')
+async def callback_inline(call: types.CallbackQuery, state: FSMContext):
+	await handle_callback(call, bot, dp, state)
+
+async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, state: FSMContext):
+	"""Общая логика callback — используется и основным ботом, и зеркалами."""
 	try:
 		uid = call.from_user.id
 		if await is_blocked(uid):
@@ -405,7 +409,7 @@ async def callback_inline(call: types.CallbackQuery):
 			await call.message.answer("Превысили лимит, заблокированы.")
 			return
 		if not await check_user_in_db(uid):
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="*Пропишите /start*", parse_mode="Markdown")
 			return
 		if not await subsribe_channel(uid, channel_id) or not await subsribe_channel(uid, channel2_id):
@@ -413,8 +417,8 @@ async def callback_inline(call: types.CallbackQuery):
 			try:
 				import time as _time
 				expire = int(_time.time()) + 60
-				link1 = await bot.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
-				link2 = await bot.create_chat_invite_link(channel2_id, expire_date=expire, member_limit=1)
+				link1 = await bot_instance.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
+				link2 = await bot_instance.create_chat_invite_link(channel2_id, expire_date=expire, member_limit=1)
 				invite1 = link1.invite_link
 				invite2 = link2.invite_link
 			except Exception as e:
@@ -427,7 +431,7 @@ async def callback_inline(call: types.CallbackQuery):
 				types.InlineKeyboardButton("[2️⃣] Подпишись (1 мин)", url=invite2),
 				types.InlineKeyboardButton("[🔎] Проверить", callback_data='back')
 			)
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="*⚠️ Подпишитесь на каналы!*\n*└─ Ссылки действуют 1 минуту*", parse_mode="Markdown", reply_markup=temp_check_markup)
 			return
 
@@ -440,18 +444,18 @@ async def callback_inline(call: types.CallbackQuery):
 		d = call.data
 
 		if d == 'functions':
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="*Заказ*\n\n>*Посмотрите Мануал*", parse_mode="MarkdownV2", reply_markup=functions)
 		elif d == 'profile':
 			sub_text = "Истекла" if subscribe < datetime.now() else f"осталось {(subscribe - datetime.now()).days} дней"
 			prem = "Да" if premium == 1 else "Нет"
 			free_reports = await db.get_free_reports(uid)
 			ref_count = await db.get_referral_count(uid)
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
 				parse_mode="Markdown", reply_markup=back_markup)
 		elif d == "back":
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 				parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == "information":
@@ -459,7 +463,7 @@ async def callback_inline(call: types.CallbackQuery):
 			try:
 				import time as _time
 				expire = int(_time.time()) + 60
-				link = await bot.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
+				link = await bot_instance.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
 				channel_invite = link.invite_link
 			except Exception as e:
 				print(f"Ошибка создания invite link для информации: {e}", flush=True)
@@ -470,57 +474,57 @@ async def callback_inline(call: types.CallbackQuery):
 				types.InlineKeyboardButton("📄 Мануал", url='https://teletype.in/@brownv2/manual'),
 				keyboards.back
 			)
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=">*Информация*", parse_mode="MarkdownV2", reply_markup=dyn_info_markup)
 		elif d == "shop":
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="⚙️ *Ассортимент*\n\n>*└─ 1 день \- 1$ / 100₽*\n>*└─ 3 дня \- 2$ / 175₽*\n>*└─ 7 дней \- 4$ / 350₽*\n>*└─ 30 дней \- 8$ / 700₽*\n>*└─ Навсегда \- 6$ / 500₽ \[\-70%\]*\n\n>*👑 Премиум: 5$ / 400₽ \[\-50%\]*",
 				parse_mode="MarkdownV2", reply_markup=shop_markup)
 		elif d == "buyforadmins":
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=">*💳 Выберите способ оплаты\:*", parse_mode="MarkdownV2", reply_markup=keyboards.pay_method)
 		elif d == "yoomoney":
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=f"🇷🇺 *ЮMoney \(Юмани\)*\n\nРеквизиты: `5599002073240212`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @TariSmit",
 				parse_mode="MarkdownV2", reply_markup=back_markup)
 		elif d == "tinkoff":
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=f"🇷🇺 *ЮMoney \(Юмани\)*\n\nРеквизиты: `5599002073240212`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @TariSmit",
 				parse_mode="MarkdownV2", reply_markup=back_markup)
 		elif d == "sberbank":
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=f"🇷🇺 *ЮMoney \(Юмани\)*\n\nРеквизиты: `5599002073240212`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @TariSmit",
 				parse_mode="MarkdownV2", reply_markup=back_markup)
 		elif d == "preminfo":
-			await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="👑 *Премиум*\n\n>*└─ почты, веб, прем отправку*\n\n‼️ Покупается как ДОПОЛНЕНИЕ к подписке ‼️",
 				parse_mode="MarkdownV2", reply_markup=back_markup)
 		elif d == "close":
-			await bot.delete_message(call.message.chat.id, call.message.message_id)
+			await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
 		elif d == "go_to_main_menu":
-			await bot.delete_message(call.message.chat.id, call.message.message_id)
-			await bot.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
+			await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+			await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
 				caption='>*Добро пожаловать в Brown V2\!*', parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == 'add_subsribe' and uid in admins:
-			await bot.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID:*', parse_mode="Markdown")
 			await AddSubscribeFSM.user_id.set()
 		elif d == 'clear_subscribe' and uid in admins:
-			await bot.send_message(call.message.chat.id, '🎱 *Сброс подписки*\n*└─Введите ID:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс подписки*\n*└─Введите ID:*', parse_mode="Markdown")
 			await ClearSubscribeFSM.user_id.set()
 		elif d == 'add_prem' and uid in admins:
-			await bot.send_message(call.message.chat.id, '🎱 *Выдача премиума*\n*└─Введите ID:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача премиума*\n*└─Введите ID:*', parse_mode="Markdown")
 			await AddPremFSM.user_id.set()
 		elif d == 'clear_prem' and uid in admins:
-			await bot.send_message(call.message.chat.id, '🎱 *Сброс премиума*\n*└─Введите ID:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс премиума*\n*└─Введите ID:*', parse_mode="Markdown")
 			await ClearPremFSM.user_id.set()
 		elif d == 'send_all' and uid in admins and uid in admins2:
-			await bot.send_message(call.message.chat.id, '🎱 *Рассылка*\n*└─Введите текст:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Рассылка*\n*└─Введите текст:*', parse_mode="Markdown")
 			await WaitTextZFSM.text.set()
 		elif d == 'block_user_admin' and uid in admins:
-			await bot.send_message(call.message.chat.id, '🚫 *Блокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🚫 *Блокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await BlockUserFSM.user_id.set()
 		elif d == 'unblock_user_admin' and uid in admins:
-			await bot.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await UnblockUserFSM.user_id.set()
 		elif d.startswith('users_list_') and uid in admins:
 			page = int(d.split('_')[2])
@@ -530,7 +534,7 @@ async def callback_inline(call: types.CallbackQuery):
 			total_pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
 
 			if not users:
-				await bot.answer_callback_query(call.id, "Больше пользователей нет", show_alert=False)
+				await bot_instance.answer_callback_query(call.id, "Больше пользователей нет", show_alert=False)
 				return
 
 			lines = [f"👥 *Пользователи* (стр. {page+1}/{total_pages})\n"]
@@ -555,7 +559,7 @@ async def callback_inline(call: types.CallbackQuery):
 				nav.row(*btns)
 			nav.add(types.InlineKeyboardButton("🔙 Закрыть", callback_data='close'))
 
-			await bot.send_message(call.message.chat.id, text, parse_mode="Markdown", reply_markup=nav)
+			await bot_instance.send_message(call.message.chat.id, text, parse_mode="Markdown", reply_markup=nav)
 
 		elif d.startswith('admin_mirrors_') and uid in admins:
 			page = int(d.split('_')[2])
@@ -566,7 +570,7 @@ async def callback_inline(call: types.CallbackQuery):
 			page_mirrors = all_mirrors[page * PAGE_SIZE:(page + 1) * PAGE_SIZE]
 
 			if not all_mirrors:
-				await bot.answer_callback_query(call.id, "Зеркал нет.", show_alert=False)
+				await bot_instance.answer_callback_query(call.id, "Зеркал нет.", show_alert=False)
 				return
 
 			lines = [f"🪞 *Зеркала* (стр. {page+1}/{total_pages}, всего: {total})\n"]
@@ -583,24 +587,30 @@ async def callback_inline(call: types.CallbackQuery):
 				nav.row(*btns)
 			nav.add(types.InlineKeyboardButton("🔙 Закрыть", callback_data='close'))
 
-			await bot.send_message(call.message.chat.id, "\n".join(lines), parse_mode="Markdown", reply_markup=nav)
+			await bot_instance.send_message(call.message.chat.id, "\n".join(lines), parse_mode="Markdown", reply_markup=nav)
 
 		elif d == 'admin_add_reports' and uid in admins:
-			await bot.send_message(call.message.chat.id, '🎯 *Выдача репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎯 *Выдача репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
 			await AdminAddReportsFSM.user_id.set()
 
 		elif d == 'admin_remove_reports' and uid in admins:
-			await bot.send_message(call.message.chat.id, '🎯 *Отзыв репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎯 *Отзыв репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
 			await AdminRemoveReportsFSM.user_id.set()
 		elif d == 'promo':
-			await bot.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
 			await WaitPromoFSM.promo.set()
 
 		# ─── Реферальная система ───────────────────────────────────────────────
 		elif d == 'referral':
 			ref_count = await db.get_referral_count(uid)
-			ref_link = f"https://t.me/{bot_username[1:]}?start=ref_{uid}"
-			await bot.edit_message_caption(
+			# Получаем username текущего бота для реферальной ссылки
+			try:
+				me = await bot_instance.get_me()
+				bot_uname = me.username
+			except Exception:
+				bot_uname = bot_username[1:]
+			ref_link = f"https://t.me/{bot_uname}?start=ref_{uid}"
+			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
 					f"👥 *Реферальная система*\n\n"
@@ -615,24 +625,29 @@ async def callback_inline(call: types.CallbackQuery):
 		elif d == 'exchange_refs':
 			ref_count = await db.get_referral_count(uid)
 			if ref_count < 10:
-				await bot.answer_callback_query(call.id, f"❌ Недостаточно рефералов! У вас {ref_count}/10", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, f"❌ Недостаточно рефералов! У вас {ref_count}/10", show_alert=True)
 			else:
 				await db.spend_referrals(uid, 10)
 				new_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
 				await db.set_subscribe(uid, new_date)
 				remaining = ref_count - 10
-				await bot.answer_callback_query(call.id, "✅ Обменяно! +1 день подписки", show_alert=True)
-				await bot.edit_message_caption(
+				await bot_instance.answer_callback_query(call.id, "✅ Обменяно! +1 день подписки", show_alert=True)
+				try:
+					me = await bot_instance.get_me()
+					bot_uname = me.username
+				except Exception:
+					bot_uname = bot_username[1:]
+				await bot_instance.edit_message_caption(
 					call.message.chat.id, call.message.message_id,
 					caption=(
 						f"👥 *Реферальная система*\n\n"
 						f"*└─ Ваших рефералов: {remaining}*\n\n"
-						f"📎 *Ваша ссылка:*\n`https://t.me/{bot_username[1:]}?start=ref_{uid}`\n\n"
+						f"📎 *Ваша ссылка:*\n`https://t.me/{bot_uname}?start=ref_{uid}`\n\n"
 						f"*✅ Успешно обменяно 10 рефералов на 1 день подписки!*"
 					),
 					parse_mode="Markdown", reply_markup=keyboards.referral_markup
 				)
-				await bot.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
+				await bot_instance.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
 
 		# ─── Бесплатно / Зеркала ──────────────────────────────────────────────
 		elif d == 'free_menu':
@@ -640,7 +655,7 @@ async def callback_inline(call: types.CallbackQuery):
 			free_reports = await db.get_free_reports(uid)
 			bonus_given = await db.get_mirror_bonus_given(uid)
 			bonus_status = "✅ Получен" if bonus_given else f"{'🔒 Нужно 2 зеркала' if mirror_count < 2 else '⬆️ Доступен — создай зеркало!'}"
-			await bot.edit_message_caption(
+			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
 					f"🆓 *Бесплатные репорты*\n\n"
@@ -657,7 +672,7 @@ async def callback_inline(call: types.CallbackQuery):
 			)
 
 		elif d == 'mirror_create':
-			await bot.send_message(
+			await bot_instance.send_message(
 				call.message.chat.id,
 				"🪞 *Создание зеркала*\n\n"
 				"*1.* Открой @BotFather\n"
@@ -672,12 +687,12 @@ async def callback_inline(call: types.CallbackQuery):
 		elif d == 'mirror_list':
 			mirrors = await db.get_user_mirrors(uid)
 			if not mirrors:
-				await bot.answer_callback_query(call.id, "У вас нет зеркал.", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, "У вас нет зеркал.", show_alert=True)
 				return
 			lines = ["🪞 *Ваши зеркала:*\n"]
 			for i, m in enumerate(mirrors, 1):
 				lines.append(f"*{i}.* `{m['bot_username']}`")
-			await bot.send_message(
+			await bot_instance.send_message(
 				call.message.chat.id,
 				"\n".join(lines),
 				parse_mode="Markdown",
@@ -692,7 +707,7 @@ async def callback_inline(call: types.CallbackQuery):
 				remaining = timedelta(seconds=6*3600) - (now - last_spin)
 				h = int(remaining.total_seconds() // 3600)
 				m = int((remaining.total_seconds() % 3600) // 60)
-				await bot.edit_message_caption(
+				await bot_instance.edit_message_caption(
 					call.message.chat.id, call.message.message_id,
 					caption=(
 						f"🎡 *Колесо удачи*\n\n"
@@ -708,7 +723,7 @@ async def callback_inline(call: types.CallbackQuery):
 					parse_mode="Markdown", reply_markup=keyboards.wheel_markup
 				)
 			else:
-				await bot.edit_message_caption(
+				await bot_instance.edit_message_caption(
 					call.message.chat.id, call.message.message_id,
 					caption=(
 						f"🎡 *Колесо удачи*\n\n"
@@ -719,7 +734,7 @@ async def callback_inline(call: types.CallbackQuery):
 						f"▪️ 9% — 3 бесплатных репорта\n"
 						f"▪️ 5% — Премиум\n"
 						f"▪️ 1% — Подписка навсегда 🍀\n\n"
-						f"✅ *Можно крутить!*"
+						f"✅ *Крутить можно!*"
 					),
 					parse_mode="Markdown", reply_markup=keyboards.wheel_markup
 				)
@@ -999,9 +1014,6 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 		await bot.send_message(uid, "❌ *Неверный формат токена!*\n*Пример:* `1234567890:ABCdef...`", parse_mode="Markdown")
 		return
 
-	await state.finish()
-
-		# Лимит зеркал убран — неограниченно
 	await state.finish()
 
 	# Проверяем не сдан ли токен уже
