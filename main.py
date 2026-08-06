@@ -942,12 +942,20 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 async def mirror_token_received(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	token = message.text.strip()
-	await state.finish()
+
+	# Если прислали команду — отменяем FSM
+	if token.startswith('/'):
+		await state.finish()
+		await bot.send_message(uid, "❌ *Ввод токена отменён.*", parse_mode="Markdown", reply_markup=main_menu)
+		return
 
 	# Базовая проверка формата токена
 	if ':' not in token or len(token) < 30:
+		await state.finish()
 		await bot.send_message(uid, "❌ *Неверный формат токена!*\n*Пример:* `1234567890:ABCdef...`", parse_mode="Markdown")
 		return
+
+	await state.finish()
 
 	# Лимит зеркал
 	mirror_count = await db.count_user_mirrors(uid)

@@ -163,16 +163,46 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             )
 
     # ─── FSM создания зеркала внутри зеркала ──────────────────────────────────
-    @dp.message_handler(state=MirrorCreateFSM.token)
+    @dp.message_handler(state=MirrorCreateFSM.token, content_types=types.ContentTypes.TEXT)
     async def mirror_create_token(message: types.Message, state: FSMContext):
         uid = message.from_user.id
         new_token = message.text.strip()
-        await state.finish()
 
-        if ':' not in new_token or len(new_token) < 30:
-            await mirror_bot.send_message(uid, "❌ *Неверный формат токена!*", parse_mode="Markdown")
+        # Если прислали команду — отменяем FSM и обрабатываем как команду
+        if new_token.startswith('/'):
+            await state.finish()
+            if new_token.startswith('/start'):
+                await db.add_user(uid)
+                if not await db.is_verified(uid):
+                    code = generate_captcha_text()
+                    _mirror_captcha_codes[uid] = code
+                    img = generate_captcha_image(code)
+                    await mirror_bot.send_photo(uid, photo=img,
+                        caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",
+                        parse_mode="Markdown")
+                    await MirrorCaptchaFSM.code.set()
+                    return
+                await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+                pin_msg = await mirror_bot.send_message(uid,
+                    "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je",
+                    parse_mode="MarkdownV2")
+                try:
+                    await mirror_bot.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
+                except Exception:
+                    pass
+                await mirror_bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
+                    caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+                    parse_mode="MarkdownV2", reply_markup=keyboards.menu)
+            else:
+                await mirror_bot.send_message(uid, "❌ *Отменено.*", parse_mode="Markdown")
             return
 
+        if ':' not in new_token or len(new_token) < 30:
+            await state.finish()
+            await mirror_bot.send_message(uid, "❌ *Неверный формат токена!*\n*Пример:* `1234567890:ABCdef...`", parse_mode="Markdown")
+            return
+
+        await state.finish()
         mirror_count = await db.count_user_mirrors(uid)
         if mirror_count >= MIRROR_LIMIT:
             await mirror_bot.send_message(uid, "❌ *Максимум 3 зеркала!*", parse_mode="Markdown")
