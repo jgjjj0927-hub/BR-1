@@ -121,7 +121,7 @@ async def _run_mirror(token: str):
     try:
         mirror_bot, dp = _build_mirror_dispatcher(token)
         print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}...", flush=True)
-        await dp.start_polling(mirror_bot, skip_updates=True)
+        await dp.start_polling(reset_webhook=True)
     except Exception as e:
         print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
     finally:
