@@ -25,7 +25,9 @@ from captcha import generate_captcha_text, generate_captcha_image
 
 _running_mirrors: dict[str, asyncio.Task] = {}
 _mirror_bots: dict[str, Bot] = {}  # token → Bot instance
-_mirror_captcha_codes: dict[int, str] = {}
+# Вложенный словарь: {mirror_token: {user_id: captcha_code}}
+# Предотвращает коллизии когда один uid открыл несколько зеркал
+_mirror_captcha_codes: dict[str, dict[int, str]] = {}
 
 MIRROR_LIMIT = 999  # без лимита
 
@@ -83,7 +85,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         await db.add_user(uid)
         if not await db.is_verified(uid):
             code = generate_captcha_text()
-            _mirror_captcha_codes[uid] = code
+            _mirror_captcha_codes.setdefault(token, {})[uid] = code
             img = generate_captcha_image(code)
             await mirror_bot.send_photo(
                 uid, photo=img,
@@ -113,10 +115,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     @dp.message_handler(state=MirrorCaptchaFSM.code)
     async def mirror_captcha(message: types.Message, state: FSMContext):
         uid = message.from_user.id
-        if message.text.strip().lower() == _mirror_captcha_codes.get(uid, "").lower():
+        token_codes = _mirror_captcha_codes.get(token, {})
+        if message.text.strip().lower() == token_codes.get(uid, "").lower():
             fsm_data = await state.get_data()
             await state.finish()
-            _mirror_captcha_codes.pop(uid, None)
+            _mirror_captcha_codes.get(token, {}).pop(uid, None)
             await db.set_verified(uid)
             ref_arg = fsm_data.get('ref_arg')
             if ref_arg and ref_arg.startswith("ref_"):
@@ -146,7 +149,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 parse_mode="MarkdownV2", reply_markup=keyboards.menu)
         else:
             code = generate_captcha_text()
-            _mirror_captcha_codes[uid] = code
+            _mirror_captcha_codes.setdefault(token, {})[uid] = code
             await mirror_bot.send_photo(
                 uid, photo=generate_captcha_image(code),
                 caption="*❌ Неверно! Попробуй ещё раз:*", parse_mode="Markdown")
@@ -236,7 +239,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 await db.add_user(uid)
                 if not await db.is_verified(uid):
                     code = generate_captcha_text()
-                    _mirror_captcha_codes[uid] = code
+                    _mirror_captcha_codes.setdefault(token, {})[uid] = code
                     img = generate_captcha_image(code)
                     await mirror_bot.send_photo(uid, photo=img,
                         caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",

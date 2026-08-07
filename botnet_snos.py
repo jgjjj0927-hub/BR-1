@@ -197,7 +197,9 @@ def set_bot(b):
     bot = b
 session_folder = 'sessions'
 os.makedirs(session_folder, exist_ok=True)
-sessions = [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
+
+def _get_sessions():
+    return [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
 
 LOG_FOLDER = "logs"
 os.makedirs(LOG_FOLDER, exist_ok=True)
@@ -335,7 +337,8 @@ async def main(chat_username, message_id, user, username, message_url):
     print(f"[BOTNET] 🚀 Запуск ботнета", flush=True)
     print(f"[BOTNET] 👤 Пользователь: {user} (@{username})", flush=True)
     print(f"[BOTNET] 🔗 Ссылка: {message_url}", flush=True)
-    print(f"[BOTNET] 📦 Сессий загружено: {len(sessions)}", flush=True)
+    _sessions = _get_sessions()
+    print(f"[BOTNET] 📦 Сессий загружено: {len(_sessions)}", flush=True)
     print(f"{'='*50}", flush=True)
 
     # Общий изменяемый объект для TARGET между параллельными задачами
@@ -344,12 +347,12 @@ async def main(chat_username, message_id, user, username, message_url):
     # Запускаем сессии пачками по 8 с задержкой 3-5 сек между пачками
     BATCH_SIZE = 8
     results = []
-    for i in range(0, len(sessions), BATCH_SIZE):
-        batch = sessions[i:i + BATCH_SIZE]
+    for i in range(0, len(_sessions), BATCH_SIZE):
+        batch = _sessions[i:i + BATCH_SIZE]
         batch_tasks = [_report_one_session(s, chat_username, message_id, message_url, whitelist, target_ref) for s in batch]
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
         results.extend(zip(batch, batch_results))
-        if i + BATCH_SIZE < len(sessions):
+        if i + BATCH_SIZE < len(_sessions):
             delay = random.uniform(3, 5)
             print(f"[BOTNET] ⏳ Пачка {i//BATCH_SIZE + 1} завершена, ждём {delay:.1f}с перед следующей...", flush=True)
             await asyncio.sleep(delay)

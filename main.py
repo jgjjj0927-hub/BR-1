@@ -945,13 +945,15 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 	await state.finish()
 	uid = message.from_user.id
 	_bot_token = fsm_data.get('_bot_token')
-	_bot = Bot(token=_bot_token) if _bot_token else bot
-	last_used_web[uid] = datetime.now()
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 	username = message.from_user.username or "без username"
 	log_path = generate_log_filename()
 	async with aiohttp.ClientSession() as session:
 		success, error = await web(session=session, message_text=message.text,
 			count=report_count333, log_path=log_path, user_id=uid, username=username)
+	# КД ставим только после завершения отправки
+	last_used_web[uid] = datetime.now()
 	try:
 		await _bot.send_document(uid, types.InputFile(log_path),
 			caption=f"⚙️ *Веб*\n🟢 *Успешно: {success}*\n🔴 *Не удалось: {error}*",
@@ -963,11 +965,17 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 	except Exception: pass
 	try: os.remove(log_path)
 	except Exception: pass
+	if _is_mirror_bot:
+		try:
+			session = await _bot.get_session()
+			await session.close()
+		except Exception:
+			pass
 
 @dp.message_handler(state=WaitMailTopicFSM.topic)
 async def get_mail_subject(message: types.Message, state: FSMContext):
 	await state.update_data(subject=message.text)
-	last_used_mail[message.from_user.id] = datetime.now()
+	# КД ставим только после реальной отправки в start_bulk_email
 	await message.answer("✉️ *Введите текст письма:*", parse_mode="Markdown")
 	await WaitMailTextFSM.text.set()
 
@@ -976,7 +984,8 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 	data = await state.get_data()
 	subject = data.get("subject")
 	_bot_token = data.get('_bot_token')
-	_bot = Bot(token=_bot_token) if _bot_token else bot
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 	await state.finish()
 	mails = load_mails()
 	if not mails:
@@ -986,6 +995,8 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 		subject, message.text, mails, receiver_emails,
 		user_id=message.from_user.id, username=message.from_user.username or "None",
 		bot=_bot, chat_id=message.from_user.id)
+	# КД ставим только после реального завершения отправки
+	last_used_mail[message.from_user.id] = datetime.now()
 	try:
 		await _bot.send_document(message.from_user.id, types.InputFile(log_path),
 			caption=f"⚙️ *Почты*\n🟢 {success}\n🔴 {error}", parse_mode="Markdown", reply_markup=main_menu)
@@ -994,6 +1005,13 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 	except Exception as e: print(e)
 	try: os.remove(log_path)
 	except Exception: pass
+	# Закрываем временную сессию зеркального бота
+	if _is_mirror_bot:
+		try:
+			session = await _bot.get_session()
+			await session.close()
+		except Exception:
+			pass
 
 @dp.message_handler(state=WaitLinkFSM.link)
 async def botnet_step1_normal(message: types.Message, state: FSMContext):
@@ -1003,7 +1021,8 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	_bot_token = fsm_data.get('_bot_token')
-	_bot = Bot(token=_bot_token) if _bot_token else bot
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 	try:
 		chat_username, message_id = await extract_username_and_message_id(url)
 		user_data = await db.get_user(uid)
@@ -1015,17 +1034,24 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 				return
 			free_left = await db.get_free_reports(uid)
 			await _bot.send_message(uid, f'🎯 *Использован бесплатный репорт! Осталось: {free_left}*', parse_mode=ParseMode.MARKDOWN)
-		last_used_botnet[uid] = datetime.now()
 		await _bot.send_message(uid, '📤 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		botnet_set_bot(_bot)
 		await botnet_main(chat_username, message_id, uid, username, url)
+		# КД только после успешного запуска
+		last_used_botnet[uid] = datetime.now()
 	except ValueError:
 		await _bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
 		print(f"[BOTNET] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
-		botnet_set_bot(bot)  # восстанавливаем основного бота
+		botnet_set_bot(bot)
+		if _is_mirror_bot:
+			try:
+				session = await _bot.get_session()
+				await session.close()
+			except Exception:
+				pass
 
 @dp.message_handler(state=WaitLinkPREMFSM.link)
 async def botnet_step1_premium(message: types.Message, state: FSMContext):
@@ -1035,13 +1061,15 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	_bot_token = fsm_data.get('_bot_token')
-	_bot = Bot(token=_bot_token) if _bot_token else bot
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 	try:
 		chat_username, message_id = await extract_username_and_message_id2(url)
-		last_used_botnet2[uid] = datetime.now()
 		await _bot.send_message(uid, '👑 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		botnet_set_bot2(_bot)
 		await botnet_main2(chat_username, message_id, uid, username, url)
+		# КД только после успешного запуска
+		last_used_botnet2[uid] = datetime.now()
 	except ValueError:
 		await _bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
@@ -1049,6 +1077,12 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
 		botnet_set_bot2(bot)
+		if _is_mirror_bot:
+			try:
+				session = await _bot.get_session()
+				await session.close()
+			except Exception:
+				pass
 
 @dp.message_handler(state=WaitMirrorTokenFSM.token)
 async def mirror_token_received(message: types.Message, state: FSMContext):
@@ -1153,6 +1187,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	last_used_bot_snos[uid] = datetime.now()
 	await _bot.send_message(uid, f'🤖 *Запустил жалобы на {bot_target}...*', parse_mode=ParseMode.MARKDOWN)
 
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	try:
 		set_bot_snos(_bot)
 		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
@@ -1160,7 +1195,13 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		print(f"[BOT-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
-		set_bot_snos(bot)  # восстанавливаем основного бота
+		set_bot_snos(bot)
+		if _is_mirror_bot:
+			try:
+				session = await _bot.get_session()
+				await session.close()
+			except Exception:
+				pass
 
 @dp.message_handler(state=WaitStressFSM.link)
 async def stress_step1(message: types.Message, state: FSMContext):
@@ -1169,7 +1210,8 @@ async def stress_step1(message: types.Message, state: FSMContext):
 	raw = message.text.strip()
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
-	_bot = Bot(token=_bot_token) if _bot_token else bot
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 
 	# Нормализуем username
 	if raw.startswith("https://t.me/"):
@@ -1210,6 +1252,12 @@ async def stress_step1(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, f'❌ *Ошибка стрессера:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		set_bot_stress(bot)
+		if _is_mirror_bot:
+			try:
+				session = await _bot.get_session()
+				await session.close()
+			except Exception:
+				pass
 
 # ─── Управление подписками (админ) ────────────────────────────────────────────
 
