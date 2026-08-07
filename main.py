@@ -687,7 +687,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"*Формат:* `1234567890:ABCdef...`",
 				parse_mode="Markdown"
 			)
-			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitMirrorTokenFSM.token.state)
+			state_proxy = dp_instance.current_state(chat=uid, user=uid)
+			if bot_instance is not bot:
+				# Зеркальный бот — используем MirrorCreateFSM который уже отвечает через mirror_bot
+				from mirror_manager import MirrorCreateFSM
+				await state_proxy.set_state(MirrorCreateFSM.token.state)
+			else:
+				await state_proxy.set_state(WaitMirrorTokenFSM.token.state)
 
 		elif d == 'mirror_list':
 			mirrors = await db.get_user_mirrors(uid)
@@ -1068,18 +1074,18 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 
 	# Проверяем токен через getMe
 	wait_msg = await bot.send_message(uid, "⏳ *Проверяем токен...*", parse_mode="Markdown")
-	bot_username = await validate_token(token)
+	bot_username_new = await validate_token(token)
 	try:
 		await bot.delete_message(uid, wait_msg.message_id)
 	except Exception:
 		pass
 
-	if not bot_username:
+	if not bot_username_new:
 		await bot.send_message(uid, "❌ *Токен невалидный или бот не существует!*\n*Проверь и попробуй снова.*", parse_mode="Markdown")
 		return
 
 	# Сохраняем и запускаем зеркало
-	await db.add_mirror(uid, token, bot_username)
+	await db.add_mirror(uid, token, bot_username_new)
 	await start_mirror(token)
 
 	# Бонус +1 репорт при создании 2-го зеркала — только 1 раз
@@ -1093,7 +1099,7 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 	await bot.send_message(
 		uid,
 		f"✅ *Зеркало создано!*\n\n"
-		f"🤖 *Бот:* `{bot_username}`\n"
+		f"🤖 *Бот:* `{bot_username_new}`\n"
 		f"📊 *Всего зеркал: {mirror_count}*"
 		f"{bonus_msg}\n\n"
 		f"*Зеркало уже работает и принимает пользователей!*",
@@ -1103,7 +1109,7 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 		bot_logs,
 		f"🪞 *Новое зеркало*\n"
 		f"*└─ Пользователь:* `{uid}`\n"
-		f"*└─ Бот:* `{bot_username}`\n"
+		f"*└─ Бот:* `{bot_username_new}`\n"
 		f"*└─ Всего зеркал:* `{mirror_count}`",
 		parse_mode="Markdown"
 	)
@@ -1202,7 +1208,6 @@ async def stress_step1(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, f'❌ *Ошибка стрессера:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		set_bot_stress(bot)
-		await bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 
 # ─── Управление подписками (админ) ────────────────────────────────────────────
 

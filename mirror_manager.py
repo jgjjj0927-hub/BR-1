@@ -24,6 +24,7 @@ import keyboards
 from captcha import generate_captcha_text, generate_captcha_image
 
 _running_mirrors: dict[str, asyncio.Task] = {}
+_mirror_bots: dict[str, Bot] = {}  # token → Bot instance
 _mirror_captcha_codes: dict[int, str] = {}
 
 MIRROR_LIMIT = 999  # без лимита
@@ -278,6 +279,18 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             f"{bonus_msg}\n\n"
             f"*Зеркало уже работает!*",
             parse_mode="Markdown")
+        # Лог в основной бот
+        try:
+            from main import bot as main_bot, bot_logs
+            await main_bot.send_message(
+                bot_logs,
+                f"🪞 *Новое зеркало*\n"
+                f"*└─ Пользователь:* `{uid}`\n"
+                f"*└─ Бот:* `{bot_username}`\n"
+                f"*└─ Всего зеркал:* `{mirror_count}`",
+                parse_mode="Markdown")
+        except Exception:
+            pass
 
     # ─── FSM хендлеры — все методы работают через зеркало ────────────────────
 
@@ -339,6 +352,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
 
 async def _run_mirror(token: str):
     mirror_bot, dp = _build_mirror_dispatcher(token)
+    _mirror_bots[token] = mirror_bot
     try:
         print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}...", flush=True)
         # Сначала закрываем все предыдущие соединения — сбрасываем webhook и старые сессии
@@ -368,6 +382,7 @@ async def _run_mirror(token: str):
         except Exception:
             pass
         _running_mirrors.pop(token, None)
+        _mirror_bots.pop(token, None)
         print(f"[MIRROR] 🔴 Зеркало {token[:20]} остановлено", flush=True)
 
 
