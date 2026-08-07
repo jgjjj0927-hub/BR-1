@@ -1095,7 +1095,6 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
             print(f"[PREM] [{session}] ❌ НЕВАЛИД (не авторизован)", flush=True)
             return "НЕВАЛИД", None
 
-        await client.start()
         chat = await client.get_entity(chat_username)
         print(f"[PREM] [{session}] ✅ Подключён, чат получен: {chat_username}", flush=True)
 

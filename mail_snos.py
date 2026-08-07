@@ -274,3 +274,4 @@ async def send_bulk_emails(subject, text, mails, receiver_emails, user_id, usern
 
     except Exception as e:
         print("Ошибка при отправке:", e)
+        return 0, 0, ""

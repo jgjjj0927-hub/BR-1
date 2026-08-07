@@ -30,8 +30,14 @@ def generate_log_filename():
     rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=20))
     return os.path.join(LOGS_DIR, f"brown_v2_web_log_{rand}.txt")
 
-# Семафор для ограничения параллельных запросов (не перегружать сервер)
-_SEMAPHORE = asyncio.Semaphore(100)  # Увеличено с 20 до 100 для максимальной скорости
+# Семафор для ограничения параллельных запросов
+_SEMAPHORE = None
+
+def _get_semaphore():
+    global _SEMAPHORE
+    if _SEMAPHORE is None:
+        _SEMAPHORE = asyncio.Semaphore(100)
+    return _SEMAPHORE
 
 async def _send_one(session, i, message_text, subject, log_file):
     """Отправляет одну жалобу, возвращает (success: bool, log_line: str)."""
@@ -44,7 +50,7 @@ async def _send_one(session, i, message_text, subject, log_file):
     }
     timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
     try:
-        async with _SEMAPHORE:
+        async with _get_semaphore():
             async with session.post(url, data=payload, ssl=False) as response:
                 if response.status == 200:
                     line = f"{timestamp} Жалоба #{i} — ДОШЛА ✅\n"

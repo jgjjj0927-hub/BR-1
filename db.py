@@ -3,6 +3,7 @@
 Все таблицы создаются автоматически при первом запуске.
 """
 import asyncpg
+import asyncio
 import os
 from datetime import datetime
 
@@ -14,12 +15,15 @@ DATABASE_URL = os.environ.get(
 )
 
 _pool: asyncpg.Pool = None
+_pool_lock = asyncio.Lock()
 
 
 async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
-        _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
+        async with _pool_lock:
+            if _pool is None:  # double-check
+                _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
     return _pool
 
 
@@ -96,12 +100,18 @@ async def get_user(user_id: int) -> dict | None:
         return dict(row) if row else None
 
 
-async def set_subscribe(user_id: int, new_date):
+async def set_subscribe(user_id: int, new_date, force: bool = False):
     pool = await get_pool()
     # asyncpg требует datetime объект, не строку
     if isinstance(new_date, str):
         new_date = datetime.strptime(new_date[:19], "%Y-%m-%d %H:%M:%S")
     async with pool.acquire() as conn:
+        if not force:
+            # Продлеваем подписку: если текущая в будущем — прибавляем к ней, иначе к now()
+            current = await conn.fetchval("SELECT subscribe FROM users WHERE user_id = $1", user_id)
+            if current and current > datetime.now():
+                delta = new_date - datetime.now()
+                new_date = current + delta
         await conn.execute(
             "UPDATE users SET subscribe = $1 WHERE user_id = $2",
             new_date, user_id
@@ -214,6 +224,7 @@ async def use_promo(code: str, user_id: int, new_date):
             "UPDATE promocode SET activations = activations - 1 WHERE code = $1",
             code
         )
+        # Промокод всегда продлевает относительно текущей даты (force=False через set_subscribe)
         await conn.execute(
             "UPDATE users SET subscribe = $1 WHERE user_id = $2",
             new_date, user_id

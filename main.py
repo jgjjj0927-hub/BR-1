@@ -405,6 +405,8 @@ async def callback_inline(call: types.CallbackQuery, state: FSMContext):
 
 async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, state: FSMContext):
 	"""Общая логика callback — используется и основным ботом, и зеркалами."""
+	# Получаем токен bot_instance безопасно (aiogram 2 хранит в _token)
+	_instance_token = getattr(bot_instance, '_token', None)
 	try:
 		uid = call.from_user.id
 		if await is_blocked(uid):
@@ -805,7 +807,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			text, log_text = prize_texts[prize]
 
 			if prize == "forever":
-				await db.set_subscribe(uid, "2099-12-31 23:59:59")
+				await db.set_subscribe(uid, "2099-12-31 23:59:59", force=True)
 			elif prize == "premium":
 				await db.set_premium(uid, 1)
 			elif prize == "sub_1d":
@@ -847,7 +849,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTextFSM.text.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d == "mail_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
@@ -858,7 +860,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitMailTopicFSM.topic.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d == "botnet_method":
 			free_reports = await db.get_free_reports(uid)
@@ -870,7 +872,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d == "prem_botnet_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
@@ -881,7 +883,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkPREMFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		# ─── Бот-метод ────────────────────────────────────────────────────────
 		elif d == "bot_method":
@@ -912,7 +914,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown"
 			)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitStressFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=bot_instance._token)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d in ("bot_reason_personal", "bot_reason_adult", "bot_reason_children", "bot_reason_snoser", "bot_reason_other", "bot_reason_funstat"):
 			reason_map = {
@@ -925,7 +927,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			}
 			reason_key, reason_label = reason_map[d]
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_token=bot_instance._token)
+			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_token=_instance_token)
 			await bot_instance.send_message(
 				call.message.chat.id,
 				f"🤖 *Причина: {reason_label}*\n\n*Введите username бота или ссылку:*\n`@username` или `https://t.me/botname`",
@@ -1233,27 +1235,39 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=ClearSubscribeFSM.user_id)
 async def clear_sub_uid(message: types.Message, state: FSMContext):
-	target = int(message.text)
-	await db.set_subscribe(target, "1999-01-01 00:00:00")
-	await state.finish()
-	await bot.send_message(target, "*🎱 Подписка сброшена.*", parse_mode="Markdown", reply_markup=del_message2)
-	await message.answer("*🎱 Сброшено!*", parse_mode="Markdown")
+	try:
+		target = int(message.text)
+		await db.set_subscribe(target, "1999-01-01 00:00:00", force=True)
+		await state.finish()
+		await bot.send_message(target, "*🎱 Подписка сброшена.*", parse_mode="Markdown", reply_markup=del_message2)
+		await message.answer("*🎱 Сброшено!*", parse_mode="Markdown")
+	except ValueError:
+		await message.answer("❌ ID должен быть числом.")
+		await state.finish()
 
 @dp.message_handler(state=AddPremFSM.user_id)
 async def add_prem_uid(message: types.Message, state: FSMContext):
-	target = int(message.text)
-	await db.set_premium(target, 1)
-	await state.finish()
-	await bot.send_message(target, "*👑 Вам выдан Premium.*", parse_mode="Markdown", reply_markup=del_message2)
-	await message.answer("*🎱 Премиум выдан!*", parse_mode="Markdown")
+	try:
+		target = int(message.text)
+		await db.set_premium(target, 1)
+		await state.finish()
+		await bot.send_message(target, "*👑 Вам выдан Premium.*", parse_mode="Markdown", reply_markup=del_message2)
+		await message.answer("*🎱 Премиум выдан!*", parse_mode="Markdown")
+	except ValueError:
+		await message.answer("❌ ID должен быть числом.")
+		await state.finish()
 
 @dp.message_handler(state=ClearPremFSM.user_id)
 async def clear_prem_uid(message: types.Message, state: FSMContext):
-	target = int(message.text)
-	await db.set_premium(target, 0)
-	await state.finish()
-	await bot.send_message(target, "*🎱 Премиум сброшен.*", parse_mode="Markdown", reply_markup=del_message2)
-	await message.answer("*🎱 Сброшено!*", parse_mode="Markdown")
+	try:
+		target = int(message.text)
+		await db.set_premium(target, 0)
+		await state.finish()
+		await bot.send_message(target, "*🎱 Премиум сброшен.*", parse_mode="Markdown", reply_markup=del_message2)
+		await message.answer("*🎱 Сброшено!*", parse_mode="Markdown")
+	except ValueError:
+		await message.answer("❌ ID должен быть числом.")
+		await state.finish()
 
 # ─── Рассылка ─────────────────────────────────────────────────────────────────
 

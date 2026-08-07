@@ -250,7 +250,6 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
             print(f"[BOTNET] [{session}] ❌ НЕВАЛИД (не авторизован)", flush=True)
             return "НЕВАЛИД", None
 
-        await client.start()
         chat = await client.get_entity(chat_username)
         print(f"[BOTNET] [{session}] ✅ Подключён, чат получен: {chat_username}", flush=True)
 
