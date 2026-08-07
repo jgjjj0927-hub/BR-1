@@ -99,6 +99,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                         fsm_data['ref_arg'] = args
             return
         await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+        # Проверяем подписку через основной бот
+        from main import check_subscription, send_subscribe_required
+        if not await check_subscription(uid):
+            await send_subscribe_required(uid, mirror_bot)
+            return
         pin_msg = await mirror_bot.send_message(
             uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je",
             parse_mode="MarkdownV2")
@@ -136,6 +141,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 except Exception:
                     pass
             await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+            # Проверяем подписку через основной бот
+            from main import check_subscription, send_subscribe_required
+            if not await check_subscription(uid):
+                await send_subscribe_required(uid, mirror_bot)
+                return
             pin_msg = await mirror_bot.send_message(
                 uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je",
                 parse_mode="MarkdownV2")

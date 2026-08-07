@@ -88,6 +88,35 @@ async def subsribe_channel(user_id, chan):
 	except Exception:
 		return True  # если канал недоступен — не блокируем пользователя
 
+async def check_subscription(uid: int, bot_instance=None) -> bool:
+	"""Проверяет подписку на оба канала. Всегда через основной bot."""
+	sub1 = await subsribe_channel(uid, channel_id)
+	sub2 = await subsribe_channel(uid, channel2_id)
+	return sub1 and sub2
+
+async def send_subscribe_required(uid: int, bot_instance=None):
+	"""Отправляет сообщение с требованием подписки."""
+	b = bot_instance or bot
+	try:
+		import time as _time
+		expire = int(_time.time()) + 60
+		link1 = await bot.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
+		link2 = await bot.create_chat_invite_link(channel2_id, expire_date=expire, member_limit=1)
+		invite1 = link1.invite_link
+		invite2 = link2.invite_link
+	except Exception:
+		invite1 = config.bot_channel_link
+		invite2 = config.bot_channel2_link
+	markup = types.InlineKeyboardMarkup(row_width=1)
+	markup.add(
+		types.InlineKeyboardButton("[1️⃣] Подпишись (1 мин)", url=invite1),
+		types.InlineKeyboardButton("[2️⃣] Подпишись (1 мин)", url=invite2),
+		types.InlineKeyboardButton("[🔎] Проверить", callback_data='start_check_sub')
+	)
+	await b.send_message(uid,
+		"*⚠️ Для использования бота подпишитесь на каналы!*\n*└─ Ссылки действуют 1 минуту*",
+		parse_mode="Markdown", reply_markup=markup)
+
 # ─── FSM ──────────────────────────────────────────────────────────────────────
 
 class AddSubscribeFSM(StatesGroup):
@@ -345,6 +374,10 @@ async def welcome(message: types.Message):
 					fsm_data['ref_arg'] = args
 		return
 	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+	# Проверяем подписку перед показом меню
+	if not await check_subscription(uid):
+		await send_subscribe_required(uid)
+		return
 	# Закреплённое сообщение при каждом /start
 	pin_msg = await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
 	try:
@@ -382,6 +415,10 @@ async def check_captcha(message: types.Message, state: FSMContext):
 				pass
 
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+		# Проверяем подписку после капчи
+		if not await check_subscription(uid):
+			await send_subscribe_required(uid)
+			return
 		# Закреплённое сообщение после капчи
 		pin_msg = await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
 		try:
@@ -396,6 +433,28 @@ async def check_captcha(message: types.Message, state: FSMContext):
 		_captcha_codes[uid] = code
 		await bot.send_photo(uid, photo=generate_captcha_image(code),
 			caption="*❌ Неверно! Попробуй ещё раз:*", parse_mode="Markdown")
+
+# ─── Проверка подписки по кнопке ──────────────────────────────────────────────
+
+@dp.callback_query_handler(lambda c: c.data == 'start_check_sub')
+async def start_check_sub_callback(call: types.CallbackQuery):
+	uid = call.from_user.id
+	if await check_subscription(uid):
+		try:
+			await bot.delete_message(uid, call.message.message_id)
+		except Exception:
+			pass
+		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+		pin_msg = await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
+		try:
+			await bot.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
+		except Exception:
+			pass
+		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
+			caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+			parse_mode="MarkdownV2", reply_markup=menu)
+	else:
+		await bot.answer_callback_query(call.id, "❌ Вы ещё не подписались!", show_alert=True)
 
 # ─── Главный callback хендлер ─────────────────────────────────────────────────
 
