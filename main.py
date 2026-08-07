@@ -533,6 +533,26 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		d = call.data
 
+		# Кнопка проверки подписки — обрабатываем здесь тоже (для зеркал)
+		if d == 'start_check_sub':
+			if await check_subscription(uid):
+				try:
+					await bot_instance.delete_message(uid, call.message.message_id)
+				except Exception:
+					pass
+				await bot_instance.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+				pin_msg = await bot_instance.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
+				try:
+					await bot_instance.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
+				except Exception:
+					pass
+				await bot_instance.send_photo(uid, photo=open('material/menu.png', 'rb'),
+					caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+					parse_mode="MarkdownV2", reply_markup=menu)
+			else:
+				await bot_instance.answer_callback_query(call.id, "❌ Вы ещё не подписались!", show_alert=True)
+			return
+
 		if d == 'functions':
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="*Заказ*\n\n>*Посмотрите Мануал*", parse_mode="MarkdownV2", reply_markup=functions)
