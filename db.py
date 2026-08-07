@@ -73,6 +73,17 @@ async def init_db():
             )
         """)
     await init_mirrors_table()
+    await _init_paid_invoices_table()
+    # Создаём таблицу использований промокодов
+    pool_db = await get_pool()
+    async with pool_db.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS promo_uses (
+                code TEXT NOT NULL,
+                user_id BIGINT NOT NULL,
+                PRIMARY KEY (code, user_id)
+            )
+        """)
 
 
 # ─── Users ────────────────────────────────────────────────────────────────────
@@ -240,6 +251,26 @@ async def use_promo(code: str, user_id: int, new_date):
         )
 
 
+async def is_promo_used_by(code: str, user_id: int) -> bool:
+    """Проверяет — активировал ли пользователь уже этот промокод."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT 1 FROM promo_uses WHERE code = $1 AND user_id = $2",
+            code, user_id
+        )
+        return row is not None
+
+
+async def mark_promo_used(code: str, user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO promo_uses (code, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            code, user_id
+        )
+
+
 # ─── Рефералы ─────────────────────────────────────────────────────────────────
 
 async def set_referrer(user_id: int, referrer_id: int):
@@ -271,13 +302,14 @@ async def get_referral_count(user_id: int) -> int:
 
 
 async def spend_referrals(user_id: int, amount: int = 10):
-    """Снимает amount рефералов у пользователя."""
+    """Снимает amount рефералов у пользователя. Возвращает True если успешно."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE users SET referral_count = referral_count - $1 WHERE user_id = $2",
+        row = await conn.fetchrow(
+            "UPDATE users SET referral_count = referral_count - $1 WHERE user_id = $2 AND referral_count >= $1 RETURNING referral_count",
             amount, user_id
         )
+        return row is not None
 
 
 async def get_referrer_id(user_id: int):
@@ -375,6 +407,35 @@ async def init_mirrors_table():
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS mirror_bonus_given INT DEFAULT 0")
         except Exception:
             pass
+
+
+async def _init_paid_invoices_table():
+    """Таблица для защиты от повторного начисления по одному инвойсу."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS paid_invoices (
+                invoice_id TEXT PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+
+async def is_invoice_used(invoice_id: str) -> bool:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT 1 FROM paid_invoices WHERE invoice_id = $1", invoice_id)
+        return row is not None
+
+
+async def mark_invoice_used(invoice_id: str, user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO paid_invoices (invoice_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            invoice_id, user_id
+        )
 
 
 async def add_mirror(user_id: int, token: str, bot_username: str):

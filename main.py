@@ -254,7 +254,7 @@ async def addwl(message: types.Message):
 
 # ─── Подписки / оплата ────────────────────────────────────────────────────────
 
-@dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'))
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'), state='*')
 async def handle_subscription(callback_query: types.CallbackQuery):
 	try:
 		user_id = callback_query.from_user.id
@@ -290,7 +290,7 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 	except Exception as e:
 		print(f"handle_subscription: {e}")
 
-@dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'))
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'), state='*')
 async def check_status_callback(callback_query: types.CallbackQuery):
 	try:
 		parts = callback_query.data.split('_')
@@ -302,6 +302,11 @@ async def check_status_callback(callback_query: types.CallbackQuery):
 		if old_invoice['items'][0]['status'] != "paid":
 			await bot.send_message(user_id, "❌ *Оплата не получена!*", parse_mode=ParseMode.MARKDOWN)
 			return
+		# Защита от повторного начисления
+		if await db.is_invoice_used(invoice_id):
+			await bot.send_message(user_id, "✅ *Этот платёж уже был обработан!*", parse_mode=ParseMode.MARKDOWN)
+			return
+		await db.mark_invoice_used(invoice_id, user_id)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
@@ -349,8 +354,12 @@ async def promo_cmd(message: Message):
 
 # ─── /start с капчей ──────────────────────────────────────────────────────────
 
-@dp.message_handler(commands=['start'])
-async def welcome(message: types.Message):
+@dp.message_handler(commands=['start'], state='*')
+async def welcome(message: types.Message, state: FSMContext):
+	# Сбрасываем любое активное FSM состояние при /start
+	current = await state.get_state()
+	if current is not None:
+		await state.finish()
 	if await is_blocked(message.from_user.id):
 		return
 	if check_rate_limit(message.from_user.id):
@@ -362,12 +371,17 @@ async def welcome(message: types.Message):
 	await db.add_user(uid)
 
 	if not await is_verified(uid):
-		code = generate_captcha_text()
-		_captcha_codes[uid] = code
-		img = generate_captcha_image(code)
-		await bot.send_photo(uid, photo=img,
-			caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",
-			parse_mode="Markdown")
+		try:
+			code = generate_captcha_text()
+			_captcha_codes[uid] = code
+			img = generate_captcha_image(code)
+			await bot.send_photo(uid, photo=img,
+				caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",
+				parse_mode="Markdown")
+		except Exception as e:
+			print(f"[CAPTCHA] Ошибка генерации: {e}", flush=True)
+			await bot.send_message(uid, "❌ *Ошибка генерации капчи. Попробуйте /start снова.*", parse_mode="Markdown")
+			return
 		# Сохраняем реф-аргумент в FSM — применим только после прохождения капчи
 		await WaitCaptchaFSM.code.set()
 		if is_new:
@@ -432,14 +446,18 @@ async def check_captcha(message: types.Message, state: FSMContext):
 			caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 			parse_mode="MarkdownV2", reply_markup=menu)
 	else:
-		code = generate_captcha_text()
-		_captcha_codes[uid] = code
-		await bot.send_photo(uid, photo=generate_captcha_image(code),
-			caption="*❌ Неверно! Попробуй ещё раз:*", parse_mode="Markdown")
+		try:
+			code = generate_captcha_text()
+			_captcha_codes[uid] = code
+			await bot.send_photo(uid, photo=generate_captcha_image(code),
+				caption="*❌ Неверно! Попробуй ещё раз:*", parse_mode="Markdown")
+		except Exception as e:
+			print(f"[CAPTCHA] Ошибка повторной генерации: {e}", flush=True)
+			await bot.send_message(uid, "❌ *Ошибка генерации капчи. Попробуйте /start снова.*", parse_mode="Markdown")
 
 # ─── Проверка подписки по кнопке ──────────────────────────────────────────────
 
-@dp.callback_query_handler(lambda c: c.data == 'start_check_sub')
+@dp.callback_query_handler(lambda c: c.data == 'start_check_sub', state='*')
 async def start_check_sub_callback(call: types.CallbackQuery):
 	uid = call.from_user.id
 	if await check_subscription(uid):
@@ -482,12 +500,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption="*Пропишите /start*", parse_mode="Markdown")
 			return
 		if not await subsribe_channel(uid, channel_id) or not await subsribe_channel(uid, channel2_id):
-			# Создаём временные invite links на 1 минуту
+			# Создаём временные invite links через основной бот (только он — администратор канала)
 			try:
 				import time as _time
 				expire = int(_time.time()) + 60
-				link1 = await bot_instance.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
-				link2 = await bot_instance.create_chat_invite_link(channel2_id, expire_date=expire, member_limit=1)
+				link1 = await bot.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
+				link2 = await bot.create_chat_invite_link(channel2_id, expire_date=expire, member_limit=1)
 				invite1 = link1.invite_link
 				invite2 = link2.invite_link
 			except Exception as e:
@@ -505,6 +523,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			return
 
 		user_data = await db.get_user(uid)
+		if not user_data:
+			await db.add_user(uid)
+			user_data = await db.get_user(uid)
 		subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 		premium = int(user_data['premium'])
 		username = call.from_user.username or "None"
@@ -528,11 +549,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 				parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == "information":
-			# Генерируем временную ссылку на канал на 1 минуту
+			# Генерируем временную ссылку через основной бот
 			try:
 				import time as _time
 				expire = int(_time.time()) + 60
-				link = await bot_instance.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
+				link = await bot.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
 				channel_invite = link.invite_link
 			except Exception as e:
 				print(f"Ошибка создания invite link для информации: {e}", flush=True)
@@ -699,27 +720,31 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if ref_count < 10:
 				await bot_instance.answer_callback_query(call.id, f"❌ Недостаточно рефералов! У вас {ref_count}/10", show_alert=True)
 			else:
-				await db.spend_referrals(uid, 10)
-				new_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
-				await db.set_subscribe(uid, new_date)
-				remaining = ref_count - 10
-				await bot_instance.answer_callback_query(call.id, "✅ Обменяно! +1 день подписки", show_alert=True)
-				try:
-					me = await bot_instance.get_me()
-					bot_uname = me.username
-				except Exception:
-					bot_uname = bot_username[1:]
-				await bot_instance.edit_message_caption(
-					call.message.chat.id, call.message.message_id,
-					caption=(
-						f"👥 *Реферальная система*\n\n"
-						f"*└─ Ваших рефералов: {remaining}*\n\n"
-						f"📎 *Ваша ссылка:*\n`https://t.me/{bot_uname}?start=ref_{uid}`\n\n"
-						f"*✅ Успешно обменяно 10 рефералов на 1 день подписки!*"
-					),
-					parse_mode="Markdown", reply_markup=keyboards.referral_markup
-				)
-				await bot_instance.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
+				# Атомарное снятие — защита от race condition
+				success = await db.spend_referrals(uid, 10)
+				if not success:
+					await bot_instance.answer_callback_query(call.id, "❌ Недостаточно рефералов!", show_alert=True)
+				else:
+					new_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+					await db.set_subscribe(uid, new_date)
+					remaining = ref_count - 10
+					await bot_instance.answer_callback_query(call.id, "✅ Обменяно! +1 день подписки", show_alert=True)
+					try:
+						me = await bot_instance.get_me()
+						bot_uname = me.username
+					except Exception:
+						bot_uname = bot_username[1:]
+					await bot_instance.edit_message_caption(
+						call.message.chat.id, call.message.message_id,
+						caption=(
+							f"👥 *Реферальная система*\n\n"
+							f"*└─ Ваших рефералов: {remaining}*\n\n"
+							f"📎 *Ваша ссылка:*\n`https://t.me/{bot_uname}?start=ref_{uid}`\n\n"
+							f"*✅ Успешно обменяно 10 рефералов на 1 день подписки!*"
+						),
+						parse_mode="Markdown", reply_markup=keyboards.referral_markup
+					)
+					await bot_instance.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
 
 		# ─── Бесплатно / Зеркала ──────────────────────────────────────────────
 		elif d == 'free_menu':
@@ -1091,6 +1116,9 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 	try:
 		chat_username, message_id = await extract_username_and_message_id(url)
 		user_data = await db.get_user(uid)
+		if not user_data:
+			await _bot.send_message(uid, '❌ *Пользователь не найден, напишите /start*', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+			return
 		subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 		if subscribe < datetime.now():
 			used = await db.use_free_report(uid)
@@ -1221,11 +1249,18 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	username = message.from_user.username or "None"
 	raw = message.text.strip()
 
-	user_data = await db.get_user(uid)
-	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
+	# Сначала читаем fsm_data чтобы _bot был доступен для сообщений об ошибках
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
-	_bot = Bot(token=_bot_token) if _bot_token else bot
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	user_data = await db.get_user(uid)
+	if not user_data:
+		await state.finish()
+		await _bot.send_message(uid, '❌ *Пользователь не найден, напишите /start*', parse_mode="Markdown", reply_markup=main_menu)
+		return
+	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 
 	if subscribe < datetime.now():
 		await state.finish()
@@ -1293,10 +1328,13 @@ async def stress_step1(message: types.Message, state: FSMContext):
 	is_admin = uid in admins
 	free_reports = await db.get_free_reports(uid)
 	user_data = await db.get_user(uid)
+	if not user_data:
+		await _bot.send_message(uid, '❌ *Пользователь не найден, напишите /start*', parse_mode="Markdown", reply_markup=main_menu)
+		return
 	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 
-	# Списываем бесплатный репорт если нет подписки
-	if subscribe < datetime.now() and free_reports > 0 and not is_admin:
+	# Проверяем подписку — блокируем если нет подписки И нет репортов
+	if not is_admin and subscribe < datetime.now():
 		used = await db.use_free_report(uid)
 		if not used:
 			await _bot.send_message(uid, '❌ *Нет подписки и бесплатных репортов!*', parse_mode="Markdown", reply_markup=main_menu)
@@ -1337,14 +1375,18 @@ async def add_sub_uid(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=AddSubscribeFSM.days)
 async def add_sub_days(message: types.Message, state: FSMContext):
-	data = await state.get_data()
-	target = data['user_id']
-	new_date = (datetime.now() + timedelta(days=int(message.text))).strftime("%Y-%m-%d %H:%M:%S")
-	await db.set_subscribe(target, new_date)
-	await state.finish()
-	await bot.send_message(target, f"🎱 *Подписка обновлена до* `{new_date}`", parse_mode="Markdown", reply_markup=del_message2)
-	await message.answer("🎱 *Готово!*", parse_mode="Markdown")
-	await bot.send_message(bot_logs, f"🎱 *Выдана подписка* `{target}` до `{new_date}`", parse_mode="Markdown")
+	try:
+		data = await state.get_data()
+		target = data['user_id']
+		new_date = (datetime.now() + timedelta(days=int(message.text))).strftime("%Y-%m-%d %H:%M:%S")
+		await db.set_subscribe(target, new_date)
+		await state.finish()
+		await bot.send_message(target, f"🎱 *Подписка обновлена до* `{new_date}`", parse_mode="Markdown", reply_markup=del_message2)
+		await message.answer("🎱 *Готово!*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* `{target}` до `{new_date}`", parse_mode="Markdown")
+	except ValueError:
+		await message.answer("❌ Введите число дней (например: 7).")
+		# Не сбрасываем state — даём ввести заново
 
 @dp.message_handler(state=ClearSubscribeFSM.user_id)
 async def clear_sub_uid(message: types.Message, state: FSMContext):
@@ -1428,9 +1470,13 @@ async def enter_promo(message: types.Message, state: FSMContext):
 	promo_data = await db.get_promo(code)
 	if not promo_data or promo_data['activations'] <= 0:
 		await message.answer("*❌ Промокод не найден или исчерпан!*", parse_mode='Markdown'); return
+	# Проверяем — не активировал ли этот юзер уже этот промокод
+	if await db.is_promo_used_by(code, uid):
+		await message.answer("*❌ Вы уже активировали этот промокод!*", parse_mode='Markdown'); return
 	days = promo_data['days']
 	new_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
 	await db.use_promo(code, uid, new_date)
+	await db.mark_promo_used(code, uid)
 	await message.answer(f"*✅ Промокод активирован!*\n*Ваш подарок: {days} дней!*", parse_mode='Markdown')
 	await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — {days} дней", parse_mode='Markdown')
 

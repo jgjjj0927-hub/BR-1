@@ -210,6 +210,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             if old_invoice['items'][0]['status'] != "paid":
                 await mirror_bot.send_message(user_id, "❌ *Оплата не получена!*", parse_mode=ParseMode.MARKDOWN)
                 return
+            # Защита от повторного начисления
+            if await db.is_invoice_used(invoice_id):
+                await mirror_bot.send_message(user_id, "✅ *Этот платёж уже был обработан!*", parse_mode=ParseMode.MARKDOWN)
+                return
+            await db.mark_invoice_used(invoice_id, user_id)
             await mirror_bot.edit_message_caption(
                 chat_id=callback_query.message.chat.id,
                 message_id=callback_query.message.message_id,
