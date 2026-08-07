@@ -335,7 +335,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             mirror_token_received, enter_promo, stress_step1,
             add_sub_uid, add_sub_days, clear_sub_uid,
             add_prem_uid, clear_prem_uid, sendall,
-            admin_block_user, admin_unblock_user,
+            admin_block_user, admin_unblock_user, admin_delete_user,
             admin_add_reports_uid, admin_add_reports_amount,
             admin_remove_reports_uid, admin_remove_reports_amount,
             WaitTextFSM, WaitMailTopicFSM, WaitMailTextFSM,
@@ -343,7 +343,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitMirrorTokenFSM, WaitPromoFSM, WaitStressFSM,
             AddSubscribeFSM, ClearSubscribeFSM,
             AddPremFSM, ClearPremFSM, WaitTextZFSM,
-            BlockUserFSM, UnblockUserFSM,
+            BlockUserFSM, UnblockUserFSM, DeleteUserFSM,
             AdminAddReportsFSM, AdminRemoveReportsFSM,
         )
 
@@ -365,6 +365,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitTextZFSM.text.state: sendall,
             BlockUserFSM.user_id.state: admin_block_user,
             UnblockUserFSM.user_id.state: admin_unblock_user,
+            DeleteUserFSM.user_id.state: admin_delete_user,
             AdminAddReportsFSM.user_id.state: admin_add_reports_uid,
             AdminAddReportsFSM.amount.state: admin_add_reports_amount,
             AdminRemoveReportsFSM.user_id.state: admin_remove_reports_uid,

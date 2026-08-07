@@ -179,6 +179,15 @@ async def unblock_user(user_id: int):
         await conn.execute("DELETE FROM blocked WHERE user_id = $1", user_id)
 
 
+async def delete_user(user_id: int):
+    """Полностью удаляет пользователя из БД (users + blocked + зеркала)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM users WHERE user_id = $1", user_id)
+        await conn.execute("DELETE FROM blocked WHERE user_id = $1", user_id)
+        await conn.execute("DELETE FROM mirrors WHERE user_id = $1", user_id)
+
+
 # ─── Whitelist ────────────────────────────────────────────────────────────────
 
 async def get_whitelist() -> list[int]:

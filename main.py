@@ -180,6 +180,9 @@ class AdminRemoveReportsFSM(StatesGroup):
 	user_id = State()
 	amount = State()
 
+class DeleteUserFSM(StatesGroup):
+	user_id = State()
+
 global bot_status
 bot_status = 1
 
@@ -592,6 +595,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'unblock_user_admin' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(UnblockUserFSM.user_id.state)
+		elif d == 'delete_user_admin' and uid in admins:
+			await bot_instance.send_message(call.message.chat.id, '🗑 *Удаление из базы*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(DeleteUserFSM.user_id.state)
 		elif d.startswith('users_list_') and uid in admins:
 			page = int(d.split('_')[2])
 			PAGE_SIZE = 10
@@ -1383,19 +1389,34 @@ async def sendall(message: types.Message, state: FSMContext):
 	await state.finish()
 	users = await db.get_all_user_ids()
 	ok, fail = 0, 0
+
+	# Собираем всех активных ботов: основной + все зеркала
+	from mirror_manager import _mirror_bots
+	all_bots = [bot] + list(_mirror_bots.values())
+
 	for user_id in users:
-		try:
-			if message.text:
-				await bot.send_message(user_id, message.text, parse_mode='Markdown', reply_markup=del_message2)
-			elif message.photo:
-				await bot.send_photo(user_id, message.photo[-1].file_id, caption=message.caption, parse_mode='Markdown', reply_markup=del_message2)
-			else:
-				await message.copy_to(user_id)
+		sent = False
+		for b in all_bots:
+			try:
+				if message.text:
+					await b.send_message(user_id, message.text, parse_mode='Markdown', reply_markup=del_message2)
+				elif message.photo:
+					await b.send_photo(user_id, message.photo[-1].file_id, caption=message.caption, parse_mode='Markdown', reply_markup=del_message2)
+				else:
+					await b.send_message(user_id, message.caption or "📢", parse_mode='Markdown', reply_markup=del_message2)
+				sent = True
+				break  # успешно отправлено — переходим к следующему пользователю
+			except Exception:
+				continue  # пробуем следующий бот
+		if sent:
 			ok += 1
-		except Exception:
+		else:
 			fail += 1
+		await asyncio.sleep(0.05)  # ~20 сообщений/сек, не ловим 429
+
 	await message.answer(f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}',
 		parse_mode='Markdown', reply_markup=main_menu)
+	await bot.send_message(bot_logs, f"📢 *Рассылка завершена*\n*✅ {ok} / ❌ {fail}*\n*└─ Ботов в рассылке: {len(all_bots)}*", parse_mode='Markdown')
 
 # ─── Промокоды (активация) ────────────────────────────────────────────────────
 
@@ -1435,6 +1456,23 @@ async def admin_unblock_user(message: types.Message, state: FSMContext):
 		await state.finish()
 		await message.answer(f"✅ *Пользователь {target} разблокирован.*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"✅ *Разблокирован* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
+	except ValueError:
+		await message.answer("❌ ID должен быть числом.")
+		await state.finish()
+
+@dp.message_handler(state=DeleteUserFSM.user_id)
+async def admin_delete_user(message: types.Message, state: FSMContext):
+	try:
+		target = int(message.text.strip())
+		exists = await db.user_exists(target)
+		if not exists:
+			await message.answer(f"❌ *Пользователь {target} не найден в базе.*", parse_mode="Markdown")
+			await state.finish()
+			return
+		await db.delete_user(target)
+		await state.finish()
+		await message.answer(f"🗑 *Пользователь {target} удалён из базы.*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🗑 *Удалён из БД* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ ID должен быть числом.")
 		await state.finish()
