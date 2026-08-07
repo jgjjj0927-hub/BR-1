@@ -6,10 +6,7 @@ from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 from telethon.tl.types import PeerUser
 from telethon.tl.functions.messages import ReportRequest
-from aiogram import types
-import aiosqlite
-from telethon import types as telethon_types
-from aiogram import Bot, Dispatcher, executor, types
+from aiogram import Bot, types
 import config
 from config import bot_logs
 import keyboards
