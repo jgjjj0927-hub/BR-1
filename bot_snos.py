@@ -1,7 +1,7 @@
 """
 Brown V2 | bot-method
 Жалобы на Telegram-ботов через ReportPeerRequest
-Схема: /start → ReportPeerRequest (основная причина) + ReportPeerRequest(Spam) → ContactsBlockRequest
+Схема: get_entity → ReportPeerRequest (без /start, как в рабочем скрипте)
 """
 
 import os
@@ -9,9 +9,8 @@ import random
 import asyncio
 from datetime import datetime
 from telethon import TelegramClient
-from telethon.errors import FloodWaitError, UserBotError, ChatWriteForbiddenError
+from telethon.errors import FloodWaitError
 from telethon.tl.functions.account import ReportPeerRequest
-from telethon.tl.functions.messages import SendMessageRequest
 from telethon.tl.types import (
     InputReportReasonSpam,
     InputReportReasonChildAbuse,
@@ -30,60 +29,64 @@ import keyboards
 
 TEXTS = {
     "personal": [
-        "This bot collects and distributes personal data without consent.",
-        "Бот незаконно собирает персональные данные и передаёт третьим лицам.",
-        "This violates Telegram ToS: https://telegram.org/tos — bot harvests user credentials and phone numbers.",
-        "Это нарушает правила ToS: https://telegram.org/tos — бот собирает конфиденциальные данные пользователей.",
-        "Bot is harvesting personal information including passwords and financial data.",
-        "Данный бот запрашивает конфиденциальную информацию с целью её кражи.",
-        "This violates Telegram ToS: https://telegram.org/tos — unauthorized personal data collection.",
-        "Это нарушает правила ToS: https://telegram.org/tos — бот собирает данные без разрешения.",
+        "Бот собирает и распространяет личные данные: ИНН, адреса, номера телефонов без согласия. Прошу заблокировать.",
+        "This bot collects and distributes personal data: phone numbers, IDs, addresses without consent. Please block.",
+        "Бот публикует конфиденциальные данные пользователей: паспортные данные, телефоны, адреса. Требую блокировки.",
+        "Bot leaks private user data including phone numbers, home addresses and personal IDs. Immediate action required.",
+        "Бот незаконно обрабатывает и продаёт персональные данные пользователей. Прошу немедленно заблокировать.",
+        "This bot illegally processes and sells users' personal data including phone numbers and addresses. Block it.",
+        "Бот собирает личные данные: номера телефонов, адреса, ИНН — и передаёт третьим лицам. Прошу разобраться.",
+        "Bot harvests and distributes user personal data without consent: phones, addresses, IDs. Please block.",
     ],
     "adult": [
-        "This bot distributes explicit adult content without age verification.",
-        "Бот распространяет контент для взрослых без проверки возраста.",
-        "This violates Telegram ToS: https://telegram.org/tos — bot sends unsolicited pornographic content.",
-        "Это нарушает правила ToS: https://telegram.org/tos — бот публикует материалы сексуального характера без согласия.",
-        "Bot is sending unsolicited explicit material to users.",
-        "Данный бот рассылает неприемлемый контент для взрослых без ограничений.",
-        "This violates Telegram ToS: https://telegram.org/tos — explicit content distributed without age check.",
-        "Это нарушает правила ToS: https://telegram.org/tos — распространение контента 18+ без верификации.",
+        "Бот распространяет порнографический контент без верификации возраста пользователей. Прошу заблокировать.",
+        "This bot sends explicit adult content to users without age verification. Please block immediately.",
+        "Бот рассылает контент 18+ без проверки возраста и без согласия получателей. Требую блокировки.",
+        "This bot distributes pornographic material without age verification and user consent. Block required.",
+        "Бот публикует материалы сексуального характера без ограничений по возрасту. Прошу принять меры.",
+        "Bot sends unsolicited explicit content to users with no age gate or consent. Immediate block needed.",
+        "Бот распространяет порнографию без верификации — нарушает ToS Telegram. Прошу заблокировать.",
+        "This bot violates Telegram ToS by distributing adult content without age checks. Please block.",
     ],
     "children": [
-        "This bot distributes illegal content involving minors.",
-        "Бот распространяет материалы, эксплуатирующие несовершеннолетних.",
-        "This violates Telegram ToS: https://telegram.org/tos — bot contains child abuse material.",
-        "Это нарушает правила ToS: https://telegram.org/tos — бот публикует незаконный контент с участием детей.",
-        "Bot is spreading CSAM and must be removed immediately.",
-        "Данный бот публикует материалы сексуального насилия над детьми.",
-        "This violates Telegram ToS: https://telegram.org/tos — illegal content involving minors detected.",
-        "Это нарушает правила ToS: https://telegram.org/tos — незаконный контент с несовершеннолетними.",
+        "Бот содержит и распространяет незаконный контент с участием несовершеннолетних. Требую немедленной блокировки.",
+        "This bot distributes illegal content involving minors. This is CSAM. Block this bot immediately.",
+        "Бот публикует материалы сексуального насилия над детьми. Требую немедленного удаления и блокировки.",
+        "This bot contains child sexual abuse material (CSAM). Immediate removal and block is required.",
+        "Бот распространяет незаконный контент с несовершеннолетними. Это уголовно наказуемо. Заблокируйте.",
+        "Bot distributes illegal CSAM content. This violates Telegram ToS and international law. Block immediately.",
+        "Бот содержит детскую порнографию. Требую экстренной блокировки и передачи данных в органы.",
+        "This bot spreads child abuse material. Urgent action and block required. Report to authorities.",
     ],
     "snoser": [
-        "This bot provides illegal services to harm other Telegram users.",
-        "Бот используется для массовых атак и преследования пользователей.",
-        "This violates Telegram ToS: https://telegram.org/tos — bot is used for targeted harassment and abuse.",
-        "Это нарушает правила ToS: https://telegram.org/tos — бот используется для незаконной деятельности против пользователей.",
-        "Bot offers paid attack services against innocent users.",
-        "Данный бот предоставляет платные услуги по атаке на аккаунты пользователей.",
-        "This violates Telegram ToS: https://telegram.org/tos — bot is a scam attack tool.",
-        "Это нарушает правила ToS: https://telegram.org/tos — бот используется для незаконного давления на пользователей.",
+        "Бот предоставляет услуги массовой атаки на аккаунты пользователей Telegram. Прошу заблокировать.",
+        "This bot offers paid harassment services targeting Telegram users. It must be blocked immediately.",
+        "Бот используется для организации массовых жалоб и блокировки аккаунтов. Прошу принять меры.",
+        "This bot provides tools to mass-report and ban innocent Telegram accounts. Please block it.",
+        "Бот продаёт услуги по незаконному преследованию и атакам на пользователей. Требую блокировки.",
+        "Bot sells illegal account attack and harassment services against Telegram users. Block required.",
+        "Бот нарушает ToS — предоставляет инструменты для атаки на аккаунты. Прошу заблокировать.",
+        "This bot violates Telegram ToS by offering paid user attack and ban services. Please block.",
     ],
     "other": [
-        "This bot engages in systematic violation of platform rules.",
-        "Бот систематически нарушает правила платформы.",
-        "This violates Telegram ToS: https://telegram.org/tos — bot must be removed immediately.",
-        "Это нарушает правила ToS: https://telegram.org/tos — данный бот нарушает политику Telegram.",
-        "Bot is conducting fraudulent and abusive activities.",
-        "Данный бот ведёт мошенническую деятельность и нарушает ToS.",
-        "This violates Telegram ToS: https://telegram.org/tos — systematic rule violations detected.",
-        "Это нарушает правила ToS: https://telegram.org/tos — систематические нарушения правил платформы.",
+        "Бот систематически нарушает правила Telegram и используется для мошеннической деятельности. Прошу заблокировать.",
+        "This bot violates Telegram Terms of Service and engages in fraudulent activity. Please block.",
+        "Бот ведёт мошенническую деятельность и систематически нарушает правила платформы. Требую блокировки.",
+        "This bot conducts fraudulent operations and repeatedly violates platform rules. Immediate block needed.",
+        "Бот нарушает правила Telegram и причиняет вред пользователям. Прошу немедленно заблокировать.",
+        "This bot breaks Telegram rules and harms users through systematic violations. Please block.",
+        "Бот используется для обмана пользователей и нарушения ToS Telegram. Прошу принять меры.",
+        "Bot is used for user deception and systematic ToS violations. Action and block required.",
     ],
     "funstat": [
-        "Бот используется для массого сбора информации о пользователях(парсинг) тем самым нарушая конфеденциальность пользователей. Прошу разобраться",
-        "Бот используется для массого сбора информации о пользователях(парсинг) тем самым нарушая конфеденциальность пользователей. Прошу разобраться",
-        "Бот используется для массого сбора информации о пользователях(парсинг) тем самым нарушая конфеденциальность пользователей. Прошу разобраться",
-        "Бот используется для массого сбора информации о пользователях(парсинг) тем самым нарушая конфеденциальность пользователей. Прошу разобраться",
+        "Бот используется для массового сбора и парсинга данных пользователей без их согласия. Прошу заблокировать.",
+        "This bot scrapes and harvests user data at scale without consent, violating privacy rules. Please block.",
+        "Бот парсит личные данные пользователей Telegram: имена, телефоны, аккаунты. Нарушает ToS. Прошу заблокировать.",
+        "This bot mass-parses Telegram user data including names and phone numbers without consent. Block it.",
+        "Бот осуществляет незаконный сбор персональных данных пользователей (парсинг). Прошу разобраться и заблокировать.",
+        "Bot illegally collects and stores personal Telegram user data through automated scraping. Please block.",
+        "Бот нарушает конфиденциальность: массово собирает данные пользователей без разрешения. Требую блокировки.",
+        "This bot violates user privacy by mass-collecting personal data without permission. Immediate block required.",
     ],
 }
 
@@ -121,7 +124,10 @@ API = [
 bot = None
 session_folder = 'sessions'
 os.makedirs(session_folder, exist_ok=True)
-sessions = [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
+
+
+def _get_sessions():
+    return [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
 
 LOG_FOLDER = "logs"
 os.makedirs(LOG_FOLDER, exist_ok=True)
@@ -140,13 +146,11 @@ def format_log_line(session, target, status):
 async def _report_one_bot_session(session, bot_username, reason_key):
     """
     Отправляет жалобу на бота от одной сессии.
-    - Обычные причины: /start → ReportPeerRequest × 2
-    - funstat: /start → получаем сообщение → 3-шаговый ReportRequest × 4
-      (Персональные данные → Другие личные данные → текст funstat)
+    Логика как в рабочем скрипте: get_entity → ReportPeerRequest × N без /start.
     """
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":")
-    reason_main, reason_secondary = REASONS[reason_key]
+    reason_main, _ = REASONS[reason_key]
     text = random.choice(TEXTS[reason_key])[:200]
 
     print(f"[BOT-SNOS] [{session}] Подключаемся...", flush=True)
@@ -166,93 +170,33 @@ async def _report_one_bot_session(session, bot_username, reason_key):
             print(f"[BOT-SNOS] [{session}] ❌ НЕВАЛИД", flush=True)
             return "НЕВАЛИД"
 
-        await client.start()
+        # Получаем сущность бота — без /start, как в рабочем скрипте
         peer = await client.get_entity(bot_username)
         print(f"[BOT-SNOS] [{session}] ✅ Подключён к {bot_username}", flush=True)
 
-        # ── Шаг 1: отправляем /start чтобы "познакомиться" с ботом ──────────
-        msg_id = None
-        try:
-            sent = await client(SendMessageRequest(peer=peer, message='/start', random_id=random.randint(1, 2**31)))
-            # Получаем ID отправленного сообщения для использования в ReportRequest
-            if hasattr(sent, 'id'):
-                msg_id = sent.id
-            elif hasattr(sent, 'updates'):
-                for upd in sent.updates:
-                    if hasattr(upd, 'id'):
-                        msg_id = upd.id
-                        break
-            print(f"[BOT-SNOS] [{session}] 📨 /start отправлен, msg_id={msg_id}", flush=True)
-            await asyncio.sleep(random.uniform(0.5, 1.5))
-        except (ChatWriteForbiddenError, UserBotError):
-            pass
-        except Exception as e:
-            print(f"[BOT-SNOS] [{session}] ⚠️ /start не удался: {str(e)[:50]}", flush=True)
+        # Отправляем жалобу — одна причина, без лишних шагов
+        sent = 0
+        for attempt in range(2):  # два репорта от одной сессии
+            try:
+                text_i = random.choice(TEXTS[reason_key])
+                result = await client(ReportPeerRequest(
+                    peer=peer,
+                    reason=reason_main,
+                    message=text_i
+                ))
+                print(f"[BOT-SNOS] [{session}] 📥 Репорт {attempt+1}/2: {result}", flush=True)
+                if result:
+                    sent += 1
+                await asyncio.sleep(random.uniform(0.5, 1.2))
+            except FloodWaitError as e:
+                print(f"[BOT-SNOS] [{session}] 🌊 FLOOD {e.seconds}с", flush=True)
+                return f"FLOOD {e.seconds}s"
+            except Exception as e:
+                print(f"[BOT-SNOS] [{session}] ⚠️ Репорт {attempt+1} ошибка: {str(e)[:60]}", flush=True)
+                break
 
-        # ── FunStat: 3-шаговый флоу через messages.ReportRequest × 4 ─────────
-        if reason_key == "funstat" and msg_id:
-            from telethon.tl.functions.messages import ReportRequest
-            funstat_text = TEXTS["funstat"][0]
-            reported = False
-            for attempt in range(4):
-                try:
-                    # Шаг 1: получаем категории
-                    r1 = await client(ReportRequest(peer=peer, id=[msg_id], option=b'', message=''))
-                    print(f"[BOT-SNOS] [{session}] 📋 Категории: {[o.option for o in r1.options] if hasattr(r1, 'options') and r1.options else 'нет'}", flush=True)
-
-                    # Шаг 2: ищем "Персональные данные" (b'6' или берём первую подходящую)
-                    personal_opt = None
-                    if hasattr(r1, 'options') and r1.options:
-                        # Пробуем найти категорию личных данных по байту b'6'
-                        for opt in r1.options:
-                            if opt.option == b'6':
-                                personal_opt = opt.option
-                                break
-                        if personal_opt is None:
-                            # Берём последнюю категорию (обычно "Другое/Личные данные")
-                            personal_opt = r1.options[-1].option
-                    else:
-                        personal_opt = b'6'  # fallback
-
-                    print(f"[BOT-SNOS] [{session}] 🔎 Выбрана категория: {personal_opt!r}", flush=True)
-                    r2 = await client(ReportRequest(peer=peer, id=[msg_id], option=personal_opt, message=''))
-
-                    # Шаг 3: выбираем подкатегорию — берём последнюю ("Другие личные данные")
-                    if hasattr(r2, 'options') and r2.options:
-                        sub_opt = r2.options[-1].option
-                        print(f"[BOT-SNOS] [{session}] 🔎 Подкатегория: {sub_opt!r}", flush=True)
-                        r3 = await client(ReportRequest(peer=peer, id=[msg_id], option=sub_opt, message=funstat_text))
-                    else:
-                        # Нет подкатегорий — отправляем с текстом напрямую
-                        r3 = await client(ReportRequest(peer=peer, id=[msg_id], option=personal_opt, message=funstat_text))
-
-                    print(f"[BOT-SNOS] [{session}] 📥 Репорт {attempt+1}/4 (funstat 3-шаг): {type(r3).__name__}", flush=True)
-                    reported = True
-                    await asyncio.sleep(random.uniform(0.3, 0.7))
-                except Exception as e:
-                    print(f"[BOT-SNOS] [{session}] ⚠️ Ошибка репорта {attempt+1}/4: {str(e)[:60]}", flush=True)
-                    break
-
-            if reported:
-                print(f"[BOT-SNOS] [{session}] ✅ ДОСТАВЛЕНО (funstat)", flush=True)
-                return "ДОСТАВЛЕНО"
-            else:
-                print(f"[BOT-SNOS] [{session}] ⚠️ ОТКЛОНЕНО (funstat)", flush=True)
-                return "ОТКЛОНЕНО"
-
-        # ── Обычные причины: 2 репорта через ReportPeerRequest ───────────────
-        r1 = await client(ReportPeerRequest(peer=peer, reason=reason_main, message=text))
-        print(f"[BOT-SNOS] [{session}] 📥 Репорт 1 ({type(reason_main).__name__}): {r1}", flush=True)
-        print(f"[BOT-SNOS] [{session}] 📝 Текст 1: {text[:60]}...", flush=True)
-
-        await asyncio.sleep(random.uniform(0.3, 0.8))
-
-        text2 = random.choice(TEXTS[reason_key])[:200]
-        r2 = await client(ReportPeerRequest(peer=peer, reason=reason_secondary, message=text2))
-        print(f"[BOT-SNOS] [{session}] 📥 Репорт 2 ({type(reason_secondary).__name__}): {r2}", flush=True)
-
-        if r1 or r2:
-            print(f"[BOT-SNOS] [{session}] ✅ ДОСТАВЛЕНО", flush=True)
+        if sent > 0:
+            print(f"[BOT-SNOS] [{session}] ✅ ДОСТАВЛЕНО ({sent}/2)", flush=True)
             return "ДОСТАВЛЕНО"
         else:
             print(f"[BOT-SNOS] [{session}] ⚠️ ОТКЛОНЕНО", flush=True)
@@ -282,18 +226,19 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
     print(f"[BOT-SNOS] 👤 Пользователь: {user} (@{username})", flush=True)
     print(f"[BOT-SNOS] 🎯 Цель: {bot_url}", flush=True)
     print(f"[BOT-SNOS] 📋 Причина: {reason_label}", flush=True)
-    print(f"[BOT-SNOS] 📦 Сессий: {len(sessions)}", flush=True)
+    _sessions = _get_sessions()
+    print(f"[BOT-SNOS] 📦 Сессий: {len(_sessions)}", flush=True)
     print(f"{'='*50}", flush=True)
 
     # Запускаем пачками по 8
     BATCH_SIZE = 8
     results = []
-    for i in range(0, len(sessions), BATCH_SIZE):
-        batch = sessions[i:i + BATCH_SIZE]
+    for i in range(0, len(_sessions), BATCH_SIZE):
+        batch = _sessions[i:i + BATCH_SIZE]
         batch_tasks = [_report_one_bot_session(s, bot_username, reason_key) for s in batch]
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
         results.extend(zip(batch, batch_results))
-        if i + BATCH_SIZE < len(sessions):
+        if i + BATCH_SIZE < len(_sessions):
             delay = random.uniform(3, 5)
             print(f"[BOT-SNOS] ⏳ Пачка {i//BATCH_SIZE + 1} завершена, ждём {delay:.1f}с...", flush=True)
             await asyncio.sleep(delay)
