@@ -924,15 +924,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			import random as _random
 			roll = _random.random() * 100
-			if roll < 1:
-				prize = "forever"
-			elif roll < 6:
-				prize = "premium"
-			elif roll < 15:
-				prize = "sub_1d"
-			elif roll < 24:
-				prize = "reports_3"
-			elif roll < 44:
+			if roll < 20:
 				prize = "reports_1"
 			else:
 				prize = "nothing"
