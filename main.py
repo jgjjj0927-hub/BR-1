@@ -189,6 +189,7 @@ class DeleteUserFSM(StatesGroup):
 	user_id = State()
 
 class CreatePromoFSM(StatesGroup):
+	promo_type = State()
 	code = State()
 	days = State()
 	activations = State()
@@ -647,12 +648,26 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(UnblockUserFSM.user_id.state)
 		elif d == 'admin_create_promo' and uid in admins:
-			await bot_instance.send_message(call.message.chat.id, '💎 *Создание промокода*\n*└─ Введите код промокода:*', parse_mode="Markdown")
-			await dp_instance.current_state(chat=uid, user=uid).set_state(CreatePromoFSM.code.state)
+			await bot_instance.send_message(
+				call.message.chat.id,
+				'💎 *Создание промокода*\n\n*└─ Выберите тип:*',
+				parse_mode="Markdown",
+				reply_markup=keyboards.promo_type_markup
+			)
 
 		elif d == 'delete_user_admin' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🗑 *Удаление из базы*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(DeleteUserFSM.user_id.state)
+
+		elif d == 'promo_type_normal' and uid in admins:
+			await dp_instance.current_state(chat=uid, user=uid).update_data(promo_type='normal')
+			await bot_instance.send_message(call.message.chat.id, '💎 *Обычный промокод*\n*└─ Введите код:*', parse_mode="Markdown")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(CreatePromoFSM.code.state)
+
+		elif d == 'promo_type_premium' and uid in admins:
+			await dp_instance.current_state(chat=uid, user=uid).update_data(promo_type='premium')
+			await bot_instance.send_message(call.message.chat.id, '👑 *Премиум промокод*\n*└─ Введите код:*', parse_mode="Markdown")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(CreatePromoFSM.code.state)
 		elif d.startswith('users_list_') and uid in admins:
 			page = int(d.split('_')[2])
 			PAGE_SIZE = 10
@@ -1594,12 +1609,22 @@ async def enter_promo(message: types.Message, state: FSMContext):
 	# Проверяем — не активировал ли этот юзер уже этот промокод
 	if await db.is_promo_used_by(code, uid):
 		await message.answer("*❌ Вы уже активировали этот промокод!*", parse_mode='Markdown'); return
+	promo_type = promo_data.get('promo_type', 'normal')
 	days = promo_data['days']
-	new_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-	await db.use_promo(code, uid, new_date)
 	await db.mark_promo_used(code, uid)
-	await message.answer(f"*✅ Промокод активирован!*\n*Ваш подарок: {days} дней!*", parse_mode='Markdown')
-	await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — {days} дней", parse_mode='Markdown')
+	# Снижаем счётчик активаций
+	pool = await db.get_pool()
+	async with pool.acquire() as conn:
+		await conn.execute("UPDATE promocode SET activations = activations - 1 WHERE code = $1", code)
+	if promo_type == 'premium':
+		await db.set_premium(uid, 1)
+		await message.answer(f"*✅ Промокод активирован!*\n*👑 Вам выдан Premium навсегда!*", parse_mode='Markdown')
+		await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — 👑 Премиум", parse_mode='Markdown')
+	else:
+		new_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+		await db.set_subscribe(uid, new_date)
+		await message.answer(f"*✅ Промокод активирован!*\n*Ваш подарок: {days} дней!*", parse_mode='Markdown')
+		await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — {days} дней", parse_mode='Markdown')
 
 # ─── Блокировка/разблокировка (админ) ────────────────────────────────────────
 
@@ -1651,8 +1676,15 @@ async def create_promo_code(message: types.Message, state: FSMContext):
 		await message.answer("❌ *Код должен быть минимум 3 символа. Введите снова:*", parse_mode="Markdown")
 		return
 	await state.update_data(code=code)
-	await message.answer(f"💎 *Код:* `{code}`\n\n*Введите количество дней подписки:*", parse_mode="Markdown")
-	await CreatePromoFSM.days.set()
+	data = await state.get_data()
+	promo_type = data.get('promo_type', 'normal')
+	if promo_type == 'premium':
+		# Для премиума дни не нужны — сразу к активациям
+		await message.answer(f"👑 *Код:* `{code}`\n\n*Введите количество активаций:*", parse_mode="Markdown")
+		await CreatePromoFSM.activations.set()
+	else:
+		await message.answer(f"💎 *Код:* `{code}`\n\n*Введите количество дней подписки:*", parse_mode="Markdown")
+		await CreatePromoFSM.days.set()
 
 @dp.message_handler(state=CreatePromoFSM.days)
 async def create_promo_days(message: types.Message, state: FSMContext):
@@ -1674,18 +1706,27 @@ async def create_promo_activations(message: types.Message, state: FSMContext):
 			raise ValueError
 		data = await state.get_data()
 		code = data['code']
-		days = data['days']
+		promo_type = data.get('promo_type', 'normal')
+		days = data.get('days', 999)  # для премиума дни не используются
 		await state.finish()
 		try:
-			await db.create_promo(code, days, activations)
-			await message.answer(
-				f"✅ *Промокод создан!*\n\n"
-				f"💎 *Код:* `{code}`\n"
-				f"📅 *Дней:* `{days}`\n"
-				f"🔢 *Активаций:* `{activations}`",
-				parse_mode="Markdown")
+			await db.create_promo(code, days, activations, promo_type=promo_type)
+			if promo_type == 'premium':
+				await message.answer(
+					f"✅ *Премиум промокод создан!*\n\n"
+					f"👑 *Код:* `{code}`\n"
+					f"🔢 *Активаций:* `{activations}`\n"
+					f"*└─ Выдаёт: Премиум навсегда*",
+					parse_mode="Markdown")
+			else:
+				await message.answer(
+					f"✅ *Промокод создан!*\n\n"
+					f"💎 *Код:* `{code}`\n"
+					f"📅 *Дней:* `{days}`\n"
+					f"🔢 *Активаций:* `{activations}`",
+					parse_mode="Markdown")
 			await bot.send_message(bot_logs,
-				f"💎 *Создан промокод* `{code}` — {days} дней, {activations} акт. *администратором* `{message.from_user.id}`",
+				f"💎 *Создан промокод* `{code}` ({'👑 Премиум' if promo_type == 'premium' else f'📅 {days} дней'}), {activations} акт. *администратором* `{message.from_user.id}`",
 				parse_mode="Markdown")
 		except Exception:
 			await message.answer(f"❗️ *Промокод* `{code}` *уже существует!*", parse_mode="Markdown")

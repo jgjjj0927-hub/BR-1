@@ -226,12 +226,17 @@ async def get_promo(code: str) -> dict | None:
         return dict(row) if row else None
 
 
-async def create_promo(code: str, days: int, activations: int):
+async def create_promo(code: str, days: int, activations: int, promo_type: str = 'normal'):
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Добавляем колонку promo_type если нет
+        try:
+            await conn.execute("ALTER TABLE promocode ADD COLUMN IF NOT EXISTS promo_type TEXT DEFAULT 'normal'")
+        except Exception:
+            pass
         await conn.execute(
-            "INSERT INTO promocode (code, days, activations) VALUES ($1, $2, $3)",
-            code, days, activations
+            "INSERT INTO promocode (code, days, activations, promo_type) VALUES ($1, $2, $3, $4)",
+            code, days, activations, promo_type
         )
 
 

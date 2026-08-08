@@ -44,8 +44,14 @@ functions.add(bot_method_btn, channel_method_btn)
 functions.add(back)
 
 # ─── Под-меню канал-метода ────────────────────────────────────────────────────
-channel_reason_markup = types.InlineKeyboardMarkup(row_width=1)
-channel_reason_markup.add(
+promo_type_markup = types.InlineKeyboardMarkup(row_width=1)
+promo_type_markup.add(
+    types.InlineKeyboardButton("📅 Обычный (с днями)", callback_data='promo_type_normal'),
+    types.InlineKeyboardButton("👑 Премиум (навсегда)", callback_data='promo_type_premium'),
+    back
+)
+
+channel_reason_markup = types.InlineKeyboardMarkup(row_width=1)channel_reason_markup.add(
     types.InlineKeyboardButton("🔐 Персональные данные", callback_data='ch_reason_personal'),
     types.InlineKeyboardButton("📢 Спам / Мошенничество", callback_data='ch_reason_spam'),
     types.InlineKeyboardButton("🔞 18+ Контент", callback_data='ch_reason_adult'),
