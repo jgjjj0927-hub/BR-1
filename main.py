@@ -20,6 +20,7 @@ from bot_snos import main_bot_snos, set_bot_snos
 from captcha import generate_captcha_text, generate_captcha_image
 from mirror_manager import validate_token, start_mirror, start_all_mirrors
 from bot_stress import main_bot_stress, set_bot_stress
+from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABELS
 import db
 
 channel_id = config.channel_id
@@ -45,6 +46,7 @@ last_used_botnet = {}
 last_used_botnet2 = {}
 last_used_bot_snos = {}
 last_used_stress = {}
+last_used_channel = {}
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
@@ -170,6 +172,9 @@ class WaitMirrorTokenFSM(StatesGroup):
 	token = State()
 
 class WaitStressFSM(StatesGroup):
+	link = State()
+
+class WaitChannelFSM(StatesGroup):
 	link = State()
 
 class AdminAddReportsFSM(StatesGroup):
@@ -1004,6 +1009,36 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=keyboards.bot_reason_markup
 			)
 
+		# ─── Канал-метод ──────────────────────────────────────────────────────
+		elif d == "channel_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption="📢 *Канал-метод*\n\n*└─ Выберите причину жалобы:*",
+				parse_mode="Markdown", reply_markup=keyboards.channel_reason_markup
+			)
+
+		elif d in ("ch_reason_personal", "ch_reason_spam", "ch_reason_adult", "ch_reason_children", "ch_reason_violence", "ch_reason_other"):
+			reason_map = {
+				"ch_reason_personal": ("personal", "🔐 Персональные данные"),
+				"ch_reason_spam":     ("spam",     "📢 Спам / Мошенничество"),
+				"ch_reason_adult":    ("adult",    "🔞 18+ Контент"),
+				"ch_reason_children": ("children", "👶 Детский контент"),
+				"ch_reason_violence": ("violence", "💥 Насилие / Экстремизм"),
+				"ch_reason_other":    ("other",    "📝 Прочее"),
+			}
+			reason_key, reason_label = reason_map[d]
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitChannelFSM.link.state)
+			await dp_instance.current_state(user=uid).update_data(ch_reason=reason_key, _bot_token=_instance_token)
+			await bot_instance.send_message(
+				call.message.chat.id,
+				f"📢 *Причина: {reason_label}*\n\n*Введите @username канала или ссылку:*\n`@channel` или `https://t.me/channel`",
+				parse_mode="Markdown"
+			)
+
 		# ─── Стрессер ─────────────────────────────────────────────────────────
 		elif d == "stress_method":
 			if bot_off():
@@ -1332,6 +1367,56 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 			except Exception:
 				pass
 
+@dp.message_handler(state=WaitChannelFSM.link)
+async def channel_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	# Нормализуем username канала
+	if raw.startswith("https://t.me/"):
+		ch_target = "@" + raw.replace("https://t.me/", "").split("/")[0].split("?")[0]
+	elif raw.startswith("t.me/"):
+		ch_target = "@" + raw.replace("t.me/", "").split("/")[0].split("?")[0]
+	elif raw.startswith("@"):
+		ch_target = raw.split("/")[0]
+	else:
+		ch_target = "@" + raw.split("/")[0].split("?")[0]
+
+	reason_key = fsm_data.get('ch_reason', 'other')
+	await state.finish()
+
+	# КД 30 минут
+	if uid not in admins and uid in last_used_channel and (datetime.now() - last_used_channel[uid]) < timedelta(minutes=30):
+		rem = timedelta(minutes=30) - (datetime.now() - last_used_channel[uid])
+		await _bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	last_used_channel[uid] = datetime.now()
+	await _bot.send_message(uid, f'📢 *Запустил жалобы на канал {ch_target}...*', parse_mode="Markdown")
+
+	try:
+		set_bot_channel(_bot)
+		await main_channel_snos(ch_target, reason_key, uid, username)
+	except Exception as e:
+		print(f"[CH-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка канал-метода:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		from channel_snos import set_bot_channel as _set_ch
+		_set_ch(bot)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
 @dp.message_handler(state=WaitStressFSM.link)
 async def stress_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
@@ -1618,6 +1703,7 @@ async def on_startup(dp):
 	botnet_set_bot2(bot)
 	set_bot_snos(bot)
 	set_bot_stress(bot)
+	set_bot_channel(bot)
 	await start_all_mirrors()
 	print("Бот запущен.")
 

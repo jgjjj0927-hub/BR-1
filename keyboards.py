@@ -35,12 +35,25 @@ mail_method = types.InlineKeyboardButton("✉️ Почты", callback_data='mai
 botnet_method = types.InlineKeyboardButton("🤖 Обычный", callback_data='botnet_method')
 prem_botnet_method = types.InlineKeyboardButton("👑 Премиальная отправка", callback_data='prem_botnet_method')
 bot_method_btn = types.InlineKeyboardButton("🤖 Бот", callback_data='bot_method')
+channel_method_btn = types.InlineKeyboardButton("📢 Канал", callback_data='channel_method')
 functions.add(botnet_method)
 functions.add(web_method, mail_method)
 functions.add(prem_botnet_method)
-functions.add(bot_method_btn)
+functions.add(bot_method_btn, channel_method_btn)
 # stress_method_btn скрыт — в разработке
 functions.add(back)
+
+# ─── Под-меню канал-метода ────────────────────────────────────────────────────
+channel_reason_markup = types.InlineKeyboardMarkup(row_width=1)
+channel_reason_markup.add(
+    types.InlineKeyboardButton("🔐 Персональные данные", callback_data='ch_reason_personal'),
+    types.InlineKeyboardButton("📢 Спам / Мошенничество", callback_data='ch_reason_spam'),
+    types.InlineKeyboardButton("🔞 18+ Контент", callback_data='ch_reason_adult'),
+    types.InlineKeyboardButton("👶 Детский Контент", callback_data='ch_reason_children'),
+    types.InlineKeyboardButton("💥 Насилие / Экстремизм", callback_data='ch_reason_violence'),
+    types.InlineKeyboardButton("📝 Прочее", callback_data='ch_reason_other'),
+    back
+)
 
 # ─── Под-меню бот-метода ───────────────────────────────────────────────────────
 bot_reason_markup = types.InlineKeyboardMarkup(row_width=1)
