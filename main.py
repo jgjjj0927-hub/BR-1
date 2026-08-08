@@ -660,14 +660,18 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(DeleteUserFSM.user_id.state)
 
 		elif d == 'promo_type_normal' and uid in admins:
-			await dp_instance.current_state(chat=uid, user=uid).update_data(promo_type='normal')
+			state_proxy = dp_instance.current_state(chat=uid, user=uid)
+			await state_proxy.set_state(CreatePromoFSM.code.state)
+			async with state_proxy.proxy() as fsm_data:
+				fsm_data['promo_type'] = 'normal'
 			await bot_instance.send_message(call.message.chat.id, '💎 *Обычный промокод*\n*└─ Введите код:*', parse_mode="Markdown")
-			await dp_instance.current_state(chat=uid, user=uid).set_state(CreatePromoFSM.code.state)
 
 		elif d == 'promo_type_premium' and uid in admins:
-			await dp_instance.current_state(chat=uid, user=uid).update_data(promo_type='premium')
+			state_proxy = dp_instance.current_state(chat=uid, user=uid)
+			await state_proxy.set_state(CreatePromoFSM.code.state)
+			async with state_proxy.proxy() as fsm_data:
+				fsm_data['promo_type'] = 'premium'
 			await bot_instance.send_message(call.message.chat.id, '👑 *Премиум промокод*\n*└─ Введите код:*', parse_mode="Markdown")
-			await dp_instance.current_state(chat=uid, user=uid).set_state(CreatePromoFSM.code.state)
 		elif d.startswith('users_list_') and uid in admins:
 			page = int(d.split('_')[2])
 			PAGE_SIZE = 10
