@@ -963,7 +963,6 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d == "mail_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен премиум\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid in last_used_mail and (datetime.now() - last_used_mail[uid]) < timedelta(minutes=300):
 				rem = timedelta(minutes=300) - (datetime.now() - last_used_mail[uid])
@@ -1009,9 +1008,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "stress_method":
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			free_reports = await db.get_free_reports(uid)
-			if sub_expired() and free_reports == 0:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати или получи бесплатный репорт\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			# КД 2 часа (кроме админов)
 			if uid not in admins and uid in last_used_stress and (datetime.now() - last_used_stress[uid]) < timedelta(hours=2):
 				rem = timedelta(hours=2) - (datetime.now() - last_used_stress[uid])
@@ -1040,7 +1038,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_token=_instance_token)
 			await bot_instance.send_message(
 				call.message.chat.id,
-				f"🤖 *Причина: {reason_label}*\n\n*Введите username бота или ссылку:*\n`@username` или `https://t.me/botname`",
+				f"🤖 *Причина: {reason_label}*\n\n*Введите username бота:*\n`@username_bot`\n\n*⚠️ Username должен оканчиваться на* `bot`",
 				parse_mode="Markdown"
 			)
 
@@ -1301,6 +1299,17 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	else:
 		bot_target = "@" + raw.split("/")[0].split("?")[0]
 
+	# Проверяем что это бот (username должен оканчиваться на 'bot')
+	if not bot_target.lower().endswith("bot"):
+		await state.finish()
+		await _bot.send_message(uid,
+			"❌ *Это не бот!*\n\n"
+			"*Бот-метод работает только с ботами.*\n"
+			"*Username бота должен оканчиваться на* `bot`\n"
+			"*Пример:* `@example_bot`",
+			parse_mode="Markdown", reply_markup=main_menu)
+		return
+
 	reason_key = fsm_data.get('bot_reason', 'other')
 	await state.finish()
 
@@ -1353,12 +1362,10 @@ async def stress_step1(message: types.Message, state: FSMContext):
 		return
 	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 
-	# Проверяем подписку — блокируем если нет подписки И нет репортов
+	# Проверяем подписку — стрессер только с подпиской, бесплатные репорты не тратим
 	if not is_admin and subscribe < datetime.now():
-		used = await db.use_free_report(uid)
-		if not used:
-			await _bot.send_message(uid, '❌ *Нет подписки и бесплатных репортов!*', parse_mode="Markdown", reply_markup=main_menu)
-			return
+		await _bot.send_message(uid, '❌ *Нужна подписка для использования стрессера!*', parse_mode="Markdown", reply_markup=main_menu)
+		return
 
 	await _bot.send_message(uid, f'⚡️ *Запускаем стрессер на {bot_target}...*', parse_mode="Markdown")
 	set_bot_stress(_bot)
