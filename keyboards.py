@@ -51,7 +51,8 @@ promo_type_markup.add(
     back
 )
 
-channel_reason_markup = types.InlineKeyboardMarkup(row_width=1)channel_reason_markup.add(
+channel_reason_markup = types.InlineKeyboardMarkup(row_width=1)
+channel_reason_markup.add(
     types.InlineKeyboardButton("🔐 Персональные данные", callback_data='ch_reason_personal'),
     types.InlineKeyboardButton("📢 Спам / Мошенничество", callback_data='ch_reason_spam'),
     types.InlineKeyboardButton("🔞 18+ Контент", callback_data='ch_reason_adult'),
