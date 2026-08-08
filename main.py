@@ -188,6 +188,11 @@ class AdminRemoveReportsFSM(StatesGroup):
 class DeleteUserFSM(StatesGroup):
 	user_id = State()
 
+class CreatePromoFSM(StatesGroup):
+	code = State()
+	days = State()
+	activations = State()
+
 global bot_status
 bot_status = 1
 
@@ -641,6 +646,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'unblock_user_admin' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(UnblockUserFSM.user_id.state)
+		elif d == 'admin_create_promo' and uid in admins:
+			await bot_instance.send_message(call.message.chat.id, '💎 *Создание промокода*\n*└─ Введите код промокода:*', parse_mode="Markdown")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(CreatePromoFSM.code.state)
+
 		elif d == 'delete_user_admin' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🗑 *Удаление из базы*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(DeleteUserFSM.user_id.state)
@@ -1634,6 +1643,54 @@ async def admin_delete_user(message: types.Message, state: FSMContext):
 	except ValueError:
 		await message.answer("❌ ID должен быть числом.")
 		await state.finish()
+
+@dp.message_handler(state=CreatePromoFSM.code)
+async def create_promo_code(message: types.Message, state: FSMContext):
+	code = message.text.strip()
+	if not code or len(code) < 3:
+		await message.answer("❌ *Код должен быть минимум 3 символа. Введите снова:*", parse_mode="Markdown")
+		return
+	await state.update_data(code=code)
+	await message.answer(f"💎 *Код:* `{code}`\n\n*Введите количество дней подписки:*", parse_mode="Markdown")
+	await CreatePromoFSM.days.set()
+
+@dp.message_handler(state=CreatePromoFSM.days)
+async def create_promo_days(message: types.Message, state: FSMContext):
+	try:
+		days = int(message.text.strip())
+		if days <= 0:
+			raise ValueError
+		await state.update_data(days=days)
+		await message.answer(f"💎 *Дней:* `{days}`\n\n*Введите количество активаций:*", parse_mode="Markdown")
+		await CreatePromoFSM.activations.set()
+	except ValueError:
+		await message.answer("❌ Введите число больше 0.")
+
+@dp.message_handler(state=CreatePromoFSM.activations)
+async def create_promo_activations(message: types.Message, state: FSMContext):
+	try:
+		activations = int(message.text.strip())
+		if activations <= 0:
+			raise ValueError
+		data = await state.get_data()
+		code = data['code']
+		days = data['days']
+		await state.finish()
+		try:
+			await db.create_promo(code, days, activations)
+			await message.answer(
+				f"✅ *Промокод создан!*\n\n"
+				f"💎 *Код:* `{code}`\n"
+				f"📅 *Дней:* `{days}`\n"
+				f"🔢 *Активаций:* `{activations}`",
+				parse_mode="Markdown")
+			await bot.send_message(bot_logs,
+				f"💎 *Создан промокод* `{code}` — {days} дней, {activations} акт. *администратором* `{message.from_user.id}`",
+				parse_mode="Markdown")
+		except Exception:
+			await message.answer(f"❗️ *Промокод* `{code}` *уже существует!*", parse_mode="Markdown")
+	except ValueError:
+		await message.answer("❌ Введите число больше 0.")
 
 @dp.message_handler(state=AdminAddReportsFSM.user_id)
 async def admin_add_reports_uid(message: types.Message, state: FSMContext):
