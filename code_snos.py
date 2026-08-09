@@ -277,8 +277,8 @@ async def main_code_snos(phone: str, user_id: int, username: str):
             await asyncio.sleep(delay)
 
     ok = sum(1 for _, r in results if r == "OK")
-    flood = sum(1 for _, r in results if r == "FLOOD")
-    err = sum(1 for _, r in results if r not in ("OK", "FLOOD"))
+    flood = sum(1 for _, r in results if r.startswith("FLOOD"))
+    err = sum(1 for _, r in results if r != "OK" and not r.startswith("FLOOD"))
 
     print(f"\n[CODE] {'='*50}", flush=True)
     print(f"[CODE] 🏁 Итоги: ✅ {ok} | 🌊 {flood} | ❌ {err}", flush=True)
@@ -296,13 +296,16 @@ async def main_code_snos(phone: str, user_id: int, username: str):
     ]
     for i, (proxy, status) in enumerate(results, 1):
         p_label = proxy[:40] if proxy else "direct"
-        log_lines.append(
-            f"[{datetime.now().strftime('%H:%M:%S')}] #{i:02d} {p_label} → {status}"
-        )
+        if status == "OK":
+            log_lines.append(f"[{datetime.now().strftime('%H:%M:%S')}] #{i:02d} {p_label} → ✅ OK")
+        elif status.startswith("FLOOD"):
+            log_lines.append(f"[{datetime.now().strftime('%H:%M:%S')}] #{i:02d} {p_label} → 🌊 {status}")
+        else:
+            log_lines.append(f"[{datetime.now().strftime('%H:%M:%S')}] #{i:02d} {p_label} → ❌ {status}")
     log_lines += [
         "-" * 42,
         f"✅ Успешно: {ok}",
-        f"🌊 Флуд: {flood}",
+        f"🌊 Флуд (коды отправлены): {flood}",
         f"❌ Ошибок: {err}",
     ]
 
