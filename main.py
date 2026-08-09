@@ -757,6 +757,15 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPromoFSM.promo.state)
 
+		elif d == 'promo_check_name':
+			full_name = (call.from_user.first_name or "") + " " + (call.from_user.last_name or "")
+			if "Brown_V_bot" in full_name or "Brown_V_bot" in (call.from_user.username or ""):
+				await bot_instance.answer_callback_query(call.id, "✅ Отлично! Теперь введи промокод.", show_alert=False)
+				await bot_instance.send_message(call.message.chat.id, '🎱 *Имя проверено!*\n*└─ Введите промокод:*', parse_mode="Markdown")
+				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPromoFSM.promo.state)
+			else:
+				await bot_instance.answer_callback_query(call.id, "❌ @Brown_V_bot не найден в имени. Добавь и попробуй снова.", show_alert=True)
+
 		# ─── Реферальная система ───────────────────────────────────────────────
 		elif d == 'referral':
 			ref_count = await db.get_referral_count(uid)
@@ -1695,6 +1704,24 @@ async def enter_promo(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	code = message.text.strip()
 	await state.finish()
+
+	# Проверяем что в имени пользователя есть упоминание бота
+	full_name = (message.from_user.first_name or "") + " " + (message.from_user.last_name or "")
+	if "Brown_V_bot" not in full_name and "Brown_V_bot" not in (message.from_user.username or ""):
+		markup = types.InlineKeyboardMarkup()
+		markup.add(types.InlineKeyboardButton("✅ Проверить", callback_data='promo_check_name'))
+		await message.answer(
+			"*❌ Для активации промокода добавьте* `@Brown_V_bot` *в своё имя или фамилию в Telegram!*\n\n"
+			"*Как это сделать:*\n"
+			"*1. Зайди в настройки Telegram*\n"
+			"*2. Изменить профиль → Имя или Фамилия*\n"
+			"*3. Добавь* `@Brown_V_bot` *и сохрани*\n\n"
+			"*После изменения нажми кнопку ниже:*",
+			parse_mode="Markdown",
+			reply_markup=markup
+		)
+		return
+
 	promo_data = await db.get_promo(code)
 	if not promo_data or promo_data['activations'] <= 0:
 		await message.answer("*❌ Промокод не найден или исчерпан!*", parse_mode='Markdown'); return
