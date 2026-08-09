@@ -11,6 +11,7 @@ from datetime import datetime
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 from telethon.tl.functions.account import ReportPeerRequest
+from telethon.tl.functions.messages import ReportRequest
 from telethon.tl.types import (
     InputReportReasonSpam,
     InputReportReasonChildAbuse,
@@ -143,7 +144,7 @@ def format_log_line(session, target, status):
     return f"[{now}] {session}.session -> {target} - [{status}]"
 
 
-async def _report_one_channel_session(session, channel_username, reason_key):
+async def _report_one_channel_session(session, channel_username, reason_key, message_id=None):
     """Отправляет жалобу на канал от одной сессии."""
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":")
@@ -171,11 +172,20 @@ async def _report_one_channel_session(session, channel_username, reason_key):
         for attempt in range(2):
             try:
                 text_i = random.choice(CHANNEL_TEXTS[reason_key])
-                result = await client(ReportPeerRequest(
-                    peer=peer,
-                    reason=reason_main,
-                    message=text_i
-                ))
+                if message_id:
+                    # Жалуемся на конкретное сообщение
+                    result = await client(ReportRequest(
+                        peer=peer,
+                        id=[message_id],
+                        reason=reason_main,
+                        message=text_i
+                    ))
+                else:
+                    result = await client(ReportPeerRequest(
+                        peer=peer,
+                        reason=reason_main,
+                        message=text_i
+                    ))
                 print(f"[CH-SNOS] [{session}] 📥 Репорт {attempt+1}/2: {result}", flush=True)
                 if result:
                     sent += 1
@@ -206,7 +216,7 @@ async def _report_one_channel_session(session, channel_username, reason_key):
             await client.disconnect()
 
 
-async def main_channel_snos(channel_username, reason_key, user, username):
+async def main_channel_snos(channel_username, reason_key, user, username, message_id=None):
     """Главная функция жалоб на канал."""
     reason_label = CHANNEL_REASON_LABELS.get(reason_key, reason_key)
     _sessions = _get_sessions()
@@ -215,6 +225,8 @@ async def main_channel_snos(channel_username, reason_key, user, username):
     print(f"[CH-SNOS] 🚀 Запуск жалоб на канал", flush=True)
     print(f"[CH-SNOS] 👤 Пользователь: {user} (@{username})", flush=True)
     print(f"[CH-SNOS] 🎯 Цель: {channel_username}", flush=True)
+    if message_id:
+        print(f"[CH-SNOS] 📌 Сообщение: #{message_id}", flush=True)
     print(f"[CH-SNOS] 📋 Причина: {reason_label}", flush=True)
     print(f"[CH-SNOS] 📦 Сессий: {len(_sessions)}", flush=True)
     print(f"{'='*50}", flush=True)
@@ -223,7 +235,7 @@ async def main_channel_snos(channel_username, reason_key, user, username):
     results = []
     for i in range(0, len(_sessions), BATCH_SIZE):
         batch = _sessions[i:i + BATCH_SIZE]
-        batch_tasks = [_report_one_channel_session(s, channel_username, reason_key) for s in batch]
+        batch_tasks = [_report_one_channel_session(s, channel_username, reason_key, message_id) for s in batch]
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
         results.extend(zip(batch, batch_results))
         if i + BATCH_SIZE < len(_sessions):
@@ -237,6 +249,7 @@ async def main_channel_snos(channel_username, reason_key, user, username):
         "-" * 42,
         f"Пользователь: {user} (@{username})",
         f"Цель: {channel_username}",
+        f"Сообщение: #{message_id}" if message_id else "Сообщение: весь канал",
         f"Причина: {reason_label}",
         "-" * 42,
     ]
@@ -275,14 +288,16 @@ async def main_channel_snos(channel_username, reason_key, user, username):
 
     caption_user = (
         f"📢 *Жалобы на канал завершены!*\n"
-        f"*└─ Цель: {channel_username}*\n\n"
-        f"🟢 *Успешно: {valid}*\n"
+        f"*└─ Цель: {channel_username}*\n"
+        + (f"*└─ Сообщение: #{message_id}*\n" if message_id else "")
+        + f"\n🟢 *Успешно: {valid}*\n"
         f"🔴 *Не удалось: {ne_valid}*"
     )
     caption_log = (
         f"📈 *Канал-метод завершён*\n"
         f"*└─ Цель: {channel_username}*\n"
-        f"*└─ Причина: {reason_label}*\n\n"
+        + (f"*└─ Сообщение: #{message_id}*\n" if message_id else "")
+        + f"*└─ Причина: {reason_label}*\n\n"
         f"🟢 *Успешно: {valid}*\n🔴 *Не удалось: {ne_valid}*\n\n"
         f"👤 *Пользователь:* {user} (@{username})"
     )

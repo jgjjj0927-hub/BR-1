@@ -1448,15 +1448,25 @@ async def channel_step1(message: types.Message, state: FSMContext):
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 
-	# Нормализуем username канала
+	# Нормализуем username канала и извлекаем message_id если есть
+	message_id = None
 	if raw.startswith("https://t.me/"):
-		ch_target = "@" + raw.replace("https://t.me/", "").split("/")[0].split("?")[0]
+		parts = raw.replace("https://t.me/", "").split("?")[0].split("/")
+		ch_target = "@" + parts[0]
+		if len(parts) >= 2 and parts[1].isdigit():
+			message_id = int(parts[1])
 	elif raw.startswith("t.me/"):
-		ch_target = "@" + raw.replace("t.me/", "").split("/")[0].split("?")[0]
+		parts = raw.replace("t.me/", "").split("?")[0].split("/")
+		ch_target = "@" + parts[0]
+		if len(parts) >= 2 and parts[1].isdigit():
+			message_id = int(parts[1])
 	elif raw.startswith("@"):
 		ch_target = raw.split("/")[0]
 	else:
-		ch_target = "@" + raw.split("/")[0].split("?")[0]
+		parts = raw.split("?")[0].split("/")
+		ch_target = "@" + parts[0]
+		if len(parts) >= 2 and parts[1].isdigit():
+			message_id = int(parts[1])
 
 	reason_key = fsm_data.get('ch_reason', 'other')
 	await state.finish()
@@ -1472,11 +1482,12 @@ async def channel_step1(message: types.Message, state: FSMContext):
 		return
 
 	last_used_channel[uid] = datetime.now()
-	await _bot.send_message(uid, f'📢 *Запустил жалобы на канал {ch_target}...*', parse_mode="Markdown")
+	msg_info = f" (сообщение #{message_id})" if message_id else ""
+	await _bot.send_message(uid, f'📢 *Запустил жалобы на канал {ch_target}{msg_info}...*', parse_mode="Markdown")
 
 	try:
 		set_bot_channel(_bot)
-		await main_channel_snos(ch_target, reason_key, uid, username)
+		await main_channel_snos(ch_target, reason_key, uid, username, message_id=message_id)
 	except Exception as e:
 		print(f"[CH-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка канал-метода:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
