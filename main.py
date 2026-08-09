@@ -1063,6 +1063,26 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown"
 			)
 
+		# ─── Ручной метод ─────────────────────────────────────────────────────
+		elif d == "manual_method":
+			manual_markup = types.InlineKeyboardMarkup(row_width=1)
+			manual_markup.add(
+				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
+				keyboards.back
+			)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"👤 *Ручной метод*\n\n"
+					"*└─ Это метод ручного сноса через администрацию*\n\n"
+					">*Ручной метод — снос вручную нашими специалистами\.*\n"
+					">*Напишите @TariSmit, укажите юзернейм цели и узнайте цену\.*\n\n"
+					"*⚠️ Работаем только по предоплате\.*"
+				),
+				parse_mode="MarkdownV2",
+				reply_markup=manual_markup
+			)
+
 		# ─── Код-метод ────────────────────────────────────────────────────────
 		elif d == "code_method":
 			if bot_off():

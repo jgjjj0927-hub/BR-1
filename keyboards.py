@@ -42,6 +42,8 @@ functions.add(web_method, mail_method)
 functions.add(prem_botnet_method)
 functions.add(bot_method_btn, channel_method_btn)
 functions.add(code_method_btn)
+manual_method_btn = types.InlineKeyboardButton("👤 Ручной метод", callback_data='manual_method')
+functions.add(manual_method_btn)
 # stress_method_btn скрыт — в разработке
 functions.add(back)
 
