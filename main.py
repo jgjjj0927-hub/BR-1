@@ -1303,8 +1303,7 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 		f"✅ *Зеркало создано!*\n\n"
 		f"🤖 *Бот:* `{bot_username_new}`\n"
 		f"📊 *Всего зеркал: {mirror_count}*"
-		f"{bonus_msg}\n\n"
-		f"*Зеркало уже работает и принимает пользователей!*",
+		f"{bonus_msg}",
 		parse_mode="Markdown", reply_markup=main_menu
 	)
 	await bot.send_message(

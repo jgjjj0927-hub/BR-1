@@ -309,8 +309,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             f"✅ *Зеркало создано!*\n\n"
             f"🤖 *Бот:* `{bot_username}`\n"
             f"📊 *Всего зеркал: {mirror_count}*"
-            f"{bonus_msg}\n\n"
-            f"*Зеркало уже работает!*",
+            f"{bonus_msg}",
             parse_mode="Markdown")
         # Лог в основной бот
         try:
