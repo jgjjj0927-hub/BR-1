@@ -201,7 +201,7 @@ async def _send_one_code(phone: str, proxy_url: str | None, attempt: int, used_u
         try:
             await asyncio.wait_for(client.connect(), timeout=10)
             result = await client.send_code_request(phone)
-            print(f"[CODE] #{attempt:02d} {proxy_label} → ✅ КОД ОТПРАВЛЕН (type={type(result.sent_code_type).__name__})", flush=True)
+            print(f"[CODE] #{attempt:02d} {proxy_label} → ✅ КОД ОТПРАВЛЕН", flush=True)
             return "OK"
         except FloodWaitError as e:
             print(f"[CODE] #{attempt:02d} {proxy_label} → FLOOD {e.seconds}с", flush=True)
@@ -312,28 +312,28 @@ async def main_code_snos(phone: str, user_id: int, username: str):
         f.write("\n".join(log_lines))
 
     caption_user = (
-        f"📱 *Код-метод завершён\!*\n"
+        f"📱 *Код-метод завершён!*\n"
         f"*└─ Номер:* `{phone}`\n\n"
         f"✅ *Отправлено кодов: {ok}/{CODES_COUNT}*\n"
         f"🌊 *Флуд: {flood}*\n"
         f"❌ *Ошибок: {err}*"
     )
     caption_log = (
-        f"📱 *code\-method*\n"
+        f"📱 *code-method*\n"
         f"*└─ Номер:* `{phone}`\n\n"
         f"✅ {ok} | 🌊 {flood} | ❌ {err}\n"
-        f"👤 {user_id} \(@{username}\)"
+        f"👤 {user_id} (@{username})"
     )
 
     try:
         await bot.send_document(
             user_id, aiogram_types.InputFile(log_path),
-            caption=caption_user, parse_mode="MarkdownV2",
+            caption=caption_user, parse_mode="Markdown",
             reply_markup=keyboards.main_menu
         )
         await bot.send_document(
             bot_logs, aiogram_types.InputFile(log_path),
-            caption=caption_log, parse_mode="MarkdownV2"
+            caption=caption_log, parse_mode="Markdown"
         )
     except Exception as e:
         print(f"[CODE] Ошибка отправки лога: {e}", flush=True)
