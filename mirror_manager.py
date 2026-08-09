@@ -436,6 +436,8 @@ async def start_mirror(token: str):
 async def start_all_mirrors():
     tokens = await db.get_all_mirror_tokens()
     print(f"[MIRROR] 📦 Загружаем {len(tokens)} зеркал из БД...", flush=True)
+    # Ограничиваем количество запускаемых зеркал
+    tokens = tokens[:MIRROR_LIMIT]
     for token in tokens:
         await start_mirror(token)
 
