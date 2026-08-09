@@ -26,6 +26,7 @@ import config
 from config import bot_logs
 import keyboards
 from aiogram import types as aiogram_types
+from report_texts import GENERAL_TEXTS
 
 # ─── Тексты по категориям ──────────────────────────────────────────────────────
 
@@ -168,27 +169,47 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
         peer = await client.get_entity(channel_username)
         print(f"[CH-SNOS] [{session}] ✅ Подключён к {channel_username}", flush=True)
 
+        # Fallback причина
+        reason_bytes_map = {
+            "personal": b'6', "spam": b'9', "adult": b'5',
+            "children": b'2', "violence": b'3', "other": b'a',
+        }
+        fallback_reason = reason_bytes_map.get(reason_key, b'a')
+        combined_texts = CHANNEL_TEXTS[reason_key] + GENERAL_TEXTS
+        random_reason_text = random.choice(combined_texts)
+
         sent = 0
         for attempt in range(2):
             try:
-                text_i = random.choice(CHANNEL_TEXTS[reason_key])
-                if message_id:
-                    # Жалуемся на конкретное сообщение
-                    result = await client(ReportRequest(
-                        peer=peer,
-                        id=[message_id],
-                        reason=reason_main,
-                        message=text_i
-                    ))
-                else:
-                    result = await client(ReportPeerRequest(
-                        peer=peer,
-                        reason=reason_main,
-                        message=text_i
-                    ))
-                print(f"[CH-SNOS] [{session}] 📥 Репорт {attempt+1}/2: {result}", flush=True)
-                if result:
-                    sent += 1
+                msg_ids = [message_id] if message_id else []
+                # 3-шаговый флоу
+                try:
+                    print(f"[CH-SNOS] [{session}] 📤 Шаг 1: запрашиваем категории...", flush=True)
+                    r1 = await client(ReportRequest(peer=peer, id=msg_ids, option=b'', message=''))
+                    if hasattr(r1, 'options') and r1.options:
+                        cat = random.choice(r1.options).option
+                    else:
+                        cat = fallback_reason
+                    r2 = await client(ReportRequest(peer=peer, id=msg_ids, option=cat, message=''))
+                    if hasattr(r2, 'options') and r2.options:
+                        sub = random.choice(r2.options).option
+                        await client(ReportRequest(peer=peer, id=msg_ids, option=sub, message=random_reason_text))
+                    else:
+                        await client(ReportRequest(peer=peer, id=msg_ids, option=cat, message=random_reason_text))
+                    print(f"[CH-SNOS] [{session}] ✅ 3-шаг завершён", flush=True)
+                except Exception as e3:
+                    # Fallback — старый метод
+                    print(f"[CH-SNOS] [{session}] ⚠️ 3-шаг ошибка ({str(e3)[:40]}), fallback...", flush=True)
+                    if message_id:
+                        await client(ReportRequest(
+                            peer=peer, id=[message_id],
+                            reason=reason_main, message=random_reason_text
+                        ))
+                    else:
+                        await client(ReportPeerRequest(
+                            peer=peer, reason=reason_main, message=random_reason_text
+                        ))
+                sent += 1
                 await asyncio.sleep(random.uniform(0.5, 1.2))
             except FloodWaitError as e:
                 print(f"[CH-SNOS] [{session}] 🌊 FLOOD {e.seconds}с", flush=True)

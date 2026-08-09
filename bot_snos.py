@@ -11,6 +11,7 @@ from datetime import datetime
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 from telethon.tl.functions.account import ReportPeerRequest
+from telethon.tl.functions.messages import ReportRequest
 from telethon.tl.types import (
     InputReportReasonSpam,
     InputReportReasonChildAbuse,
@@ -24,6 +25,7 @@ from telethon.tl.types import (
 import config
 from config import bot_logs
 import keyboards
+from report_texts import GENERAL_TEXTS
 
 # ─── Тексты по категориям ──────────────────────────────────────────────────────
 
@@ -146,12 +148,17 @@ def format_log_line(session, target, status):
 async def _report_one_bot_session(session, bot_username, reason_key):
     """
     Отправляет жалобу на бота от одной сессии.
-    Логика как в рабочем скрипте: get_entity → ReportPeerRequest × N без /start.
+    3-шаговый флоу как в ботнете: ReportRequest с динамическими категориями.
     """
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":")
     reason_main, _ = REASONS[reason_key]
-    text = random.choice(TEXTS[reason_key])[:200]
+    # Fallback причина в bytes для ReportRequest
+    reason_bytes_map = {
+        "personal": b'6', "adult": b'5', "children": b'2',
+        "snoser": b'3', "other": b'a', "funstat": b'a',
+    }
+    fallback_reason = reason_bytes_map.get(reason_key, b'a')
 
     print(f"[BOT-SNOS] [{session}] Подключаемся...", flush=True)
 
@@ -170,23 +177,38 @@ async def _report_one_bot_session(session, bot_username, reason_key):
             print(f"[BOT-SNOS] [{session}] ❌ НЕВАЛИД", flush=True)
             return "НЕВАЛИД"
 
-        # Получаем сущность бота — без /start, как в рабочем скрипте
         peer = await client.get_entity(bot_username)
         print(f"[BOT-SNOS] [{session}] ✅ Подключён к {bot_username}", flush=True)
 
-        # Отправляем жалобу — одна причина, без лишних шагов
+        # Берём случайное сообщение из объединённого пула
+        combined_texts = TEXTS[reason_key] + GENERAL_TEXTS
+        random_reason_text = random.choice(combined_texts)
+
         sent = 0
-        for attempt in range(2):  # два репорта от одной сессии
+        for attempt in range(2):
             try:
-                text_i = random.choice(TEXTS[reason_key])
-                result = await client(ReportPeerRequest(
-                    peer=peer,
-                    reason=reason_main,
-                    message=text_i
-                ))
-                print(f"[BOT-SNOS] [{session}] 📥 Репорт {attempt+1}/2: {result}", flush=True)
-                if result:
-                    sent += 1
+                # 3-шаговый флоу
+                try:
+                    print(f"[BOT-SNOS] [{session}] 📤 Шаг 1: запрашиваем категории...", flush=True)
+                    r1 = await client(ReportRequest(peer=peer, id=[], option=b'', message=''))
+                    if hasattr(r1, 'options') and r1.options:
+                        cat = random.choice(r1.options).option
+                    else:
+                        cat = fallback_reason
+                    r2 = await client(ReportRequest(peer=peer, id=[], option=cat, message=''))
+                    if hasattr(r2, 'options') and r2.options:
+                        sub = random.choice(r2.options).option
+                        await client(ReportRequest(peer=peer, id=[], option=sub, message=random_reason_text))
+                    else:
+                        await client(ReportRequest(peer=peer, id=[], option=cat, message=random_reason_text))
+                    print(f"[BOT-SNOS] [{session}] ✅ 3-шаг завершён", flush=True)
+                except Exception as e3:
+                    # Fallback — старый ReportPeerRequest
+                    print(f"[BOT-SNOS] [{session}] ⚠️ 3-шаг ошибка ({str(e3)[:40]}), fallback...", flush=True)
+                    await client(ReportPeerRequest(
+                        peer=peer, reason=reason_main, message=random_reason_text
+                    ))
+                sent += 1
                 await asyncio.sleep(random.uniform(0.5, 1.2))
             except FloodWaitError as e:
                 print(f"[BOT-SNOS] [{session}] 🌊 FLOOD {e.seconds}с", flush=True)
