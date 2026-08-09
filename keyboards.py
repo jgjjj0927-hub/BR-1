@@ -52,6 +52,7 @@ promo_type_markup = types.InlineKeyboardMarkup(row_width=1)
 promo_type_markup.add(
     types.InlineKeyboardButton("📅 Обычный (с днями)", callback_data='promo_type_normal'),
     types.InlineKeyboardButton("👑 Премиум (навсегда)", callback_data='promo_type_premium'),
+    types.InlineKeyboardButton("🎯 Репорты", callback_data='promo_type_reports'),
     back
 )
 

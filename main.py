@@ -676,6 +676,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			async with state_proxy.proxy() as fsm_data:
 				fsm_data['promo_type'] = 'premium'
 			await bot_instance.send_message(call.message.chat.id, '👑 *Премиум промокод*\n*└─ Введите код:*', parse_mode="Markdown")
+
+		elif d == 'promo_type_reports' and uid in admins:
+			state_proxy = dp_instance.current_state(chat=uid, user=uid)
+			await state_proxy.set_state(CreatePromoFSM.code.state)
+			async with state_proxy.proxy() as fsm_data:
+				fsm_data['promo_type'] = 'reports'
+			await bot_instance.send_message(call.message.chat.id, '🎯 *Промокод на репорты*\n*└─ Введите код:*', parse_mode="Markdown")
 		elif d.startswith('users_list_') and uid in admins:
 			page = int(d.split('_')[2])
 			PAGE_SIZE = 10
@@ -1705,6 +1712,11 @@ async def enter_promo(message: types.Message, state: FSMContext):
 		await db.set_premium(uid, 1)
 		await message.answer(f"*✅ Промокод активирован!*\n*👑 Вам выдан Premium навсегда!*", parse_mode='Markdown')
 		await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — 👑 Премиум", parse_mode='Markdown')
+	elif promo_type == 'reports':
+		reports_count = days  # в поле days хранится кол-во репортов
+		await db.add_free_reports(uid, reports_count)
+		await message.answer(f"*✅ Промокод активирован!*\n*🎯 Вам начислено: {reports_count} бесплатных репортов!*", parse_mode='Markdown')
+		await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — 🎯 {reports_count} репортов", parse_mode='Markdown')
 	else:
 		new_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
 		await db.set_subscribe(uid, new_date)
@@ -1767,6 +1779,9 @@ async def create_promo_code(message: types.Message, state: FSMContext):
 		# Для премиума дни не нужны — сразу к активациям
 		await message.answer(f"👑 *Код:* `{code}`\n\n*Введите количество активаций:*", parse_mode="Markdown")
 		await CreatePromoFSM.activations.set()
+	elif promo_type == 'reports':
+		await message.answer(f"🎯 *Код:* `{code}`\n\n*Введите количество бесплатных репортов:*", parse_mode="Markdown")
+		await CreatePromoFSM.days.set()
 	else:
 		await message.answer(f"💎 *Код:* `{code}`\n\n*Введите количество дней подписки:*", parse_mode="Markdown")
 		await CreatePromoFSM.days.set()
@@ -1803,6 +1818,14 @@ async def create_promo_activations(message: types.Message, state: FSMContext):
 					f"🔢 *Активаций:* `{activations}`\n"
 					f"*└─ Выдаёт: Премиум навсегда*",
 					parse_mode="Markdown")
+			elif promo_type == 'reports':
+				reports_count = days  # в поле days хранится кол-во репортов
+				await message.answer(
+					f"✅ *Промокод на репорты создан!*\n\n"
+					f"🎯 *Код:* `{code}`\n"
+					f"🎯 *Репортов:* `{reports_count}`\n"
+					f"🔢 *Активаций:* `{activations}`",
+					parse_mode="Markdown")
 			else:
 				await message.answer(
 					f"✅ *Промокод создан!*\n\n"
@@ -1811,7 +1834,7 @@ async def create_promo_activations(message: types.Message, state: FSMContext):
 					f"🔢 *Активаций:* `{activations}`",
 					parse_mode="Markdown")
 			await bot.send_message(bot_logs,
-				f"💎 *Создан промокод* `{code}` ({'👑 Премиум' if promo_type == 'premium' else f'📅 {days} дней'}), {activations} акт. *администратором* `{message.from_user.id}`",
+				f"💎 *Создан промокод* `{code}` ({'👑 Премиум' if promo_type == 'premium' else ('🎯 ' + str(days) + ' репортов') if promo_type == 'reports' else f'📅 {days} дней'}), {activations} акт. *администратором* `{message.from_user.id}`",
 				parse_mode="Markdown")
 		except Exception:
 			await message.answer(f"❗️ *Промокод* `{code}` *уже существует!*", parse_mode="Markdown")
