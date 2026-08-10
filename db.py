@@ -105,12 +105,20 @@ async def user_exists(user_id: int) -> bool:
 async def add_user(user_id: int, username: str = ''):
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Сначала вставляем без username (совместимость со старой схемой)
         await conn.execute(
-            """INSERT INTO users (user_id, subscribe, premium, verified, username)
-               VALUES ($1, $2, 0, 0, $3)
-               ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username""",
-            user_id, datetime(1999, 1, 1, 20, 0, 0), username or ''
+            "INSERT INTO users (user_id, subscribe, premium, verified) VALUES ($1, $2, 0, 0) ON CONFLICT DO NOTHING",
+            user_id, datetime(1999, 1, 1, 20, 0, 0)
         )
+        # Обновляем username отдельно (колонка может не существовать на старых БД)
+        if username:
+            try:
+                await conn.execute(
+                    "UPDATE users SET username = $1 WHERE user_id = $2",
+                    username, user_id
+                )
+            except Exception:
+                pass
 
 
 async def get_user(user_id: int) -> dict | None:
