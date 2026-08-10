@@ -309,9 +309,7 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 			parse_mode="MarkdownV2", reply_markup=pay_check
 		)
 	except Exception as e:
-		print(f"handle_subscription: {e}", flush=True)
-		import traceback
-		traceback.print_exc()
+		print(f"handle_subscription: {e}")
 
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'), state='*')
 async def check_status_callback(callback_query: types.CallbackQuery):
