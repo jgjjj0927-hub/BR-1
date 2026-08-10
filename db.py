@@ -362,8 +362,9 @@ async def get_free_reports(user_id: int) -> int:
 async def add_free_reports(user_id: int, amount: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # COALESCE защищает от NULL — NULL + N = NULL в PostgreSQL
         await conn.execute(
-            "UPDATE users SET free_reports = free_reports + $1 WHERE user_id = $2",
+            "UPDATE users SET free_reports = COALESCE(free_reports, 0) + $1 WHERE user_id = $2",
             amount, user_id
         )
 
