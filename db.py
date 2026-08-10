@@ -50,6 +50,7 @@ async def init_db():
             ("free_reports", "INT DEFAULT 0"),
             ("wheel_last_spin", "TIMESTAMP DEFAULT '1999-01-01 00:00:00'"),
             ("wheel_prize", "TEXT DEFAULT ''"),
+            ("username", "TEXT DEFAULT ''"),
         ]:
             try:
                 await conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
@@ -101,12 +102,14 @@ async def user_exists(user_id: int) -> bool:
         return row is not None
 
 
-async def add_user(user_id: int):
+async def add_user(user_id: int, username: str = ''):
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO users (user_id, subscribe, premium, verified) VALUES ($1, $2, 0, 0) ON CONFLICT DO NOTHING",
-            user_id, datetime(1999, 1, 1, 20, 0, 0)
+            """INSERT INTO users (user_id, subscribe, premium, verified, username)
+               VALUES ($1, $2, 0, 0, $3)
+               ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username""",
+            user_id, datetime(1999, 1, 1, 20, 0, 0), username or ''
         )
 
 
@@ -567,3 +570,23 @@ async def get_mirrors_count() -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:
         return await conn.fetchval("SELECT COUNT(*) FROM mirrors")
+
+
+async def resolve_user(input_str: str) -> int | None:
+    """
+    Принимает ID (число) или @username.
+    Возвращает user_id или None если не найден.
+    """
+    input_str = input_str.strip().lstrip('@')
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Если число — ищем по ID
+        if input_str.isdigit():
+            uid = int(input_str)
+            row = await conn.fetchrow("SELECT user_id FROM users WHERE user_id = $1", uid)
+            return uid if row else None
+        # Иначе ищем по username (без @)
+        row = await conn.fetchrow(
+            "SELECT user_id FROM users WHERE LOWER(username) = LOWER($1)", input_str
+        )
+        return row["user_id"] if row else None

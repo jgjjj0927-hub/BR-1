@@ -389,7 +389,7 @@ async def welcome(message: types.Message, state: FSMContext):
 		return
 	uid = message.chat.id
 	is_new = not await db.user_exists(uid)
-	await db.add_user(uid)
+	await db.add_user(uid, message.from_user.username or '')
 
 	if not await is_verified(uid):
 		try:
@@ -637,16 +637,16 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
 				caption='>*Добро пожаловать в Brown V2\!*', parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == 'add_subsribe' and uid in admins:
-			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AddSubscribeFSM.user_id.state)
 		elif d == 'clear_subscribe' and uid in admins:
-			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс подписки*\n*└─Введите ID:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(ClearSubscribeFSM.user_id.state)
 		elif d == 'add_prem' and uid in admins:
-			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача премиума*\n*└─Введите ID:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача премиума*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AddPremFSM.user_id.state)
 		elif d == 'clear_prem' and uid in admins:
-			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс премиума*\n*└─Введите ID:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс премиума*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(ClearPremFSM.user_id.state)
 		elif d == 'send_all' and uid in admins and uid in admins2:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Рассылка*\n*└─Введите текст:*', parse_mode="Markdown")
@@ -1619,11 +1619,17 @@ async def stress_step1(message: types.Message, state: FSMContext):
 @dp.message_handler(state=AddSubscribeFSM.user_id)
 async def add_sub_uid(message: types.Message, state: FSMContext):
 	try:
-		await state.update_data(user_id=int(message.text))
-		await message.answer("🎱 *Введите количество дней:*", parse_mode=ParseMode.MARKDOWN)
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден в базе.", parse_mode="Markdown")
+			await state.finish()
+			return
+		await state.update_data(user_id=target)
+		await message.answer(f"🎱 *ID найден:* `{target}`\n*Введите количество дней:*", parse_mode=ParseMode.MARKDOWN)
 		await AddSubscribeFSM.days.set()
-	except ValueError:
-		await message.answer("❌ ID должен быть числом."); await state.finish()
+	except Exception:
+		await message.answer("❌ Ошибка."); await state.finish()
 
 @dp.message_handler(state=AddSubscribeFSM.days)
 async def add_sub_days(message: types.Message, state: FSMContext):
@@ -1643,38 +1649,45 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 @dp.message_handler(state=ClearSubscribeFSM.user_id)
 async def clear_sub_uid(message: types.Message, state: FSMContext):
 	try:
-		target = int(message.text)
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_subscribe(target, "1999-01-01 00:00:00", force=True)
 		await state.finish()
 		await bot.send_message(target, "*🎱 Подписка сброшена.*", parse_mode="Markdown", reply_markup=del_message2)
-		await message.answer("*🎱 Сброшено!*", parse_mode="Markdown")
-	except ValueError:
-		await message.answer("❌ ID должен быть числом.")
-		await state.finish()
+		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
+	except Exception:
+		await message.answer("❌ Ошибка."); await state.finish()
 
 @dp.message_handler(state=AddPremFSM.user_id)
 async def add_prem_uid(message: types.Message, state: FSMContext):
 	try:
-		target = int(message.text)
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_premium(target, 1)
 		await state.finish()
 		await bot.send_message(target, "*👑 Вам выдан Premium.*", parse_mode="Markdown", reply_markup=del_message2)
-		await message.answer("*🎱 Премиум выдан!*", parse_mode="Markdown")
-	except ValueError:
-		await message.answer("❌ ID должен быть числом.")
+		await message.answer(f"*🎱 Премиум выдан* `{target}`*!*", parse_mode="Markdown")
+	except Exception:
+		await message.answer("❌ Ошибка.")
 		await state.finish()
 
 @dp.message_handler(state=ClearPremFSM.user_id)
 async def clear_prem_uid(message: types.Message, state: FSMContext):
 	try:
-		target = int(message.text)
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_premium(target, 0)
 		await state.finish()
 		await bot.send_message(target, "*🎱 Премиум сброшен.*", parse_mode="Markdown", reply_markup=del_message2)
-		await message.answer("*🎱 Сброшено!*", parse_mode="Markdown")
-	except ValueError:
-		await message.answer("❌ ID должен быть числом.")
-		await state.finish()
+		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
+	except Exception:
+		await message.answer("❌ Ошибка."); await state.finish()
 
 # ─── Рассылка ─────────────────────────────────────────────────────────────────
 
@@ -1770,43 +1783,44 @@ async def enter_promo(message: types.Message, state: FSMContext):
 @dp.message_handler(state=BlockUserFSM.user_id)
 async def admin_block_user(message: types.Message, state: FSMContext):
 	try:
-		target = int(message.text.strip())
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.block_user(target)
 		await state.finish()
 		await message.answer(f"🚫 *Пользователь {target} заблокирован.*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"🚫 *Заблокирован* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
-	except ValueError:
-		await message.answer("❌ ID должен быть числом.")
-		await state.finish()
+	except Exception:
+		await message.answer("❌ Ошибка."); await state.finish()
 
 @dp.message_handler(state=UnblockUserFSM.user_id)
 async def admin_unblock_user(message: types.Message, state: FSMContext):
 	try:
-		target = int(message.text.strip())
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.unblock_user(target)
 		await state.finish()
 		await message.answer(f"✅ *Пользователь {target} разблокирован.*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"✅ *Разблокирован* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
-	except ValueError:
-		await message.answer("❌ ID должен быть числом.")
-		await state.finish()
+	except Exception:
+		await message.answer("❌ Ошибка."); await state.finish()
 
 @dp.message_handler(state=DeleteUserFSM.user_id)
 async def admin_delete_user(message: types.Message, state: FSMContext):
 	try:
-		target = int(message.text.strip())
-		exists = await db.user_exists(target)
-		if not exists:
-			await message.answer(f"❌ *Пользователь {target} не найден в базе.*", parse_mode="Markdown")
-			await state.finish()
-			return
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.delete_user(target)
 		await state.finish()
 		await message.answer(f"🗑 *Пользователь {target} удалён из базы.*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"🗑 *Удалён из БД* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
-	except ValueError:
-		await message.answer("❌ ID должен быть числом.")
-		await state.finish()
+	except Exception:
+		await message.answer("❌ Ошибка."); await state.finish()
 
 @dp.message_handler(state=CreatePromoFSM.code)
 async def create_promo_code(message: types.Message, state: FSMContext):
@@ -1886,11 +1900,15 @@ async def create_promo_activations(message: types.Message, state: FSMContext):
 @dp.message_handler(state=AdminAddReportsFSM.user_id)
 async def admin_add_reports_uid(message: types.Message, state: FSMContext):
 	try:
-		await state.update_data(user_id=int(message.text.strip()))
-		await message.answer("🎯 *Сколько репортов выдать?*", parse_mode="Markdown")
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+		await state.update_data(user_id=target)
+		await message.answer(f"🎯 *ID:* `{target}`\n*Сколько репортов выдать?*", parse_mode="Markdown")
 		await AdminAddReportsFSM.amount.set()
 	except ValueError:
-		await message.answer("❌ ID должен быть числом.")
+		await message.answer("❌ Ошибка.")
 		await state.finish()
 
 @dp.message_handler(state=AdminAddReportsFSM.amount)
@@ -1915,11 +1933,15 @@ async def admin_add_reports_amount(message: types.Message, state: FSMContext):
 @dp.message_handler(state=AdminRemoveReportsFSM.user_id)
 async def admin_remove_reports_uid(message: types.Message, state: FSMContext):
 	try:
-		await state.update_data(user_id=int(message.text.strip()))
-		await message.answer("🎯 *Сколько репортов забрать?*", parse_mode="Markdown")
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+		await state.update_data(user_id=target)
+		await message.answer(f"🎯 *ID:* `{target}`\n*Сколько репортов забрать?*", parse_mode="Markdown")
 		await AdminRemoveReportsFSM.amount.set()
-	except ValueError:
-		await message.answer("❌ ID должен быть числом.")
+	except Exception:
+		await message.answer("❌ Ошибка.")
 		await state.finish()
 
 @dp.message_handler(state=AdminRemoveReportsFSM.amount)
