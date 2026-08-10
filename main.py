@@ -36,7 +36,7 @@ bot = Bot(token=config.TOKEN)
 bot_username = "@Brown_V_bot"
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
-crypto = pyCryptoPayAPI(api_token=config.CRYPTO)
+crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
 session_folder = 'sessions'
 session_folder_prem = 'prem_sessions'
 sessions = [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]

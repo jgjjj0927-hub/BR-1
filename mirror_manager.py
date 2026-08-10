@@ -169,7 +169,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     async def mirror_sub(callback_query: types.CallbackQuery):
         try:
             from pyCryptoPayAPI import pyCryptoPayAPI
-            crypto = pyCryptoPayAPI(api_token=config.CRYPTO)
+            crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
             user_id = callback_query.from_user.id
             sub_map = {
                 "1": ("1", "1", "на 1 день"),
@@ -202,7 +202,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     async def mirror_check_status(callback_query: types.CallbackQuery):
         try:
             from pyCryptoPayAPI import pyCryptoPayAPI
-            crypto = pyCryptoPayAPI(api_token=config.CRYPTO)
+            crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
             parts = callback_query.data.split('_')
             invoice_id, sub_type, sub_days = parts[2], parts[3], parts[4]
             user_id = callback_query.from_user.id
