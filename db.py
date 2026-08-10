@@ -84,6 +84,12 @@ async def init_db():
                 PRIMARY KEY (code, user_id)
             )
         """)
+        # Фикс NULL значений для старых пользователей
+        await conn.execute("UPDATE users SET premium = 0 WHERE premium IS NULL")
+        await conn.execute("UPDATE users SET free_reports = 0 WHERE free_reports IS NULL")
+        await conn.execute("UPDATE users SET referral_count = 0 WHERE referral_count IS NULL")
+        await conn.execute("UPDATE users SET verified = 0 WHERE verified IS NULL")
+        await conn.execute("UPDATE users SET mirror_bonus_given = 0 WHERE mirror_bonus_given IS NULL")
 
 
 # ─── Users ────────────────────────────────────────────────────────────────────
@@ -108,7 +114,16 @@ async def get_user(user_id: int) -> dict | None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
-        return dict(row) if row else None
+        if not row:
+            return None
+        d = dict(row)
+        # Заменяем None на дефолтные значения для колонок добавленных позже
+        d['premium'] = d.get('premium') or 0
+        d['free_reports'] = d.get('free_reports') or 0
+        d['referral_count'] = d.get('referral_count') or 0
+        d['verified'] = d.get('verified') or 0
+        d['mirror_bonus_given'] = d.get('mirror_bonus_given') or 0
+        return d
 
 
 async def set_subscribe(user_id: int, new_date, force: bool = False):
@@ -303,7 +318,7 @@ async def get_referral_count(user_id: int) -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT referral_count FROM users WHERE user_id = $1", user_id)
-        return row["referral_count"] if row else 0
+        return int(row["referral_count"] or 0) if row else 0
 
 
 async def spend_referrals(user_id: int, amount: int = 10):
@@ -330,7 +345,7 @@ async def get_free_reports(user_id: int) -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT free_reports FROM users WHERE user_id = $1", user_id)
-        return row["free_reports"] if row else 0
+        return int(row["free_reports"] or 0) if row else 0
 
 
 async def add_free_reports(user_id: int, amount: int):
@@ -492,7 +507,7 @@ async def get_mirror_bonus_given(user_id: int) -> bool:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT mirror_bonus_given FROM users WHERE user_id = $1", user_id)
-        return bool(row["mirror_bonus_given"]) if row else False
+        return bool(row["mirror_bonus_given"] or 0) if row else False
 
 
 async def set_mirror_bonus_given(user_id: int):
@@ -527,3 +542,28 @@ async def get_users_page(offset: int = 0, limit: int = 10) -> list[dict]:
             limit, offset
         )
         return [dict(r) for r in rows]
+
+
+async def get_subscribers_count() -> int:
+    """Количество пользователей с активной подпиской."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE subscribe > NOW()"
+        )
+
+
+async def get_users_with_reports_count() -> int:
+    """Количество пользователей у которых есть бесплатные репорты."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE free_reports > 0"
+        )
+
+
+async def get_mirrors_count() -> int:
+    """Общее количество зеркал."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval("SELECT COUNT(*) FROM mirrors")
