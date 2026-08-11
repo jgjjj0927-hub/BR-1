@@ -27,7 +27,7 @@ import db
 channel_id = config.channel_id
 channel2_id = config.channel2_id
 admins = config.ADMINS
-admins2 = [8904492648]
+admins2 = [8120267775]
 no_kd = config.NO_KD
 bot_logs = config.bot_logs
 report_count333 = 200
