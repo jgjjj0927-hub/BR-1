@@ -1639,12 +1639,17 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 		new_date = (datetime.now() + timedelta(days=int(message.text))).strftime("%Y-%m-%d %H:%M:%S")
 		await db.set_subscribe(target, new_date)
 		await state.finish()
-		await bot.send_message(target, f"🎱 *Подписка обновлена до* `{new_date}`", parse_mode="Markdown", reply_markup=del_message2)
-		await message.answer("🎱 *Готово!*", parse_mode="Markdown")
+		try:
+			await bot.send_message(target, f"🎱 *Подписка обновлена до* `{new_date}`", parse_mode="Markdown", reply_markup=del_message2)
+		except Exception:
+			pass
+		await message.answer(f"🎱 *Готово! Подписка выдана* `{target}` *до* `{new_date}`", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* `{target}` до `{new_date}`", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ Введите число дней (например: 7).")
-		# Не сбрасываем state — даём ввести заново
+	except Exception as e:
+		await message.answer(f"❌ Ошибка: `{str(e)[:100]}`", parse_mode="Markdown")
+		await state.finish()
 
 @dp.message_handler(state=ClearSubscribeFSM.user_id)
 async def clear_sub_uid(message: types.Message, state: FSMContext):
@@ -1669,10 +1674,13 @@ async def add_prem_uid(message: types.Message, state: FSMContext):
 			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_premium(target, 1)
 		await state.finish()
-		await bot.send_message(target, "*👑 Вам выдан Premium.*", parse_mode="Markdown", reply_markup=del_message2)
+		try:
+			await bot.send_message(target, "*👑 Вам выдан Premium.*", parse_mode="Markdown", reply_markup=del_message2)
+		except Exception:
+			pass
 		await message.answer(f"*🎱 Премиум выдан* `{target}`*!*", parse_mode="Markdown")
-	except Exception:
-		await message.answer("❌ Ошибка.")
+	except Exception as e:
+		await message.answer(f"❌ Ошибка: `{str(e)[:100]}`", parse_mode="Markdown")
 		await state.finish()
 
 @dp.message_handler(state=ClearPremFSM.user_id)
@@ -1928,6 +1936,9 @@ async def admin_add_reports_amount(message: types.Message, state: FSMContext):
 			pass
 	except ValueError:
 		await message.answer("❌ Введите число.")
+		await state.finish()
+	except Exception as e:
+		await message.answer(f"❌ Ошибка: `{str(e)[:100]}`", parse_mode="Markdown")
 		await state.finish()
 
 @dp.message_handler(state=AdminRemoveReportsFSM.user_id)
