@@ -33,7 +33,7 @@ bot_logs = config.bot_logs
 report_count333 = 200
 
 bot = Bot(token=config.TOKEN)
-bot_username = "@Brown_V_bot"
+bot_username = "@BrownV2_robot"
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
