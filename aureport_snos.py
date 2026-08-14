@@ -119,7 +119,7 @@ async def _send_one_report(client, bot_entity, target: str, report_num: int) -> 
             await asyncio.sleep(0.3)
             await client.send_message(
                 bot_entity,
-                "This account facilitates the active sale and distribution of illegal narcotics."
+                "This account facilitates the active sale and distribution of illegal narcotics. Please block is"
             )
             step = 3
             logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Описание отправлено")
@@ -230,14 +230,14 @@ async def main_aureport(target_link: str, user: int, username: str):
     # Отправляем результат пользователю
     caption_user = (
         f"🇦🇺 *AU Report завершён!*\n\n"
-        f"🎯 *Цель:* `{target}`\n\n"
+        f"🎯 *Цель:* {target}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )
     caption_log = (
         f"🇦🇺 *AU Report*\n\n"
-        f"🎯 *Цель:* `{target}`\n"
-        f"👤 *Пользователь:* `{user}` (@{username})\n\n"
+        f"🎯 *Цель:* {target}\n"
+        f"👤 *Пользователь:* {user} (@{username})\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )

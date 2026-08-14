@@ -40,7 +40,7 @@ def _get_sessions():
 
 
 def _get_proxy():
-    """Возвращает прокси для TIDA из env или proxies.txt."""
+    """Возвращает прокси для TIDA из env или proxies.txt. Только SOCKS4/SOCKS5."""
     # Приоритет 1: env переменные
     host = os.environ.get("TIDA_PROXY_HOST", "")
     port = os.environ.get("TIDA_PROXY_PORT", "")
@@ -52,7 +52,7 @@ def _get_proxy():
             return (socks.SOCKS5, host, int(port), True, user, password)
         return (socks.SOCKS5, host, int(port))
 
-    # Приоритет 2: proxies.txt
+    # Приоритет 2: proxies.txt — только SOCKS5, HTTP игнорируем
     for fname in ["proxies.txt", "proxy_input.txt"]:
         if os.path.exists(fname):
             with open(fname, "r") as f:
@@ -60,8 +60,12 @@ def _get_proxy():
                     line = line.strip()
                     if not line or ":" not in line:
                         continue
+                    # Пропускаем HTTP прокси — Telethon их не поддерживает
+                    if line.startswith("http://") and not line.startswith("http://") or "socks" not in line.lower():
+                        if not line.startswith("socks"):
+                            continue
                     try:
-                        line = line.replace("socks5://", "").replace("http://", "")
+                        line = line.replace("socks5://", "").replace("socks4://", "")
                         if "@" in line:
                             auth, hostport = line.split("@")
                             u, p = auth.split(":")
@@ -80,7 +84,7 @@ def _get_proxy():
                         continue
             break
 
-    return None
+    return None  # Без прокси — работает напрямую
 
 
 async def _create_client(session_path: str, proxy=None):
@@ -232,15 +236,15 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
 
     caption_user = (
         f"🟣 *TIDA завершён!*\n\n"
-        f"🎯 *Цель:* `{target}`\n\n"
+        f"🎯 *Цель:* {target}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )
     caption_log = (
         f"🟣 *TIDA*\n\n"
-        f"🎯 *Цель:* `{target}`\n"
+        f"🎯 *Цель:* {target}\n"
         f"🗒️ *Текст:* {custom_text[:100]}{'...' if len(custom_text) > 100 else ''}\n"
-        f"👤 *Пользователь:* `{user}` (@{username})\n\n"
+        f"👤 *Пользователь:* {user} (@{username})\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )
