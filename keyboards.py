@@ -47,6 +47,8 @@ functions.add(manual_method_btn)
 aureport_method_btn = types.InlineKeyboardButton("🇦🇺 AU Report", callback_data='aureport_method')
 tida_method_btn = types.InlineKeyboardButton("🟣 TIDA", callback_data='tida_method')
 functions.add(aureport_method_btn, tida_method_btn)
+bank_method_btn = types.InlineKeyboardButton("🏦 Блокировка карты", callback_data='bank_method')
+functions.add(bank_method_btn)
 # stress_method_btn скрыт — в разработке
 functions.add(back)
 
@@ -158,3 +160,13 @@ referral_markup.add(exchange_refs_btn, back)
 wheel_markup = types.InlineKeyboardMarkup(row_width=1)
 spin_btn = types.InlineKeyboardButton("🎡 Крутить!", callback_data='spin_wheel')
 wheel_markup.add(spin_btn, back)
+
+# ─── Выбор банка ──────────────────────────────────────────────────────────────
+bank_select_markup = types.InlineKeyboardMarkup(row_width=1)
+bank_select_markup.add(
+    types.InlineKeyboardButton("🟡 Т-Банк (Тинькофф)", callback_data='bank_tbank'),
+    types.InlineKeyboardButton("🔴 Альфа-Банк", callback_data='bank_alfa'),
+    types.InlineKeyboardButton("🟢 Сбер Банк", callback_data='bank_sber'),
+    types.InlineKeyboardButton("🔵 Озон Банк", callback_data='bank_ozon'),
+    back
+)

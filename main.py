@@ -24,6 +24,7 @@ from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABE
 from code_snos import main_code_snos, set_bot_code
 from aureport_snos import main_aureport, set_bot_aureport
 from tida_snos import main_tida, set_bot_tida
+from bank_snos import process_bank_report, set_bot_bank
 import db
 
 channel_id = config.channel_id
@@ -52,6 +53,7 @@ last_used_stress = {}
 last_used_channel = {}
 last_used_aureport = {}
 last_used_tida = {}
+last_used_bank = {}
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
@@ -191,6 +193,10 @@ class WaitAuReportFSM(StatesGroup):
 class WaitTidaFSM(StatesGroup):
 	link = State()
 	text = State()
+
+class WaitBankFSM(StatesGroup):
+	card = State()
+	bank_key = State()
 
 class AdminAddReportsFSM(StatesGroup):
 	user_id = State()
@@ -1154,6 +1160,40 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 
+		# ─── Блокировка карты ─────────────────────────────────────────────────
+		elif d == "bank_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if premium == 0:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен Premium\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if uid not in admins and uid in last_used_bank and (datetime.now() - last_used_bank[uid]) < timedelta(hours=12):
+				rem = timedelta(hours=12) - (datetime.now() - last_used_bank[uid])
+				h = rem.seconds // 3600
+				m = (rem.seconds % 3600) // 60
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f'❌ *Кулдаун: {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"🏦 *Блокировка карты по 115-ФЗ*\n\n"
+					"*└─ Выберите банк:*"
+				),
+				parse_mode="Markdown", reply_markup=keyboards.bank_select_markup
+			)
+
+		elif d in ("bank_tbank", "bank_alfa", "bank_sber", "bank_ozon"):
+			bank_key = d.replace("bank_", "")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBankFSM.card.state)
+			await dp_instance.current_state(user=uid).update_data(bank_key=bank_key, _bot_token=_instance_token)
+			bank_names = {"tbank": "Т-Банк", "alfa": "Альфа-Банк", "sber": "Сбер Банк", "ozon": "Озон Банк"}
+			await bot_instance.send_message(
+				call.message.chat.id,
+				f"🏦 *{bank_names[bank_key]}*\n\n"
+				f"*└─ Введите номер телефона или карты цели:*\n\n"
+				f"`+79991234567` или `4276 1234 5678 9012`",
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+
 		# ─── Код-метод ────────────────────────────────────────────────────────
 		elif d == "code_method":
 			if bot_off():
@@ -1715,6 +1755,44 @@ async def tida_step2(message: types.Message, state: FSMContext):
 			except Exception: pass
 
 
+@dp.message_handler(state=WaitBankFSM.card)
+async def bank_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	card_data = message.text.strip()
+	fsm_data = await state.get_data()
+	bank_key = fsm_data.get('bank_key', 'tbank')
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	if len(card_data) < 7:
+		await _bot.send_message(uid, "❌ *Введите корректный номер телефона или карты!*", parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	if uid not in admins:
+		last_used_bank[uid] = datetime.now()
+
+	try:
+		set_bot_bank(_bot)
+		await process_bank_report(bank_key, card_data, uid, username)
+	except Exception as e:
+		print(f"[BANK] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_bank(bot)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
 @dp.message_handler(state=WaitStressFSM.link)
 async def stress_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
@@ -2146,6 +2224,7 @@ async def on_startup(dp):
 	set_bot_code(bot)
 	set_bot_aureport(bot)
 	set_bot_tida(bot)
+	set_bot_bank(bot)
 	await start_all_mirrors()
 	print("Бот запущен.")
 
