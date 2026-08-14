@@ -124,6 +124,7 @@ API = [
 ]
 
 bot = None
+main_bot = None  # основной бот — всегда для логов в bot_logs
 session_folder = 'sessions'
 os.makedirs(session_folder, exist_ok=True)
 
@@ -136,8 +137,10 @@ os.makedirs(LOG_FOLDER, exist_ok=True)
 
 
 def set_bot_snos(b):
-    global bot
+    global bot, main_bot
     bot = b
+    if main_bot is None:
+        main_bot = b
 
 
 def format_log_line(session, target, status):
@@ -325,7 +328,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
 
     try:
         await bot.send_document(user, aiogram_types.InputFile(log_path), caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
-        await bot.send_document(bot_logs, aiogram_types.InputFile(log_path), caption=caption_log, parse_mode="Markdown")
+        await main_bot.send_document(bot_logs, aiogram_types.InputFile(log_path), caption=caption_log, parse_mode="Markdown")
     except Exception as e:
         print(f"[BOT-SNOS] Ошибка отправки лога: {e}", flush=True)
 

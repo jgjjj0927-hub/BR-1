@@ -1040,10 +1040,13 @@ reasons_texts = [
 
 
 bot = None  # инициализируется из main.py через set_bot2()
+main_bot = None  # основной бот — всегда для логов в bot_logs
 
 def set_bot2(b):
-    global bot
+    global bot, main_bot
     bot = b
+    if main_bot is None:
+        main_bot = b
 session_folder = 'prem_sessions'
 os.makedirs(session_folder, exist_ok=True)
 
@@ -1281,7 +1284,7 @@ async def main2(chat_username, message_id, user, username, message_url):
 
     try:
         await bot.send_document(user, types.InputFile(log_path), caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
-        await bot.send_document(bot_logs, types.InputFile(log_path), caption=caption_log, parse_mode="Markdown")
+        await main_bot.send_document(bot_logs, types.InputFile(log_path), caption=caption_log, parse_mode="Markdown")
     except Exception as e:
         print(f"Ошибка при отправке логов: {e}")
 
