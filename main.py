@@ -1102,10 +1102,18 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "bot_method":
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if uid not in admins and uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(minutes=30):
+				rem = timedelta(minutes=30) - (datetime.now() - last_used_bot_snos[uid])
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
+			await dp_instance.current_state(user=uid).update_data(bot_reason='personal', _bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption="🤖 *Бот-метод*\n\n*└─ Выберите причину жалобы:*",
-				parse_mode="Markdown", reply_markup=keyboards.bot_reason_markup
+				caption="🤖 *Бот-метод*\n\n*└─ Введите @username бота:*\n`@username_bot`\n\n*⚠️ Username должен оканчиваться на* `bot`",
+				parse_mode="Markdown", reply_markup=back_markup
 			)
 
 		# ─── Канал-метод ──────────────────────────────────────────────────────
@@ -1270,24 +1278,6 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitStressFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
-
-		elif d in ("bot_reason_personal", "bot_reason_adult", "bot_reason_children", "bot_reason_snoser", "bot_reason_other", "bot_reason_funstat"):
-			reason_map = {
-				"bot_reason_personal": ("personal", "🔐 Персональные данные"),
-				"bot_reason_adult": ("adult", "🔞 18+ контент"),
-				"bot_reason_children": ("children", "👶 Детский контент"),
-				"bot_reason_snoser": ("snoser", "💥 Сносер"),
-				"bot_reason_other": ("other", "📝 Прочее"),
-				"bot_reason_funstat": ("funstat", "📊 FunStat (парсинг)"),
-			}
-			reason_key, reason_label = reason_map[d]
-			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_token=_instance_token)
-			await bot_instance.send_message(
-				call.message.chat.id,
-				f"🤖 *Причина: {reason_label}*\n\n*Введите username бота:*\n`@username_bot`\n\n*⚠️ Username должен оканчиваться на* `bot`",
-				parse_mode="Markdown"
-			)
 
 	except Exception as e:
 		print(f"callback_inline: {e}")
