@@ -29,5 +29,9 @@ venv/
 # Резервные копии оригиналов изображений
 material/_originals_backup/
 
+# Картинки меню (меняются на VPS вручную)
+material/menu.png
+material/pizza111.png
+
 
 .aider*
