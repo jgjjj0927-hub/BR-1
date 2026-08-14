@@ -602,20 +602,41 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption="⚙️ *Ассортимент*\n\n>*└─ 1 день \- 1$ / 100₽*\n>*└─ 3 дня \- 2$ / 175₽*\n>*└─ 7 дней \- 4$ / 350₽*\n>*└─ 30 дней \- 8$ / 700₽*\n>*└─ Навсегда \- 6$ / 500₽ \[\-70%\]*\n\n>*👑 Премиум: 5$ / 400₽ \[\-50%\]*",
 				parse_mode="MarkdownV2", reply_markup=shop_markup)
 		elif d == "buyforadmins":
+			card_markup = types.InlineKeyboardMarkup(row_width=1)
+			card_markup.add(
+				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
+				keyboards.back
+			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=">*💳 Выберите способ оплаты\:*", parse_mode="MarkdownV2", reply_markup=keyboards.pay_method)
+				caption="💳 *Оплата картой*\n\n*└─ Напишите* @TariSmit *и я скину вам ссылку для оплаты\.*",
+				parse_mode="MarkdownV2", reply_markup=card_markup)
 		elif d == "yoomoney":
+			card_markup = types.InlineKeyboardMarkup(row_width=1)
+			card_markup.add(
+				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
+				keyboards.back
+			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=f"🇷🇺 *ЮMoney \(Юмани\)*\n\nРеквизиты: `5599002073240212`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @TariSmit",
-				parse_mode="MarkdownV2", reply_markup=back_markup)
+				caption="💳 *Оплата картой*\n\n*└─ Напишите* @TariSmit *и я скину вам ссылку для оплаты\.*",
+				parse_mode="MarkdownV2", reply_markup=card_markup)
 		elif d == "tinkoff":
+			card_markup = types.InlineKeyboardMarkup(row_width=1)
+			card_markup.add(
+				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
+				keyboards.back
+			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=f"🇷🇺 *ЮMoney \(Юмани\)*\n\nРеквизиты: `5599002073240212`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @TariSmit",
-				parse_mode="MarkdownV2", reply_markup=back_markup)
+				caption="💳 *Оплата картой*\n\n*└─ Напишите* @TariSmit *и я скину вам ссылку для оплаты\.*",
+				parse_mode="MarkdownV2", reply_markup=card_markup)
 		elif d == "sberbank":
+			card_markup = types.InlineKeyboardMarkup(row_width=1)
+			card_markup.add(
+				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
+				keyboards.back
+			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=f"🇷🇺 *ЮMoney \(Юмани\)*\n\nРеквизиты: `5599002073240212`\nКомментарий: `{uid}, претензий не имею`\n\nПосле оплаты @TariSmit",
-				parse_mode="MarkdownV2", reply_markup=back_markup)
+				caption="💳 *Оплата картой*\n\n*└─ Напишите* @TariSmit *и я скину вам ссылку для оплаты\.*",
+				parse_mode="MarkdownV2", reply_markup=card_markup)
 		elif d == "preminfo":
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="👑 *Премиум*\n\n>*└─ почты, веб, прем отправку*\n\n‼️ Покупается как ДОПОЛНЕНИЕ к подписке ‼️",
