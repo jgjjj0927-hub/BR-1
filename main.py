@@ -1743,7 +1743,7 @@ async def tida_step1(message: types.Message, state: FSMContext):
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 
 	await _bot.send_message(uid,
-		f'🟣 *TIDA*\n\n*Цель:* `{raw}`\n\n*Введите текст жалобы:*\n_(Опишите нарушение на английском языке)_',
+		f'🟣 *TIDA*\n\n*Цель:* `{raw}`\n\n*Введите текст жалобы:*\n_(Опишите нарушение на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
 		parse_mode="Markdown", reply_markup=back_markup)
 
 	if _is_mirror_bot:
