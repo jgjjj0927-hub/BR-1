@@ -40,7 +40,7 @@ def _get_sessions():
 
 
 def _get_proxy():
-    """Возвращает прокси для TIDA из env или proxies.txt. Только SOCKS4/SOCKS5."""
+    """Возвращает прокси для TIDA из env или proxies.txt."""
     # Приоритет 1: env переменные
     host = os.environ.get("TIDA_PROXY_HOST", "")
     port = os.environ.get("TIDA_PROXY_PORT", "")
@@ -52,7 +52,7 @@ def _get_proxy():
             return (socks.SOCKS5, host, int(port), True, user, password)
         return (socks.SOCKS5, host, int(port))
 
-    # Приоритет 2: proxies.txt — только SOCKS5, HTTP игнорируем
+    # Приоритет 2: proxies.txt
     for fname in ["proxies.txt", "proxy_input.txt"]:
         if os.path.exists(fname):
             with open(fname, "r") as f:
@@ -60,10 +60,8 @@ def _get_proxy():
                     line = line.strip()
                     if not line or ":" not in line:
                         continue
-                    # Пропускаем HTTP прокси — Telethon их не поддерживает
-                    if line.startswith("http://") and not line.startswith("http://") or "socks" not in line.lower():
-                        if not line.startswith("socks"):
-                            continue
+                    if line.startswith("http://"):
+                        continue  # HTTP не поддерживается Telethon
                     try:
                         line = line.replace("socks5://", "").replace("socks4://", "")
                         if "@" in line:
@@ -74,14 +72,19 @@ def _get_proxy():
                             parts = line.split(":")
                             if len(parts) == 4:
                                 h, pt, u, p = parts
-                            else:
+                            elif len(parts) == 2:
                                 h, pt = parts[0], parts[1]
                                 u, p = None, None
+                            else:
+                                continue
                         if u and p:
                             return (socks.SOCKS5, h, int(pt), True, u, p)
                         return (socks.SOCKS5, h, int(pt))
                     except Exception:
                         continue
+            break  # нашли файл — дальше не ищем
+
+    return None
             break
 
     return None  # Без прокси — работает напрямую
