@@ -51,6 +51,7 @@ async def init_db():
             ("wheel_last_spin", "TIMESTAMP DEFAULT '1999-01-01 00:00:00'"),
             ("wheel_prize", "TEXT DEFAULT ''"),
             ("username", "TEXT DEFAULT ''"),
+            ("manual_confirmed", "INT DEFAULT 0"),
         ]:
             try:
                 await conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
@@ -599,3 +600,24 @@ async def resolve_user(input_str: str) -> int | None:
             "SELECT user_id FROM users WHERE LOWER(username) = LOWER($1)", input_str
         )
         return row["user_id"] if row else None
+
+
+async def is_manual_confirmed(user_id: int) -> bool:
+    """Проверяет подтвердил ли пользователь прочтение мануала."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow("SELECT manual_confirmed FROM users WHERE user_id = $1", user_id)
+            return bool(row["manual_confirmed"] or 0) if row else False
+        except Exception:
+            return False
+
+
+async def set_manual_confirmed(user_id: int):
+    """Помечает что пользователь прочитал мануал."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute("UPDATE users SET manual_confirmed = 1 WHERE user_id = $1", user_id)
+        except Exception:
+            pass

@@ -170,3 +170,24 @@ bank_select_markup.add(
     types.InlineKeyboardButton("🔵 Озон Банк", callback_data='bank_ozon'),
     back
 )
+
+# ─── Подтверждение мануала ────────────────────────────────────────────────────
+def manual_confirm_step1(method: str) -> types.InlineKeyboardMarkup:
+    """Первый шаг: ознакомлен"""
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("📄 Читать мануал", url='https://teletype.in/@brownv2/manual'),
+        types.InlineKeyboardButton("✅ Ознакомлен", callback_data=f'manual_step2_{method}'),
+        types.InlineKeyboardButton("[🔙] Назад", callback_data='back')
+    )
+    return markup
+
+
+def manual_confirm_step2(method: str) -> types.InlineKeyboardMarkup:
+    """Второй шаг: 100% прочитал"""
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("💯 100% прочитал", callback_data=f'manual_confirm_{method}'),
+        types.InlineKeyboardButton("[🔙] Назад", callback_data='functions')
+    )
+    return markup

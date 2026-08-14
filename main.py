@@ -1011,6 +1011,45 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		def bot_off():
 			return bot_status == 0
 
+		# Список методов требующих подтверждения мануала
+		METHODS_REQUIRING_CONFIRM = {
+			"web_method", "mail_method", "botnet_method", "prem_botnet_method",
+			"bot_method", "channel_method", "code_method", "aureport_method",
+			"tida_method", "bank_method",
+		}
+
+		# ─── Шаг 1: показываем предупреждение при нажатии на метод ──────────
+		if d in METHODS_REQUIRING_CONFIRM:
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"⚠️ *Перед следующим шагом прочтите мануал\!*\n\n"
+					"📄 *Ознакомьтесь с правилами использования*\n\n"
+					"❌ *За непрочтение \/ неправильные жалобы вам могут обнулить подписку*"
+				),
+				parse_mode="MarkdownV2",
+				reply_markup=keyboards.manual_confirm_step1(d)
+			)
+			return
+
+		# ─── Шаг 2: "Ознакомлен" → второй экран ─────────────────────────────
+		if d.startswith('manual_step2_'):
+			method = d[len('manual_step2_'):]
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"📄 *Вы действительно прочитали мануал?*\n\n"
+					"*Нажмите кнопку ниже только если прочитали*"
+				),
+				parse_mode="Markdown",
+				reply_markup=keyboards.manual_confirm_step2(method)
+			)
+			return
+
+		# ─── Шаг 3: "100% прочитал" → запускаем метод ────────────────────────
+		if d.startswith('manual_confirm_'):
+			d = d[len('manual_confirm_'):]  # подменяем d на реальный метод
+
 		if d == "web_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен премиум\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
