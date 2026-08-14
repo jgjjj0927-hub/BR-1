@@ -140,7 +140,7 @@ def set_bot_snos(b):
     bot = b
 
 
-def format_log_line(ses  sion, target, status):
+def format_log_line(session, target, status):
     now = datetime.now().strftime("%H:%M:%S")
     return f"[{now}] {session}.session -> {target} - [{status}]"
 
