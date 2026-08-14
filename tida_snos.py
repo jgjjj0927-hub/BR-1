@@ -85,9 +85,6 @@ def _get_proxy():
             break  # нашли файл — дальше не ищем
 
     return None
-            break
-
-    return None  # Без прокси — работает напрямую
 
 
 async def _create_client(session_path: str, proxy=None):
