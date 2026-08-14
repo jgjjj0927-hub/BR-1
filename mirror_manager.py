@@ -104,13 +104,6 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         if not await check_subscription(uid):
             await send_subscribe_required(uid, mirror_bot)
             return
-        pin_msg = await mirror_bot.send_message(
-            uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je",
-            parse_mode="MarkdownV2")
-        try:
-            await mirror_bot.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
-        except Exception:
-            pass
         await mirror_bot.send_photo(
             uid, photo=open('material/menu.png', 'rb'),
             caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
@@ -146,13 +139,6 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             if not await check_subscription(uid):
                 await send_subscribe_required(uid, mirror_bot)
                 return
-            pin_msg = await mirror_bot.send_message(
-                uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je",
-                parse_mode="MarkdownV2")
-            try:
-                await mirror_bot.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
-            except Exception:
-                pass
             await mirror_bot.send_photo(
                 uid, photo=open('material/menu.png', 'rb'),
                 caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',

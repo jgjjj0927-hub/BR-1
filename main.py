@@ -416,12 +416,6 @@ async def welcome(message: types.Message, state: FSMContext):
 	if not await check_subscription(uid):
 		await send_subscribe_required(uid)
 		return
-	# Закреплённое сообщение при каждом /start
-	pin_msg = await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
-	try:
-		await bot.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
-	except Exception:
-		pass
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 		caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 		parse_mode="MarkdownV2", reply_markup=menu)
@@ -458,11 +452,6 @@ async def check_captcha(message: types.Message, state: FSMContext):
 			await send_subscribe_required(uid)
 			return
 		# Закреплённое сообщение после капчи
-		pin_msg = await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
-		try:
-			await bot.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
-		except Exception:
-			pass
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 			caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 			parse_mode="MarkdownV2", reply_markup=menu)
@@ -487,11 +476,6 @@ async def start_check_sub_callback(call: types.CallbackQuery):
 		except Exception:
 			pass
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
-		pin_msg = await bot.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
-		try:
-			await bot.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
-		except Exception:
-			pass
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 			caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 			parse_mode="MarkdownV2", reply_markup=menu)
@@ -562,11 +546,6 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				except Exception:
 					pass
 				await bot_instance.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
-				pin_msg = await bot_instance.send_message(uid, "📌 *Сохрани нас чтобы не потерять\!* — brown\.xo\.je", parse_mode="MarkdownV2")
-				try:
-					await bot_instance.pin_chat_message(uid, pin_msg.message_id, disable_notification=True)
-				except Exception:
-					pass
 				await bot_instance.send_photo(uid, photo=open('material/menu.png', 'rb'),
 					caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
 					parse_mode="MarkdownV2", reply_markup=menu)
