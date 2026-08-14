@@ -94,8 +94,12 @@ async def subsribe_channel(user_id, chan):
 	try:
 		chat_member = await bot.get_chat_member(chan, user_id)
 		return chat_member.status != 'left'
-	except Exception:
-		return True  # если канал недоступен — не блокируем пользователя
+	except Exception as e:
+		err = str(e).lower()
+		# Если бот не авторизован или нет доступа к каналу — блокируем
+		if 'unauthorized' in err or 'forbidden' in err or 'chat not found' in err:
+			return False
+		return True  # другие ошибки (сеть и т.д.) — не блокируем
 
 async def check_subscription(uid: int, bot_instance=None) -> bool:
 	"""Проверяет подписку на оба канала. Всегда через основной bot."""
