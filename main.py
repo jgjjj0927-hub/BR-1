@@ -537,7 +537,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			temp_check_markup.add(
 				types.InlineKeyboardButton("[1️⃣] Подпишись (1 мин)", url=invite1),
 				types.InlineKeyboardButton("[2️⃣] Подпишись (1 мин)", url=invite2),
-				types.InlineKeyboardButton("[🔎] Проверить", callback_data='back')
+				types.InlineKeyboardButton("[🔎] Проверить", callback_data='start_check_sub')
 			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="*⚠️ Подпишитесь на каналы!*\n*└─ Ссылки действуют 1 минуту*", parse_mode="Markdown", reply_markup=temp_check_markup)

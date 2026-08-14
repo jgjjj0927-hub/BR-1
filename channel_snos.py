@@ -176,7 +176,7 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
         }
         fallback_reason = reason_bytes_map.get(reason_key, b'a')
         combined_texts = CHANNEL_TEXTS[reason_key] + GENERAL_TEXTS
-        random_reason_text = random.choice(combined_texts)
+        random_reason_text = random.choice(combined_texts)[:200]
 
         sent = 0
         for attempt in range(2):

@@ -140,7 +140,7 @@ def set_bot_snos(b):
     bot = b
 
 
-def format_log_line(session, target, status):
+def format_log_line(ses  sion, target, status):
     now = datetime.now().strftime("%H:%M:%S")
     return f"[{now}] {session}.session -> {target} - [{status}]"
 
@@ -180,9 +180,9 @@ async def _report_one_bot_session(session, bot_username, reason_key):
         peer = await client.get_entity(bot_username)
         print(f"[BOT-SNOS] [{session}] ✅ Подключён к {bot_username}", flush=True)
 
-        # Берём случайное сообщение из объединённого пула
+        # Берём случайное сообщение из объединённого пула (макс 200 символов — лимит MTProto)
         combined_texts = TEXTS[reason_key] + GENERAL_TEXTS
-        random_reason_text = random.choice(combined_texts)
+        random_reason_text = random.choice(combined_texts)[:200]
 
         sent = 0
         for attempt in range(2):
