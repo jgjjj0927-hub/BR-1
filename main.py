@@ -802,7 +802,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 						),
 						parse_mode="Markdown", reply_markup=keyboards.referral_markup
 					)
-					await bot_instance.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
+					await bot.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
 
 		# ─── Бесплатно / Зеркала ──────────────────────────────────────────────
 		elif d == 'free_menu':
@@ -967,9 +967,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
-			await bot_instance.send_message(bot_logs, f"🎡 `{uid}` крутил колесо — {log_text}", parse_mode="Markdown")
-		
-		# Методы
+			await bot.send_message(bot_logs, f"🎡 `{uid}` крутил колесо — {log_text}", parse_mode="Markdown")
 		def sub_expired():
 			return subscribe < datetime.now()
 		def bot_off():
