@@ -22,6 +22,8 @@ from mirror_manager import validate_token, start_mirror, start_all_mirrors
 from bot_stress import main_bot_stress, set_bot_stress
 from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABELS
 from code_snos import main_code_snos, set_bot_code
+from aureport_snos import main_aureport, set_bot_aureport
+from tida_snos import main_tida, set_bot_tida
 import db
 
 channel_id = config.channel_id
@@ -48,6 +50,8 @@ last_used_botnet2 = {}
 last_used_bot_snos = {}
 last_used_stress = {}
 last_used_channel = {}
+last_used_aureport = {}
+last_used_tida = {}
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
@@ -180,6 +184,13 @@ class WaitChannelFSM(StatesGroup):
 
 class WaitPhoneFSM(StatesGroup):
 	phone = State()
+
+class WaitAuReportFSM(StatesGroup):
+	link = State()
+
+class WaitTidaFSM(StatesGroup):
+	link = State()
+	text = State()
 
 class AdminAddReportsFSM(StatesGroup):
 	user_id = State()
@@ -1078,6 +1089,50 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				reply_markup=manual_markup
 			)
 
+		# ─── AU Report ────────────────────────────────────────────────────────
+		elif d == "aureport_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if uid not in admins and uid in last_used_aureport and (datetime.now() - last_used_aureport[uid]) < timedelta(minutes=30):
+				rem = timedelta(minutes=30) - (datetime.now() - last_used_aureport[uid])
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitAuReportFSM.link.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"🇦🇺 *AU Report*\n\n"
+					"*└─ Введите @username или ссылку на цель:*\n\n"
+					"`@username` или `https://t.me/username`"
+				),
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+
+		# ─── TIDA ─────────────────────────────────────────────────────────────
+		elif d == "tida_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if uid not in admins and uid in last_used_tida and (datetime.now() - last_used_tida[uid]) < timedelta(minutes=30):
+				rem = timedelta(minutes=30) - (datetime.now() - last_used_tida[uid])
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.link.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"🟣 *TIDA*\n\n"
+					"*└─ Введите @username или ссылку на цель:*\n\n"
+					"`@username` или `https://t.me/username`"
+				),
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+
 		# ─── Код-метод ────────────────────────────────────────────────────────
 		elif d == "code_method":
 			if bot_off():
@@ -1534,6 +1589,111 @@ async def phone_step1(message: types.Message, state: FSMContext):
 			except Exception: pass
 
 
+@dp.message_handler(state=WaitAuReportFSM.link)
+async def aureport_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	# Валидация — должен быть username или ссылка
+	if not raw.startswith("@") and not raw.startswith("https://t.me/") and not raw.startswith("t.me/"):
+		raw = "@" + raw
+
+	if uid not in admins:
+		last_used_aureport[uid] = datetime.now()
+
+	await _bot.send_message(uid,
+		f'🇦🇺 *Запускаю AU Report на* `{raw}`*...*\n*└─ Это может занять некоторое время*',
+		parse_mode="Markdown")
+
+	try:
+		set_bot_aureport(_bot)
+		await main_aureport(raw, uid, username)
+	except Exception as e:
+		print(f"[AUREPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка AU Report:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_aureport(bot)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
+@dp.message_handler(state=WaitTidaFSM.link)
+async def tida_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+
+	if not raw.startswith("@") and not raw.startswith("https://t.me/") and not raw.startswith("t.me/"):
+		raw = "@" + raw
+
+	await state.update_data(tida_link=raw, _bot_token=_bot_token)
+	await WaitTidaFSM.text.set()
+
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await _bot.send_message(uid,
+		f'🟣 *TIDA*\n\n*Цель:* `{raw}`\n\n*Введите текст жалобы:*\n_(Опишите нарушение на английском языке)_',
+		parse_mode="Markdown", reply_markup=back_markup)
+
+	if _is_mirror_bot:
+		try:
+			s = await _bot.get_session(); await s.close()
+		except Exception: pass
+
+
+@dp.message_handler(state=WaitTidaFSM.text)
+async def tida_step2(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	custom_text = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	target_link = fsm_data.get('tida_link', '')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	if len(custom_text) < 10:
+		await _bot.send_message(uid, "❌ *Текст слишком короткий! Минимум 10 символов.*", parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	if uid not in admins:
+		last_used_tida[uid] = datetime.now()
+
+	await _bot.send_message(uid,
+		f'🟣 *Запускаю TIDA на* `{target_link}`*...*\n*└─ Это может занять некоторое время*',
+		parse_mode="Markdown")
+
+	try:
+		set_bot_tida(_bot)
+		await main_tida(target_link, custom_text, uid, username)
+	except Exception as e:
+		print(f"[TIDA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_tida(bot)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
 @dp.message_handler(state=WaitStressFSM.link)
 async def stress_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
@@ -1963,6 +2123,8 @@ async def on_startup(dp):
 	set_bot_stress(bot)
 	set_bot_channel(bot)
 	set_bot_code(bot)
+	set_bot_aureport(bot)
+	set_bot_tida(bot)
 	await start_all_mirrors()
 	print("Бот запущен.")
 

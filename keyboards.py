@@ -44,6 +44,9 @@ functions.add(bot_method_btn, channel_method_btn)
 functions.add(code_method_btn)
 manual_method_btn = types.InlineKeyboardButton("👤 Ручной метод", callback_data='manual_method')
 functions.add(manual_method_btn)
+aureport_method_btn = types.InlineKeyboardButton("🇦🇺 AU Report", callback_data='aureport_method')
+tida_method_btn = types.InlineKeyboardButton("🟣 TIDA", callback_data='tida_method')
+functions.add(aureport_method_btn, tida_method_btn)
 # stress_method_btn скрыт — в разработке
 functions.add(back)
 

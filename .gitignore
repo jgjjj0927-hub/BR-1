@@ -8,6 +8,8 @@ proxy_input.txt
 # Сессии Telegram
 sessions/
 prem_sessions/
+aureport_sessions/
+tida_sessions/
 
 # Базы данных
 *.db
