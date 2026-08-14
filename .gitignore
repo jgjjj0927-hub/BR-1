@@ -30,7 +30,7 @@ venv/
 material/_originals_backup/
 
 # Картинки меню (меняются на VPS вручную)
-material/menu.png
+# material/menu.png  ← временно разрешаем для восстановления
 material/pizza111.png
 
 
