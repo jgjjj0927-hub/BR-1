@@ -119,7 +119,7 @@ async def _send_one_report(client, bot_entity, target: str, report_num: int) -> 
             await asyncio.sleep(0.3)
             await client.send_message(
                 bot_entity,
-                "This account facilitates the active sale and distribution of illegal narcotics. Please block is"
+                "This account facilitates the active sale and distribution of illegal narcotics."
             )
             step = 3
             logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Описание отправлено")

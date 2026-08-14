@@ -150,20 +150,13 @@ def format_log_line(session, target, status):
 
 async def _report_one_bot_session(session, bot_username, reason_key):
     """
-    Отправляет жалобу на бота от одной сессии.
-    3-шаговый флоу как в ботнете: ReportRequest с динамическими категориями.
+    Метод шакализатора: 1 жалоба через ReportPeerRequest на весь аккаунт бота.
     """
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":")
     reason_main, _ = REASONS[reason_key]
-    # Fallback причина в bytes для ReportRequest
-    reason_bytes_map = {
-        "personal": b'6', "adult": b'5', "children": b'2',
-        "snoser": b'3', "other": b'a', "funstat": b'a',
-    }
-    fallback_reason = reason_bytes_map.get(reason_key, b'a')
-
-    print(f"[BOT-SNOS] [{session}] Подключаемся...", flush=True)
+    combined_texts = TEXTS[reason_key] + GENERAL_TEXTS
+    random_reason_text = random.choice(combined_texts)[:200]
 
     client = TelegramClient(
         f"./sessions/{session}", int(api_id), api_hash,
@@ -171,7 +164,7 @@ async def _report_one_bot_session(session, bot_username, reason_key):
     )
     try:
         try:
-            await asyncio.wait_for(client.connect(), timeout=8)
+            await asyncio.wait_for(client.connect(), timeout=10)
         except asyncio.TimeoutError:
             print(f"[BOT-SNOS] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ", flush=True)
             return "ОШИБКА СОЕДИНЕНИЯ"
@@ -180,93 +173,55 @@ async def _report_one_bot_session(session, bot_username, reason_key):
             print(f"[BOT-SNOS] [{session}] ❌ НЕВАЛИД", flush=True)
             return "НЕВАЛИД"
 
-        peer = await client.get_entity(bot_username)
-        print(f"[BOT-SNOS] [{session}] ✅ Подключён к {bot_username}", flush=True)
+        try:
+            entity = await client.get_entity(bot_username)
+        except Exception as e:
+            print(f"[BOT-SNOS] [{session}] ❌ Цель не найдена: {e}", flush=True)
+            return "НЕ НАЙДЕН"
 
-        # Берём случайное сообщение из объединённого пула (макс 200 символов — лимит MTProto)
-        combined_texts = TEXTS[reason_key] + GENERAL_TEXTS
-        random_reason_text = random.choice(combined_texts)[:200]
-
-        sent = 0
-        for attempt in range(2):
-            try:
-                # 3-шаговый флоу
-                try:
-                    print(f"[BOT-SNOS] [{session}] 📤 Шаг 1: запрашиваем категории...", flush=True)
-                    r1 = await client(ReportRequest(peer=peer, id=[], option=b'', message=''))
-                    if hasattr(r1, 'options') and r1.options:
-                        cat = random.choice(r1.options).option
-                    else:
-                        cat = fallback_reason
-                    r2 = await client(ReportRequest(peer=peer, id=[], option=cat, message=''))
-                    if hasattr(r2, 'options') and r2.options:
-                        sub = random.choice(r2.options).option
-                        await client(ReportRequest(peer=peer, id=[], option=sub, message=random_reason_text))
-                    else:
-                        await client(ReportRequest(peer=peer, id=[], option=cat, message=random_reason_text))
-                    print(f"[BOT-SNOS] [{session}] ✅ 3-шаг завершён", flush=True)
-                except Exception as e3:
-                    # Fallback — старый ReportPeerRequest
-                    print(f"[BOT-SNOS] [{session}] ⚠️ 3-шаг ошибка ({str(e3)[:40]}), fallback...", flush=True)
-                    await client(ReportPeerRequest(
-                        peer=peer, reason=reason_main, message=random_reason_text
-                    ))
-                sent += 1
-                await asyncio.sleep(random.uniform(0.5, 1.2))
-            except FloodWaitError as e:
-                print(f"[BOT-SNOS] [{session}] 🌊 FLOOD {e.seconds}с", flush=True)
-                return f"FLOOD {e.seconds}s"
-            except Exception as e:
-                print(f"[BOT-SNOS] [{session}] ⚠️ Репорт {attempt+1} ошибка: {str(e)[:60]}", flush=True)
-                break
-
-        if sent > 0:
-            print(f"[BOT-SNOS] [{session}] ✅ ДОСТАВЛЕНО ({sent}/2)", flush=True)
+        try:
+            await client(ReportPeerRequest(
+                peer=entity,
+                reason=reason_main,
+                message=random_reason_text
+            ))
+            print(f"[BOT-SNOS] [{session}] ✅ ДОСТАВЛЕНО", flush=True)
             return "ДОСТАВЛЕНО"
-        else:
-            print(f"[BOT-SNOS] [{session}] ⚠️ ОТКЛОНЕНО", flush=True)
-            return "ОТКЛОНЕНО"
+        except FloodWaitError as e:
+            print(f"[BOT-SNOS] [{session}] 🌊 FLOOD {e.seconds}с", flush=True)
+            return f"FLOOD {e.seconds}s"
+        except Exception as e:
+            print(f"[BOT-SNOS] [{session}] ❌ ОШИБКА: {str(e)[:60]}", flush=True)
+            return f"ОШИБКА: {str(e)[:50]}"
 
-    except FloodWaitError as e:
-        print(f"[BOT-SNOS] [{session}] 🌊 FLOOD {e.seconds}с", flush=True)
-        return f"FLOOD {e.seconds}s"
     except Exception as e:
-        err = str(e)[:60]
-        print(f"[BOT-SNOS] [{session}] ❌ ОШИБКА: {err}", flush=True)
-        return f"ОШИБКА: {err}"
+        print(f"[BOT-SNOS] [{session}] ❌ {str(e)[:60]}", flush=True)
+        return f"ОШИБКА: {str(e)[:50]}"
     finally:
         if client.is_connected():
             await client.disconnect()
 
 
 async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
-    """Главная функция жалоб на бота."""
+    """Главная функция жалоб на бота — метод шакализатора."""
     if "_" in username:
         username = "None"
 
     reason_label = REASON_LABELS.get(reason_key, reason_key)
+    _sessions = _get_sessions()
 
     print(f"\n{'='*50}", flush=True)
-    print(f"[BOT-SNOS] 🚀 Запуск bot-метода", flush=True)
+    print(f"[BOT-SNOS] 🚀 Запуск bot-метода (шакализатор)", flush=True)
     print(f"[BOT-SNOS] 👤 Пользователь: {user} (@{username})", flush=True)
     print(f"[BOT-SNOS] 🎯 Цель: {bot_url}", flush=True)
     print(f"[BOT-SNOS] 📋 Причина: {reason_label}", flush=True)
-    _sessions = _get_sessions()
     print(f"[BOT-SNOS] 📦 Сессий: {len(_sessions)}", flush=True)
     print(f"{'='*50}", flush=True)
 
-    # Запускаем пачками по 8
-    BATCH_SIZE = 8
-    results = []
-    for i in range(0, len(_sessions), BATCH_SIZE):
-        batch = _sessions[i:i + BATCH_SIZE]
-        batch_tasks = [_report_one_bot_session(s, bot_username, reason_key) for s in batch]
-        batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-        results.extend(zip(batch, batch_results))
-        if i + BATCH_SIZE < len(_sessions):
-            delay = random.uniform(3, 5)
-            print(f"[BOT-SNOS] ⏳ Пачка {i//BATCH_SIZE + 1} завершена, ждём {delay:.1f}с...", flush=True)
-            await asyncio.sleep(delay)
+    # Все сессии параллельно — как у шакализатора
+    tasks = [_report_one_bot_session(s, bot_username, reason_key) for s in _sessions]
+    results_raw = await asyncio.gather(*tasks, return_exceptions=True)
+    results = list(zip(_sessions, results_raw))
 
     valid, ne_valid, flood = 0, 0, 0
     log_lines = [
@@ -283,7 +238,6 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
             ne_valid += 1
             log_lines.append(format_log_line(session, bot_url, f"ИСКЛЮЧЕНИЕ: {str(result)[:50]}"))
             continue
-
         status = result
         if status == "ДОСТАВЛЕНО":
             valid += 1
