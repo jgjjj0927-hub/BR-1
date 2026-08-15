@@ -248,6 +248,10 @@ async def main_aureport(target_link: str, user: int, username: str):
         logger.error(f"[AUREPORT] Ошибка отправки результата пользователю: {e}")
 
     try:
-        await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+        _log_bot = main_bot or bot
+        if _log_bot:
+            await _log_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+        else:
+            logger.error("[AUREPORT] main_bot и bot оба None — лог не отправлен")
     except Exception as e:
         logger.error(f"[AUREPORT] Ошибка отправки лога: {e}")

@@ -10,17 +10,18 @@ promo = types.InlineKeyboardButton("🎁 Промокод", callback_data='promo
 referral_btn = types.InlineKeyboardButton("👥 Рефералы", callback_data='referral')
 wheel_btn = types.InlineKeyboardButton("🎡 Колесо удачи", callback_data='wheel')
 free_btn = types.InlineKeyboardButton("🆓 Бесплатно", callback_data='free_menu')
+mirrors_pub_btn = types.InlineKeyboardButton("🪞 Зеркала", callback_data='public_mirrors')
 menu.add(snoser)
 menu.add(information, profile)
 menu.add(shop, promo)
 menu.add(referral_btn, wheel_btn)
-menu.add(free_btn)
+menu.add(mirrors_pub_btn, free_btn)
 
 # ─── Меню Бесплатно ───────────────────────────────────────────────────────────
 free_menu_markup = types.InlineKeyboardMarkup(row_width=1)
 free_menu_markup.add(
     types.InlineKeyboardButton("🪞 Создать зеркало", callback_data='mirror_create'),
-    types.InlineKeyboardButton("📋 Мои зеркала", callback_data='mirror_list'),
+    types.InlineKeyboardButton("📋 Мои зеркала (5 рандомных)", callback_data='mirror_list'),
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back')
 )
 

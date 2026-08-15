@@ -892,14 +892,45 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if not mirrors:
 				await bot_instance.answer_callback_query(call.id, "У вас нет зеркал.", show_alert=True)
 				return
-			lines = ["🪞 *Ваши зеркала:*\n"]
-			for i, m in enumerate(mirrors, 1):
+			import random as _random
+			total_mirrors = len(mirrors)
+			shown = _random.sample(mirrors, min(5, total_mirrors))
+			lines = [f"🪞 *Ваши зеркала* (показано 5 из {total_mirrors}):\n"]
+			for i, m in enumerate(shown, 1):
 				lines.append(f"*{i}.* `{m['bot_username']}`")
+			refresh_markup = types.InlineKeyboardMarkup(row_width=1)
+			refresh_markup.add(
+				types.InlineKeyboardButton("🔄 Обновить", callback_data='mirror_list'),
+				keyboards.back
+			)
 			await bot_instance.send_message(
 				call.message.chat.id,
 				"\n".join(lines),
 				parse_mode="Markdown",
-				reply_markup=keyboards.back_markup
+				reply_markup=refresh_markup
+			)
+
+		# ─── Публичные зеркала ─────────────────────────────────────────────────
+		elif d == 'public_mirrors':
+			import random as _random
+			all_mirrors = await db.get_all_mirrors()
+			if not all_mirrors:
+				await bot_instance.answer_callback_query(call.id, "Зеркал пока нет.", show_alert=True)
+				return
+			shown = _random.sample(all_mirrors, min(5, len(all_mirrors)))
+			lines = ["🪞 *Зеркала Brown V2*\n\n*└─ 5 случайных рабочих зеркал:*\n"]
+			for m in shown:
+				lines.append(f"• `{m['bot_username']}`")
+			refresh_markup = types.InlineKeyboardMarkup(row_width=1)
+			refresh_markup.add(
+				types.InlineKeyboardButton("🔄 Обновить", callback_data='public_mirrors'),
+				keyboards.back
+			)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption="\n".join(lines),
+				parse_mode="Markdown",
+				reply_markup=refresh_markup
 			)
 
 		# ─── Колесо удачи ──────────────────────────────────────────────────────
