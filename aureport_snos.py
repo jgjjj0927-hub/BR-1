@@ -227,7 +227,6 @@ async def main_aureport(target_link: str, user: int, username: str):
 
     logger.info(f"[AUREPORT] 🏁 Итог: {successful}/{total}")
 
-    # Отправляем результат пользователю
     caption_user = (
         f"🇦🇺 *AU Report завершён!*\n\n"
         f"🎯 *Цель:* {target}\n\n"
@@ -242,16 +241,20 @@ async def main_aureport(target_link: str, user: int, username: str):
         f"🔴 *Не удалось: {total - successful}*"
     )
 
+    # Отправляем результат пользователю
     try:
         await bot.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
     except Exception as e:
         logger.error(f"[AUREPORT] Ошибка отправки результата пользователю: {e}")
 
-    try:
-        _log_bot = main_bot or bot
-        if _log_bot:
-            await _log_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
-        else:
-            logger.error("[AUREPORT] main_bot и bot оба None — лог не отправлен")
-    except Exception as e:
-        logger.error(f"[AUREPORT] Ошибка отправки лога: {e}")
+    # Отправляем лог — всегда, с повторной попыткой
+    for attempt in range(3):
+        try:
+            _log_bot = main_bot or bot
+            if _log_bot:
+                await _log_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+                break
+        except Exception as e:
+            logger.error(f"[AUREPORT] Ошибка отправки лога (попытка {attempt+1}): {e}")
+            if attempt < 2:
+                await asyncio.sleep(2)
