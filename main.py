@@ -599,12 +599,16 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			except Exception as e:
 				print(f"Ошибка создания invite link для информации: {e}", flush=True)
 				channel_invite = config.bot_channel_link
-			dyn_info_markup = types.InlineKeyboardMarkup(row_width=1)
+			dyn_info_markup = types.InlineKeyboardMarkup(row_width=2)
 			dyn_info_markup.add(
 				types.InlineKeyboardButton("🔥 Канал (1 мин)", url=channel_invite),
 				types.InlineKeyboardButton("📄 Мануал", url='https://teletype.in/@brownv2/manual'),
-				keyboards.back
 			)
+			dyn_info_markup.add(
+				types.InlineKeyboardButton("👑 Владелец", url='https://t.me/TariSmit'),
+				types.InlineKeyboardButton("🆘 Поддержка", url='https://t.me/BR_V2_support'),
+			)
+			dyn_info_markup.add(keyboards.back)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=">*Информация*", parse_mode="MarkdownV2", reply_markup=dyn_info_markup)
 		elif d == "shop":
