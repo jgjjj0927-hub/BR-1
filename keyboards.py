@@ -78,12 +78,8 @@ channel_reason_markup.add(
 # ─── Под-меню бот-метода ───────────────────────────────────────────────────────
 bot_reason_markup = types.InlineKeyboardMarkup(row_width=1)
 bot_reason_markup.add(
-    types.InlineKeyboardButton("🔐 Персональные Данные", callback_data='bot_reason_personal'),
-    types.InlineKeyboardButton("🔞 18+ Контент", callback_data='bot_reason_adult'),
-    types.InlineKeyboardButton("👶 Детский Контент", callback_data='bot_reason_children'),
-    types.InlineKeyboardButton("💥 Сносер", callback_data='bot_reason_snoser'),
-    types.InlineKeyboardButton("📊 FunStat (парсинг)", callback_data='bot_reason_funstat'),
-    types.InlineKeyboardButton("📝 Прочее", callback_data='bot_reason_other'),
+    types.InlineKeyboardButton("🔐 Персональные данные", callback_data='bot_reason_personal'),
+    types.InlineKeyboardButton("💊 Наркотики", callback_data='bot_reason_drugs'),
     back
 )
 

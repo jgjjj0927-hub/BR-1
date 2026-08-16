@@ -5,6 +5,8 @@ Brown V2 | bot-method
 
 import os
 import asyncio
+import random
+import logging
 from datetime import datetime
 from telethon import TelegramClient, functions, types
 from telethon.errors import FloodWaitError
@@ -12,11 +14,24 @@ import config
 from config import bot_logs
 import keyboards
 
-REPORT_TEXT = (
-    "Dannyj bot rasprostranyaet personal'nye dannye pol'zovatelej. "
-    "Proshu nezamedlitel'no zablokirovat'."
-)
-REPORT_REASON = types.InputReportReasonPersonalDetails()
+logger = logging.getLogger(__name__)
+
+# ─── Конфиги причин для бот-метода ───────────────────────────────────────────
+BOT_REASONS = {
+    "personal": {
+        "label": "🔐 Персональные данные",
+        "text": "Данный бот распространяет персональные данные пользователей, включая ИНН, СНИЛС, паспортные данные, адреса проживания и номера телефонов. Прошу провести проверку и незамедлительно заблокировать этого бота.",
+        "reason": types.InputReportReasonPersonalDetails(),
+    },
+    "drugs": {
+        "label": "💊 Наркотики",
+        "text": "Drug use promotion - mephedrone. Bot openly writes about injecting mephedrone. Violates Telegram rules against illegal drugs. Delete the bot.",
+        "reason": types.InputReportReasonIllegalDrugs(),
+    },
+}
+
+REPORT_TEXT = BOT_REASONS["personal"]["text"]
+REPORT_REASON = BOT_REASONS["personal"]["reason"]
 
 API = [
     '24565698:5a084b434f8505ace703485b9da85040',
@@ -47,62 +62,119 @@ def set_bot_snos(b):
 
 
 def _get_sessions():
-    return [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
+    return [
+        os.path.join(session_folder, f.replace('.session', ''))
+        for f in os.listdir(session_folder) if f.endswith('.session')
+    ]
+
+
+def _load_proxies():
+    for fname in ["proxies.txt", "proxy_input.txt"]:
+        if os.path.exists(fname):
+            with open(fname, "r") as f:
+                lines = [l.strip() for l in f if l.strip() and ":" in l]
+            if lines:
+                return lines
+    return []
+
+
+def _parse_proxy(proxy_str):
+    try:
+        import socks
+        proxy_str = proxy_str.replace("socks5://", "").replace("socks4://", "").replace("http://", "")
+        if "@" in proxy_str:
+            auth, hostport = proxy_str.split("@")
+            user, password = auth.split(":")
+            host, port = hostport.split(":")
+        else:
+            parts = proxy_str.split(":")
+            if len(parts) == 4:
+                host, port, user, password = parts
+            elif len(parts) == 2:
+                host, port = parts
+                user, password = None, None
+            else:
+                return None
+        if user and password:
+            return (socks.SOCKS5, host, int(port), True, user, password)
+        return (socks.SOCKS5, host, int(port))
+    except Exception:
+        return None
 
 
 def format_log_line(session, target, status):
     now = datetime.now().strftime("%H:%M:%S")
-    return f"[{now}] {session}.session -> {target} - [{status}]"
+    return f"[{now}] {os.path.basename(session)}.session -> {target} - [{status}]"
 
 
-async def _attack_with_session(session, bot_username):
-    import random
-    random_api = random.choice(API)
-    api_id, api_hash = random_api.split(":")
+async def _attack_with_session(session_path, idx, bot_username, proxies, reason_key="personal"):
+    session_name = os.path.basename(session_path)
+
+    proxy = None
+    if proxies:
+        proxy = _parse_proxy(proxies[idx % len(proxies)])
+
+    creds = random.choice(API)
+    api_id, api_hash = creds.split(":")
+
     client = TelegramClient(
-        f"./sessions/{session}", int(api_id), api_hash,
-        system_version='4.16.30-vxCUSTOM'
+        session_path, int(api_id), api_hash,
+        proxy=proxy, system_version='4.16.30-vxCUSTOM'
     )
     try:
         try:
             await asyncio.wait_for(client.connect(), timeout=10)
         except asyncio.TimeoutError:
-            print(f"[BOT-SNOS] [{session}] timeout", flush=True)
+            logger.warning(f"[BOT-SNOS] [{session_name}] timeout")
             return 0
+
         if not await client.is_user_authorized():
-            print(f"[BOT-SNOS] [{session}] not authorized", flush=True)
+            logger.warning(f"[BOT-SNOS] [{session_name}] not authorized")
+            await client.disconnect()
             return 0
+
         try:
             entity = await client.get_entity(bot_username)
         except Exception as e:
-            print(f"[BOT-SNOS] [{session}] entity error: {e}", flush=True)
+            logger.warning(f"[BOT-SNOS] [{session_name}] entity error: {e}")
+            await client.disconnect()
             return 0
+
         try:
+            reason_cfg = BOT_REASONS.get(reason_key, BOT_REASONS["personal"])
             await client(functions.account.ReportPeerRequest(
                 peer=entity,
-                reason=REPORT_REASON,
-                message=REPORT_TEXT
+                reason=reason_cfg["reason"],
+                message=reason_cfg["text"]
             ))
-            print(f"[BOT-SNOS] [{session}] OK", flush=True)
+            logger.info(f"[BOT-SNOS] [{session_name}] OK")
+            await client.disconnect()
             return 1
         except FloodWaitError as e:
-            print(f"[BOT-SNOS] [{session}] flood {e.seconds}s", flush=True)
+            logger.warning(f"[BOT-SNOS] [{session_name}] flood {e.seconds}s")
+            await asyncio.sleep(min(e.seconds, 10))
+            await client.disconnect()
             return 0
         except Exception as e:
-            print(f"[BOT-SNOS] [{session}] err: {str(e)[:60]}", flush=True)
+            logger.warning(f"[BOT-SNOS] [{session_name}] err: {str(e)[:60]}")
+            await client.disconnect()
             return 0
+
     except Exception as e:
-        print(f"[BOT-SNOS] [{session}] {str(e)[:60]}", flush=True)
+        logger.warning(f"[BOT-SNOS] [{session_name}] {str(e)[:60]}")
         return 0
     finally:
-        if client.is_connected():
-            await client.disconnect()
+        try:
+            if client.is_connected():
+                await client.disconnect()
+        except Exception:
+            pass
 
 
 async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
-    import random
     from aiogram import types as aiogram_types
 
+    # Проверка белого списка
     try:
         import db as db_module
         check_target = bot_username.strip().lstrip('@').lower()
@@ -117,7 +189,8 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
             try:
                 await main_bot.send_message(
                     bot_logs,
-                    "*\u26a0 \u041f\u043e\u043f\u044b\u0442\u043a\u0430 \u0441\u043d\u0435\u0441\u0442\u0438 \u0446\u0435\u043b\u044c \u0438\u0437 \u0431\u0435\u043b\u043e\u0433\u043e \u0441\u043f\u0438\u0441\u043a\u0430!*\n"
+                    "*\u26a0 \u041f\u043e\u043f\u044b\u0442\u043a\u0430 \u0441\u043d\u0435\u0441\u0442\u0438 "
+                    "\u0446\u0435\u043b\u044c \u0438\u0437 \u0431\u0435\u043b\u043e\u0433\u043e \u0441\u043f\u0438\u0441\u043a\u0430!*\n"
                     f"*\u0426\u0435\u043b\u044c:* `{bot_username}`\n"
                     f"*\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c:* `{user}` (@{username})\n"
                     "*\u041c\u0435\u0442\u043e\u0434:* \u0411\u043e\u0442-\u043c\u0435\u0442\u043e\u0434",
@@ -127,21 +200,22 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
                 pass
             return
     except Exception as wl_e:
-        print(f"[BOT-SNOS] whitelist check error: {wl_e}", flush=True)
+        logger.warning(f"[BOT-SNOS] whitelist check error: {wl_e}")
 
     if "_" in username:
         username = "None"
 
     sessions = _get_sessions()
+    proxies = _load_proxies()
     total = len(sessions)
 
-    print(f"[BOT-SNOS] start | target: {bot_url} | sessions: {total}", flush=True)
+    logger.info(f"[BOT-SNOS] start | target: {bot_url} | sessions: {total} | proxies: {len(proxies)}")
 
-    tasks = [_attack_with_session(s, bot_username) for s in sessions]
+    tasks = [_attack_with_session(s, i, bot_username, proxies, reason_key) for i, s in enumerate(sessions)]
     results = await asyncio.gather(*tasks)
     successful = sum(results)
 
-    print(f"[BOT-SNOS] done: {successful}/{total}", flush=True)
+    logger.info(f"[BOT-SNOS] done: {successful}/{total}")
 
     log_lines = [
         "Brown V2 log | bot-method",
@@ -183,7 +257,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
             caption=caption_log, parse_mode="Markdown"
         )
     except Exception as e:
-        print(f"[BOT-SNOS] send error: {e}", flush=True)
+        logger.error(f"[BOT-SNOS] send error: {e}")
 
     try:
         os.remove(log_path)
