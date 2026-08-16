@@ -76,6 +76,7 @@ async def init_db():
         """)
     await init_mirrors_table()
     await _init_paid_invoices_table()
+    await init_target_whitelist_table()
     # Создаём таблицу использований промокодов
     pool_db = await get_pool()
     async with pool_db.acquire() as conn:
@@ -621,3 +622,60 @@ async def set_manual_confirmed(user_id: int):
             await conn.execute("UPDATE users SET manual_confirmed = 1 WHERE user_id = $1", user_id)
         except Exception:
             pass
+
+
+# ─── Белый список целей (username/channel) ────────────────────────────────────
+
+async def init_target_whitelist_table():
+    """Создаёт таблицу белого списка целей."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS target_whitelist (
+                pattern TEXT PRIMARY KEY,
+                added_by BIGINT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+
+async def add_target_whitelist(pattern: str, added_by: int = 0):
+    """Добавляет паттерн в белый список целей. Паттерн — username без @, строчными."""
+    pattern = pattern.strip().lstrip('@').lower()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO target_whitelist (pattern, added_by) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            pattern, added_by
+        )
+
+
+async def remove_target_whitelist(pattern: str):
+    """Удаляет паттерн из белого списка."""
+    pattern = pattern.strip().lstrip('@').lower()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM target_whitelist WHERE pattern = $1", pattern)
+
+
+async def get_target_whitelist() -> list[str]:
+    """Возвращает все паттерны белого списка."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT pattern FROM target_whitelist ORDER BY created_at")
+        return [r["pattern"] for r in rows]
+
+
+async def is_target_whitelisted(target: str) -> bool:
+    """
+    Проверяет — находится ли цель в белом списке.
+    target — username без @, строчными.
+    Сравниваем: если паттерн совпадает с началом username (первые N символов) или полностью.
+    """
+    target = target.strip().lstrip('@').lower()
+    patterns = await get_target_whitelist()
+    for p in patterns:
+        # Точное совпадение ИЛИ username начинается с паттерна
+        if target == p or target.startswith(p):
+            return True
+    return False

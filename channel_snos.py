@@ -245,6 +245,30 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
     reason_label = CHANNEL_REASON_LABELS.get(reason_key, reason_key)
     _sessions = _get_sessions()
 
+    # ─── Проверка белого списка ────────────────────────────────────────────────
+    try:
+        import db as db_module
+        # Нормализуем username для проверки
+        check_target = channel_username.strip().lstrip('@').lower()
+        if await db_module.is_target_whitelisted(check_target):
+            await bot.send_message(user,
+                "❌ *Цель в белом списке!*\n*└─ Жалобы на эту цель запрещены.*",
+                parse_mode="Markdown", reply_markup=keyboards.main_menu)
+            # Лог для администратора
+            try:
+                await main_bot.send_message(bot_logs,
+                    f"⚠️ *Попытка снести цель из белого списка!*\n"
+                    f"*└─ Цель:* `{channel_username}`\n"
+                    f"*└─ Пользователь:* `{user}` (@{username})\n"
+                    f"*└─ Метод:* Канал-метод",
+                    parse_mode="Markdown")
+            except Exception as log_e:
+                print(f"[CH-SNOS] Ошибка отправки лога WL: {log_e}", flush=True)
+            return
+    except Exception as wl_e:
+        print(f"[CH-SNOS] Ошибка проверки белого списка: {wl_e}", flush=True)
+    # ──────────────────────────────────────────────────────────────────────────
+
     print(f"\n{'='*50}", flush=True)
     print(f"[CH-SNOS] 🚀 Запуск жалоб на канал", flush=True)
     print(f"[CH-SNOS] 👤 Пользователь: {user} (@{username})", flush=True)

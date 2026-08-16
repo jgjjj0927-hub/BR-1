@@ -273,7 +273,10 @@ async def admin(message):
 			f"*└─✉️ Почт добавлено:* `{mails_count}`\n\n"
 			"*/promo PROMOCODE DAYS ACTIVATIONS \- создать промокод*\n"
 			"*/on \- включить бота*\n*/off \- выключить бота*\n"
-			"*/addwl ID \- добавить в вайтлист*"
+			"*/addwl ID \- добавить в вайтлист*\n"
+			"*/addtargetwl @username \- добавить цель в WL*\n"
+			"*/rmtargetwl @username \- убрать цель из WL*\n"
+			"*/listtargetwl \- список целей WL*"
 		)
 		await bot.send_message(message.chat.id, text, reply_markup=keyboards.admin_markup, parse_mode="MarkdownV2")
 
@@ -293,6 +296,48 @@ async def addwl(message: types.Message):
 	await db.add_to_whitelist(wl_user)
 	await message.answer(f"*📄 {wl_user} добавлен в вайтлист!*", parse_mode=ParseMode.MARKDOWN)
 	await bot.send_message(bot_logs, f"*📄 {wl_user} добавлен в вайтлист!*", parse_mode=ParseMode.MARKDOWN)
+
+@dp.message_handler(commands=['addtargetwl'])
+async def addtargetwl(message: types.Message):
+	"""Добавить username/channel в белый список целей. /addtargetwl @username"""
+	if message.from_user.id not in admins:
+		return
+	parts = message.text.split()
+	if len(parts) != 2:
+		await message.answer("❗️ */addtargetwl @username*\n*Пример: /addtargetwl @durov*", parse_mode=ParseMode.MARKDOWN)
+		return
+	pattern = parts[1].lstrip('@').lower()
+	await db.add_target_whitelist(pattern, message.from_user.id)
+	await message.answer(f"✅ *`@{pattern}` добавлен в белый список целей!*\n*└─ Жалобы на цели начинающиеся с* `{pattern}` *будут заблокированы.*", parse_mode=ParseMode.MARKDOWN)
+	await bot.send_message(bot_logs, f"🛡 *Белый список целей:* `@{pattern}` *добавлен* `{message.from_user.id}`", parse_mode=ParseMode.MARKDOWN)
+
+@dp.message_handler(commands=['rmtargetwl'])
+async def rmtargetwl(message: types.Message):
+	"""Удалить username/channel из белого списка целей. /rmtargetwl @username"""
+	if message.from_user.id not in admins:
+		return
+	parts = message.text.split()
+	if len(parts) != 2:
+		await message.answer("❗️ */rmtargetwl @username*\n*Пример: /rmtargetwl @durov*", parse_mode=ParseMode.MARKDOWN)
+		return
+	pattern = parts[1].lstrip('@').lower()
+	await db.remove_target_whitelist(pattern)
+	await message.answer(f"🗑 *`@{pattern}` удалён из белого списка целей!*", parse_mode=ParseMode.MARKDOWN)
+	await bot.send_message(bot_logs, f"🗑 *Белый список целей:* `@{pattern}` *удалён* `{message.from_user.id}`", parse_mode=ParseMode.MARKDOWN)
+
+@dp.message_handler(commands=['listtargetwl'])
+async def listtargetwl(message: types.Message):
+	"""Показать все записи белого списка целей."""
+	if message.from_user.id not in admins:
+		return
+	patterns = await db.get_target_whitelist()
+	if not patterns:
+		await message.answer("📋 *Белый список целей пуст.*", parse_mode=ParseMode.MARKDOWN)
+		return
+	lines = ["📋 *Белый список целей:*\n"]
+	for p in patterns:
+		lines.append(f"• `@{p}`")
+	await message.answer("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
 
 # ─── Подписки / оплата ────────────────────────────────────────────────────────
 
@@ -438,7 +483,7 @@ async def welcome(message: types.Message, state: FSMContext):
 		await send_subscribe_required(uid)
 		return
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-		caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+		caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
 		parse_mode="MarkdownV2", reply_markup=menu)
 
 @dp.message_handler(state=WaitCaptchaFSM.code)
@@ -474,7 +519,7 @@ async def check_captcha(message: types.Message, state: FSMContext):
 			return
 		# Закреплённое сообщение после капчи
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-			caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+			caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
 			parse_mode="MarkdownV2", reply_markup=menu)
 	else:
 		try:
@@ -498,7 +543,7 @@ async def start_check_sub_callback(call: types.CallbackQuery):
 			pass
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-			caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+			caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
 			parse_mode="MarkdownV2", reply_markup=menu)
 	else:
 		await bot.answer_callback_query(call.id, "❌ Вы ещё не подписались!", show_alert=True)
@@ -568,7 +613,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					pass
 				await bot_instance.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 				await bot_instance.send_photo(uid, photo=open('material/menu.png', 'rb'),
-					caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+					caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
 					parse_mode="MarkdownV2", reply_markup=menu)
 			else:
 				await bot_instance.answer_callback_query(call.id, "❌ Вы ещё не подписались!", show_alert=True)
@@ -587,7 +632,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=back_markup)
 		elif d == "back":
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+				caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
 				parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == "information":
 			# Генерируем временную ссылку через основной бот
@@ -660,7 +705,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "go_to_main_menu":
 			await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
 			await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
-				caption='>*Добро пожаловать в Brown V2\!*', parse_mode="MarkdownV2", reply_markup=menu)
+				caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*', parse_mode="MarkdownV2", reply_markup=menu)
 		elif d == 'add_subsribe' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AddSubscribeFSM.user_id.state)
@@ -1096,7 +1141,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if uid in last_used_web and (datetime.now() - last_used_web[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_web[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
-			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown")
+			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown", reply_markup=back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTextFSM.text.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
@@ -1106,7 +1151,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if uid in last_used_mail and (datetime.now() - last_used_mail[uid]) < timedelta(minutes=300):
 				rem = timedelta(minutes=300) - (datetime.now() - last_used_mail[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
-			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown")
+			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown", reply_markup=back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitMailTopicFSM.topic.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
@@ -1118,7 +1163,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if uid in last_used_botnet and (datetime.now() - last_used_botnet[uid]) < timedelta(minutes=5):
 				rem = timedelta(minutes=5) - (datetime.now() - last_used_botnet[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
-			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown", reply_markup=back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
@@ -1129,7 +1174,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if uid in last_used_botnet2 and (datetime.now() - last_used_botnet2[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (datetime.now() - last_used_botnet2[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
-			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown", reply_markup=back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkPREMFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
@@ -1179,7 +1224,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(
 				call.message.chat.id,
 				f"📢 *Причина: {reason_label}*\n\n*Введите @username канала или ссылку:*\n`@channel` или `https://t.me/channel`",
-				parse_mode="Markdown"
+				parse_mode="Markdown", reply_markup=back_markup
 			)
 
 		# ─── Ручной метод ─────────────────────────────────────────────────────
@@ -2009,33 +2054,23 @@ async def sendall(message: types.Message, state: FSMContext):
 	users = await db.get_all_user_ids()
 	ok, fail = 0, 0
 
-	# Собираем всех активных ботов: основной + все зеркала
-	from mirror_manager import _mirror_bots
-	all_bots = [bot] + list(_mirror_bots.values())
-
+	# Рассылка только через основной бот (не через зеркала)
 	for user_id in users:
-		sent = False
-		for b in all_bots:
-			try:
-				if message.text:
-					await b.send_message(user_id, message.text, parse_mode='Markdown', reply_markup=del_message2)
-				elif message.photo:
-					await b.send_photo(user_id, message.photo[-1].file_id, caption=message.caption, parse_mode='Markdown', reply_markup=del_message2)
-				else:
-					await b.send_message(user_id, message.caption or "📢", parse_mode='Markdown', reply_markup=del_message2)
-				sent = True
-				break  # успешно отправлено — переходим к следующему пользователю
-			except Exception:
-				continue  # пробуем следующий бот
-		if sent:
+		try:
+			if message.text:
+				await bot.send_message(user_id, message.text, parse_mode='Markdown', reply_markup=del_message2)
+			elif message.photo:
+				await bot.send_photo(user_id, message.photo[-1].file_id, caption=message.caption, parse_mode='Markdown', reply_markup=del_message2)
+			else:
+				await bot.send_message(user_id, message.caption or "📢", parse_mode='Markdown', reply_markup=del_message2)
 			ok += 1
-		else:
+		except Exception:
 			fail += 1
 		await asyncio.sleep(0.05)  # ~20 сообщений/сек, не ловим 429
 
 	await message.answer(f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}',
 		parse_mode='Markdown', reply_markup=main_menu)
-	await bot.send_message(bot_logs, f"📢 *Рассылка завершена*\n*✅ {ok} / ❌ {fail}*\n*└─ Ботов в рассылке: {len(all_bots)}*", parse_mode='Markdown')
+	await bot.send_message(bot_logs, f"📢 *Рассылка завершена*\n*✅ {ok} / ❌ {fail}*", parse_mode='Markdown')
 
 # ─── Промокоды (активация) ────────────────────────────────────────────────────
 

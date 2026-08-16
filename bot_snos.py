@@ -108,6 +108,31 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
     """Главная функция — метод шакализатора."""
     import random
     from aiogram import types as aiogram_types
+    # ─── роверка белого списка ────────────────────────────────────────────────
+    try:
+        import db as db_module
+        check_target = bot_username.strip().lstrip('@').lower()
+        if await db_module.is_target_whitelisted(check_target):
+            await bot.send_message(user,
+                '❌ *ель в белом списке!*
+*└─ алобы на эту цель запрещены.*',
+                parse_mode='Markdown', reply_markup=keyboards.main_menu)
+            try:
+                await main_bot.send_message(bot_logs,
+                    f'⚠️ *опытка снести цель из белого списка!*
+'
+                    f'*└─ ель:* \{bot_username}\n'
+                    f'*└─ ользователь:* \{user}\ (@{username})
+'
+                    f'*└─ етод:* от-метод',
+                    parse_mode='Markdown')
+            except Exception:
+                pass
+            return
+    except Exception as wl_e:
+        print(f'[BOT-SNOS] шибка проверки белого списка: {wl_e}', flush=True)
+    # ──────────────────────────────────────────────────────────────────────────
+
 
     if "_" in username:
         username = "None"

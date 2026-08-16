@@ -106,7 +106,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             return
         await mirror_bot.send_photo(
             uid, photo=open('material/menu.png', 'rb'),
-            caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+            caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
             parse_mode="MarkdownV2", reply_markup=keyboards.menu)
 
     # ─── Капча ────────────────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 return
             await mirror_bot.send_photo(
                 uid, photo=open('material/menu.png', 'rb'),
-                caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+                caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
                 parse_mode="MarkdownV2", reply_markup=keyboards.menu)
         else:
             code = generate_captcha_text()
@@ -249,7 +249,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                     return
                 await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
                 await mirror_bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-                    caption='>*Добро пожаловать в Brown V2\!*\n\n*Инструмент для работы с файлами\.*',
+                    caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
                     parse_mode="MarkdownV2", reply_markup=keyboards.menu)
             else:
                 await mirror_bot.send_message(uid, "❌ *Отменено.*", parse_mode="Markdown")

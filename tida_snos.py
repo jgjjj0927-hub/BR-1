@@ -234,9 +234,13 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
 
     logger.info(f"[TIDA] 🏁 Итог: {successful}/{total}")
 
+    from datetime import datetime as _dt
+    now_str = _dt.now().strftime("%d.%m.%Y %H:%M:%S")
+
     caption_user = (
         f"🟣 *TIDA завершён!*\n\n"
-        f"🎯 *Цель:* {target}\n\n"
+        f"🎯 *Цель:* {target}\n"
+        f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )
@@ -244,7 +248,8 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
         f"🟣 *TIDA*\n\n"
         f"🎯 *Цель:* {target}\n"
         f"🗒️ *Текст:* {custom_text[:100]}{'...' if len(custom_text) > 100 else ''}\n"
-        f"👤 *Пользователь:* {user} (@{username})\n\n"
+        f"👤 *Пользователь:* {user} (@{username})\n"
+        f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )

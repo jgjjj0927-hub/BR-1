@@ -179,6 +179,28 @@ async def main(chat_username, message_id, user, username, message_url):
         print(f"[BOTNET] Ошибка получения вайтлиста: {e}", flush=True)
         whitelist = []
 
+    # ─── Проверка белого списка целей по username из ссылки ───────────────────
+    try:
+        import db as db_module
+        check_target = chat_username.strip().lstrip('@').lower()
+        if await db_module.is_target_whitelisted(check_target):
+            await bot.send_message(user,
+                "❌ *Цель в белом списке!*\n*└─ Жалобы на эту цель запрещены.*",
+                parse_mode="Markdown", reply_markup=keyboards.main_menu)
+            try:
+                await main_bot.send_message(bot_logs,
+                    f"⚠️ *Попытка снести цель из белого списка!*\n"
+                    f"*└─ Цель:* `{chat_username}`\n"
+                    f"*└─ Пользователь:* `{user}` (@{username})\n"
+                    f"*└─ Метод:* Ботнет",
+                    parse_mode="Markdown")
+            except Exception:
+                pass
+            return
+    except Exception as wl_e:
+        print(f"[BOTNET] Ошибка проверки белого списка: {wl_e}", flush=True)
+    # ──────────────────────────────────────────────────────────────────────────
+
     if "_" in username:
         username = "None"
 

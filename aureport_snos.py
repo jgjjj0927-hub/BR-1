@@ -227,16 +227,21 @@ async def main_aureport(target_link: str, user: int, username: str):
 
     logger.info(f"[AUREPORT] 🏁 Итог: {successful}/{total}")
 
+    from datetime import datetime as _dt
+    now_str = _dt.now().strftime("%d.%m.%Y %H:%M:%S")
+
     caption_user = (
         f"🇦🇺 *AU Report завершён!*\n\n"
-        f"🎯 *Цель:* {target}\n\n"
+        f"🎯 *Цель:* {target}\n"
+        f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )
     caption_log = (
         f"🇦🇺 *AU Report*\n\n"
         f"🎯 *Цель:* {target}\n"
-        f"👤 *Пользователь:* {user} (@{username})\n\n"
+        f"👤 *Пользователь:* {user} (@{username})\n"
+        f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )
