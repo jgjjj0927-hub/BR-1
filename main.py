@@ -1194,9 +1194,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=keyboards.bot_reason_markup
 			)
 
-		elif d in ("bot_reason_personal", "bot_reason_drugs"):
+		elif d in ("bot_reason_personal", "bot_reason_drugs", "bot_reason_other"):
 			reason_key = d.replace("bot_reason_", "")
-			reason_labels = {"personal": "🔐 Персональные данные", "drugs": "💊 Наркотики"}
+			reason_labels = {"personal": "🔐 Персональные данные", "drugs": "💊 Наркотики", "other": "📝 Прочее"}
 			reason_label = reason_labels.get(reason_key, reason_key)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_token=_instance_token)

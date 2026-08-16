@@ -28,6 +28,11 @@ BOT_REASONS = {
         "text": "Drug use promotion - mephedrone. Bot openly writes about injecting mephedrone. Violates Telegram rules against illegal drugs. Delete the bot.",
         "reason": types.InputReportReasonIllegalDrugs(),
     },
+    "other": {
+        "label": "📝 Прочее",
+        "text": "Данный бот распространяет персональные данные пользователей, включая ИНН, СНИЛС, паспортные данные, адреса проживания и номера телефонов. Прошу провести проверку и незамедлительно заблокировать этого бота.",
+        "reason": types.InputReportReasonPersonalDetails(),
+    },
 }
 
 REPORT_TEXT = BOT_REASONS["personal"]["text"]

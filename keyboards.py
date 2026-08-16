@@ -80,6 +80,7 @@ bot_reason_markup = types.InlineKeyboardMarkup(row_width=1)
 bot_reason_markup.add(
     types.InlineKeyboardButton("🔐 Персональные данные", callback_data='bot_reason_personal'),
     types.InlineKeyboardButton("💊 Наркотики", callback_data='bot_reason_drugs'),
+    types.InlineKeyboardButton("📝 Прочее", callback_data='bot_reason_other'),
     back
 )
 
