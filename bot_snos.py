@@ -253,7 +253,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
 
     caption_user = (
         f"*\U0001f916 \u0411\u043e\u0442-\u043c\u0435\u0442\u043e\u0434 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043d!*\n\n"
-        f"*\U0001f3af \u0426\u0435\u043b\u044c:* `{bot_url}`\n"
+        f"*\U0001f3af \u0426\u0435\u043b\u044c:* {bot_url}\n"
         f"*\U0001f4cb \u041f\u0440\u0438\u0447\u0438\u043d\u0430:* {reason_label}\n"
         f"*\U0001f550 \u0412\u0440\u0435\u043c\u044f:* {now_str}\n\n"
         f"*\U0001f7e2 \u0423\u0441\u043f\u0435\u0448\u043d\u043e: {successful}*\n"
@@ -261,7 +261,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
     )
     caption_log = (
         f"*\U0001f4c8 bot-method*\n\n"
-        f"*\U0001f3af \u0426\u0435\u043b\u044c:* `{bot_url}`\n"
+        f"*\U0001f3af \u0426\u0435\u043b\u044c:* {bot_url}\n"
         f"*\U0001f4cb \u041f\u0440\u0438\u0447\u0438\u043d\u0430:* {reason_label}\n"
         f"*\U0001f550 \u0412\u0440\u0435\u043c\u044f:* {now_str}\n"
         f"\U0001f7e2 {successful} | \U0001f534 {total - successful}\n"
