@@ -1190,21 +1190,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return
-			await bot_instance.edit_message_caption(
-				call.message.chat.id, call.message.message_id,
-				caption="🤖 *Бот-метод*\n\n*└─ Выберите причину жалобы:*",
-				parse_mode="Markdown", reply_markup=keyboards.bot_reason_markup
-			)
-
-		elif d in ("bot_reason_personal", "bot_reason_drugs", "bot_reason_other"):
-			reason_key = d.replace("bot_reason_", "")
-			reason_labels = {"personal": "🔐 Персональные данные", "drugs": "💊 Наркотики", "other": "📝 Прочее"}
-			reason_label = reason_labels.get(reason_key, reason_key)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(bot_reason=reason_key, _bot_token=_instance_token)
+			await dp_instance.current_state(user=uid).update_data(bot_reason='personal', _bot_token=_instance_token)
 			await bot_instance.send_message(
 				call.message.chat.id,
-				f"🤖 *Бот-метод*\n*Причина: {reason_label}*\n\n*└─ Введите @username бота:*\n`@username_bot`\n\n*⚠️ Username должен оканчиваться на* `bot`",
+				"🤖 *Бот-метод*\n\n*└─ Введите @username бота:*\n`@username_bot`\n\n*⚠️ Username должен оканчиваться на* `bot`",
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 
