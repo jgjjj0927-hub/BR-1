@@ -1641,7 +1641,9 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		set_bot_snos(_bot)
 		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
 	except Exception as e:
+		import traceback
 		print(f"[BOT-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		traceback.print_exc()
 		await _bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
 		set_bot_snos(bot)
