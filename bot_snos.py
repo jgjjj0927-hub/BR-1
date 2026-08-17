@@ -129,10 +129,14 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
     creds = random.choice(API)
     api_id, api_hash = creds.split(":", 1)
 
-    client = TelegramClient(
-        session_path, int(api_id), api_hash,
-        proxy=proxy, system_version='4.16.30-vxCUSTOM'
-    )
+    try:
+        client = TelegramClient(
+            session_path, int(api_id), api_hash,
+            proxy=proxy, system_version='4.16.30-vxCUSTOM'
+        )
+    except Exception as e:
+        logger.warning(f"[BOT-SNOS] [{session_name}] failed to open session: {e}")
+        return 0
     try:
         try:
             await asyncio.wait_for(client.connect(), timeout=10)
@@ -252,9 +256,10 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
     with open(log_path, "w", encoding="utf-8") as f:
         f.write("\n".join(log_lines))
 
+    bot_url_escaped = bot_url.replace('_', '\\_')
     caption_user = (
         f"*\U0001f916 \u0411\u043e\u0442-\u043c\u0435\u0442\u043e\u0434 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043d!*\n\n"
-        f"*\U0001f3af \u0426\u0435\u043b\u044c:* {bot_url}\n"
+        f"*\U0001f3af \u0426\u0435\u043b\u044c:* {bot_url_escaped}\n"
         f"*\U0001f4cb \u041f\u0440\u0438\u0447\u0438\u043d\u0430:* {reason_label}\n"
         f"*\U0001f550 \u0412\u0440\u0435\u043c\u044f:* {now_str}\n\n"
         f"*\U0001f7e2 \u0423\u0441\u043f\u0435\u0448\u043d\u043e: {successful}*\n"
@@ -262,7 +267,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
     )
     caption_log = (
         f"*\U0001f4c8 bot-method*\n\n"
-        f"*\U0001f3af \u0426\u0435\u043b\u044c:* {bot_url}\n"
+        f"*\U0001f3af \u0426\u0435\u043b\u044c:* {bot_url_escaped}\n"
         f"*\U0001f4cb \u041f\u0440\u0438\u0447\u0438\u043d\u0430:* {reason_label}\n"
         f"*\U0001f550 \u0412\u0440\u0435\u043c\u044f:* {now_str}\n"
         f"\U0001f7e2 {successful} | \U0001f534 {total - successful}\n"

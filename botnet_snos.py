@@ -86,10 +86,14 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
 
     print(f"[BOTNET] [{session}] Подключаемся (api_id={api_id})...", flush=True)
 
-    client = TelegramClient(
-        f"./sessions/{session}", int(api_id), api_hash,
-        system_version='4.16.30-vxCUSTOM'
-    )
+    try:
+        client = TelegramClient(
+            f"./sessions/{session}", int(api_id), api_hash,
+            system_version='4.16.30-vxCUSTOM'
+        )
+    except Exception as e:
+        print(f"[BOTNET] [{session}] ❌ Ошибка открытия сессии: {e}", flush=True)
+        return "ОШИБКА СЕССИИ", None
     try:
         try:
             await asyncio.wait_for(client.connect(), timeout=3)
