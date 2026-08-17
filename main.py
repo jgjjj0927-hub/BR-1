@@ -1184,10 +1184,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid not in admins and uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(minutes=30):
-				rem = timedelta(minutes=30) - (datetime.now() - last_used_bot_snos[uid])
+			if uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(hours=1):
+				rem = timedelta(hours=1) - (datetime.now() - last_used_bot_snos[uid])
+				h = rem.seconds // 3600
+				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
+					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption="🤖 *Бот-метод*\n\n*└─ Выберите причину жалобы:*",
@@ -1610,10 +1612,12 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		await state.finish()
 		await _bot.send_message(uid, ">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=main_menu)
 		return
-	if uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(minutes=30):
-		rem = timedelta(minutes=30) - (datetime.now() - last_used_bot_snos[uid])
+	if uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(hours=1):
+		rem = timedelta(hours=1) - (datetime.now() - last_used_bot_snos[uid])
+		h = rem.seconds // 3600
+		m = (rem.seconds % 3600) // 60
 		await state.finish()
-		await _bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=main_menu)
 		return
 
 	if raw.startswith("https://t.me/"):
