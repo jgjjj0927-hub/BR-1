@@ -100,8 +100,8 @@ def _parse_proxy(proxy_str):
             host, port = hostport.rsplit(":", 1)
         else:
             parts = proxy_str.split(":")
-            if len(parts) == 4:
-                host, port, user, password = parts
+            if len(parts) >= 4:
+                host, port, user, password = parts[0], parts[1], parts[2], ":".join(parts[3:])
             elif len(parts) == 2:
                 host, port = parts
                 user, password = None, None
