@@ -230,16 +230,17 @@ async def main_aureport(target_link: str, user: int, username: str):
     from datetime import datetime as _dt
     now_str = _dt.now().strftime("%d.%m.%Y %H:%M:%S")
 
+    target_escaped = target.replace('_', '\\_')
     caption_user = (
         f"🇦🇺 *AU Report завершён!*\n\n"
-        f"🎯 *Цель:* {target.replace('_', r'\_')}\n"
+        f"🎯 *Цель:* {target_escaped}\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )
     caption_log = (
         f"🇦🇺 *AU Report*\n\n"
-        f"🎯 *Цель:* {target.replace('_', r'\_')}\n"
+        f"🎯 *Цель:* {target_escaped}\n"
         f"👤 *Пользователь:* {user} (@{username})\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
