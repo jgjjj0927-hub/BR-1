@@ -50,13 +50,15 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         if message.chat.id not in config.ADMINS:
             return
         import main as main_module
-        # Строим текст напрямую — без мутации глобала main_module.bot
         import os as _os
         session_folder = 'sessions'
         session_folder_prem = 'prem_sessions'
         users_count = await main_module.db.get_users_count()
         sessions_count = len(_os.listdir(session_folder)) if _os.path.exists(session_folder) else 0
         sessions_count_prem = len(_os.listdir(session_folder_prem)) if _os.path.exists(session_folder_prem) else 0
+        subscribers_count = await main_module.db.get_subscribers_count()
+        mirrors_count = await main_module.db.get_mirrors_count()
+        reports_users_count = await main_module.db.get_users_with_reports_count()
         try:
             with open("mails.txt", "r", encoding="utf-8") as f:
                 mails_count = len([l for l in f if l.strip()])
@@ -65,15 +67,59 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         text = (
             ">🤖 *Админ меню:*\n\n📊 *Статистика:*\n"
             f"*├─👥 Всего пользователей:* `{users_count}`\n"
+            f"*├─💳 С подпиской:* `{subscribers_count}`\n"
+            f"*├─🎯 С репортами:* `{reports_users_count}`\n"
+            f"*├─🪞 Зеркал:* `{mirrors_count}`\n"
             f"*├─🕒 Сессий в ботнете:* `{sessions_count}`\n"
             f"*├─👑 Сессий в премиум ботнете:* `{sessions_count_prem}`\n"
             f"*├─✉️ Почт добавлено:* `{mails_count}`\n\n"
             "*/promo PROMOCODE DAYS ACTIVATIONS \- создать промокод*\n"
             "*/on \- включить бота*\n*/off \- выключить бота*\n"
-            "*/addwl ID \- добавить в вайтлист*"
+            "*/addwl ID \- добавить в вайтлист*\n"
+            "*/addtargetwl @username \- добавить цель в WL*\n"
+            "*/rmtargetwl @username \- убрать цель из WL*\n"
+            "*/listtargetwl \- список целей WL*"
         )
         import keyboards as _kb
         await mirror_bot.send_message(message.chat.id, text, reply_markup=_kb.admin_markup, parse_mode="MarkdownV2")
+
+    # ─── /addtargetwl, /rmtargetwl, /listtargetwl ────────────────────────────
+    @dp.message_handler(commands=['addtargetwl'])
+    async def mirror_addtargetwl(message: types.Message):
+        if message.chat.id not in config.ADMINS:
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await mirror_bot.send_message(message.chat.id, "❗️ */addtargetwl @username*", parse_mode="Markdown")
+            return
+        pattern = parts[1].lstrip('@').lower()
+        await db.add_target_whitelist(pattern, message.from_user.id)
+        await mirror_bot.send_message(message.chat.id,
+            f"✅ *`@{pattern}` добавлен в белый список целей!*", parse_mode="Markdown")
+
+    @dp.message_handler(commands=['rmtargetwl'])
+    async def mirror_rmtargetwl(message: types.Message):
+        if message.chat.id not in config.ADMINS:
+            return
+        parts = message.text.split()
+        if len(parts) != 2:
+            await mirror_bot.send_message(message.chat.id, "❗️ */rmtargetwl @username*", parse_mode="Markdown")
+            return
+        pattern = parts[1].lstrip('@').lower()
+        await db.remove_target_whitelist(pattern)
+        await mirror_bot.send_message(message.chat.id,
+            f"🗑 *`@{pattern}` удалён из белого списка!*", parse_mode="Markdown")
+
+    @dp.message_handler(commands=['listtargetwl'])
+    async def mirror_listtargetwl(message: types.Message):
+        if message.chat.id not in config.ADMINS:
+            return
+        patterns = await db.get_target_whitelist()
+        if not patterns:
+            await mirror_bot.send_message(message.chat.id, "📋 *Белый список целей пуст.*", parse_mode="Markdown")
+            return
+        lines = ["📋 *Белый список целей:*\n"] + [f"• `@{p}`" for p in patterns]
+        await mirror_bot.send_message(message.chat.id, "\n".join(lines), parse_mode="Markdown")
 
     # ─── /start ───────────────────────────────────────────────────────────────
     @dp.message_handler(commands=['start'])
