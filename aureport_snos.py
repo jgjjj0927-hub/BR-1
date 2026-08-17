@@ -58,9 +58,9 @@ def _parse_proxy(proxy_str):
         import socks
         proxy_str = proxy_str.replace("socks5://", "").replace("http://", "")
         if "@" in proxy_str:
-            auth, hostport = proxy_str.split("@")
-            user, password = auth.split(":")
-            host, port = hostport.split(":")
+            auth, hostport = proxy_str.rsplit("@", 1)
+            user, password = auth.split(":", 1)
+            host, port = hostport.rsplit(":", 1)
         else:
             parts = proxy_str.split(":")
             if len(parts) == 4:
@@ -232,14 +232,14 @@ async def main_aureport(target_link: str, user: int, username: str):
 
     caption_user = (
         f"🇦🇺 *AU Report завершён!*\n\n"
-        f"🎯 *Цель:* {target}\n"
+        f"🎯 *Цель:* {target.replace('_', r'\_')}\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )
     caption_log = (
         f"🇦🇺 *AU Report*\n\n"
-        f"🎯 *Цель:* {target}\n"
+        f"🎯 *Цель:* {target.replace('_', r'\_')}\n"
         f"👤 *Пользователь:* {user} (@{username})\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"

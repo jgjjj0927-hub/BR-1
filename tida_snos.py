@@ -239,14 +239,14 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
 
     caption_user = (
         f"🟣 *TIDA завершён!*\n\n"
-        f"🎯 *Цель:* {target}\n"
+        f"🎯 *Цель:* {target.replace('_', r'\_')}\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
     )
     caption_log = (
         f"🟣 *TIDA*\n\n"
-        f"🎯 *Цель:* {target}\n"
+        f"🎯 *Цель:* {target.replace('_', r'\_')}\n"
         f"🗒️ *Текст:* {custom_text[:100]}{'...' if len(custom_text) > 100 else ''}\n"
         f"👤 *Пользователь:* {user} (@{username})\n"
         f"🕐 *Время:* {now_str}\n\n"

@@ -94,9 +94,10 @@ def _parse_proxy(proxy_str):
         import socks
         proxy_str = proxy_str.replace("socks5://", "").replace("socks4://", "").replace("http://", "")
         if "@" in proxy_str:
-            auth, hostport = proxy_str.split("@")
-            user, password = auth.split(":")
-            host, port = hostport.split(":")
+            # формат: user:pass@host:port
+            auth, hostport = proxy_str.rsplit("@", 1)
+            user, password = auth.split(":", 1)
+            host, port = hostport.rsplit(":", 1)
         else:
             parts = proxy_str.split(":")
             if len(parts) == 4:
