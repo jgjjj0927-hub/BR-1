@@ -53,7 +53,9 @@ API = [
 bot = None
 main_bot = None
 session_folder = 'sessions'
+prem_session_folder = 'prem_sessions'
 os.makedirs(session_folder, exist_ok=True)
+os.makedirs(prem_session_folder, exist_ok=True)
 
 LOG_FOLDER = "logs"
 os.makedirs(LOG_FOLDER, exist_ok=True)
@@ -67,10 +69,14 @@ def set_bot_snos(b):
 
 
 def _get_sessions():
-    return [
-        os.path.join(session_folder, f.replace('.session', ''))
-        for f in os.listdir(session_folder) if f.endswith('.session')
-    ]
+    sessions = []
+    for folder in [session_folder, prem_session_folder]:
+        if os.path.exists(folder):
+            sessions += [
+                os.path.join(folder, f.replace('.session', ''))
+                for f in os.listdir(folder) if f.endswith('.session')
+            ]
+    return sessions
 
 
 def _load_proxies():
