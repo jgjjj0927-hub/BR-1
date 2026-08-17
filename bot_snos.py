@@ -127,7 +127,7 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
         proxy = _parse_proxy(proxies[idx % len(proxies)])
 
     creds = random.choice(API)
-    api_id, api_hash = creds.split(":")
+    api_id, api_hash = creds.split(":", 1)
 
     client = TelegramClient(
         session_path, int(api_id), api_hash,

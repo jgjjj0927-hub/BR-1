@@ -1182,9 +1182,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "bot_method":
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if sub_expired():
+			if uid not in admins and sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(hours=1):
+			if uid not in admins and uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(hours=1):
 				rem = timedelta(hours=1) - (datetime.now() - last_used_bot_snos[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
@@ -1598,11 +1598,11 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		return
 	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 
-	if subscribe < datetime.now():
+	if uid not in admins and subscribe < datetime.now():
 		await state.finish()
 		await _bot.send_message(uid, ">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=main_menu)
 		return
-	if uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(hours=1):
+	if uid not in admins and uid in last_used_bot_snos and (datetime.now() - last_used_bot_snos[uid]) < timedelta(hours=1):
 		rem = timedelta(hours=1) - (datetime.now() - last_used_bot_snos[uid])
 		h = rem.seconds // 3600
 		m = (rem.seconds % 3600) // 60
