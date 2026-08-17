@@ -151,7 +151,7 @@ def format_log_line(session, target, status):
 async def _report_one_channel_session(session, channel_username, reason_key, message_id=None):
     """Отправляет жалобу на канал от одной сессии."""
     random_api = random.choice(API)
-    api_id, api_hash = random_api.split(":")
+    api_id, api_hash = random_api.split(":", 1)
     reason_main, _ = CHANNEL_REASONS[reason_key]
 
     client = TelegramClient(

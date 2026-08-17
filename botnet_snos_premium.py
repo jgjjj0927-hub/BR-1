@@ -1079,7 +1079,7 @@ def format_log_line(session, message_url, status):
 async def _report_one_session_prem(session, chat_username, message_id, message_url, whitelist, target_ref):
     """Параллельная отправка жалобы от одной премиум-сессии."""
     random_api = random.choice(API)
-    api_id, api_hash = random_api.split(":")
+    api_id, api_hash = random_api.split(":", 1)
     random_reason = random.choice(reasons)
     random_reason_text = random.choice(reasons_texts)
 

@@ -53,7 +53,7 @@ def set_bot_stress(b):
 
 def _get_client(session: str) -> TelegramClient:
     api_str = random.choice(API)
-    api_id, api_hash = api_str.split(':')
+    api_id, api_hash = api_str.split(':', 1)
     return TelegramClient(
         f"./sessions/{session}", int(api_id), api_hash,
         system_version='4.16.30-vxCUSTOM'
@@ -69,7 +69,7 @@ async def find_inline_button(bot_username: str) -> tuple[int | None, bytes | Non
 
     for session in _get_sessions():
         api_str = random.choice(API)
-        api_id, api_hash = api_str.split(':')
+        api_id, api_hash = api_str.split(':', 1)
         client = TelegramClient(
             f"./sessions/{session}", int(api_id), api_hash,
             system_version='4.16.30-vxCUSTOM'
@@ -227,7 +227,7 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
     print(f"[STRESS] 🔌 Подключаем сессии...", flush=True)
     for s in _get_sessions():
         api_str = random.choice(API)
-        api_id, api_hash = api_str.split(':')
+        api_id, api_hash = api_str.split(':', 1)
         c = TelegramClient(f"./sessions/{s}", int(api_id), api_hash,
                            system_version='4.16.30-vxCUSTOM')
         try:

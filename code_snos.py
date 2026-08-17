@@ -156,7 +156,7 @@ async def _send_one_code(phone: str, proxy_url: str | None, attempt: int, used_u
     # Это именно код входа в аккаунт (SMS/приложение), не удаление
     import random as _random
     random_api = _random.choice(API)
-    api_id, api_hash = random_api.split(":")
+    api_id, api_hash = random_api.split(":", 1)
 
     available = [ua for ua in USER_AGENTS if ua not in used_uas]
     if not available:
