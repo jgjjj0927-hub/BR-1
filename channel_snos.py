@@ -7,8 +7,8 @@ Brown V2 | channel_snos.py
 import os
 import random
 import asyncio
-from datetime import datetime
-from telethon import TelegramClientfrom telethon.errors import FloodWaitError
+from telethon import TelegramClient
+from telethon.errors import FloodWaitError
 from telethon.tl.functions.account import ReportPeerRequest
 from telethon.tl.functions.messages import ReportRequest
 from telethon.tl.types import (
