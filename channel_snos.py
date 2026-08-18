@@ -8,8 +8,7 @@ import os
 import random
 import asyncio
 from datetime import datetime
-from telethon import TelegramClient
-from telethon.errors import FloodWaitError
+from telethon import TelegramClientfrom telethon.errors import FloodWaitError
 from telethon.tl.functions.account import ReportPeerRequest
 from telethon.tl.functions.messages import ReportRequest
 from telethon.tl.types import (
@@ -25,6 +24,7 @@ from telethon.tl.types import (
 import config
 from config import bot_logs
 import keyboards
+from utils import now_msk
 from aiogram import types as aiogram_types
 from report_texts import GENERAL_TEXTS
 
@@ -144,7 +144,7 @@ def _get_sessions():
 
 
 def format_log_line(session, target, status):
-    now = datetime.now().strftime("%H:%M:%S")
+    now = now_msk().strftime("%H:%M:%S")
     return f"[{now}] {session}.session -> {target} - [{status}]"
 
 

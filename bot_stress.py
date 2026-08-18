@@ -11,7 +11,6 @@ import asyncio
 import os
 import random
 import time
-from datetime import datetime
 
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError

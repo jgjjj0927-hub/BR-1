@@ -9,9 +9,9 @@ Brown V2 | code_snos.py
 import asyncio
 import os
 import random
-from datetime import datetime
 
 import aiohttp
+from utils import now_msk
 from aiohttp_socks import ProxyConnector, ProxyType
 
 LOG_FOLDER = "logs"
@@ -297,11 +297,11 @@ async def main_code_snos(phone: str, user_id: int, username: str):
     for i, (proxy, status) in enumerate(results, 1):
         p_label = proxy[:40] if proxy else "direct"
         if status == "OK":
-            log_lines.append(f"[{datetime.now().strftime('%H:%M:%S')}] #{i:02d} {p_label} → ✅ OK")
+            log_lines.append(f"[{now_msk().strftime('%H:%M:%S')}] #{i:02d} {p_label} → ✅ OK")
         elif status.startswith("FLOOD"):
-            log_lines.append(f"[{datetime.now().strftime('%H:%M:%S')}] #{i:02d} {p_label} → 🌊 {status}")
+            log_lines.append(f"[{now_msk().strftime('%H:%M:%S')}] #{i:02d} {p_label} → 🌊 {status}")
         else:
-            log_lines.append(f"[{datetime.now().strftime('%H:%M:%S')}] #{i:02d} {p_label} → ❌ {status}")
+            log_lines.append(f"[{now_msk().strftime('%H:%M:%S')}] #{i:02d} {p_label} → ❌ {status}")
     log_lines += [
         "-" * 42,
         f"✅ Успешно: {ok}",

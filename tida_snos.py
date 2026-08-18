@@ -15,6 +15,7 @@ import config
 from config import bot_logs
 from aiogram import Bot, types
 import keyboards
+from utils import now_msk
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +236,7 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     logger.info(f"[TIDA] 🏁 Итог: {successful}/{total}")
 
     from datetime import datetime as _dt
-    now_str = _dt.now().strftime("%d.%m.%Y %H:%M:%S")
+    now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
 
     target_escaped = target.replace('_', '\\_')
     caption_user = (

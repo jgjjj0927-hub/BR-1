@@ -1,7 +1,6 @@
 import os
 import random
 import asyncio
-from datetime import datetime
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 from telethon.tl.types import PeerUser
@@ -10,6 +9,7 @@ from aiogram import Bot, types
 import config
 from config import bot_logs
 import keyboards
+from utils import now_msk
 
 reasons = [
     b'2',  # Child abuse
@@ -1073,7 +1073,7 @@ async def extract_username_and_message_id2(message_url):
     raise ValueError("Неверная ссылка!")
 
 def format_log_line(session, message_url, status):
-    now = datetime.now().strftime("%H:%M:%S")
+    now = now_msk().strftime("%H:%M:%S")
     return f"[{now}] {session}.session -> {message_url} - [{status}]"
 
 async def _report_one_session_prem(session, chat_username, message_id, message_url, whitelist, target_ref):

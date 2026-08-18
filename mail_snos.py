@@ -3,7 +3,6 @@ import aiohttp
 import random
 import string
 from pathlib import Path
-from datetime import datetime
 
 # URL relay на PythonAnywhere
 RELAY_URL = "https://paradise112.pythonanywhere.com/send"

@@ -7,12 +7,12 @@ import os
 import asyncio
 import random
 import logging
-from datetime import datetime
 from telethon import TelegramClient, functions, types
 from telethon.errors import FloodWaitError
 import config
 from config import bot_logs
 import keyboards
+from utils import now_msk
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ def _parse_proxy(proxy_str):
 
 
 def format_log_line(session, target, status):
-    now = datetime.now().strftime("%H:%M:%S")
+    now = now_msk().strftime("%H:%M:%S")
     return f"[{now}] {os.path.basename(session)}.session -> {target} - [{status}]"
 
 
@@ -234,7 +234,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
     logger.info(f"[BOT-SNOS] done: {successful}/{total}")
 
     from datetime import datetime as _dt
-    now_str = _dt.now().strftime("%d.%m.%Y %H:%M:%S")
+    now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
     reason_label = BOT_REASONS.get(reason_key, BOT_REASONS["personal"])["label"]
 
     log_lines = [

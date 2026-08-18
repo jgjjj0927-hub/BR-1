@@ -13,6 +13,7 @@ from telethon import TelegramClient, events
 from telethon.tl.types import KeyboardButtonCallback
 import config
 from config import bot_logs
+from utils import now_msk
 from aiogram import Bot, types
 import keyboards
 
@@ -228,7 +229,7 @@ async def main_aureport(target_link: str, user: int, username: str):
     logger.info(f"[AUREPORT] 🏁 Итог: {successful}/{total}")
 
     from datetime import datetime as _dt
-    now_str = _dt.now().strftime("%d.%m.%Y %H:%M:%S")
+    now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
 
     target_escaped = target.replace('_', '\\_')
     caption_user = (
