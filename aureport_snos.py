@@ -209,26 +209,19 @@ async def main_aureport(target_link: str, user: int, username: str):
     target = target.replace("https://", "")
 
     proxies = _load_proxies()
-    successful = 0
     total = len(sessions)
 
     logger.info(f"[AUREPORT] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(proxies)}")
 
-    for i, session_path in enumerate(sessions):
-        proxy = None
-        if proxies:
-            proxy = _parse_proxy(proxies[i % len(proxies)])
+    async def _run(i, session_path):
+        proxy = _parse_proxy(proxies[i % len(proxies)]) if proxies else None
+        return await _single_session_flow(session_path, target, proxy)
 
-        success = await _single_session_flow(session_path, target, proxy)
-        if success:
-            successful += 1
-
-        if i + 1 < total:
-            await asyncio.sleep(0.8)
+    results = await asyncio.gather(*[_run(i, s) for i, s in enumerate(sessions)], return_exceptions=True)
+    successful = sum(1 for r in results if r is True)
 
     logger.info(f"[AUREPORT] 🏁 Итог: {successful}/{total}")
 
-    from datetime import datetime as _dt
     now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
 
     target_escaped = target.replace('_', '\\_')
