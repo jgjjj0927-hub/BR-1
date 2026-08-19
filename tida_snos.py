@@ -225,17 +225,11 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
 
     logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {'есть' if proxy else 'нет'}")
 
-    for i, session_path in enumerate(sessions):
-        success = await _single_session_flow(session_path, target, custom_text, proxy)
-        if success:
-            successful += 1
-
-        if i + 1 < total:
-            await asyncio.sleep(1.0)
+    results = await asyncio.gather(*[_single_session_flow(s, target, custom_text, proxy) for s in sessions], return_exceptions=True)
+    successful = sum(1 for r in results if r is True)
 
     logger.info(f"[TIDA] 🏁 Итог: {successful}/{total}")
 
-    from datetime import datetime as _dt
     now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
 
     target_escaped = target.replace('_', '\\_')
