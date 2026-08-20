@@ -122,7 +122,8 @@ async def generate_complaint_text(reason: str, sub_reason: str, message_text: st
                         {"role": "user", "content": user_content}
                     ],
                     "max_tokens": 120,
-                    "temperature": 0.9,
+                    "temperature": 0.6,
+                    "reasoning_effort": "none",
                 },
                 timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
@@ -131,6 +132,9 @@ async def generate_complaint_text(reason: str, sub_reason: str, message_text: st
                     logger.error(f"[DSA] Groq unexpected response: {data}")
                     return _get_random_line("reptexts.txt")
                 text = data["choices"][0]["message"]["content"].strip()
+                # Убираем <think>...</think> блок если есть (chain-of-thought модели)
+                import re
+                text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
                 return text[:250]
     except Exception as e:
         logger.error(f"[DSA] Groq error: {e}")
