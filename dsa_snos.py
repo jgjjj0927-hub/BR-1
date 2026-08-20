@@ -121,7 +121,7 @@ async def generate_complaint_text(reason: str, sub_reason: str, message_text: st
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_content}
                     ],
-                    "max_tokens": 80,
+                    "max_tokens": 50,
                     "temperature": 0.6,
                     "reasoning_effort": "none",
                 },
