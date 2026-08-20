@@ -43,7 +43,6 @@ from aiogram.dispatcher.handler import CancelHandler
 class MaintenanceMiddleware(BaseMiddleware):
     async def on_pre_process_message(self, message: types.Message, data: dict):
         uid = message.from_user.id
-        print(f"[MAINTENANCE] msg from {uid}, maintenance_mode={maintenance_mode}, in_admins={uid in admins}", flush=True)
         if maintenance_mode and uid not in admins:
             state = data.get('state')
             current = await state.get_state() if state else None
@@ -57,7 +56,6 @@ class MaintenanceMiddleware(BaseMiddleware):
 
     async def on_pre_process_callback_query(self, call: types.CallbackQuery, data: dict):
         uid = call.from_user.id
-        print(f"[MAINTENANCE] cb from {uid}, data={call.data}, maintenance_mode={maintenance_mode}", flush=True)
         if maintenance_mode and uid not in admins and call.data != 'toggle_maintenance':
             await call.answer("🔧 Сейчас идут технические работы / обновление. Попробуйте позже.", show_alert=True)
             raise CancelHandler()
