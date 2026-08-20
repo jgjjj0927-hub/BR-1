@@ -44,12 +44,13 @@ class MaintenanceMiddleware(BaseMiddleware):
     async def on_pre_process_message(self, message: types.Message, data: dict):
         uid = message.from_user.id
         if maintenance_mode and uid not in admins:
-            # Пропускаем /start чтобы он сам показал сообщение, и капчу
             state = data.get('state')
             current = await state.get_state() if state else None
             if current and 'CaptchaFSM' in str(current):
                 return
-            await bot.send_message(uid,
+            # Используем бот из диспетчера который обрабатывает сообщение
+            _bot = message.bot
+            await _bot.send_message(uid,
                 "🔧 *Сейчас идут технические работы / обновление.*\n*Попробуйте позже.*",
                 parse_mode="Markdown")
             raise CancelHandler()
