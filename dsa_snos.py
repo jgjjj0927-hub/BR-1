@@ -323,7 +323,9 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
 
             token = await _solve_turnstile(TARGET_URL)
             if not token:
+                print("[DSA] не получили токен капчи", flush=True)
                 return False
+            print(f"[DSA] токен получен: {token[:20]}...", flush=True)
 
             await page.evaluate(f"""
                 (token) => {{
@@ -361,7 +363,9 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
                     await asyncio.sleep(2)
 
             if not await _wait_element(page, ".cd-comment-input", timeout=20):
+                print("[DSA] форма не загрузилась после popup", flush=True)
                 return False
+            print("[DSA] форма загрузилась, начинаем заполнение", flush=True)
 
             # Шаг 1: ссылка
             await _fill_input_and_send(page, target_link)
@@ -420,8 +424,10 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
             return True
 
         except Exception as e:
-            logger.error(f"[DSA] ошибка: {e}")
+            import traceback
             print(f"[DSA] ошибка в репорте: {e}", flush=True)
+            print(f"[DSA] traceback: {traceback.format_exc()}", flush=True)
+            logger.error(f"[DSA] ошибка: {e}")
             return False
         finally:
             await browser.close()
