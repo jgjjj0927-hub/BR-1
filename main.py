@@ -43,7 +43,7 @@ from aiogram.dispatcher.handler import CancelHandler
 class MaintenanceMiddleware(BaseMiddleware):
     async def on_pre_process_message(self, message: types.Message, data: dict):
         uid = message.from_user.id
-        if maintenance_mode and uid not in admins:
+        if _get_maintenance() and uid not in admins:
             state = data.get('state')
             current = await state.get_state() if state else None
             if current and 'CaptchaFSM' in str(current):
@@ -56,7 +56,7 @@ class MaintenanceMiddleware(BaseMiddleware):
 
     async def on_pre_process_callback_query(self, call: types.CallbackQuery, data: dict):
         uid = call.from_user.id
-        if maintenance_mode and uid not in admins and call.data != 'toggle_maintenance':
+        if _get_maintenance() and uid not in admins and call.data != 'toggle_maintenance':
             await call.answer("🔧 Сейчас идут технические работы / обновление. Попробуйте позже.", show_alert=True)
             raise CancelHandler()
 
@@ -254,6 +254,21 @@ bot_status = 1
 
 global maintenance_mode
 maintenance_mode = False
+
+def _get_maintenance() -> bool:
+    try:
+        return open(".maintenance", "r").read().strip() == "1"
+    except Exception:
+        return False
+
+def _set_maintenance(val: bool):
+    global maintenance_mode
+    maintenance_mode = val
+    with open(".maintenance", "w") as f:
+        f.write("1" if val else "0")
+
+# Читаем начальное значение из файла
+maintenance_mode = _get_maintenance()
 
 # ─── Команды ──────────────────────────────────────────────────────────────────
 
@@ -744,10 +759,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AddSubscribeFSM.user_id.state)
 		elif d == 'toggle_maintenance' and uid in admins:
-			maintenance_mode = not maintenance_mode
-			status_text = "🔧 *Тех. работы включены*\n*└─ Обычные пользователи не могут пользоваться ботом*" if maintenance_mode else "✅ *Тех. работы выключены*\n*└─ Бот доступен всем*"
-			# Обновляем кнопку в сообщении
-			new_btn_text = "✅ Выключить тех. работы" if maintenance_mode else "🔧 Включить тех. работы"
+			new_val = not _get_maintenance()
+			_set_maintenance(new_val)
+			status_text = "🔧 *Тех. работы включены*" if new_val else "✅ *Тех. работы выключены*"
+			new_btn_text = "✅ Выключить тех. работы" if new_val else "🔧 Включить тех. работы"
 			try:
 				markup = call.message.reply_markup
 				# Перестраиваем клавиатуру с обновлённой кнопкой
