@@ -68,7 +68,12 @@ async def _solve_turnstile(page_url: str) -> str | None:
                 "https://api.capmonster.cloud/createTask",
                 json=payload, timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
-                data = await resp.json()
+                try:
+                    data = await resp.json(content_type=None)
+                except Exception:
+                    text = await resp.text()
+                    logger.error(f"[DSA] CapMonster bad response: {text[:200]}")
+                    return None
         except Exception as e:
             logger.error(f"[DSA] CapMonster createTask error: {e}")
             return None
@@ -89,7 +94,7 @@ async def _solve_turnstile(page_url: str) -> str | None:
                     json={"clientKey": CAPMONSTER_KEY, "taskId": task_id},
                     timeout=aiohttp.ClientTimeout(total=15)
                 ) as resp:
-                    result = await resp.json()
+                    result = await resp.json(content_type=None)
             except Exception as e:
                 logger.warning(f"[DSA] CapMonster getTaskResult error: {e}")
                 continue
@@ -352,12 +357,14 @@ async def _run_single_report(target_link: str) -> bool:
 
 
 # ─── Главная функция для бота ─────────────────────────────────────────────────
-async def main_dsa_snos(target_link: str, user: int, username: str, count: int = 1):
+async def main_dsa_snos(target_link: str, user: int, username: str, count: int = 1, _bot=None):
     """
     Запускает DSA репорты.
     count — количество репортов (каждый = 1 решение капчи).
+    _bot — бот для отправки результата (зеркало или основной).
     """
     from aiogram import types as aiogram_types
+    _send_bot = _bot or bot
 
     # Нормализуем ссылку
     target = target_link.strip()
@@ -399,7 +406,7 @@ async def main_dsa_snos(target_link: str, user: int, username: str, count: int =
     )
 
     try:
-        await bot.send_message(user, caption_user, parse_mode="Markdown",
+        await _send_bot.send_message(user, caption_user, parse_mode="Markdown",
                                reply_markup=keyboards.main_menu)
         await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
     except Exception as e:

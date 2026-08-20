@@ -1921,7 +1921,7 @@ async def dsa_step1(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_dsa(_bot)
-		await main_dsa_snos(raw, uid, username, count=1)
+		await main_dsa_snos(raw, uid, username, count=1, _bot=_bot)
 	except Exception as e:
 		print(f"[DSA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка DSA Report:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
