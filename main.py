@@ -632,7 +632,7 @@ async def _dsa_generate_and_show(uid: int, bot_instance, dp_instance, state):
 	# Сохраняем в FSM
 	await dp_instance.current_state(user=uid).update_data(dsa_generated_text=generated)
 
-	preview = generated[:200] + "..." if len(generated) > 200 else generated
+	preview = generated
 	await bot_instance.send_message(uid,
 		f"🤖 *ИИ сгенерировал текст жалобы:*\n\n"
 		f"`{preview}`\n\n"
