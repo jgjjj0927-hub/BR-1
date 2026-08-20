@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Конфиг ──────────────────────────────────────────────────────────────────
 CAPMONSTER_KEY = os.environ.get("CAPMONSTER_KEY", config.CAPMONSTER_KEY)
-TURNSTILE_SITEKEY = "0x4AAAAAAADnPIDROrmt1Wwj"  # sitekey telegram.org/dsa-report
+TURNSTILE_SITEKEY = "0x4AAAAAABCHiDxTcTJ4azUp"  # sitekey telegram.org/dsa-report
 TARGET_URL = "https://telegram.org/dsa-report"
 
 DSA_DIR = os.path.join(os.path.dirname(__file__), "dsa_data")
@@ -408,6 +408,7 @@ async def main_dsa_snos(target_link: str, user: int, username: str, count: int =
     try:
         await _send_bot.send_message(user, caption_user, parse_mode="Markdown",
                                reply_markup=keyboards.main_menu)
-        await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+        if main_bot:
+            await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"[DSA] ошибка отправки результата: {e}")
