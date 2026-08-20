@@ -753,9 +753,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
 				parse_mode="Markdown", reply_markup=back_markup)
 		elif d == "back":
-			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
-				parse_mode="MarkdownV2", reply_markup=menu)
+			# Если сообщение с caption (фото) — редактируем caption
+			# Если обычное текстовое — удаляем и отправляем меню заново
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+					parse_mode="MarkdownV2", reply_markup=menu)
+			except Exception:
+				try:
+					await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+				except Exception:
+					pass
+				await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
+					caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+					parse_mode="MarkdownV2", reply_markup=menu)
+			# Сбрасываем FSM состояние если есть
+			try:
+				current = await state.get_state()
+				if current and 'WaitDsaFSM' in str(current):
+					await state.finish()
+			except Exception:
+				pass
 		elif d == "information":
 			# Генерируем временную ссылку через основной бот
 			try:
