@@ -362,9 +362,23 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
                     await btn.click()
                     await asyncio.sleep(2)
 
-            if not await _wait_element(page, ".cd-comment-input", timeout=20):
-                print("[DSA] форма не загрузилась после popup", flush=True)
-                return False
+            if not await _wait_element(page, ".cd-comment-input", timeout=40):
+                # Проверяем все открытые страницы — форма может быть в другой вкладке
+                pages = page.context.pages
+                print(f"[DSA] форма не на основной странице, проверяем {len(pages)} страниц", flush=True)
+                for p in pages:
+                    print(f"[DSA] проверяем: {p.url}", flush=True)
+                    if await _wait_element(p, ".cd-comment-input", timeout=5):
+                        page = p
+                        print(f"[DSA] форма найдена на: {p.url}", flush=True)
+                        break
+                else:
+                    try:
+                        await pages[-1].screenshot(path="/tmp/dsa_debug.png")
+                    except Exception:
+                        pass
+                    print("[DSA] форма не найдена ни на одной странице", flush=True)
+                    return False
             print("[DSA] форма загрузилась, начинаем заполнение", flush=True)
 
             # Шаг 1: ссылка
