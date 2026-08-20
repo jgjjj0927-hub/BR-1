@@ -127,8 +127,10 @@ async def generate_complaint_text(reason: str, sub_reason: str, message_text: st
                 timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
                 data = await resp.json(content_type=None)
+                if "choices" not in data:
+                    logger.error(f"[DSA] Groq unexpected response: {data}")
+                    return _get_random_line("reptexts.txt")
                 text = data["choices"][0]["message"]["content"].strip()
-                # Обрезаем до 250 символов
                 return text[:250]
     except Exception as e:
         logger.error(f"[DSA] Groq error: {e}")
