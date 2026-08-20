@@ -1462,6 +1462,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		# ─── DSA причины ──────────────────────────────────────────────────────
 		elif d.startswith("dsa_r_") and await dp_instance.current_state(chat=uid, user=uid).get_state() == WaitDsaFSM.reason.state:
+			await call.answer()
 			from dsa_snos import DSA_REASONS, HAS_SUBCATEGORY
 			reason_key = d[6:]  # убираем "dsa_r_"
 			if reason_key not in DSA_REASONS:
@@ -1488,18 +1489,21 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await _dsa_generate_and_show(uid, bot_instance, dp_instance, state)
 
 		elif d.startswith("dsa_s_") and await dp_instance.current_state(chat=uid, user=uid).get_state() == WaitDsaFSM.sub_reason.state:
+			await call.answer()
 			sub_key = d[6:]  # убираем "dsa_s_"
 			await dp_instance.current_state(user=uid).update_data(dsa_sub=sub_key)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDsaFSM.text_confirm.state)
 			await _dsa_generate_and_show(uid, bot_instance, dp_instance, state)
 
 		elif d == "dsa_text_confirm":
+			await call.answer()
 			# Пользователь принял сгенерированный текст
 			fsm_data = await dp_instance.current_state(user=uid).get_data()
-			await dp_instance.current_state(chat=uid, user=uid).set_state(None)
+			await dp_instance.current_state(chat=uid, user=uid).finish()
 			await _dsa_launch(uid, bot_instance, fsm_data, state)
 
 		elif d == "dsa_text_custom":
+			await call.answer()
 			# Пользователь хочет ввести свой текст
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDsaFSM.text.state)
 			await bot_instance.send_message(uid,
@@ -2058,11 +2062,11 @@ async def dsa_custom_text(message: types.Message, state: FSMContext):
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 
+	# Сохраняем текст в FSM данные перед завершением
 	await state.update_data(dsa_text=custom)
+	fsm_data = await state.get_data()
 	await state.finish()
 
-	fsm_data = await state.get_data()
-	fsm_data['dsa_text'] = custom
 	await _dsa_launch(uid, _bot, fsm_data, state)
 
 
