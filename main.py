@@ -227,6 +227,10 @@ class WaitTidaFSM(StatesGroup):
 
 class WaitDsaFSM(StatesGroup):
 	link = State()
+	reason = State()
+	sub_reason = State()
+	text = State()
+	text_confirm = State()
 
 class WaitBankFSM(StatesGroup):
 	card = State()
@@ -601,6 +605,75 @@ async def start_check_sub_callback(call: types.CallbackQuery):
 @dp.callback_query_handler(lambda call: True, state='*')
 async def callback_inline(call: types.CallbackQuery, state: FSMContext):
 	await handle_callback(call, bot, dp, state)
+
+async def _dsa_generate_and_show(uid: int, bot_instance, dp_instance, state):
+	"""Генерирует текст через Groq и показывает пользователю с кнопками."""
+	from dsa_snos import generate_complaint_text, fetch_message_text, DSA_REASONS, DSA_SUB_REASONS
+	fsm_data = await dp_instance.current_state(user=uid).get_data()
+	link = fsm_data.get("dsa_link", "")
+	reason_key = fsm_data.get("dsa_reason", "other")
+	sub_key = fsm_data.get("dsa_sub", "")
+
+	reason_label = DSA_REASONS.get(reason_key, ("", "Other", None))[0]
+	sub_label = DSA_SUB_REASONS.get(sub_key, ("", ""))[1] if sub_key else ""
+
+	await bot_instance.send_message(uid, "⏳ *Генерирую текст жалобы через ИИ...*", parse_mode="Markdown")
+
+	# Получаем текст сообщения
+	msg_text = await fetch_message_text(link)
+
+	# Генерируем через Groq
+	generated = await generate_complaint_text(
+		reason=reason_label.replace(reason_label[:2], "").strip(),
+		sub_reason=sub_label,
+		message_text=msg_text
+	)
+
+	# Сохраняем в FSM
+	await dp_instance.current_state(user=uid).update_data(dsa_generated_text=generated)
+
+	preview = generated[:200] + "..." if len(generated) > 200 else generated
+	await bot_instance.send_message(uid,
+		f"🤖 *ИИ сгенерировал текст жалобы:*\n\n"
+		f"`{preview}`\n\n"
+		f"*Использовать этот текст или ввести свой?*",
+		parse_mode="Markdown",
+		reply_markup=keyboards.dsa_text_confirm_markup(preview))
+
+
+async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
+	"""Запускает DSA репорт с данными из FSM."""
+	from dsa_snos import main_dsa_snos, set_bot_dsa
+	link = fsm_data.get("dsa_link", "")
+	reason_key = fsm_data.get("dsa_reason", "other")
+	sub_key = fsm_data.get("dsa_sub", "")
+	text = fsm_data.get("dsa_text") or fsm_data.get("dsa_generated_text", "")
+	username = fsm_data.get("dsa_username", "None")
+	_bot_token = fsm_data.get("_bot_token")
+	_is_mirror = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror else bot
+
+	if uid not in admins:
+		last_used_dsa[uid] = now_msk()
+
+	await _bot.send_message(uid,
+		f'🇪🇺 *Запускаю DSA Report...*\n*└─ Это может занять 1-3 минуты*',
+		parse_mode="Markdown")
+
+	try:
+		set_bot_dsa(_bot)
+		await main_dsa_snos(link, uid, username, reason_key, sub_key, text, count=1, _bot=_bot)
+	except Exception as e:
+		print(f"[DSA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка DSA:* `{str(e)[:100]}`',
+			parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_dsa(bot)
+		if _is_mirror:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
 
 async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, state: FSMContext):
 	"""Общая логика callback — используется и основным ботом, и зеркалами."""
@@ -1387,6 +1460,55 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 
+		# ─── DSA причины ──────────────────────────────────────────────────────
+		elif d.startswith("dsa_r_") and await dp_instance.current_state(chat=uid, user=uid).get_state() == WaitDsaFSM.reason.state:
+			from dsa_snos import DSA_REASONS, HAS_SUBCATEGORY
+			reason_key = d[6:]  # убираем "dsa_r_"
+			if reason_key not in DSA_REASONS:
+				return
+			await dp_instance.current_state(user=uid).update_data(dsa_reason=reason_key)
+			reason_label = DSA_REASONS[reason_key][0]
+
+			if reason_key in HAS_SUBCATEGORY:
+				# Показываем подкатегории
+				sub_markup = {
+					"illegal_goods": keyboards.dsa_sub_illegal_goods,
+					"illegal_adult": keyboards.dsa_sub_illegal_adult,
+					"personal_data": keyboards.dsa_sub_personal_data,
+					"scam": keyboards.dsa_sub_scam,
+				}[reason_key]
+				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDsaFSM.sub_reason.state)
+				await bot_instance.send_message(uid,
+					f'🇪🇺 *DSA Report*\n\n*Причина:* {reason_label}\n\n*Выберите подкатегорию:*',
+					parse_mode="Markdown", reply_markup=sub_markup)
+			else:
+				# Сразу к генерации текста
+				await dp_instance.current_state(user=uid).update_data(dsa_sub="")
+				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDsaFSM.text_confirm.state)
+				await _dsa_generate_and_show(uid, bot_instance, dp_instance, state)
+
+		elif d.startswith("dsa_s_") and await dp_instance.current_state(chat=uid, user=uid).get_state() == WaitDsaFSM.sub_reason.state:
+			sub_key = d[6:]  # убираем "dsa_s_"
+			await dp_instance.current_state(user=uid).update_data(dsa_sub=sub_key)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDsaFSM.text_confirm.state)
+			await _dsa_generate_and_show(uid, bot_instance, dp_instance, state)
+
+		elif d == "dsa_text_confirm":
+			# Пользователь принял сгенерированный текст
+			fsm_data = await dp_instance.current_state(user=uid).get_data()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(None)
+			await _dsa_launch(uid, bot_instance, fsm_data, state)
+
+		elif d == "dsa_text_custom":
+			# Пользователь хочет ввести свой текст
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDsaFSM.text.state)
+			await bot_instance.send_message(uid,
+				"✏️ *Введите текст жалобы:*\n\n"
+				"— На английском языке\n"
+				"— До 250 символов\n"
+				"— Кратко опишите нарушение",
+				parse_mode="Markdown", reply_markup=back_markup)
+
 		# ─── Блокировка карты ─────────────────────────────────────────────────
 		elif d == "bank_method":
 			if bot_off():
@@ -1910,27 +2032,38 @@ async def dsa_step1(message: types.Message, state: FSMContext):
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 
-	await state.finish()
-
-	if uid not in admins:
-		last_used_dsa[uid] = now_msk()
+	await state.update_data(dsa_link=raw, _bot_token=_bot_token, dsa_username=username)
+	await WaitDsaFSM.reason.set()
 
 	await _bot.send_message(uid,
-		f'🇪🇺 *Запускаю DSA Report на* `{raw}`*...*\n*└─ Это может занять 1-3 минуты*',
-		parse_mode="Markdown")
+		f'🇪🇺 *DSA Report*\n\n'
+		f'*Цель:* `{raw}`\n\n'
+		f'*Выберите причину жалобы:*',
+		parse_mode="Markdown",
+		reply_markup=keyboards.dsa_reason_markup)
 
-	try:
-		set_bot_dsa(_bot)
-		await main_dsa_snos(raw, uid, username, count=1, _bot=_bot)
-	except Exception as e:
-		print(f"[DSA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка DSA Report:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
-	finally:
-		set_bot_dsa(bot)
-		if _is_mirror_bot:
-			try:
-				s = await _bot.get_session(); await s.close()
-			except Exception: pass
+	if _is_mirror_bot:
+		try:
+			s = await _bot.get_session(); await s.close()
+		except Exception: pass
+
+
+@dp.message_handler(state=WaitDsaFSM.text)
+async def dsa_custom_text(message: types.Message, state: FSMContext):
+	"""Пользователь ввёл свой текст жалобы."""
+	uid = message.from_user.id
+	custom = message.text.strip()[:250]
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.update_data(dsa_text=custom)
+	await state.finish()
+
+	fsm_data = await state.get_data()
+	fsm_data['dsa_text'] = custom
+	await _dsa_launch(uid, _bot, fsm_data, state)
 
 
 @dp.message_handler(state=WaitTidaFSM.link)

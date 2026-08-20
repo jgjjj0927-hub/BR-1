@@ -4,6 +4,7 @@ Brown V2 | dsa_snos.py
 DSA Report метод — жалобы через telegram.org/dsa-report
 Капча: Cloudflare Turnstile через CapMonster Cloud API
 Браузер: Playwright headless (Chromium)
+ИИ текст: Groq API
 """
 
 import asyncio
@@ -11,7 +12,6 @@ import random
 import os
 import logging
 import aiohttp
-from pathlib import Path
 from playwright.async_api import async_playwright, Page
 
 import config
@@ -23,14 +23,53 @@ logger = logging.getLogger(__name__)
 
 # ─── Конфиг ──────────────────────────────────────────────────────────────────
 CAPMONSTER_KEY = os.environ.get("CAPMONSTER_KEY", config.CAPMONSTER_KEY)
-TURNSTILE_SITEKEY = "0x4AAAAAABCHiDxTcTJ4azUp"  # sitekey telegram.org/dsa-report
+GROQ_KEY = os.environ.get("GROQ_KEY", config.GROQ_KEY)
+TURNSTILE_SITEKEY = "0x4AAAAAABCHiDxTcTJ4azUp"
 TARGET_URL = "https://telegram.org/dsa-report"
-
 DSA_DIR = os.path.join(os.path.dirname(__file__), "dsa_data")
 
 bot = None
 main_bot = None
 
+# ─── Маппинг причин ──────────────────────────────────────────────────────────
+# callback_data -> (label, radio_text_on_site, sub_radio_text_or_None)
+DSA_REASONS = {
+    # Без подкатегорий
+    "child_abuse":   ("👶 Child abuse",          "Child abuse",       None),
+    "violence":      ("💥 Violence",             "Violence",          None),
+    "terrorism":     ("💣 Terrorism",            "Terrorism",         None),
+    "other":         ("📝 Other",                "Other",             None),
+    # С подкатегориями
+    "illegal_goods": ("🔫 Illegal goods",        "Illegal goods",     None),
+    "illegal_adult": ("🔞 Illegal adult content","Illegal adult content", None),
+    "personal_data": ("🔐 Personal data",        "Personal data",     None),
+    "scam":          ("📢 Scam or spam",         "Scam or spam",      None),
+}
+
+DSA_SUB_REASONS = {
+    # Illegal goods
+    "weapons":         ("Illegal goods", "Weapons"),
+    "drugs":           ("Illegal goods", "Drugs"),
+    "fake_docs":       ("Illegal goods", "Fake documents"),
+    "counterfeit":     ("Illegal goods", "Counterfeit money"),
+    "other_goods":     ("Illegal goods", "Other goods"),
+    # Illegal adult content
+    "child_abuse_adult": ("Illegal adult content", "Child abuse"),
+    "nonconsensual":   ("Illegal adult content", "Distribution of non-consensual sexual imagery"),
+    "other_sexual":    ("Illegal adult content", "Other illegal sexual content"),
+    # Personal data
+    "private_images":  ("Personal data", "Private images"),
+    "phone":           ("Personal data", "Phone number"),
+    "address":         ("Personal data", "Address"),
+    "other_personal":  ("Personal data", "Other personal information"),
+    # Scam
+    "phishing":        ("Scam or spam", "Phishing"),
+    "impersonation":   ("Scam or spam", "Impersonation"),
+    "fraud_sales":     ("Scam or spam", "Fraudulent sales"),
+}
+
+# Причины с подкатегориями
+HAS_SUBCATEGORY = {"illegal_goods", "illegal_adult", "personal_data", "scam"}
 
 def set_bot_dsa(b):
     global bot, main_bot
@@ -50,11 +89,87 @@ def _get_random_line(filename: str) -> str:
         return ""
 
 
+# ─── Groq — генерация текста жалобы ─────────────────────────────────────────
+async def generate_complaint_text(reason: str, sub_reason: str, message_text: str = "") -> str:
+    """Генерирует текст жалобы через Groq API."""
+    system_prompt = (
+        "You are a DSA (Digital Services Act) complaint text generator for Telegram's official reporting system. "
+        "Generate a concise complaint text in English (max 250 characters). "
+        "Rules: professional and formal tone, specific to the violation type, "
+        "reference actual content if message text is provided, "
+        "do not mention URLs or usernames, vary wording each time. "
+        "Output ONLY the complaint text, nothing else."
+    )
+
+    user_content = f"Report reason: {reason}"
+    if sub_reason:
+        user_content += f"\nSub-reason: {sub_reason}"
+    if message_text:
+        user_content += f"\nMessage content: {message_text[:300]}"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {GROQ_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ],
+                    "max_tokens": 120,
+                    "temperature": 0.9,
+                },
+                timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
+                data = await resp.json(content_type=None)
+                text = data["choices"][0]["message"]["content"].strip()
+                # Обрезаем до 250 символов
+                return text[:250]
+    except Exception as e:
+        logger.error(f"[DSA] Groq error: {e}")
+        return _get_random_line("reptexts.txt")
+
+
+# ─── Telethon — получение текста сообщения ───────────────────────────────────
+async def fetch_message_text(link: str) -> str:
+    """Получает текст сообщения по ссылке через Telethon."""
+    try:
+        from telethon import TelegramClient
+        # Парсим ссылку
+        clean = link.replace("https://t.me/", "").replace("http://t.me/", "").replace("t.me/", "")
+        parts = clean.rstrip("/").split("/")
+        if len(parts) < 2:
+            return ""
+        username = parts[0]
+        msg_id = int(parts[-1])
+
+        creds = random.choice([
+            ("24565698", "5a084b434f8505ace703485b9da85040"),
+            ("27904162", "e7cba879b1c643ba77490bf328df5eab"),
+        ])
+        client = TelegramClient("dsa_fetch_session", int(creds[0]), creds[1],
+                                system_version="4.16.30-vxCUSTOM")
+        await asyncio.wait_for(client.connect(), timeout=10)
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            return ""
+        msg = await client.get_messages(username, ids=msg_id)
+        text = msg.text or msg.caption or ""
+        await client.disconnect()
+        return text[:500]
+    except Exception as e:
+        logger.warning(f"[DSA] fetch_message_text error: {e}")
+        return ""
+
+
 # ─── CapMonster — решение Turnstile ──────────────────────────────────────────
 async def _solve_turnstile(page_url: str) -> str | None:
-    """Отправляет задачу в CapMonster, возвращает токен или None."""
     async with aiohttp.ClientSession() as session:
-        # Создаём задачу
         payload = {
             "clientKey": CAPMONSTER_KEY,
             "task": {
@@ -83,9 +198,8 @@ async def _solve_turnstile(page_url: str) -> str | None:
             return None
 
         task_id = data.get("taskId")
-        logger.info(f"[DSA] CapMonster taskId={task_id}, ждём решения...")
+        logger.info(f"[DSA] CapMonster taskId={task_id}")
 
-        # Ждём результат
         for _ in range(60):
             await asyncio.sleep(3)
             try:
@@ -100,18 +214,16 @@ async def _solve_turnstile(page_url: str) -> str | None:
                 continue
 
             if result.get("status") == "ready":
-                token = result.get("solution", {}).get("token")
-                logger.info(f"[DSA] Turnstile токен получен")
-                return token
+                return result.get("solution", {}).get("token")
             elif result.get("errorId") != 0:
                 logger.error(f"[DSA] CapMonster task error: {result.get('errorDescription')}")
                 return None
 
-    logger.error("[DSA] CapMonster timeout — токен не получен за 3 мин")
+    logger.error("[DSA] CapMonster timeout")
     return None
 
 
-# ─── Вспомогательные функции для заполнения формы ────────────────────────────
+# ─── Playwright форма ─────────────────────────────────────────────────────────
 async def _wait_element(page: Page, selector: str, timeout: float = 30.0) -> bool:
     try:
         await page.wait_for_selector(selector, timeout=timeout * 1000)
@@ -135,35 +247,24 @@ async def _click_radio(page: Page, text: str, timeout: int = 15000) -> bool:
     except Exception:
         logger.warning(f"[DSA] radio '{text}' не появился")
         return False
-
-    for attempt_selector in [
-        f"span.radio-label >> text={text}",
-        f"label.radio-item >> text={text}",
-        xpath,
-    ]:
+    for sel in [f"span.radio-label >> text={text}", f"label.radio-item >> text={text}", xpath]:
         try:
-            el = page.locator(attempt_selector).first
+            el = page.locator(sel).first
             if await el.is_visible(timeout=2000):
                 await el.click(force=True)
-                logger.info(f"[DSA] radio клик: '{text}'")
                 return True
         except Exception:
             continue
-
-    logger.warning(f"[DSA] не удалось кликнуть radio '{text}'")
     return False
 
 
 async def _type_text(page: Page, text: str):
-    """Вводит текст с человеческой скоростью."""
     for ch in text:
         await page.keyboard.type(ch, delay=random.randint(30, 80))
 
 
 async def _fill_input_and_send(page: Page, text: str) -> bool:
-    """Ждёт поле ввода, вводит текст, нажимает Send."""
     if not await _wait_element(page, ".cd-comment-input", timeout=30):
-        logger.warning("[DSA] поле ввода не найдено")
         return False
     await asyncio.sleep(random.uniform(0.3, 0.6))
     await page.locator(".cd-comment-input").first.click()
@@ -174,19 +275,15 @@ async def _fill_input_and_send(page: Page, text: str) -> bool:
     return True
 
 
-# ─── Основной флоу одного репорта ────────────────────────────────────────────
-async def _run_single_report(target_link: str) -> bool:
-    """Запускает один DSA репорт. Возвращает True если успешно."""
+# ─── Основной флоу репорта ────────────────────────────────────────────────────
+async def _run_single_report(target_link: str, reason_radio: str, sub_reason_radio: str,
+                              complaint_text: str) -> bool:
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
             headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-infobars",
-                "--window-size=1920,1080",
-            ]
+            args=["--no-sandbox", "--disable-setuid-sandbox",
+                  "--disable-blink-features=AutomationControlled",
+                  "--disable-infobars", "--window-size=1920,1080"]
         )
         context = await browser.new_context(
             viewport={"width": 1920, "height": 1080},
@@ -194,155 +291,108 @@ async def _run_single_report(target_link: str) -> bool:
                        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             locale="en-US",
         )
-
-        # Антидетект
         await context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
             Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
         """)
-
         page = await context.new_page()
 
         try:
-            logger.info(f"[DSA] открываем {TARGET_URL}")
             await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=30000)
             await asyncio.sleep(2)
 
-            # ─── Решаем Turnstile через CapMonster ───────────────────────────
-            logger.info("[DSA] запрашиваем решение Turnstile у CapMonster...")
             token = await _solve_turnstile(TARGET_URL)
             if not token:
-                logger.error("[DSA] не получили токен капчи")
                 return False
 
-            # Вставляем токен в страницу и активируем кнопку
             await page.evaluate(f"""
                 (token) => {{
-                    // Вставляем токен в скрытое поле Turnstile
                     const inputs = document.querySelectorAll('input[name="cf-turnstile-response"], input[id*="cf-chl-widget"]');
                     inputs.forEach(el => {{ el.value = token; }});
-                    // Вызываем callback если есть
                     if (window.onTurnstileSuccess) window.onTurnstileSuccess(token);
                     if (window.turnstileCallback) window.turnstileCallback(token);
-                    // Активируем кнопку напрямую
                     const btn = document.querySelector('.js-report-start-btn');
-                    if (btn) {{
-                        btn.removeAttribute('disabled');
-                        btn.classList.remove('disabled');
-                    }}
+                    if (btn) {{ btn.removeAttribute('disabled'); btn.classList.remove('disabled'); }}
                 }}
             """, token)
-
             await asyncio.sleep(1)
 
-            # ─── Кликаем Report без логина ───────────────────────────────────
-            logger.info("[DSA] кликаем Report button...")
             btn = await page.query_selector(".js-report-start-btn")
             if btn:
-                # Ждём popup с login
                 try:
                     async with page.expect_popup(timeout=8000) as popup_info:
                         await btn.click()
                     oauth_page = await popup_info.value
                     await oauth_page.wait_for_load_state("domcontentloaded", timeout=10000)
                     await asyncio.sleep(1)
-
-                    # Кликаем "without logging in"
                     for sel in ["a[href*='unauth=1']", ".login_footer_text a",
                                 "a:has-text('without logging in')"]:
                         try:
                             el = await oauth_page.wait_for_selector(sel, timeout=3000, state="visible")
                             if el:
                                 await el.click()
-                                logger.info("[DSA] кликнули 'without logging in'")
                                 await asyncio.sleep(2)
                                 break
                         except Exception:
                             continue
                 except Exception as e:
-                    logger.warning(f"[DSA] popup не открылся: {e}, пробуем прямой клик")
+                    logger.warning(f"[DSA] popup: {e}")
                     await btn.click()
                     await asyncio.sleep(2)
 
-            # ─── Заполняем форму ─────────────────────────────────────────────
-            # Ждём поле ввода ссылки
             if not await _wait_element(page, ".cd-comment-input", timeout=20):
-                logger.error("[DSA] форма не загрузилась")
                 return False
 
-            # Шаг 1: вставляем ссылку
-            logger.info("[DSA] шаг 1: вставляем ссылку")
+            # Шаг 1: ссылка
             await _fill_input_and_send(page, target_link)
             await asyncio.sleep(1)
 
-            # Шаг 2: выбираем категорию
-            logger.info("[DSA] шаг 2: Personal data")
-            await _click_radio(page, "Personal data")
-            await asyncio.sleep(0.8)
-            await _click_radio(page, "Other personal information")
+            # Шаг 2: причина
+            await _click_radio(page, reason_radio)
             await asyncio.sleep(0.8)
 
+            # Шаг 2b: подкатегория (если есть)
+            if sub_reason_radio:
+                await _click_radio(page, sub_reason_radio)
+                await asyncio.sleep(0.8)
+
             # Шаг 3: текст жалобы
-            logger.info("[DSA] шаг 3: текст жалобы")
-            reptext = _get_random_line("reptexts.txt")
-            await _fill_input_and_send(page, reptext)
+            await _fill_input_and_send(page, complaint_text)
             await asyncio.sleep(1)
 
             # Шаг 4: ссылка повторно
-            logger.info("[DSA] шаг 4: ссылка повторно")
             await _fill_input_and_send(page, target_link)
             await asyncio.sleep(1)
 
             # Шаг 5: страна
-            logger.info("[DSA] шаг 5: Germany")
             await _wait_element(page, ".radio-item, span.radio-label", timeout=15)
             await _click_radio(page, "Germany")
             await asyncio.sleep(0.8)
-
-            # Шаг 6: без документов
             await _click_radio(page, "Proceed without documentation")
             await asyncio.sleep(0.8)
-
-            # Шаг 7: от своего имени
             await _click_radio(page, "My own behalf")
             await asyncio.sleep(0.8)
 
-            # Шаг 8: имя
-            logger.info("[DSA] шаг 8: имя")
+            # Шаг 6: имя
             name = _get_random_line("names.txt")
             famili = _get_random_line("familis.txt")
             fullname = f"{name} {famili}"
             await _fill_input_and_send(page, fullname)
             await asyncio.sleep(0.8)
 
-            # Шаг 9: адрес
-            logger.info("[DSA] шаг 9: адрес")
-            address = _get_random_line("adreses.txt")
-            await _fill_input_and_send(page, address)
+            # Шаг 7: адрес, email, телефон
+            await _fill_input_and_send(page, _get_random_line("adreses.txt"))
+            await asyncio.sleep(0.8)
+            await _fill_input_and_send(page, _get_random_line("emails.txt"))
+            await asyncio.sleep(0.8)
+            await _fill_input_and_send(page, _get_random_line("numbers.txt"))
             await asyncio.sleep(0.8)
 
-            # Шаг 10: email
-            logger.info("[DSA] шаг 10: email")
-            email = _get_random_line("emails.txt")
-            await _fill_input_and_send(page, email)
-            await asyncio.sleep(0.8)
-
-            # Шаг 11: телефон
-            logger.info("[DSA] шаг 11: телефон")
-            phone = _get_random_line("numbers.txt")
-            await _fill_input_and_send(page, phone)
-            await asyncio.sleep(0.8)
-
-            # Шаг 12: нет судебного приказа
+            # Шаг 8: финал
             await _click_radio(page, "I don't have a court order")
             await asyncio.sleep(0.8)
-
-            # Шаг 13: Confirm
             await _click_radio(page, "Confirm")
             await asyncio.sleep(0.8)
-
-            # Шаг 14: подпись
-            logger.info("[DSA] шаг 14: подпись")
             await _fill_input_and_send(page, fullname)
             await asyncio.sleep(2)
 
@@ -350,35 +400,37 @@ async def _run_single_report(target_link: str) -> bool:
             return True
 
         except Exception as e:
-            logger.error(f"[DSA] ошибка в репорте: {e}")
+            logger.error(f"[DSA] ошибка: {e}")
             return False
         finally:
             await browser.close()
 
 
-# ─── Главная функция для бота ─────────────────────────────────────────────────
-async def main_dsa_snos(target_link: str, user: int, username: str, count: int = 1, _bot=None):
-    """
-    Запускает DSA репорты.
-    count — количество репортов (каждый = 1 решение капчи).
-    _bot — бот для отправки результата (зеркало или основной).
-    """
-    from aiogram import types as aiogram_types
+# ─── Главная функция ──────────────────────────────────────────────────────────
+async def main_dsa_snos(target_link: str, user: int, username: str,
+                         reason_key: str, sub_key: str, complaint_text: str,
+                         count: int = 1, _bot=None):
     _send_bot = _bot or bot
 
-    # Нормализуем ссылку
     target = target_link.strip()
     if not target.startswith("https://"):
         target = "https://" + target.lstrip("@").replace("t.me/", "https://t.me/", 1)
 
-    logger.info(f"[DSA] запуск | цель: {target} | кол-во: {count} | пользователь: {user}")
+    # Получаем тексты радио из маппинга
+    reason_radio = DSA_REASONS.get(reason_key, ("", "Personal data", None))[1]
+    sub_reason_radio = DSA_SUB_REASONS.get(sub_key, (None, None))[1] if sub_key else None
+
+    # Метка для логов
+    reason_label = DSA_REASONS.get(reason_key, ("DSA", "", None))[0]
+    sub_label = DSA_SUB_REASONS.get(sub_key, ("", sub_key))[1] if sub_key else ""
+
+    logger.info(f"[DSA] запуск | цель: {target} | причина: {reason_label} | текст: {complaint_text[:50]}")
 
     successful = 0
     failed = 0
 
     for i in range(count):
-        logger.info(f"[DSA] репорт {i+1}/{count}...")
-        result = await _run_single_report(target)
+        result = await _run_single_report(target, reason_radio, sub_reason_radio, complaint_text)
         if result:
             successful += 1
         else:
@@ -388,10 +440,12 @@ async def main_dsa_snos(target_link: str, user: int, username: str, count: int =
 
     now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
     target_escaped = target.replace('_', '\\_')
+    reason_escaped = reason_label.replace('_', '\\_')
 
     caption_user = (
         f"🇪🇺 *DSA Report завершён!*\n\n"
         f"🎯 *Цель:* {target_escaped}\n"
+        f"📋 *Причина:* {reason_escaped}\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {failed}*"
@@ -399,6 +453,8 @@ async def main_dsa_snos(target_link: str, user: int, username: str, count: int =
     caption_log = (
         f"🇪🇺 *DSA Report*\n\n"
         f"🎯 *Цель:* {target_escaped}\n"
+        f"📋 *Причина:* {reason_escaped}"
+        + (f" → {sub_label}" if sub_label else "") + "\n"
         f"👤 *Пользователь:* {user} (@{username})\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
@@ -407,7 +463,7 @@ async def main_dsa_snos(target_link: str, user: int, username: str, count: int =
 
     try:
         await _send_bot.send_message(user, caption_user, parse_mode="Markdown",
-                               reply_markup=keyboards.main_menu)
+                                     reply_markup=keyboards.main_menu)
         if main_bot:
             await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
     except Exception as e:

@@ -54,6 +54,66 @@ bank_method_btn = types.InlineKeyboardButton("🏦 Блокировка карт
 functions.add(bank_method_btn)
 dsa_method_btn = types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method')
 functions.add(dsa_method_btn)
+
+# ─── DSA причины ──────────────────────────────────────────────────────────────
+dsa_reason_markup = types.InlineKeyboardMarkup(row_width=1)
+dsa_reason_markup.add(
+    types.InlineKeyboardButton("👶 Child abuse", callback_data='dsa_r_child_abuse'),
+    types.InlineKeyboardButton("💥 Violence", callback_data='dsa_r_violence'),
+    types.InlineKeyboardButton("🔫 Illegal goods", callback_data='dsa_r_illegal_goods'),
+    types.InlineKeyboardButton("🔞 Illegal adult content", callback_data='dsa_r_illegal_adult'),
+    types.InlineKeyboardButton("🔐 Personal data", callback_data='dsa_r_personal_data'),
+    types.InlineKeyboardButton("💣 Terrorism", callback_data='dsa_r_terrorism'),
+    types.InlineKeyboardButton("📢 Scam or spam", callback_data='dsa_r_scam'),
+    types.InlineKeyboardButton("📝 Other", callback_data='dsa_r_other'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+)
+
+# ─── DSA подкатегории ─────────────────────────────────────────────────────────
+dsa_sub_illegal_goods = types.InlineKeyboardMarkup(row_width=1)
+dsa_sub_illegal_goods.add(
+    types.InlineKeyboardButton("🔫 Weapons", callback_data='dsa_s_weapons'),
+    types.InlineKeyboardButton("💊 Drugs", callback_data='dsa_s_drugs'),
+    types.InlineKeyboardButton("📄 Fake documents", callback_data='dsa_s_fake_docs'),
+    types.InlineKeyboardButton("💵 Counterfeit money", callback_data='dsa_s_counterfeit'),
+    types.InlineKeyboardButton("📦 Other goods", callback_data='dsa_s_other_goods'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='dsa_method'),
+)
+
+dsa_sub_illegal_adult = types.InlineKeyboardMarkup(row_width=1)
+dsa_sub_illegal_adult.add(
+    types.InlineKeyboardButton("👶 Child abuse", callback_data='dsa_s_child_abuse_adult'),
+    types.InlineKeyboardButton("📸 Non-consensual sexual imagery", callback_data='dsa_s_nonconsensual'),
+    types.InlineKeyboardButton("🔞 Other illegal sexual content", callback_data='dsa_s_other_sexual'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='dsa_method'),
+)
+
+dsa_sub_personal_data = types.InlineKeyboardMarkup(row_width=1)
+dsa_sub_personal_data.add(
+    types.InlineKeyboardButton("🖼 Private images", callback_data='dsa_s_private_images'),
+    types.InlineKeyboardButton("📱 Phone number", callback_data='dsa_s_phone'),
+    types.InlineKeyboardButton("🏠 Address", callback_data='dsa_s_address'),
+    types.InlineKeyboardButton("📋 Other personal information", callback_data='dsa_s_other_personal'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='dsa_method'),
+)
+
+dsa_sub_scam = types.InlineKeyboardMarkup(row_width=1)
+dsa_sub_scam.add(
+    types.InlineKeyboardButton("🎣 Phishing", callback_data='dsa_s_phishing'),
+    types.InlineKeyboardButton("🎭 Impersonation", callback_data='dsa_s_impersonation'),
+    types.InlineKeyboardButton("💸 Fraudulent sales", callback_data='dsa_s_fraud_sales'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='dsa_method'),
+)
+
+def dsa_text_confirm_markup(text_preview: str) -> types.InlineKeyboardMarkup:
+    """Клавиатура подтверждения текста жалобы."""
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("✅ Использовать этот текст", callback_data='dsa_text_confirm'),
+        types.InlineKeyboardButton("✏️ Ввести свой текст", callback_data='dsa_text_custom'),
+        types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+    )
+    return markup
 # stress_method_btn скрыт — в разработке
 functions.add(back)
 
