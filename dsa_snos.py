@@ -94,11 +94,12 @@ async def generate_complaint_text(reason: str, sub_reason: str, message_text: st
     """Генерирует текст жалобы через Groq API."""
     system_prompt = (
         "You are a DSA (Digital Services Act) complaint text generator for Telegram's official reporting system. "
-        "Generate a concise complaint text in English (max 250 characters). "
+        "Generate a concise complaint text in English. "
+        "STRICT LIMIT: your output must be under 250 characters total. "
         "Rules: professional and formal tone, specific to the violation type, "
         "reference actual content if message text is provided, "
-        "do not mention URLs or usernames, vary wording each time. "
-        "Output ONLY the complaint text, nothing else."
+        "do not mention URLs or usernames. "
+        "Output ONLY the complaint text, nothing else, no explanations."
     )
 
     user_content = f"Report reason: {reason}"
@@ -121,7 +122,7 @@ async def generate_complaint_text(reason: str, sub_reason: str, message_text: st
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_content}
                     ],
-                    "max_tokens": 120,
+                    "max_tokens": 200,
                     "temperature": 0.6,
                     "reasoning_effort": "none",
                 },
@@ -146,6 +147,7 @@ async def fetch_message_text(link: str) -> str:
     """Получает текст сообщения по ссылке через Telethon."""
     try:
         from telethon import TelegramClient
+        import os as _os
         # Парсим ссылку
         clean = link.replace("https://t.me/", "").replace("http://t.me/", "").replace("t.me/", "")
         parts = clean.rstrip("/").split("/")
@@ -154,19 +156,32 @@ async def fetch_message_text(link: str) -> str:
         username = parts[0]
         msg_id = int(parts[-1])
 
+        # Берём первую доступную сессию из sessions/
+        session_folder = "sessions"
+        sessions = [f.replace(".session", "") for f in _os.listdir(session_folder)
+                    if f.endswith(".session")] if _os.path.exists(session_folder) else []
+        if not sessions:
+            logger.warning("[DSA] нет сессий для fetch_message_text")
+            return ""
+
+        session_path = _os.path.join(session_folder, random.choice(sessions))
         creds = random.choice([
             ("24565698", "5a084b434f8505ace703485b9da85040"),
             ("27904162", "e7cba879b1c643ba77490bf328df5eab"),
         ])
-        client = TelegramClient("dsa_fetch_session", int(creds[0]), creds[1],
+        client = TelegramClient(session_path, int(creds[0]), creds[1],
                                 system_version="4.16.30-vxCUSTOM")
         await asyncio.wait_for(client.connect(), timeout=10)
         if not await client.is_user_authorized():
             await client.disconnect()
+            logger.warning("[DSA] сессия не авторизована для fetch")
             return ""
         msg = await client.get_messages(username, ids=msg_id)
-        text = msg.text or msg.caption or ""
+        text = ""
+        if msg:
+            text = msg.text or msg.caption or ""
         await client.disconnect()
+        logger.info(f"[DSA] получен текст сообщения: {text[:80]}")
         return text[:500]
     except Exception as e:
         logger.warning(f"[DSA] fetch_message_text error: {e}")
