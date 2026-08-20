@@ -421,6 +421,7 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
 
         except Exception as e:
             logger.error(f"[DSA] ошибка: {e}")
+            print(f"[DSA] ошибка в репорте: {e}", flush=True)
             return False
         finally:
             await browser.close()
