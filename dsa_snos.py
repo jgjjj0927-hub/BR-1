@@ -97,6 +97,7 @@ async def generate_complaint_text(reason: str, sub_reason: str, message_text: st
         "Generate a complaint in English. "
         "CRITICAL: response must be UNDER 200 characters. No exceptions. "
         "Be direct and concise. No intro phrases. "
+        "Do NOT mention @usernames or Telegram handles. "
         "Output ONLY the complaint text."
     )
 
