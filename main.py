@@ -571,6 +571,7 @@ async def callback_inline(call: types.CallbackQuery, state: FSMContext):
 
 async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, state: FSMContext):
 	"""Общая логика callback — используется и основным ботом, и зеркалами."""
+	global maintenance_mode
 	# Получаем токен bot_instance безопасно (aiogram 2 хранит в _token)
 	_instance_token = getattr(bot_instance, '_token', None)
 	try:
@@ -729,7 +730,6 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AddSubscribeFSM.user_id.state)
 		elif d == 'toggle_maintenance' and uid in admins:
-			global maintenance_mode
 			maintenance_mode = not maintenance_mode
 			status_text = "🔧 *Тех. работы включены*\n*└─ Обычные пользователи не могут пользоваться ботом*" if maintenance_mode else "✅ *Тех. работы выключены*\n*└─ Бот доступен всем*"
 			# Обновляем кнопку в сообщении
@@ -1359,7 +1359,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 
 		# ─── Блокировка карты ─────────────────────────────────────────────────
-		elif d == "bank_method":			if bot_off():
+		elif d == "bank_method":
+			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if premium == 0:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен Premium\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
