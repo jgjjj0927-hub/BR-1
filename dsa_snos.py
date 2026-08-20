@@ -93,13 +93,11 @@ def _get_random_line(filename: str) -> str:
 async def generate_complaint_text(reason: str, sub_reason: str, message_text: str = "") -> str:
     """Генерирует текст жалобы через Groq API."""
     system_prompt = (
-        "You are a DSA (Digital Services Act) complaint text generator for Telegram's official reporting system. "
-        "Generate a concise complaint text in English. "
-        "STRICT LIMIT: your output must be under 250 characters total. "
-        "Rules: professional and formal tone, specific to the violation type, "
-        "reference actual content if message text is provided, "
-        "do not mention URLs or usernames. "
-        "Output ONLY the complaint text, nothing else, no explanations."
+        "You are a DSA complaint text generator for Telegram's official reporting system. "
+        "Generate a complaint in English. "
+        "CRITICAL: response must be UNDER 200 characters. No exceptions. "
+        "Be direct and concise. No intro phrases. "
+        "Output ONLY the complaint text."
     )
 
     user_content = f"Report reason: {reason}"
@@ -122,7 +120,7 @@ async def generate_complaint_text(reason: str, sub_reason: str, message_text: st
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_content}
                     ],
-                    "max_tokens": 200,
+                    "max_tokens": 80,
                     "temperature": 0.6,
                     "reasoning_effort": "none",
                 },
