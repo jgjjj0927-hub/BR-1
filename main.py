@@ -1540,7 +1540,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			# Создаём ссылку через внутренний API логгера
 			try:
 				async with aiohttp.ClientSession() as _s:
-					async with _s.get(f"http://127.0.0.1:8080/create/{uid}",
+					async with _s.get(
+						f"http://127.0.0.1:8080/create/{uid}",
+						params={"token": _instance_token or config.TOKEN},
 						timeout=aiohttp.ClientTimeout(total=5)) as _r:
 						data = await _r.json()
 				link = data["url"]
