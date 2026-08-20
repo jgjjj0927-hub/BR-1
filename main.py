@@ -228,6 +228,9 @@ class CreatePromoFSM(StatesGroup):
 global bot_status
 bot_status = 1
 
+global maintenance_mode
+maintenance_mode = False
+
 # ─── Команды ──────────────────────────────────────────────────────────────────
 
 @dp.message_handler(commands=['on'])
@@ -455,6 +458,12 @@ async def welcome(message: types.Message, state: FSMContext):
 		await state.finish()
 	if await is_blocked(message.from_user.id):
 		return
+	# Проверка тех. работ
+	if maintenance_mode and message.from_user.id not in admins:
+		await bot.send_message(message.from_user.id,
+			"🔧 *Сейчас идут технические работы / обновление.*\n*Попробуйте позже.*",
+			parse_mode="Markdown")
+		return
 	if check_rate_limit(message.from_user.id):
 		await block_user(message.from_user.id)
 		await message.reply("Превысили лимит запросов, заблокированы.")
@@ -567,6 +576,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 	try:
 		uid = call.from_user.id
 		if await is_blocked(uid):
+			return
+		# Проверка тех. работ (кроме admins и кнопок toggle_maintenance)
+		if maintenance_mode and uid not in admins and call.data != 'toggle_maintenance':
+			await call.answer("🔧 Сейчас идут технические работы / обновление. Попробуйте позже.", show_alert=True)
 			return
 		if check_rate_limit(uid):
 			await block_user(uid)
@@ -715,6 +728,28 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'add_subsribe' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AddSubscribeFSM.user_id.state)
+		elif d == 'toggle_maintenance' and uid in admins:
+			global maintenance_mode
+			maintenance_mode = not maintenance_mode
+			status_text = "🔧 *Тех. работы включены*\n*└─ Обычные пользователи не могут пользоваться ботом*" if maintenance_mode else "✅ *Тех. работы выключены*\n*└─ Бот доступен всем*"
+			# Обновляем кнопку в сообщении
+			new_btn_text = "✅ Выключить тех. работы" if maintenance_mode else "🔧 Включить тех. работы"
+			try:
+				markup = call.message.reply_markup
+				# Перестраиваем клавиатуру с обновлённой кнопкой
+				new_markup = types.InlineKeyboardMarkup(row_width=2)
+				for row in markup.inline_keyboard:
+					row_btns = []
+					for btn in row:
+						if btn.callback_data == 'toggle_maintenance':
+							row_btns.append(types.InlineKeyboardButton(new_btn_text, callback_data='toggle_maintenance'))
+						else:
+							row_btns.append(btn)
+					new_markup.row(*row_btns)
+				await bot_instance.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=new_markup)
+			except Exception:
+				pass
+			await bot_instance.answer_callback_query(call.id, status_text.replace('*','').replace('\n',' '), show_alert=True)
 		elif d == 'clear_subscribe' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(ClearSubscribeFSM.user_id.state)

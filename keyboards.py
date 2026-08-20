@@ -130,6 +130,8 @@ admin_markup.add(users_list_btn)
 admin_markup.add(mirrors_list_btn)
 admin_markup.add(add_reports_btn, remove_reports_btn)
 admin_markup.add(create_promo_btn)
+maintenance_btn = types.InlineKeyboardButton("🔧 Включить тех. работы", callback_data='toggle_maintenance')
+admin_markup.add(maintenance_btn)
 
 shop_markup = types.InlineKeyboardMarkup(row_width=2)
 sub1 = types.InlineKeyboardButton("⚡️ 1 день — 1$ / 100₽", callback_data='sub_1')
