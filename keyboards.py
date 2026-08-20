@@ -56,22 +56,6 @@ dsa_method_btn = types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data
 functions.add(dsa_method_btn)
 logger_method_btn = types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method')
 functions.add(logger_method_btn)
-slowloris_btn = types.InlineKeyboardButton("⚡️ Slowloris", callback_data='slowloris_method')
-functions.add(slowloris_btn)
-
-# ─── Slowloris время атаки ────────────────────────────────────────────────────
-slowloris_time_markup = types.InlineKeyboardMarkup(row_width=1)
-slowloris_time_markup.add(
-    types.InlineKeyboardButton("⏱ 5 минут", callback_data='slowloris_time_300'),
-    types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
-)
-
-slowloris_time_prem_markup = types.InlineKeyboardMarkup(row_width=1)
-slowloris_time_prem_markup.add(
-    types.InlineKeyboardButton("⏱ 5 минут", callback_data='slowloris_time_300'),
-    types.InlineKeyboardButton("⏱ 1 час 👑", callback_data='slowloris_time_3600'),
-    types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
-)
 
 # ─── DSA причины ──────────────────────────────────────────────────────────────
 dsa_reason_markup = types.InlineKeyboardMarkup(row_width=1)
