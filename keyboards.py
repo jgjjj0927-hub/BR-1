@@ -52,6 +52,8 @@ tida_method_btn = types.InlineKeyboardButton("🟣 TIDA", callback_data='tida_me
 functions.add(aureport_method_btn, tida_method_btn)
 bank_method_btn = types.InlineKeyboardButton("🏦 Блокировка карты", callback_data='bank_method')
 functions.add(bank_method_btn)
+dsa_method_btn = types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method')
+functions.add(dsa_method_btn)
 # stress_method_btn скрыт — в разработке
 functions.add(back)
 
