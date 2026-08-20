@@ -37,10 +37,34 @@ no_kd = config.NO_KD
 bot_logs = config.bot_logs
 report_count333 = 200
 
+from aiogram.dispatcher.middlewares import BaseMiddleware
+from aiogram.dispatcher.handler import CancelHandler
+
+class MaintenanceMiddleware(BaseMiddleware):
+    async def on_pre_process_message(self, message: types.Message, data: dict):
+        uid = message.from_user.id
+        if maintenance_mode and uid not in admins:
+            # Пропускаем /start чтобы он сам показал сообщение, и капчу
+            state = data.get('state')
+            current = await state.get_state() if state else None
+            if current and 'CaptchaFSM' in str(current):
+                return
+            await bot.send_message(uid,
+                "🔧 *Сейчас идут технические работы / обновление.*\n*Попробуйте позже.*",
+                parse_mode="Markdown")
+            raise CancelHandler()
+
+    async def on_pre_process_callback_query(self, call: types.CallbackQuery, data: dict):
+        uid = call.from_user.id
+        if maintenance_mode and uid not in admins and call.data != 'toggle_maintenance':
+            await call.answer("🔧 Сейчас идут технические работы / обновление. Попробуйте позже.", show_alert=True)
+            raise CancelHandler()
+
 bot = Bot(token=config.TOKEN)
 bot_username = "@Brrown_V2bot"
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
+dp.middleware.setup(MaintenanceMiddleware())
 crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
 session_folder = 'sessions'
 session_folder_prem = 'prem_sessions'
@@ -458,12 +482,6 @@ async def welcome(message: types.Message, state: FSMContext):
 		await state.finish()
 	if await is_blocked(message.from_user.id):
 		return
-	# Проверка тех. работ
-	if maintenance_mode and message.from_user.id not in admins:
-		await bot.send_message(message.from_user.id,
-			"🔧 *Сейчас идут технические работы / обновление.*\n*Попробуйте позже.*",
-			parse_mode="Markdown")
-		return
 	if check_rate_limit(message.from_user.id):
 		await block_user(message.from_user.id)
 		await message.reply("Превысили лимит запросов, заблокированы.")
@@ -577,10 +595,6 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 	try:
 		uid = call.from_user.id
 		if await is_blocked(uid):
-			return
-		# Проверка тех. работ (кроме admins и кнопок toggle_maintenance)
-		if maintenance_mode and uid not in admins and call.data != 'toggle_maintenance':
-			await call.answer("🔧 Сейчас идут технические работы / обновление. Попробуйте позже.", show_alert=True)
 			return
 		if check_rate_limit(uid):
 			await block_user(uid)

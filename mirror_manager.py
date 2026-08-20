@@ -127,6 +127,12 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         uid = message.chat.id
         if await db.is_blocked(uid):
             return
+        from main import maintenance_mode, admins
+        if maintenance_mode and uid not in admins:
+            await mirror_bot.send_message(uid,
+                "🔧 *Сейчас идут технические работы / обновление.*\n*Попробуйте позже.*",
+                parse_mode="Markdown")
+            return
         is_new = not await db.user_exists(uid)
         await db.add_user(uid)
         if not await db.is_verified(uid):
@@ -363,6 +369,13 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         """Перенаправляет все текстовые FSM состояния в обработчики main.py"""
         current_state = await state.get_state()
         if current_state is None:
+            return
+        from main import maintenance_mode, admins as main_admins
+        if maintenance_mode and message.from_user.id not in main_admins:
+            await mirror_bot.send_message(message.from_user.id,
+                "🔧 *Сейчас идут технические работы / обновление.*\n*Попробуйте позже.*",
+                parse_mode="Markdown")
+            await state.finish()
             return
 
         from main import (
