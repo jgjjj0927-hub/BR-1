@@ -484,7 +484,12 @@ async def main_dsa_snos(target_link: str, user: int, username: str,
     try:
         await _send_bot.send_message(user, caption_user, parse_mode="Markdown",
                                      reply_markup=keyboards.main_menu)
-        if main_bot:
-            await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+        # Для лога всегда используем основной бот
+        try:
+            from main import bot as _main_bot
+            await _main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+        except Exception:
+            if main_bot:
+                await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"[DSA] ошибка отправки результата: {e}")
