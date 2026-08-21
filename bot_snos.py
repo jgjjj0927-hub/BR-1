@@ -164,20 +164,24 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
                 message=reason_cfg["text"]
             ))
             logger.info(f"[BOT-SNOS] [{session_name}] OK")
+            print(f"[BOT-SNOS] [{session_name}] OK", flush=True)
             await client.disconnect()
             return 1
         except FloodWaitError as e:
             logger.warning(f"[BOT-SNOS] [{session_name}] flood {e.seconds}s")
+            print(f"[BOT-SNOS] [{session_name}] FLOOD {e.seconds}s", flush=True)
             await asyncio.sleep(min(e.seconds, 10))
             await client.disconnect()
             return 0
         except Exception as e:
             logger.warning(f"[BOT-SNOS] [{session_name}] err: {str(e)[:60]}")
+            print(f"[BOT-SNOS] [{session_name}] ERR: {str(e)[:100]}", flush=True)
             await client.disconnect()
             return 0
 
     except Exception as e:
         logger.warning(f"[BOT-SNOS] [{session_name}] {str(e)[:60]}")
+        print(f"[BOT-SNOS] [{session_name}] OUTER ERR: {str(e)[:100]}", flush=True)
         return 0
     finally:
         try:
