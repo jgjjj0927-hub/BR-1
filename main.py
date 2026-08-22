@@ -1966,6 +1966,19 @@ async def channel_step1(message: types.Message, state: FSMContext):
 			except Exception: pass
 		return
 
+	# Списываем бесплатный репорт если подписка истекла
+	if uid not in admins:
+		user_data_ch = await db.get_user(uid)
+		if user_data_ch:
+			subscribe_ch = datetime.strptime(str(user_data_ch['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
+			if subscribe_ch < now_msk():
+				used = await db.use_free_report(uid)
+				if not used:
+					await _bot.send_message(uid, '❌ *Нет подписки и бесплатных репортов!*', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+					return
+				free_left = await db.get_free_reports(uid)
+				await _bot.send_message(uid, f'🎯 *Использован бесплатный репорт! Осталось: {free_left}*', parse_mode=ParseMode.MARKDOWN)
+
 	last_used_channel[uid] = now_msk()
 	msg_info = f" (сообщение #{message_id})" if message_id else ""
 	await _bot.send_message(uid, f'📢 *Запустил жалобы на канал {ch_target}{msg_info}...*', parse_mode="Markdown")
