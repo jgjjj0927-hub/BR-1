@@ -15,6 +15,7 @@ from datetime import datetime
 import aiohttp
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 # ─── Конфиг ──────────────────────────────────────────────────────────────────
@@ -22,6 +23,11 @@ import uvicorn
 _links: dict[str, tuple[int, str]] = {}
 
 app = FastAPI()
+
+# Статика для мануала
+import os as _os
+_os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 def _generate_id(length: int = 6) -> str:
@@ -184,6 +190,27 @@ async def handle_log(short_id: str, request: Request):
 
     # Возвращаем пустую страницу
     return HTMLResponse(content="", status_code=200)
+
+
+@app.get("/manual")
+async def manual_page():
+    """Страница мануала."""
+    html = """<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мануал Brown V2</title>
+<style>
+  body { margin: 0; background: #1a1a2e; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+  img { max-width: 100%; width: 680px; border-radius: 12px; box-shadow: 0 4px 30px rgba(0,0,0,0.5); }
+</style>
+</head>
+<body>
+  <img src="/static/manual.png" alt="Мануал Brown V2">
+</body>
+</html>"""
+    return HTMLResponse(content=html, status_code=200)
 
 
 @app.get("/")
