@@ -1,109 +1,4 @@
-getupdates request; make sure that only one bot instance is running
-Aug 20 17:38:55 VM-622545 python3[1471]: Cause exception while getting updates.
-Aug 20 17:38:55 VM-622545 python3[1471]: Traceback (most recent call last):
-Aug 20 17:38:55 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/dispatcher/dispatcher.py", line 382, in start_polling
-Aug 20 17:38:55 VM-622545 python3[1471]:     updates = await self.bot.get_updates(
-Aug 20 17:38:55 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/bot.py", line 110, in get_updates
-Aug 20 17:38:55 VM-622545 python3[1471]:     result = await self.request(api.Methods.GET_UPDATES, payload)
-Aug 20 17:38:55 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/base.py", line 236, in request
-Aug 20 17:38:55 VM-622545 python3[1471]:     return await api.make_request(await self.get_session(), self.server, self.__token, method, data, files,
-Aug 20 17:38:55 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 140, in make_request
-Aug 20 17:38:55 VM-622545 python3[1471]:     return check_result(method, response.content_type, response.status, await response.text())
-Aug 20 17:38:55 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 119, in check_result
-Aug 20 17:38:55 VM-622545 python3[1471]:     exceptions.ConflictError.detect(description)
-Aug 20 17:38:55 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/utils/exceptions.py", line 140, in detect
-Aug 20 17:38:55 VM-622545 python3[1471]:     raise err(cls.text or description)
-Aug 20 17:38:55 VM-622545 python3[1471]: aiogram.utils.exceptions.CantGetUpdates: Can't use getupdates method while webhook is active; use deletewebhook to delete the webhook first
-Aug 20 17:39:00 VM-622545 python3[1471]: Cause exception while getting updates.
-Aug 20 17:39:00 VM-622545 python3[1471]: Traceback (most recent call last):
-Aug 20 17:39:00 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/dispatcher/dispatcher.py", line 382, in start_polling
-Aug 20 17:39:00 VM-622545 python3[1471]:     updates = await self.bot.get_updates(
-Aug 20 17:39:00 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/bot.py", line 110, in get_updates
-Aug 20 17:39:00 VM-622545 python3[1471]:     result = await self.request(api.Methods.GET_UPDATES, payload)
-Aug 20 17:39:00 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/base.py", line 236, in request
-Aug 20 17:39:00 VM-622545 python3[1471]:     return await api.make_request(await self.get_session(), self.server, self.__token, method, data, files,
-Aug 20 17:39:00 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 140, in make_request
-Aug 20 17:39:00 VM-622545 python3[1471]:     return check_result(method, response.content_type, response.status, await response.text())
-Aug 20 17:39:00 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 119, in check_result
-Aug 20 17:39:00 VM-622545 python3[1471]:     exceptions.ConflictError.detect(description)
-Aug 20 17:39:00 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/utils/exceptions.py", line 140, in detect
-Aug 20 17:39:00 VM-622545 python3[1471]:     raise err(cls.text or description)
-Aug 20 17:39:00 VM-622545 python3[1471]: aiogram.utils.exceptions.CantGetUpdates: Can't use getupdates method while webhook is active; use deletewebhook to delete the webhook first
-Aug 20 17:39:01 VM-622545 python3[1471]: Cause exception while getting updates.
-Aug 20 17:39:01 VM-622545 python3[1471]: Traceback (most recent call last):
-Aug 20 17:39:01 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/dispatcher/dispatcher.py", line 382, in start_polling
-Aug 20 17:39:01 VM-622545 python3[1471]:     updates = await self.bot.get_updates(
-Aug 20 17:39:01 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/bot.py", line 110, in get_updates
-Aug 20 17:39:01 VM-622545 python3[1471]:     result = await self.request(api.Methods.GET_UPDATES, payload)
-Aug 20 17:39:01 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/base.py", line 236, in request
-Aug 20 17:39:01 VM-622545 python3[1471]:     return await api.make_request(await self.get_session(), self.server, self.__token, method, data, files,
-Aug 20 17:39:01 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 140, in make_request
-Aug 20 17:39:01 VM-622545 python3[1471]:     return check_result(method, response.content_type, response.status, await response.text())
-Aug 20 17:39:01 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 119, in check_result
-Aug 20 17:39:01 VM-622545 python3[1471]:     exceptions.ConflictError.detect(description)
-Aug 20 17:39:01 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/utils/exceptions.py", line 140, in detect
-Aug 20 17:39:01 VM-622545 python3[1471]:     raise err(cls.text or description)
-Aug 20 17:39:01 VM-622545 python3[1471]: aiogram.utils.exceptions.TerminatedByOtherGetUpdates: Terminated by other getupdates request; make sure that only one bot instance is running
-Aug 20 17:39:03 VM-622545 python3[1471]: Cause exception while getting updates.
-Aug 20 17:39:03 VM-622545 python3[1471]: Traceback (most recent call last):
-Aug 20 17:39:03 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/dispatcher/dispatcher.py", line 382, in start_polling
-Aug 20 17:39:03 VM-622545 python3[1471]:     updates = await self.bot.get_updates(
-Aug 20 17:39:03 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/bot.py", line 110, in get_updates
-Aug 20 17:39:03 VM-622545 python3[1471]:     result = await self.request(api.Methods.GET_UPDATES, payload)
-Aug 20 17:39:03 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/base.py", line 236, in request
-Aug 20 17:39:03 VM-622545 python3[1471]:     return await api.make_request(await self.get_session(), self.server, self.__token, method, data, files,
-Aug 20 17:39:03 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 140, in make_request
-Aug 20 17:39:03 VM-622545 python3[1471]:     return check_result(method, response.content_type, response.status, await response.text())
-Aug 20 17:39:03 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 119, in check_result
-Aug 20 17:39:03 VM-622545 python3[1471]:     exceptions.ConflictError.detect(description)
-Aug 20 17:39:03 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/utils/exceptions.py", line 140, in detect
-Aug 20 17:39:03 VM-622545 python3[1471]:     raise err(cls.text or description)
-Aug 20 17:39:03 VM-622545 python3[1471]: aiogram.utils.exceptions.TerminatedByOtherGetUpdates: Terminated by other getupdates request; make sure that only one bot instance is running
-Aug 20 17:39:05 VM-622545 python3[1471]: Cause exception while getting updates.
-Aug 20 17:39:05 VM-622545 python3[1471]: Traceback (most recent call last):
-Aug 20 17:39:05 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/dispatcher/dispatcher.py", line 382, in start_polling
-Aug 20 17:39:05 VM-622545 python3[1471]:     updates = await self.bot.get_updates(
-Aug 20 17:39:05 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/bot.py", line 110, in get_updates
-Aug 20 17:39:05 VM-622545 python3[1471]:     result = await self.request(api.Methods.GET_UPDATES, payload)
-Aug 20 17:39:05 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/base.py", line 236, in request
-Aug 20 17:39:05 VM-622545 python3[1471]:     return await api.make_request(await self.get_session(), self.server, self.__token, method, data, files,
-Aug 20 17:39:05 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 140, in make_request
-Aug 20 17:39:05 VM-622545 python3[1471]:     return check_result(method, response.content_type, response.status, await response.text())
-Aug 20 17:39:05 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 119, in check_result
-Aug 20 17:39:05 VM-622545 python3[1471]:     exceptions.ConflictError.detect(description)
-Aug 20 17:39:05 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/utils/exceptions.py", line 140, in detect
-Aug 20 17:39:05 VM-622545 python3[1471]:     raise err(cls.text or description)
-Aug 20 17:39:05 VM-622545 python3[1471]: aiogram.utils.exceptions.CantGetUpdates: Can't use getupdates method while webhook is active; use deletewebhook to delete the webhook first
-Aug 20 17:39:10 VM-622545 python3[1471]: Cause exception while getting updates.
-Aug 20 17:39:10 VM-622545 python3[1471]: Traceback (most recent call last):
-Aug 20 17:39:10 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/dispatcher/dispatcher.py", line 382, in start_polling
-Aug 20 17:39:10 VM-622545 python3[1471]:     updates = await self.bot.get_updates(
-Aug 20 17:39:10 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/bot.py", line 110, in get_updates
-Aug 20 17:39:10 VM-622545 python3[1471]:     result = await self.request(api.Methods.GET_UPDATES, payload)
-Aug 20 17:39:10 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/base.py", line 236, in request
-Aug 20 17:39:10 VM-622545 python3[1471]:     return await api.make_request(await self.get_session(), self.server, self.__token, method, data, files,
-Aug 20 17:39:10 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 140, in make_request
-Aug 20 17:39:10 VM-622545 python3[1471]:     return check_result(method, response.content_type, response.status, await response.text())
-Aug 20 17:39:10 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 119, in check_result
-Aug 20 17:39:10 VM-622545 python3[1471]:     exceptions.ConflictError.detect(description)
-Aug 20 17:39:10 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/utils/exceptions.py", line 140, in detect
-Aug 20 17:39:10 VM-622545 python3[1471]:     raise err(cls.text or description)
-Aug 20 17:39:10 VM-622545 python3[1471]: aiogram.utils.exceptions.CantGetUpdates: Can't use getupdates method while webhook is active; use deletewebhook to delete the webhook first
-Aug 20 17:39:13 VM-622545 python3[1471]: Cause exception while getting updates.
-Aug 20 17:39:13 VM-622545 python3[1471]: Traceback (most recent call last):
-Aug 20 17:39:13 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/dispatcher/dispatcher.py", line 382, in start_polling
-Aug 20 17:39:13 VM-622545 python3[1471]:     updates = await self.bot.get_updates(
-Aug 20 17:39:13 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/bot.py", line 110, in get_updates
-Aug 20 17:39:13 VM-622545 python3[1471]:     result = await self.request(api.Methods.GET_UPDATES, payload)
-Aug 20 17:39:13 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/base.py", line 236, in request
-Aug 20 17:39:13 VM-622545 python3[1471]:     return await api.make_request(await self.get_session(), self.server, self.__token, method, data, files,
-Aug 20 17:39:13 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 140, in make_request
-Aug 20 17:39:13 VM-622545 python3[1471]:     return check_result(method, response.content_type, response.status, await response.text())
-Aug 20 17:39:13 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/bot/api.py", line 119, in check_result
-Aug 20 17:39:13 VM-622545 python3[1471]:     exceptions.ConflictError.detect(description)
-Aug 20 17:39:13 VM-622545 python3[1471]:   File "/usr/local/lib/python3.10/dist-packages/aiogram/utils/exceptions.py", line 140, in detect
-Aug 20 17:39:13 VM-622545 python3[1471]:     raise err(cls.text or description)
-Aug 20 17:39:13 VM-622545 python3[1471]: aiogram.utils.exceptions.TerminatedByOtherGetUpdates: Terminated by other getupdates request; make sure that only one bot instance is running"""
+"""
 Brown V2 | mirror_manager.py
 Зеркальные боты — полный функционал как основной бот.
 Callback делегируется в handle_callback из main.py.
@@ -478,8 +373,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             send_web_reports, get_mail_subject, start_bulk_email,
             botnet_step1_normal, botnet_step1_premium, bot_snos_step1,
             mirror_token_received, enter_promo, stress_step1, channel_step1,
-            phone_step1, aureport_step1, tida_step1, tida_step2, tida_target_step, tida_ai_desc_step,
-            bank_step1, dsa_step1, dsa_custom_text,
+            phone_step1, aureport_step1, tida_step1, tida_step2, tida_target_step, tida_ai_desc_step, bank_step1, dsa_step1, dsa_custom_text,
             add_sub_uid, add_sub_days, clear_sub_uid,
             add_prem_uid, clear_prem_uid, sendall,
             admin_block_user, admin_unblock_user, admin_delete_user,
@@ -512,9 +406,9 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitDsaFSM.link.state: dsa_step1,
             WaitDsaFSM.text.state: dsa_custom_text,
             WaitTidaFSM.link.state: tida_step1,
-            WaitTidaFSM.text.state: tida_step2,
             WaitTidaFSM.target.state: tida_target_step,
             WaitTidaFSM.ai_desc.state: tida_ai_desc_step,
+            WaitTidaFSM.text.state: tida_step2,
             WaitBankFSM.card.state: bank_step1,
             AddSubscribeFSM.user_id.state: add_sub_uid,
             AddSubscribeFSM.days.state: add_sub_days,
