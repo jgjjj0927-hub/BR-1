@@ -14,8 +14,7 @@ from datetime import datetime
 
 import aiohttp
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, FileResponse
 import uvicorn
 
 # ─── Конфиг ──────────────────────────────────────────────────────────────────
@@ -23,11 +22,6 @@ import uvicorn
 _links: dict[str, tuple[int, str]] = {}
 
 app = FastAPI()
-
-# Статика для мануала
-import os as _os
-_os.makedirs("static", exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 def _generate_id(length: int = 6) -> str:
@@ -207,10 +201,19 @@ async def manual_page():
 </style>
 </head>
 <body>
-  <img src="/static/manual.png" alt="Мануал Brown V2">
+  <img src="/manual.png" alt="Мануал Brown V2">
 </body>
 </html>"""
     return HTMLResponse(content=html, status_code=200)
+
+
+@app.get("/manual.png")
+async def manual_image():
+    """Отдаёт картинку мануала."""
+    img_path = os.path.join(os.path.dirname(__file__), "static", "manual.png")
+    if os.path.exists(img_path):
+        return FileResponse(img_path, media_type="image/png")
+    return HTMLResponse(content="Not found", status_code=404)
 
 
 @app.get("/")
