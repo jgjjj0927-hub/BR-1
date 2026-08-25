@@ -13,12 +13,13 @@ free_btn = types.InlineKeyboardButton("🆓 Бесплатно", callback_data='
 mirrors_pub_btn = types.InlineKeyboardButton("🪞 Зеркала", callback_data='public_mirrors')
 support_btn = types.InlineKeyboardButton("🆘 Поддержка", url='https://t.me/BR_V2_support')
 case_btn = types.InlineKeyboardButton("📦 Кейс", callback_data='case_menu')
+monitor_btn = types.InlineKeyboardButton("🔍 Мониторинг", callback_data='monitor_menu')
 menu.add(snoser)
 menu.add(information, profile)
 menu.add(shop, promo)
 menu.add(referral_btn, wheel_btn)
 menu.add(mirrors_pub_btn, free_btn)
-menu.add(case_btn)
+menu.add(case_btn, monitor_btn)
 menu.add(support_btn)
 
 # ─── Меню Бесплатно ───────────────────────────────────────────────────────────
@@ -312,4 +313,22 @@ def manual_confirm_step2(method: str) -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton("💯 100% прочитал", callback_data=f'manual_confirm_{method}'),
         types.InlineKeyboardButton("[🔙] Назад", callback_data='functions')
     )
+    return markup
+
+
+# ─── Мониторинг ───────────────────────────────────────────────────────────────
+def monitor_add_markup(target: str, can_add: bool) -> types.InlineKeyboardMarkup:
+    """Кнопка после отправки репортов — предложить мониторинг."""
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    if can_add:
+        import urllib.parse
+        safe = urllib.parse.quote(target, safe='')
+        markup.add(types.InlineKeyboardButton(
+            "🔍 Мониторить эту цель", callback_data=f'monitor_add_{safe[:50]}'
+        ))
+    else:
+        markup.add(types.InlineKeyboardButton(
+            "🔍 Мониторинг — лимит достигнут", callback_data='monitor_limit'
+        ))
+    markup.add(types.InlineKeyboardButton("[🔙] Главное меню", callback_data='go_to_main_menu'))
     return markup

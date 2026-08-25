@@ -27,6 +27,7 @@ from aureport_snos import main_aureport, set_bot_aureport
 from tida_snos import main_tida, set_bot_tida
 from bank_snos import process_bank_report, set_bot_bank
 from dsa_snos import main_dsa_snos, set_bot_dsa
+from monitor_snos import monitor_loop, set_monitor_bot
 import db
 
 channel_id = config.channel_id
@@ -82,6 +83,45 @@ last_used_tida = {}
 last_used_bank = {}
 last_used_dsa = {}
 _tida_pending: dict = {}  # uid -> {link, text, target, bot_token, username}
+
+async def _send_with_monitor_offer(bot_instance, uid: int, caption: str, target: str, premium: int, subscribe):
+    """Отправляет результат репортов с предложением мониторинга."""
+    from datetime import datetime
+    # Проверяем лимит
+    active_count = await db.get_user_active_monitors_count(uid)
+    limit = 5 if premium else 3
+    # Подписка активна?
+    sub_active = subscribe > now_msk() if isinstance(subscribe, datetime) else False
+    already = await db.is_target_already_monitored(uid, target)
+    was_before = await db.was_target_monitored_before(uid, target)
+
+    can_add = sub_active and not already and not was_before and active_count < limit
+
+    markup = keyboards.monitor_add_markup(target, can_add)
+    try:
+        await bot_instance.send_message(uid, caption, parse_mode="Markdown", reply_markup=markup)
+    except Exception:
+        await bot_instance.send_message(uid, caption, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+
+
+async def _offer_monitor(bot_instance, uid: int, target: str, premium: int, subscribe):
+    """Отправляет отдельное предложение мониторинга после результатов."""
+    try:
+        active_count = await db.get_user_active_monitors_count(uid)
+        limit = 5 if premium else 3
+        sub_active = subscribe > now_msk()
+        already = await db.is_target_already_monitored(uid, target)
+        was_before = await db.was_target_monitored_before(uid, target)
+        can_add = sub_active and not already and not was_before and active_count < limit
+        markup = keyboards.monitor_add_markup(target, can_add)
+        await bot_instance.send_message(
+            uid,
+            "🔍 *Хотите мониторить эту цель?*\n_Вы получите уведомление если цель будет снесена_",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+    except Exception:
+        pass
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
@@ -671,6 +711,14 @@ async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
 	try:
 		set_bot_dsa(_bot)
 		await main_dsa_snos(link, uid, username, reason_key, sub_key, text, count=1, _bot=_bot)
+		# Предлагаем мониторинг
+		try:
+			_ud = await db.get_user(uid)
+			_prem = int(_ud.get('premium', 0)) if _ud else 0
+			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
+			await _offer_monitor(_bot, uid, link, _prem, _sub)
+		except Exception:
+			pass
 	except Exception as e:
 		print(f"[DSA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка DSA:* `{str(e)[:100]}`',
@@ -854,6 +902,113 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
 			await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
 				caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*', parse_mode="MarkdownV2", reply_markup=menu)
+
+		# ─── Мониторинг ────────────────────────────────────────────────────────
+		elif d == 'monitor_menu':
+			if sub_expired():
+				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
+				return
+			monitors = await db.get_user_monitors(uid)
+			active = [m for m in monitors if m['active']]
+			limit = 5 if premium else 3
+			now_dt = now_msk()
+
+			lines = []
+			for m in monitors:
+				expires = m['expires_at']
+				if isinstance(expires, str):
+					from datetime import datetime as _dt
+					expires = _dt.strptime(expires[:19], "%Y-%m-%d %H:%M:%S")
+				is_expired = now_dt > expires
+				if m['active']:
+					status_icon = "🟢" if m['status'] == 'alive' else "🔴"
+					time_left = expires - now_dt
+					h = int(time_left.total_seconds() // 3600)
+					mins = int((time_left.total_seconds() % 3600) // 60)
+					lines.append(f"{status_icon} `{m['target'][:40]}` — {h}ч {mins}м осталось")
+				else:
+					status_icon = "🔴" if m['status'] == 'dead' else "⚫"
+					lines.append(f"{status_icon} `{m['target'][:40]}` — завершён")
+
+			text = (
+				f"🔍 *Мониторинг BR V2*\n\n"
+				f"*Активных:* {len(active)}/{limit}\n\n"
+			)
+			if lines:
+				text += "\n".join(lines[-10:])  # последние 10
+			else:
+				text += "_Нет активных мониторов_\n\nДобавьте цель после отправки репортов"
+
+			markup = types.InlineKeyboardMarkup(row_width=1)
+			markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=text, parse_mode="Markdown", reply_markup=markup
+			)
+
+		elif d == 'monitor_limit':
+			await bot_instance.answer_callback_query(
+				call.id,
+				f"❌ Лимит мониторов достигнут!\n({'5' if premium else '3'} максимум с {'премиумом' if premium else 'подпиской'})",
+				show_alert=True
+			)
+
+		elif d.startswith('monitor_add_'):
+			if sub_expired():
+				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
+				return
+			import urllib.parse
+			raw_target = d[len('monitor_add_'):]
+			target = urllib.parse.unquote(raw_target)
+
+			limit = 5 if premium else 3
+			active_count = await db.get_user_active_monitors_count(uid)
+
+			if active_count >= limit:
+				await bot_instance.answer_callback_query(
+					call.id, f"❌ Лимит {limit} мониторов достигнут!", show_alert=True
+				)
+				return
+
+			if await db.is_target_already_monitored(uid, target):
+				await bot_instance.answer_callback_query(
+					call.id, "❌ Эта цель уже мониторится!", show_alert=True
+				)
+				return
+
+			if await db.was_target_monitored_before(uid, target):
+				await bot_instance.answer_callback_query(
+					call.id, "❌ Эту цель уже мониторили — повторный мониторинг запрещён!", show_alert=True
+				)
+				return
+
+			# Срок: 12ч обычным, 24ч премиум
+			hours = 24 if premium else 12
+			expires_at = now_msk() + timedelta(hours=hours)
+
+			monitor_id = await db.add_monitor(uid, target, expires_at)
+			await bot_instance.answer_callback_query(call.id, "✅ Мониторинг запущен!", show_alert=False)
+
+			markup = types.InlineKeyboardMarkup(row_width=1)
+			markup.add(types.InlineKeyboardButton("🔍 Мои мониторы", callback_data='monitor_menu'))
+			markup.add(types.InlineKeyboardButton("[🔙] Главное меню", callback_data='go_to_main_menu'))
+
+			await bot_instance.send_message(
+				uid,
+				f"🔍 *Мониторинг запущен!*\n\n"
+				f"🎯 *Цель:* `{target}`\n"
+				f"⏱ *Срок:* {hours} часов\n"
+				f"🟢 *Статус:* Живой\n\n"
+				f"_Вы получите уведомление если цель будет снесена_",
+				parse_mode="Markdown",
+				reply_markup=markup
+			)
+			await bot.send_message(
+				bot_logs,
+				f"🔍 *Новый монитор* `{uid}` (@{username})\n"
+				f"*Цель:* `{target}` на {hours}ч",
+				parse_mode="Markdown"
+			)
 		elif d == 'add_subsribe' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AddSubscribeFSM.user_id.state)
@@ -1659,6 +1814,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			try:
 				set_bot_tida(_bot)
 				await main_tida(tida_link, tida_text, uid, tida_username)
+				# Предлагаем мониторинг
+				await _offer_monitor(_bot, uid, tida_link, premium, subscribe)
 			except Exception as e:
 				print(f"[TIDA-AI] ОШИБКА: {e}", flush=True)
 				await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -1996,6 +2153,14 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 		await botnet_main(chat_username, message_id, uid, username, url)
 		# КД только после успешного запуска
 		last_used_botnet[uid] = now_msk()
+		# Предлагаем мониторинг
+		try:
+			_ud = await db.get_user(uid)
+			_prem = int(_ud.get('premium', 0)) if _ud else 0
+			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
+			await _offer_monitor(_bot, uid, url, _prem, _sub)
+		except Exception:
+			pass
 	except ValueError:
 		await _bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
@@ -2027,6 +2192,14 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		await botnet_main2(chat_username, message_id, uid, username, url)
 		# КД только после успешного запуска
 		last_used_botnet2[uid] = now_msk()
+		# Предлагаем мониторинг
+		try:
+			_ud = await db.get_user(uid)
+			_prem = int(_ud.get('premium', 0)) if _ud else 0
+			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
+			await _offer_monitor(_bot, uid, url, _prem, _sub)
+		except Exception:
+			pass
 	except ValueError:
 		await _bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
@@ -2167,6 +2340,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_snos(_bot)
 		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
+		await _offer_monitor(_bot, uid, bot_target, premium, subscribe)
 	except Exception as e:
 		import traceback
 		print(f"[BOT-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
@@ -2244,6 +2418,14 @@ async def channel_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_channel(_bot)
 		await main_channel_snos(ch_target, reason_key, uid, username, message_id=message_id)
+		# Предлагаем мониторинг
+		try:
+			_ud = await db.get_user(uid)
+			_prem = int(_ud.get('premium', 0)) if _ud else 0
+			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
+			await _offer_monitor(_bot, uid, raw, _prem, _sub)
+		except Exception:
+			pass
 	except Exception as e:
 		print(f"[CH-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка канал-метода:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -2335,6 +2517,7 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_aureport(_bot)
 		await main_aureport(raw, uid, username)
+		await _offer_monitor(_bot, uid, raw, premium, subscribe)
 	except Exception as e:
 		print(f"[AUREPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка AU Report:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -3054,6 +3237,7 @@ async def on_startup(dp):
 		print(f"DATABASE_URL = {os.environ.get('DATABASE_URL', 'НЕ УСТАНОВЛЕНА')[:50]}")
 		await db.init_db()
 		await db.init_cases_table()
+		await db.init_monitors_table()
 		print("БД инициализирована успешно.")
 	except Exception as e:
 		print(f"ОШИБКА БД при старте: {e}")
@@ -3066,6 +3250,8 @@ async def on_startup(dp):
 	set_bot_aureport(bot)
 	set_bot_tida(bot)
 	set_bot_bank(bot)
+	set_monitor_bot(bot, bot_logs)
+	asyncio.ensure_future(monitor_loop())
 	await start_all_mirrors()
 	print("Бот запущен.")
 

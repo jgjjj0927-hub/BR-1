@@ -802,3 +802,130 @@ async def is_case_invoice_used(invoice_id: str) -> bool:
             "SELECT 1 FROM cases WHERE invoice_id = $1", invoice_id
         )
         return row is not None
+
+
+# ─── Мониторинг ───────────────────────────────────────────────────────────────
+
+async def init_monitors_table():
+    """Создаёт таблицу мониторов."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS monitors (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                target TEXT NOT NULL,
+                status TEXT DEFAULT 'alive',
+                active BOOLEAN DEFAULT TRUE,
+                notified BOOLEAN DEFAULT FALSE,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                last_check TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+
+async def add_monitor(user_id: int, target: str, expires_at: datetime) -> int:
+    """Добавляет монитор. Возвращает id."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO monitors (user_id, target, expires_at)
+               VALUES ($1, $2, $3) RETURNING id""",
+            user_id, target, expires_at
+        )
+        return row["id"]
+
+
+async def get_active_monitors() -> list[dict]:
+    """Возвращает все активные мониторы."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM monitors WHERE active = TRUE ORDER BY created_at"
+        )
+        return [dict(r) for r in rows]
+
+
+async def get_user_monitors(user_id: int) -> list[dict]:
+    """Возвращает все мониторы пользователя (включая неактивные)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM monitors WHERE user_id = $1 ORDER BY created_at DESC",
+            user_id
+        )
+        return [dict(r) for r in rows]
+
+
+async def get_user_active_monitors_count(user_id: int) -> int:
+    """Количество активных мониторов пользователя."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM monitors WHERE user_id = $1 AND active = TRUE",
+            user_id
+        ) or 0
+
+
+async def is_target_already_monitored(user_id: int, target: str) -> bool:
+    """Проверяет — мониторит ли пользователь уже эту цель."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT 1 FROM monitors WHERE user_id = $1 AND target = $2 AND active = TRUE",
+            user_id, target
+        )
+        return row is not None
+
+
+async def was_target_monitored_before(user_id: int, target: str) -> bool:
+    """Проверяет — мониторил ли пользователь эту цель раньше (нельзя дважды)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT 1 FROM monitors WHERE user_id = $1 AND target = $2",
+            user_id, target
+        )
+        return row is not None
+
+
+async def update_monitor_check(monitor_id: int, new_status: str):
+    """Обновляет статус и время последней проверки."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE monitors SET status = $1, last_check = NOW() WHERE id = $2",
+            new_status, monitor_id
+        )
+
+
+async def mark_monitor_notified(monitor_id: int):
+    """Помечает монитор как уведомлённый."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE monitors SET notified = TRUE WHERE id = $1",
+            monitor_id
+        )
+
+
+async def deactivate_monitor(monitor_id: int):
+    """Деактивирует монитор."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE monitors SET active = FALSE WHERE id = $1",
+            monitor_id
+        )
+
+
+async def delete_monitor(monitor_id: int, user_id: int) -> bool:
+    """Удаляет монитор пользователя. Возвращает True если удалён."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM monitors WHERE id = $1 AND user_id = $2 RETURNING id",
+            monitor_id, user_id
+        )
+        return row is not None
