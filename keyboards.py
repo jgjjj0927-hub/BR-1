@@ -61,6 +61,7 @@ functions.add(logger_method_btn)
 tida_target_markup = types.InlineKeyboardMarkup(row_width=1)
 tida_target_markup.add(
     types.InlineKeyboardButton("👤 Аккаунт", callback_data='tida_target_account'),
+    types.InlineKeyboardButton("🤖 Бот", callback_data='tida_target_bot'),
     types.InlineKeyboardButton("💬 Чат", callback_data='tida_target_chat'),
     types.InlineKeyboardButton("📢 Канал", callback_data='tida_target_channel'),
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),

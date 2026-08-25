@@ -25,6 +25,7 @@ GROQ_KEY = os.environ.get("GROQ_KEY", config.GROQ_KEY)
 
 TARGET_LABELS = {
     "account": "user account",
+    "bot": "bot",
     "chat": "group chat",
     "channel": "channel",
 }
@@ -49,7 +50,7 @@ Rules:
 async def generate_tida_text(content: str, target_type: str, is_description: bool = False) -> str:
     """Генерирует текст жалобы через Groq для TIDA."""
     target_label = TARGET_LABELS.get(target_type, "resource")
-    action = "suspension" if target_type == "account" else "removal"
+    action = "suspension" if target_type in ("account", "bot") else "removal"
 
     system = TIDA_SYSTEM_PROMPT.replace("{action}", action).replace("{target}", target_label)
 

@@ -1446,22 +1446,23 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token, tida_mode='ask')
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
 					"🟣 *TIDA*\n\n"
-					"*└─ Введите @username или ссылку на цель:*\n\n"
-					"`@username` или `https://t.me/username/123`"
+					"ℹ️ *ИИ-анализ:* доступен только для публичных каналов/чатов по прямой ссылке на сообщение `https://t.me/channel/123`\n\n"
+					"*└─ Выберите способ создания текста жалобы:*"
 				),
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown",
+				reply_markup=keyboards.tida_text_method_markup("ask")
 			)
 
 		elif d.startswith("tida_target_"):
 			await call.answer()
 			target_type = d.replace("tida_target_", "")
 			await dp_instance.current_state(user=uid).update_data(tida_target=target_type)
-			target_names = {"account": "👤 Аккаунт", "chat": "💬 Чат", "channel": "📢 Канал"}
+			target_names = {"account": "👤 Аккаунт", "bot": "🤖 Бот", "chat": "💬 Чат", "channel": "📢 Канал"}
 			target_label = target_names.get(target_type, target_type)
 			fsm_data = await dp_instance.current_state(user=uid).get_data()
 			tida_mode = fsm_data.get('tida_mode', 'ai_link')
