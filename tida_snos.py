@@ -8,7 +8,9 @@ TIDA метод — жалобы через @TIDABOT.
 import asyncio
 import logging
 import os
+import random
 import socks
+import aiohttp
 from telethon import TelegramClient, events
 from telethon.tl.types import KeyboardButtonCallback
 import config
@@ -18,6 +20,108 @@ import keyboards
 from utils import now_msk
 
 logger = logging.getLogger(__name__)
+
+GROQ_KEY = os.environ.get("GROQ_KEY", config.GROQ_KEY)
+
+TARGET_LABELS = {
+    "account": "user account",
+    "chat": "group chat",
+    "channel": "channel",
+}
+
+TIDA_SYSTEM_PROMPT = """You are a TIDA report text generator for Telegram's @TIDABOT reporting system.
+Generate a formal complaint text in English (max 300 characters).
+Rules:
+- Professional and legal tone
+- Analyze the violation type and apply relevant laws:
+  * Personal data / doxxing → GDPR (Regulation (EU) 2016/679)
+  * CSAM / child content → Directive 2011/93/EU
+  * Non-consensual intimate images → Directive 2012/29/EU
+  * Illegal goods / drugs → Directive 2004/757/JHA
+  * Violence / terrorism → Directive 2017/541/EU
+  * Other violations → Telegram ToS (telegram.org/tos)
+- The final sentence MUST say "Requesting permanent {action} of this {target}." where {target} is provided
+- Do NOT mention URLs or usernames
+- Use ONLY facts from the provided content or description
+- Output ONLY the complaint text, nothing else"""
+
+
+async def generate_tida_text(content: str, target_type: str, is_description: bool = False) -> str:
+    """Генерирует текст жалобы через Groq для TIDA."""
+    target_label = TARGET_LABELS.get(target_type, "resource")
+    action = "suspension" if target_type == "account" else "removal"
+
+    system = TIDA_SYSTEM_PROMPT.replace("{action}", action).replace("{target}", target_label)
+
+    if is_description:
+        user_content = f"Violation description provided by user: {content[:500]}\nTarget: {target_label}"
+    else:
+        user_content = f"Message content from Telegram: {content[:500]}\nTarget: {target_label}"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "qwen/qwen3.6-27b",
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user_content}
+                    ],
+                    "max_tokens": 80,
+                    "temperature": 0.7,
+                    "reasoning_effort": "none",
+                },
+                timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
+                data = await resp.json(content_type=None)
+                if "choices" not in data:
+                    logger.error(f"[TIDA-AI] Groq error: {data}")
+                    return ""
+                text = data["choices"][0]["message"]["content"].strip()
+                import re
+                text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+                return text[:300]
+    except Exception as e:
+        logger.error(f"[TIDA-AI] Groq error: {e}")
+        return ""
+
+
+async def fetch_tida_message_text(link: str) -> str:
+    """Получает текст сообщения по публичной ссылке."""
+    try:
+        clean = link.replace("https://t.me/", "").replace("http://t.me/", "").replace("t.me/", "")
+        parts = clean.rstrip("/").split("/")
+        if len(parts) < 2:
+            return ""
+        username = parts[0]
+        msg_id = int(parts[-1])
+
+        session_folder = "sessions"
+        import os as _os
+        sessions = [f.replace(".session", "") for f in _os.listdir(session_folder)
+                    if f.endswith(".session")] if _os.path.exists(session_folder) else []
+        if not sessions:
+            return ""
+
+        session_path = _os.path.join(session_folder, random.choice(sessions))
+        client = TelegramClient(session_path, int(config.TIDA_API_ID), config.TIDA_API_HASH,
+                                system_version="4.16.30-vxCUSTOM")
+        await asyncio.wait_for(client.connect(), timeout=10)
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            return ""
+        msg = await client.get_messages(username, ids=msg_id)
+        text = ""
+        if msg:
+            text = msg.text or msg.caption or ""
+        await client.disconnect()
+        logger.info(f"[TIDA-AI] получен текст: {text[:80]}")
+        return text[:500]
+    except Exception as e:
+        logger.warning(f"[TIDA-AI] fetch error: {e}")
+        return ""
 
 TIDA_DIR = "tida_sessions"
 os.makedirs(TIDA_DIR, exist_ok=True)

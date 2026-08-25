@@ -57,6 +57,36 @@ functions.add(dsa_method_btn)
 logger_method_btn = types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method')
 functions.add(logger_method_btn)
 
+# ─── TIDA тип цели ────────────────────────────────────────────────────────────
+tida_target_markup = types.InlineKeyboardMarkup(row_width=1)
+tida_target_markup.add(
+    types.InlineKeyboardButton("👤 Аккаунт", callback_data='tida_target_account'),
+    types.InlineKeyboardButton("💬 Чат", callback_data='tida_target_chat'),
+    types.InlineKeyboardButton("📢 Канал", callback_data='tida_target_channel'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+)
+
+# ─── TIDA метод генерации текста ──────────────────────────────────────────────
+def tida_text_method_markup(target_type: str) -> types.InlineKeyboardMarkup:
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("🤖 ИИ-анализ по ссылке", callback_data=f'tida_ai_link_{target_type}'),
+        types.InlineKeyboardButton("📝 Описать нарушение", callback_data=f'tida_ai_desc_{target_type}'),
+        types.InlineKeyboardButton("✏️ Написать свой текст", callback_data=f'tida_manual_{target_type}'),
+        types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+    )
+    return markup
+
+# ─── TIDA подтверждение текста ────────────────────────────────────────────────
+def tida_text_confirm_markup() -> types.InlineKeyboardMarkup:
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("✅ Использовать этот текст", callback_data='tida_text_confirm'),
+        types.InlineKeyboardButton("✏️ Изменить текст", callback_data='tida_text_change'),
+        types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+    )
+    return markup
+
 # ─── DSA причины ──────────────────────────────────────────────────────────────
 dsa_reason_markup = types.InlineKeyboardMarkup(row_width=1)
 dsa_reason_markup.add(
@@ -153,7 +183,7 @@ yoomoney = types.InlineKeyboardButton("🇷🇺 ЮMoney (Юмани)", callback_
 pay_method.add(yoomoney, back)
 
 info_markup = types.InlineKeyboardMarkup(row_width=1)
-manual = types.InlineKeyboardButton("� Мануал", url='https://teletype.in/@brownv2/manual')
+manual = types.InlineKeyboardButton("📖 Мануал", url='https://br-v2.online/manual')
 info_markup.add(manual, back)
 
 del_message = types.InlineKeyboardMarkup(row_width=1)
@@ -242,7 +272,7 @@ def manual_confirm_step1(method: str) -> types.InlineKeyboardMarkup:
     """Первый шаг: ознакомлен"""
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("📄 Читать мануал", url='https://teletype.in/@brownv2/manual'),
+        types.InlineKeyboardButton("📄 Читать мануал", url='https://br-v2.online/manual'),
         types.InlineKeyboardButton("✅ Ознакомлен", callback_data=f'manual_step2_{method}'),
         types.InlineKeyboardButton("[🔙] Назад", callback_data='back')
     )
