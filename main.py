@@ -905,7 +905,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		# ─── Мониторинг ────────────────────────────────────────────────────────
 		elif d == 'monitor_menu':
-			if sub_expired():
+			if subscribe < now_msk():
 				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
 				return
 			monitors = await db.get_user_monitors(uid)
@@ -917,14 +917,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			for m in monitors:
 				expires = m['expires_at']
 				if isinstance(expires, str):
-					from datetime import datetime as _dt
-					expires = _dt.strptime(expires[:19], "%Y-%m-%d %H:%M:%S")
-				is_expired = now_dt > expires
+					expires = datetime.strptime(expires[:19], "%Y-%m-%d %H:%M:%S")
 				if m['active']:
 					status_icon = "🟢" if m['status'] == 'alive' else "🔴"
 					time_left = expires - now_dt
-					h = int(time_left.total_seconds() // 3600)
-					mins = int((time_left.total_seconds() % 3600) // 60)
+					h = max(0, int(time_left.total_seconds() // 3600))
+					mins = max(0, int((time_left.total_seconds() % 3600) // 60))
 					lines.append(f"{status_icon} `{m['target'][:40]}` — {h}ч {mins}м осталось")
 				else:
 					status_icon = "🔴" if m['status'] == 'dead' else "⚫"
@@ -935,7 +933,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				f"*Активных:* {len(active)}/{limit}\n\n"
 			)
 			if lines:
-				text += "\n".join(lines[-10:])  # последние 10
+				text += "\n".join(lines[-10:])
 			else:
 				text += "_Нет активных мониторов_\n\nДобавьте цель после отправки репортов"
 
@@ -949,12 +947,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'monitor_limit':
 			await bot_instance.answer_callback_query(
 				call.id,
-				f"❌ Лимит мониторов достигнут!\n({'5' if premium else '3'} максимум с {'премиумом' if premium else 'подпиской'})",
+				f"❌ Лимит мониторов достигнут! ({'5' if premium else '3'} максимум)",
 				show_alert=True
 			)
 
 		elif d.startswith('monitor_add_'):
-			if sub_expired():
+			if subscribe < now_msk():
 				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
 				return
 			import urllib.parse
@@ -986,7 +984,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			hours = 24 if premium else 12
 			expires_at = now_msk() + timedelta(hours=hours)
 
-			monitor_id = await db.add_monitor(uid, target, expires_at)
+			await db.add_monitor(uid, target, expires_at)
 			await bot_instance.answer_callback_query(call.id, "✅ Мониторинг запущен!", show_alert=False)
 
 			markup = types.InlineKeyboardMarkup(row_width=1)
