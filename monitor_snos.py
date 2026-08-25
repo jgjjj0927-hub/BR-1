@@ -31,6 +31,9 @@ _session_load: dict[str, list[int]] = {}
 
 MONITOR_INTERVAL = 10 * 60  # 10 минут
 
+# Максимум 5 параллельных проверок чтобы не перегружать сессии
+_check_semaphore = asyncio.Semaphore(5)
+
 _bot = None
 _bot_logs = None
 
@@ -41,12 +44,11 @@ def set_monitor_bot(b, logs_chat: int):
 
 
 def _get_all_sessions() -> list[str]:
-    """Собирает все .session файлы из трёх папок."""
-    folders = ["sessions", "tida_sessions", "au_sessions"]
+    """Собирает .session файлы ТОЛЬКО из папки sessions/ (основной ботнет).
+    TIDA и AU сессии не используем — они могут быть заняты другими методами."""
     result = []
-    for folder in folders:
-        if not os.path.exists(folder):
-            continue
+    folder = "sessions"
+    if os.path.exists(folder):
         for f in os.listdir(folder):
             if f.endswith(".session"):
                 result.append(os.path.join(folder, f.replace(".session", "")))
@@ -54,17 +56,21 @@ def _get_all_sessions() -> list[str]:
 
 
 async def _is_session_valid(session_path: str) -> bool:
-    """Быстро проверяет что сессия авторизована."""
+    """Быстро проверяет что сессия авторизована. Таймаут 5с."""
     try:
         client = TelegramClient(
             session_path, int(config.TIDA_API_ID), config.TIDA_API_HASH,
             system_version="4.16.30-vxCUSTOM"
         )
-        await asyncio.wait_for(client.connect(), timeout=8)
-        ok = await client.is_user_authorized()
+        await asyncio.wait_for(client.connect(), timeout=5)
+        ok = await asyncio.wait_for(client.is_user_authorized(), timeout=3)
         await client.disconnect()
         return ok
     except Exception:
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
         return False
 
 
@@ -276,15 +282,17 @@ async def monitor_loop():
     """Основной цикл — запускается при старте бота."""
     import db
     logger.info("[MONITOR] 🚀 Цикл мониторинга запущен")
+    # Ждём 60 секунд после старта — даём боту и зеркалам полностью подняться
+    await asyncio.sleep(60)
 
     while True:
         try:
-            await asyncio.sleep(MONITOR_INTERVAL)
             await _run_checks()
         except asyncio.CancelledError:
             break
         except Exception as e:
             logger.error(f"[MONITOR] Ошибка цикла: {e}")
+        await asyncio.sleep(MONITOR_INTERVAL)
 
 
 async def _run_checks():
@@ -317,39 +325,36 @@ async def _run_checks():
 
 async def _check_one(monitor: dict):
     """Проверяет одну цель и уведомляет при изменении статуса."""
-    import db
+    async with _check_semaphore:
+        import db
 
-    monitor_id = monitor["id"]
-    target = monitor["target"]
-    user_id = monitor["user_id"]
-    prev_status = monitor["status"]  # "alive" | "dead"
+        monitor_id = monitor["id"]
+        target = monitor["target"]
+        user_id = monitor["user_id"]
+        prev_status = monitor["status"]
 
-    # Выбираем сессию
-    session_path = await _pick_session(monitor_id)
-    if not session_path:
-        logger.warning(f"[MONITOR] Нет доступных сессий для {target}")
-        return
+        session_path = await _pick_session(monitor_id)
+        if not session_path:
+            logger.warning(f"[MONITOR] Нет доступных сессий для {target}")
+            return
 
-    try:
-        result = await check_target(target, session_path)
-    finally:
-        _release_session(session_path, monitor_id)
+        try:
+            result = await check_target(target, session_path)
+        finally:
+            _release_session(session_path, monitor_id)
 
-    if result["status"] == "error":
-        return  # Не меняем статус при ошибке соединения
+        if result["status"] == "error":
+            return
 
-    new_alive = result["alive"]
-    new_status = "alive" if new_alive else "dead"
+        new_alive = result["alive"]
+        new_status = "alive" if new_alive else "dead"
 
-    # Обновляем last_check
-    await db.update_monitor_check(monitor_id, new_status)
+        await db.update_monitor_check(monitor_id, new_status)
 
-    # Уведомляем только если статус изменился с alive → dead (и ещё не уведомляли)
-    if prev_status == "alive" and new_status == "dead" and not monitor.get("notified"):
-        await db.mark_monitor_notified(monitor_id)
-        await _notify_user(user_id, target, result["reason"], result["status"])
-        # Деактивируем после уведомления
-        await db.deactivate_monitor(monitor_id)
+        if prev_status == "alive" and new_status == "dead" and not monitor.get("notified"):
+            await db.mark_monitor_notified(monitor_id)
+            await _notify_user(user_id, target, result["reason"], result["status"])
+            await db.deactivate_monitor(monitor_id)
 
 
 async def _notify_user(user_id: int, target: str, reason: str, status: str):

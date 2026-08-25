@@ -345,7 +345,7 @@ maintenance_mode = _get_maintenance()
 @dp.message_handler(commands=['on'])
 async def on(message: types.Message):
 	global bot_status
-	if message.chat.id in config.ADMINS:
+	if message.from_user.id in config.ADMINS:
 		bot_status = 1
 		await bot.send_message(message.chat.id, "🟢 *Включен!*", parse_mode=ParseMode.MARKDOWN)
 		await bot.send_message(bot_logs, "🟢 *Включен!*", parse_mode=ParseMode.MARKDOWN)
@@ -353,7 +353,7 @@ async def on(message: types.Message):
 @dp.message_handler(commands=['off'])
 async def off(message: types.Message):
 	global bot_status
-	if message.chat.id in config.ADMINS:
+	if message.from_user.id in config.ADMINS:
 		bot_status = 0
 		await bot.send_message(message.chat.id, "🔴 *Выключен!*", parse_mode=ParseMode.MARKDOWN)
 		await bot.send_message(bot_logs, "🔴 *Выключен!*", parse_mode=ParseMode.MARKDOWN)
@@ -367,7 +367,7 @@ async def status(message: types.Message):
 
 @dp.message_handler(commands=['admin'])
 async def admin(message):
-	if message.chat.id in admins:
+	if message.from_user.id in admins:
 		users_count = await db.get_users_count()
 		sessions_count = len(os.listdir(session_folder)) if os.path.exists(session_folder) else 0
 		sessions_count_prem = len(os.listdir(session_folder_prem)) if os.path.exists(session_folder_prem) else 0
