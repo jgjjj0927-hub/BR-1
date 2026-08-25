@@ -368,35 +368,38 @@ async def status(message: types.Message):
 @dp.message_handler(commands=['admin'])
 async def admin(message):
 	if message.from_user.id in admins:
-		users_count = await db.get_users_count()
-		sessions_count = len(os.listdir(session_folder)) if os.path.exists(session_folder) else 0
-		sessions_count_prem = len(os.listdir(session_folder_prem)) if os.path.exists(session_folder_prem) else 0
-		subscribers_count = await db.get_subscribers_count()
-		mirrors_count = await db.get_mirrors_count()
-		reports_users_count = await db.get_users_with_reports_count()
 		try:
-			with open("mails.txt", "r", encoding="utf-8") as f:
-				mails_count = len([l for l in f if l.strip()])
-		except FileNotFoundError:
-			mails_count = 0
-		text = (
-			">🤖 *Админ меню:*\n\n📊 *Статистика:*\n"
-			f"*├─👥 Всего пользователей:* `{users_count}`\n"
-			f"*├─💳 С подпиской:* `{subscribers_count}`\n"
-			f"*├─🎯 С репортами:* `{reports_users_count}`\n"
-			f"*├─🪞 Зеркал:* `{mirrors_count}`\n"
-			f"*├─🕒 Сессий в ботнете:* `{sessions_count}`\n"
-			f"*├─👑 Сессий в премиум ботнете:* `{sessions_count_prem}`\n"
-			f"*├─🌐 Web\-Reports:* `{report_count333}`\n"
-			f"*└─✉️ Почт добавлено:* `{mails_count}`\n\n"
-			"*/promo PROMOCODE DAYS ACTIVATIONS \- создать промокод*\n"
-			"*/on \- включить бота*\n*/off \- выключить бота*\n"
-			"*/addwl ID \- добавить в вайтлист*\n"
-			"*/addtargetwl @username \- добавить цель в WL*\n"
-			"*/rmtargetwl @username \- убрать цель из WL*\n"
-			"*/listtargetwl \- список целей WL*"
-		)
-		await bot.send_message(message.chat.id, text, reply_markup=keyboards.admin_markup, parse_mode="MarkdownV2")
+			users_count = await db.get_users_count()
+			sessions_count = len(os.listdir(session_folder)) if os.path.exists(session_folder) else 0
+			sessions_count_prem = len(os.listdir(session_folder_prem)) if os.path.exists(session_folder_prem) else 0
+			subscribers_count = await db.get_subscribers_count()
+			mirrors_count = await db.get_mirrors_count()
+			reports_users_count = await db.get_users_with_reports_count()
+			try:
+				with open("mails.txt", "r", encoding="utf-8") as f:
+					mails_count = len([l for l in f if l.strip()])
+			except FileNotFoundError:
+				mails_count = 0
+			text = (
+				"🤖 *Админ меню:*\n\n📊 *Статистика:*\n"
+				f"*├─👥 Всего пользователей:* `{users_count}`\n"
+				f"*├─💳 С подпиской:* `{subscribers_count}`\n"
+				f"*├─🎯 С репортами:* `{reports_users_count}`\n"
+				f"*├─🪞 Зеркал:* `{mirrors_count}`\n"
+				f"*├─🕒 Сессий в ботнете:* `{sessions_count}`\n"
+				f"*├─👑 Сессий в премиум ботнете:* `{sessions_count_prem}`\n"
+				f"*├─🌐 Web-Reports:* `{report_count333}`\n"
+				f"*└─✉️ Почт добавлено:* `{mails_count}`\n\n"
+				"*/promo PROMOCODE DAYS ACTIVATIONS* - создать промокод\n"
+				"*/on* - включить бота | */off* - выключить бота\n"
+				"*/addwl ID* - добавить в вайтлист\n"
+				"*/addtargetwl @username* - добавить цель в WL\n"
+				"*/rmtargetwl @username* - убрать цель из WL\n"
+				"*/listtargetwl* - список целей WL"
+			)
+			await bot.send_message(message.chat.id, text, reply_markup=keyboards.admin_markup, parse_mode="Markdown")
+		except Exception as e:
+			await bot.send_message(message.chat.id, f"❌ Ошибка: `{str(e)[:200]}`", parse_mode="Markdown")
 
 @dp.message_handler(commands=['addwl'])
 async def addwl(message: types.Message):
