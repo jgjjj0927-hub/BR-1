@@ -1266,7 +1266,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
-					"🎁 *Кейс BR V2*\n\n"
+					"📦 *Кейс BR V2*\n\n"
 					"*Внутри кейса:*\n"
 					"🎯 5 бесплатных репортов\n"
 					"⚡ Подписка на 1 день\n"
@@ -1280,19 +1280,31 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 
 		elif d == 'case_buy':
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"📦 *Покупка кейса — 2$ / 200₽*\n\n"
+					"*Выберите способ оплаты:*\n\n"
+					"💲 *USDT* — через CryptoPay\n"
+					"🇷🇺 *Рубли* — напишите админу, он выдаст кейс вручную"
+				),
+				parse_mode="Markdown", reply_markup=keyboards.case_buy_markup
+			)
+
+		elif d == 'case_buy_usdt':
 			invoice = await asyncio.to_thread(crypto.create_invoice, asset='USDT', amount=2)
 			pay_url = invoice['pay_url']
 			invoice_id = invoice['invoice_id']
 			pay_check = types.InlineKeyboardMarkup(row_width=1)
 			pay_check.add(
-				types.InlineKeyboardButton("💸 Оплатить 2$", url=pay_url),
+				types.InlineKeyboardButton("💸 Оплатить 2 USDT", url=pay_url),
 				types.InlineKeyboardButton("🔍 Проверить оплату", callback_data=f'case_check_{invoice_id}'),
 				keyboards.back
 			)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
-					"🎁 *Покупка кейса*\n\n"
+					"📦 *Покупка кейса*\n\n"
 					"*Цена: 2 USDT*\n"
 					"*└─ После оплаты нажмите «Проверить оплату»*"
 				),

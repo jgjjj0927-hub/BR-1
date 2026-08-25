@@ -12,7 +12,7 @@ wheel_btn = types.InlineKeyboardButton("🎡 Колесо репортов", cal
 free_btn = types.InlineKeyboardButton("🆓 Бесплатно", callback_data='free_menu')
 mirrors_pub_btn = types.InlineKeyboardButton("🪞 Зеркала", callback_data='public_mirrors')
 support_btn = types.InlineKeyboardButton("🆘 Поддержка", url='https://t.me/BR_V2_support')
-case_btn = types.InlineKeyboardButton("🎁 Кейс", callback_data='case_menu')
+case_btn = types.InlineKeyboardButton("📦 Кейс", callback_data='case_menu')
 menu.add(snoser)
 menu.add(information, profile)
 menu.add(shop, promo)
@@ -152,9 +152,16 @@ def dsa_text_confirm_markup(text_preview: str) -> types.InlineKeyboardMarkup:
 # ─── Кейсы ────────────────────────────────────────────────────────────────────
 case_menu_markup = types.InlineKeyboardMarkup(row_width=1)
 case_menu_markup.add(
-    types.InlineKeyboardButton("🎁 Купить кейс — 2$ / 200₽", callback_data='case_buy'),
+    types.InlineKeyboardButton("📦 Купить кейс — 2$ / 200₽", callback_data='case_buy'),
     types.InlineKeyboardButton("📦 Открыть кейс", callback_data='case_open'),
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+)
+
+case_buy_markup = types.InlineKeyboardMarkup(row_width=1)
+case_buy_markup.add(
+    types.InlineKeyboardButton("💲 USDT (CryptoPay)", callback_data='case_buy_usdt'),
+    types.InlineKeyboardButton("🇷🇺 Рубли (написать админу)", url='https://t.me/BR_V2_support'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='case_menu'),
 )
 
 case_open_markup = types.InlineKeyboardMarkup(row_width=1)
