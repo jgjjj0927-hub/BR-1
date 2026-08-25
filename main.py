@@ -1446,62 +1446,23 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token, tida_mode='ask')
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
 					"🟣 *TIDA*\n\n"
-					"ℹ️ *ИИ-анализ:* доступен только для публичных каналов/чатов по прямой ссылке на сообщение `https://t.me/channel/123`\n\n"
-					"*└─ Выберите способ создания текста жалобы:*"
+					"*└─ Отправьте ссылку на цель:*\n\n"
+					"`https://t.me/username`\n"
+					"`https://t.me/channel/123`\n"
+					"`@username`"
 				),
 				parse_mode="Markdown",
-				reply_markup=keyboards.tida_text_method_markup("ask")
+				reply_markup=back_markup
 			)
 
 		elif d.startswith("tida_target_"):
+			# Тип цели теперь определяется автоматически — этот блок оставлен для совместимости
 			await call.answer()
-			target_type = d.replace("tida_target_", "")
-			await dp_instance.current_state(user=uid).update_data(tida_target=target_type)
-			target_names = {"account": "👤 Аккаунт", "bot": "🤖 Бот", "chat": "💬 Чат", "channel": "📢 Канал"}
-			target_label = target_names.get(target_type, target_type)
-			fsm_data = await dp_instance.current_state(user=uid).get_data()
-			tida_mode = fsm_data.get('tida_mode', 'ai_link')
-			if tida_mode == 'ai_link':
-				# Запускаем ИИ-анализ по ссылке
-				tida_link = fsm_data.get('tida_link', '')
-				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.text_confirm.state)
-				await bot_instance.send_message(uid, "⏳ *Читаю сообщение и генерирую текст через ИИ...*", parse_mode="Markdown")
-				from tida_snos import fetch_tida_message_text, generate_tida_text
-				msg_text = await fetch_tida_message_text(tida_link)
-				if not msg_text:
-					await bot_instance.send_message(uid,
-						"⚠️ *Не удалось прочитать сообщение*\n*└─ Убедитесь что канал/чат публичный и ссылка на конкретное сообщение*\n\nОпишите нарушение текстом или введите текст вручную:",
-						parse_mode="Markdown", reply_markup=keyboards.tida_text_method_markup(target_type))
-					await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.ai_desc.state)
-					return
-				generated = await generate_tida_text(msg_text, target_type, is_description=False)
-				if not generated:
-					generated = "This resource violates Telegram's Terms of Service. Requesting immediate action."
-				await dp_instance.current_state(user=uid).update_data(tida_ai_generated=generated)
-				await dp_instance.current_state(chat=uid, user=uid).finish()
-				# Сохраняем для confirm
-				from main import tida_ai_desc_step
-				if not hasattr(tida_ai_desc_step, '_pending'):
-					tida_ai_desc_step._pending = {}
-				tida_ai_desc_step._pending[uid] = {
-					'link': tida_link, 'text': generated, 'target': target_type,
-					'bot_token': fsm_data.get('_bot_token'), 'username': username,
-				}
-				await bot_instance.send_message(uid,
-					f"🤖 *ИИ сгенерировал текст жалобы:*\n\n`{generated}`\n\n*Использовать этот текст?*",
-					parse_mode="Markdown",
-					reply_markup=keyboards.tida_text_confirm_markup())
-			else:
-				# ai_desc — переходим к вводу описания
-				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.ai_desc.state)
-				await bot_instance.send_message(uid,
-					f"📝 *{target_label}* — опишите нарушение:\n_(ИИ создаст текст на основе вашего описания)_",
-					parse_mode="Markdown", reply_markup=back_markup)
 
 		elif d == "tida_text_confirm":
 			await call.answer()
@@ -1535,8 +1496,47 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await call.answer()
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.text.state)
 			await bot_instance.send_message(uid,
-				'✏️ *Введите новый текст жалобы:*\n_(на английском языке)_',
+				'✏️ *Введите новый текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
 				parse_mode="Markdown", reply_markup=back_markup)
+
+		elif d == "tida_choose_ai_desc":
+			await call.answer()
+			fsm_data = await dp_instance.current_state(user=uid).get_data()
+			target_type = fsm_data.get('tida_target', 'channel')
+			target_names = {"account": "👤 Аккаунт", "bot": "🤖 Бот", "chat": "💬 Чат", "channel": "📢 Канал"}
+			target_label = target_names.get(target_type, target_type)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.ai_desc.state)
+			await bot_instance.send_message(uid,
+				f"📝 *{target_label}* — опишите нарушение:\n_(ИИ создаст текст жалобы на основе вашего описания)_",
+				parse_mode="Markdown", reply_markup=back_markup)
+
+		elif d == "tida_choose_manual":
+			await call.answer()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.text.state)
+			await bot_instance.send_message(uid,
+				'✏️ *Введите текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
+				parse_mode="Markdown", reply_markup=back_markup)
+
+		elif d.startswith("tida_ai_link_") or d.startswith("tida_ai_desc_") or d.startswith("tida_manual_"):
+			# Старые кнопки из tida_text_method_markup — перенаправляем на нужные действия
+			await call.answer()
+			fsm_data = await dp_instance.current_state(user=uid).get_data()
+			target_type = d.split("_")[-1] if not d.endswith("ask") else fsm_data.get('tida_target', 'channel')
+			if target_type not in ("account", "bot", "chat", "channel"):
+				target_type = fsm_data.get('tida_target', 'channel')
+			await dp_instance.current_state(user=uid).update_data(tida_target=target_type)
+			if d.startswith("tida_manual_"):
+				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.text.state)
+				await bot_instance.send_message(uid,
+					'✏️ *Введите текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
+					parse_mode="Markdown", reply_markup=back_markup)
+			else:
+				target_names = {"account": "👤 Аккаунт", "bot": "🤖 Бот", "chat": "💬 Чат", "channel": "📢 Канал"}
+				target_label = target_names.get(target_type, target_type)
+				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.ai_desc.state)
+				await bot_instance.send_message(uid,
+					f"📝 *{target_label}* — опишите нарушение:\n_(ИИ создаст текст жалобы на основе вашего описания)_",
+					parse_mode="Markdown", reply_markup=back_markup)
 
 		# ─── DSA Report ───────────────────────────────────────────────────────
 		elif d == "dsa_method":
@@ -2222,29 +2222,76 @@ async def tida_step1(message: types.Message, state: FSMContext):
 	raw = message.text.strip()
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
-	tida_mode = fsm_data.get('tida_mode', 'manual')
 
 	if not raw.startswith("@") and not raw.startswith("https://t.me/") and not raw.startswith("t.me/"):
 		raw = "@" + raw
 
-	await state.update_data(tida_link=raw, _bot_token=_bot_token)
-
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 
-	if tida_mode in ("ai_link", "ai_desc"):
-		# Переходим к выбору типа цели
-		await WaitTidaFSM.target.set()
+	await state.update_data(tida_link=raw)
+
+	# Анализируем ссылку
+	await _bot.send_message(uid, "🔍 *Анализирую ссылку...*", parse_mode="Markdown")
+
+	from tida_snos import analyze_tida_link
+	info = await analyze_tida_link(raw)
+
+	target_type = info.get("target_type", "channel")
+	is_public = info.get("is_public", False)
+	has_msg = info.get("has_message_id", False)
+	msg_text = info.get("message_text", "")
+
+	await state.update_data(
+		tida_link=raw,
+		tida_target=target_type,
+		tida_analysis=info,
+	)
+
+	target_names = {"account": "👤 Аккаунт", "bot": "🤖 Бот", "chat": "💬 Чат", "channel": "📢 Канал"}
+	target_label = target_names.get(target_type, "Цель")
+
+	if is_public and has_msg and msg_text:
+		# Публичная + есть сообщение — сразу генерируем ИИ-текст
+		await WaitTidaFSM.text_confirm.set()
+		await _bot.send_message(uid, "⏳ *Читаю сообщение и генерирую текст через ИИ...*", parse_mode="Markdown")
+		from tida_snos import generate_tida_text
+		generated = await generate_tida_text(msg_text, target_type, is_description=False)
+		if not generated:
+			generated = "This resource violates Telegram's Terms of Service. Requesting immediate action."
+		await state.finish()
+		if not hasattr(tida_ai_desc_step, '_pending'):
+			tida_ai_desc_step._pending = {}
+		tida_ai_desc_step._pending[uid] = {
+			'link': raw, 'text': generated, 'target': target_type,
+			'bot_token': _bot_token, 'username': message.from_user.username or "None",
+		}
 		await _bot.send_message(uid,
-			f'🟣 *TIDA*\n\n*Цель:* `{raw}`\n\n*Выберите тип цели:*',
+			f"🤖 *ИИ проанализировал сообщение:*\n\n"
+			f"🎯 *Цель:* {target_label}\n\n"
+			f"`{generated}`\n\n"
+			f"*Использовать этот текст?*",
 			parse_mode="Markdown",
-			reply_markup=keyboards.tida_target_markup)
+			reply_markup=keyboards.tida_text_confirm_markup())
 	else:
-		# Ручной режим — старый флоу сразу к вводу текста
-		await WaitTidaFSM.text.set()
+		# Публичная без сообщения / приватная / бот / аккаунт
+		# Показываем: описать нарушение (ИИ) или свой текст
+		await WaitTidaFSM.ai_desc.set()
+		markup = types.InlineKeyboardMarkup(row_width=1)
+		markup.add(
+			types.InlineKeyboardButton("📝 Описать нарушение (ИИ составит текст)", callback_data='tida_choose_ai_desc'),
+			types.InlineKeyboardButton("✏️ Написать свой текст", callback_data='tida_choose_manual'),
+		)
+		type_info = ""
+		if not is_public:
+			type_info = "_(приватная/закрытая ссылка)_"
 		await _bot.send_message(uid,
-			f'🟣 *TIDA*\n\n*Цель:* `{raw}`\n\n*Введите текст жалобы:*\n_(Опишите нарушение на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
-			parse_mode="Markdown", reply_markup=back_markup)
+			f"🟣 *TIDA*\n\n"
+			f"🎯 *Цель:* {target_label} {type_info}\n"
+			f"🔗 `{raw}`\n\n"
+			f"*Как хотите составить текст жалобы?*",
+			parse_mode="Markdown",
+			reply_markup=markup)
 
 	if _is_mirror_bot:
 		try:

@@ -89,6 +89,107 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
         return ""
 
 
+async def analyze_tida_link(link: str) -> dict:
+    """
+    Анализирует ссылку и возвращает:
+    {
+        target_type: "channel"|"chat"|"bot"|"account",
+        has_message_id: bool,
+        message_id: int|None,
+        username: str,
+        is_public: bool,
+        message_text: str,  # если публичная + есть msg_id
+    }
+    """
+    result = {
+        "target_type": "channel",
+        "has_message_id": False,
+        "message_id": None,
+        "username": link,
+        "is_public": False,
+        "message_text": "",
+    }
+
+    # Нормализуем ссылку
+    clean = link.strip()
+    is_private = False
+
+    if "joinchat" in clean or "+A" in clean or (clean.startswith("https://t.me/+") or clean.startswith("t.me/+")):
+        is_private = True
+        result["is_public"] = False
+        result["target_type"] = "chat"
+        return result
+
+    # Парсим username и message_id
+    for prefix in ["https://t.me/", "http://t.me/", "t.me/"]:
+        if clean.startswith(prefix):
+            clean = clean[len(prefix):]
+            break
+    if clean.startswith("@"):
+        clean = clean[1:]
+
+    parts = clean.rstrip("/").split("?")[0].split("/")
+    username = parts[0]
+    result["username"] = username
+
+    if len(parts) >= 2 and parts[-1].isdigit():
+        result["has_message_id"] = True
+        result["message_id"] = int(parts[-1])
+
+    # Пробуем получить entity через Telethon
+    try:
+        import os as _os
+        session_folder = "sessions"
+        sessions = [f.replace(".session", "") for f in _os.listdir(session_folder)
+                    if f.endswith(".session")] if _os.path.exists(session_folder) else []
+        if not sessions:
+            result["is_public"] = False
+            return result
+
+        session_path = _os.path.join(session_folder, random.choice(sessions))
+        client = TelegramClient(session_path, int(config.TIDA_API_ID), config.TIDA_API_HASH,
+                                system_version="4.16.30-vxCUSTOM")
+        await asyncio.wait_for(client.connect(), timeout=8)
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            return result
+
+        try:
+            entity = await client.get_entity(username)
+            from telethon.tl.types import (Channel, Chat, User,
+                                            InputPeerChannel, InputPeerChat)
+
+            if hasattr(entity, 'megagroup') and entity.megagroup:
+                result["target_type"] = "chat"
+            elif isinstance(entity, Channel):
+                result["target_type"] = "channel"
+            elif isinstance(entity, User):
+                result["target_type"] = "bot" if entity.bot else "account"
+            elif isinstance(entity, Chat):
+                result["target_type"] = "chat"
+
+            result["is_public"] = True
+
+            # Если есть message_id — читаем текст сообщения
+            if result["has_message_id"] and result["message_id"]:
+                try:
+                    msg = await client.get_messages(entity, ids=result["message_id"])
+                    if msg:
+                        result["message_text"] = (msg.text or msg.caption or "")[:500]
+                except Exception:
+                    pass
+
+        except Exception as e:
+            logger.warning(f"[TIDA-AI] get_entity error: {e}")
+            result["is_public"] = False
+
+        await client.disconnect()
+    except Exception as e:
+        logger.warning(f"[TIDA-AI] analyze error: {e}")
+
+    return result
+
+
 async def fetch_tida_message_text(link: str) -> str:
     """Получает текст сообщения по публичной ссылке."""
     try:
