@@ -787,7 +787,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			dyn_info_markup = types.InlineKeyboardMarkup(row_width=2)
 			dyn_info_markup.add(
 				types.InlineKeyboardButton("мв Канал (1 мин)", url=channel_invite),
-				types.InlineKeyboardButton("📄 Мануал", url='https://teletype.in/@brownv2/manual'),
+				types.InlineKeyboardButton("📄 Мануал", url='https://br-v2.online/manual'),
 			)
 			dyn_info_markup.add(
 				types.InlineKeyboardButton("👑 Владелец", url='https://t.me/TariSmit'),
@@ -1345,7 +1345,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid not in admins and sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid not in admins and uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(hours=1):
+			if uid not in admins and uid not in no_kd and uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(hours=1):
 				rem = timedelta(hours=1) - (now_msk() - last_used_bot_snos[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
@@ -1416,7 +1416,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid not in admins and uid in last_used_aureport and (now_msk() - last_used_aureport[uid]) < timedelta(minutes=30):
+			if uid not in admins and uid not in no_kd and uid in last_used_aureport and (now_msk() - last_used_aureport[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_aureport[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
@@ -1438,7 +1438,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid not in admins and uid in last_used_tida and (now_msk() - last_used_tida[uid]) < timedelta(minutes=30):
+			if uid not in admins and uid not in no_kd and uid in last_used_tida and (now_msk() - last_used_tida[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_tida[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
@@ -1460,7 +1460,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid not in admins and uid in last_used_dsa and (now_msk() - last_used_dsa[uid]) < timedelta(hours=1):
+			if uid not in admins and uid not in no_kd and uid in last_used_dsa and (now_msk() - last_used_dsa[uid]) < timedelta(hours=1):
 				rem = timedelta(hours=1) - (now_msk() - last_used_dsa[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
@@ -1568,7 +1568,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if premium == 0:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен Premium\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid not in admins and uid in last_used_bank and (now_msk() - last_used_bank[uid]) < timedelta(hours=12):
+			if uid not in admins and uid not in no_kd and uid in last_used_bank and (now_msk() - last_used_bank[uid]) < timedelta(hours=12):
 				rem = timedelta(hours=12) - (now_msk() - last_used_bank[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
@@ -1617,7 +1617,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			# КД 2 часа (кроме админов)
-			if uid not in admins and uid in last_used_stress and (now_msk() - last_used_stress[uid]) < timedelta(hours=2):
+			if uid not in admins and uid not in no_kd and uid in last_used_stress and (now_msk() - last_used_stress[uid]) < timedelta(hours=2):
 				rem = timedelta(hours=2) - (now_msk() - last_used_stress[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
@@ -1871,7 +1871,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		await state.finish()
 		await _bot.send_message(uid, ">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=main_menu)
 		return
-	if uid not in admins and uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(hours=1):
+	if uid not in admins and uid not in no_kd and uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(hours=1):
 		rem = timedelta(hours=1) - (now_msk() - last_used_bot_snos[uid])
 		h = rem.seconds // 3600
 		m = (rem.seconds % 3600) // 60
@@ -1957,7 +1957,7 @@ async def channel_step1(message: types.Message, state: FSMContext):
 	await state.finish()
 
 	# КД 30 минут
-	if uid not in admins and uid in last_used_channel and (now_msk() - last_used_channel[uid]) < timedelta(minutes=30):
+	if uid not in admins and uid not in no_kd and uid in last_used_channel and (now_msk() - last_used_channel[uid]) < timedelta(minutes=30):
 		rem = timedelta(minutes=30) - (now_msk() - last_used_channel[uid])
 		await _bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
 		if _is_mirror_bot:
@@ -2022,7 +2022,7 @@ async def phone_step1(message: types.Message, state: FSMContext):
 		return
 
 	# КД 30 минут
-	if uid not in admins and uid in last_used_channel and (now_msk() - last_used_channel[uid]) < timedelta(minutes=30):
+	if uid not in admins and uid not in no_kd and uid in last_used_channel and (now_msk() - last_used_channel[uid]) < timedelta(minutes=30):
 		rem = timedelta(minutes=30) - (now_msk() - last_used_channel[uid])
 		await _bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
 		if _is_mirror_bot:
