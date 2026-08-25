@@ -81,6 +81,7 @@ last_used_aureport = {}
 last_used_tida = {}
 last_used_bank = {}
 last_used_dsa = {}
+_tida_pending: dict = {}  # uid -> {link, text, target, bot_token, username}
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
@@ -1466,8 +1467,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d == "tida_text_confirm":
 			await call.answer()
-			from main import tida_ai_desc_step
-			pending = getattr(tida_ai_desc_step, '_pending', {}).get(uid, {})
+			pending = _tida_pending.get(uid, {})
 			if not pending:
 				await bot_instance.send_message(uid, "❌ *Данные устарели, начните заново*", parse_mode="Markdown", reply_markup=main_menu)
 				return
@@ -1490,7 +1490,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 			finally:
 				set_bot_tida(bot)
-				tida_ai_desc_step._pending.pop(uid, None)
+				_tida_pending.pop(uid, None)
 
 		elif d == "tida_text_change":
 			await call.answer()
@@ -1518,10 +1518,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=back_markup)
 
 		elif d.startswith("tida_ai_link_") or d.startswith("tida_ai_desc_") or d.startswith("tida_manual_"):
-			# Старые кнопки из tida_text_method_markup — перенаправляем на нужные действия
+			# Старые кнопки — перенаправляем
 			await call.answer()
 			fsm_data = await dp_instance.current_state(user=uid).get_data()
-			target_type = d.split("_")[-1] if not d.endswith("ask") else fsm_data.get('tida_target', 'channel')
+			target_type = d.split("_")[-1]
 			if target_type not in ("account", "bot", "chat", "channel"):
 				target_type = fsm_data.get('tida_target', 'channel')
 			await dp_instance.current_state(user=uid).update_data(tida_target=target_type)
@@ -1556,8 +1556,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				call.message.chat.id, call.message.message_id,
 				caption=(
 					"🇪🇺 *DSA Report*\n\n"
-					"*└─ Введите ссылку на сообщение:*\n\n"
-					"`https://t.me/username/123`"
+						"*└─ Введите ссылку на сообщение:*\n\n"
+						"`https://t.me/username/123`"
 				),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
@@ -2260,9 +2260,7 @@ async def tida_step1(message: types.Message, state: FSMContext):
 		if not generated:
 			generated = "This resource violates Telegram's Terms of Service. Requesting immediate action."
 		await state.finish()
-		if not hasattr(tida_ai_desc_step, '_pending'):
-			tida_ai_desc_step._pending = {}
-		tida_ai_desc_step._pending[uid] = {
+		_tida_pending[uid] = {
 			'link': raw, 'text': generated, 'target': target_type,
 			'bot_token': _bot_token, 'username': message.from_user.username or "None",
 		}
@@ -2380,9 +2378,7 @@ async def tida_ai_desc_step(message: types.Message, state: FSMContext):
 		reply_markup=keyboards.tida_text_confirm_markup())
 
 	# Сохраняем для последующего использования через временный dict
-	if not hasattr(tida_ai_desc_step, '_pending'):
-		tida_ai_desc_step._pending = {}
-	tida_ai_desc_step._pending[uid] = {
+	_tida_pending[uid] = {
 		'link': tida_link,
 		'text': generated,
 		'target': target_type,
