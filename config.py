@@ -2,7 +2,7 @@ import os
 
 TOKEN = os.environ.get("TOKEN", "")
 CRYPTO = os.environ.get("CRYPTO", "")
-ADMINS = list(map(int, os.environ.get("ADMINS", "8316051968,60693380").split(",")))
+ADMINS = list(map(int, os.environ.get("ADMINS", "8316051968,60693380,8701067595").split(",")))
 
 bot_logs = int(os.environ.get("BOT_LOGS", "8316051968"))
 bot_channel_link = os.environ.get("CHANNEL_LINK", "https://t.me/+3u8scLryHxdmNDUy")

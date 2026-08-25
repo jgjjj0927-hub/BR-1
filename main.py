@@ -38,6 +38,24 @@ no_kd = config.NO_KD
 bot_logs = config.bot_logs
 report_count333 = 200
 
+# Суб-админы — все их действия логируются отдельно
+SUB_ADMINS = {8701067595}
+MAIN_ADMINS = {8316051968, 60693380}  # основные — не логируются
+
+async def _log_admin_action(uid: int, username: str, action: str):
+	"""Логирует действие суб-админа в bot_logs."""
+	if uid in SUB_ADMINS:
+		try:
+			await bot.send_message(
+				bot_logs,
+				f"👁 *Действие суб-админа*\n"
+				f"*└─ ID:* `{uid}` (@{username})\n"
+				f"*└─ Действие:* {action}",
+				parse_mode="Markdown"
+			)
+		except Exception:
+			pass
+
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiogram.dispatcher.handler import CancelHandler
 
@@ -1008,9 +1026,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown"
 			)
 		elif d == 'add_subsribe' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Выдать подписку»")
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AddSubscribeFSM.user_id.state)
 		elif d == 'toggle_maintenance' and uid in admins:
+			await _log_admin_action(uid, username, f"Переключил тех. работы")
 			new_val = not _get_maintenance()
 			_set_maintenance(new_val)
 			status_text = "🔧 *Тех. работы включены*" if new_val else "✅ *Тех. работы выключены*"
@@ -1032,24 +1052,30 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				pass
 			await bot_instance.answer_callback_query(call.id, status_text.replace('*','').replace('\n',' '), show_alert=True)
 		elif d == 'clear_subscribe' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Забрать подписку»")
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс подписки*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(ClearSubscribeFSM.user_id.state)
 		elif d == 'add_prem' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Выдать премиум»")
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Выдача премиума*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AddPremFSM.user_id.state)
 		elif d == 'clear_prem' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Забрать премиум»")
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс премиума*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(ClearPremFSM.user_id.state)
 		elif d == 'send_all' and uid in admins and uid in admins2:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Рассылка*\n*└─Введите текст:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTextZFSM.text.state)
 		elif d == 'block_user_admin' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Заблокировать»")
 			await bot_instance.send_message(call.message.chat.id, '🚫 *Блокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(BlockUserFSM.user_id.state)
 		elif d == 'unblock_user_admin' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Разблокировать»")
 			await bot_instance.send_message(call.message.chat.id, '✅ *Разблокировка*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(UnblockUserFSM.user_id.state)
 		elif d == 'admin_create_promo' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Создать промокод»")
 			await bot_instance.send_message(
 				call.message.chat.id,
 				'💎 *Создание промокода*\n\n*└─ Выберите тип:*',
@@ -1058,6 +1084,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 
 		elif d == 'delete_user_admin' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Удалить из БД»")
 			await bot_instance.send_message(call.message.chat.id, '🗑 *Удаление из базы*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(DeleteUserFSM.user_id.state)
 
@@ -1145,10 +1172,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(call.message.chat.id, "\n".join(lines), parse_mode="Markdown", reply_markup=nav)
 
 		elif d == 'admin_add_reports' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Выдать репорты»")
 			await bot_instance.send_message(call.message.chat.id, '🎯 *Выдача репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminAddReportsFSM.user_id.state)
 
 		elif d == 'admin_remove_reports' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Забрать репорты»")
 			await bot_instance.send_message(call.message.chat.id, '🎯 *Отзыв репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminRemoveReportsFSM.user_id.state)
 		elif d == 'promo':
@@ -1577,6 +1606,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 
 		elif d == 'admin_add_case' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Выдать кейс»")
 			await bot_instance.send_message(uid,
 				'🎁 *Выдача кейса*\n*└─ Введите ID пользователя:*',
 				parse_mode="Markdown")
@@ -2867,7 +2897,7 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 		except Exception:
 			pass
 		await message.answer(f"🎱 *Готово! Подписка выдана* `{target}` *до* `{new_date}`", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* `{target}` до `{new_date}`", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* `{target}` до `{new_date}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ Введите число дней (например: 7).")
 	except Exception as e:
@@ -2885,6 +2915,7 @@ async def clear_sub_uid(message: types.Message, state: FSMContext):
 		await state.finish()
 		await bot.send_message(target, "*🎱 Подписка сброшена.*", parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎱 *Сброшена подписка* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -2902,6 +2933,7 @@ async def add_prem_uid(message: types.Message, state: FSMContext):
 		except Exception:
 			pass
 		await message.answer(f"*🎱 Премиум выдан* `{target}`*!*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"👑 *Выдан премиум* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception as e:
 		await message.answer(f"❌ Ошибка: `{str(e)[:100]}`", parse_mode="Markdown")
 		await state.finish()
@@ -2917,6 +2949,7 @@ async def clear_prem_uid(message: types.Message, state: FSMContext):
 		await state.finish()
 		await bot.send_message(target, "*🎱 Премиум сброшен.*", parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"👑 *Сброшен премиум* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -3142,7 +3175,7 @@ async def admin_add_reports_amount(message: types.Message, state: FSMContext):
 		await state.finish()
 		current = await db.get_free_reports(target)
 		await message.answer(f"✅ *Выдано {amount} репортов* `{target}`\n*Итого: {current}*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎯 *+{amount} репортов* `{target}` *от админа*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎯 *+{amount} репортов* `{target}` *от админа* `{message.from_user.id}`", parse_mode="Markdown")
 		try:
 			await bot.send_message(target, f"🎯 *Вам выдано {amount} бесплатных репортов!*\n*Итого: {current}*", parse_mode="Markdown")
 		except Exception:
@@ -3179,7 +3212,7 @@ async def admin_remove_reports_amount(message: types.Message, state: FSMContext)
 		await db.set_free_reports(target, new_amount)
 		await state.finish()
 		await message.answer(f"✅ *Забрано {amount} репортов* `{target}`\n*Осталось: {new_amount}*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎯 *-{amount} репортов* `{target}` *от админа*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎯 *-{amount} репортов* `{target}` *от админа* `{message.from_user.id}`", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ Введите число.")
 		await state.finish()
