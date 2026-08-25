@@ -12,11 +12,13 @@ wheel_btn = types.InlineKeyboardButton("🎡 Колесо репортов", cal
 free_btn = types.InlineKeyboardButton("🆓 Бесплатно", callback_data='free_menu')
 mirrors_pub_btn = types.InlineKeyboardButton("🪞 Зеркала", callback_data='public_mirrors')
 support_btn = types.InlineKeyboardButton("🆘 Поддержка", url='https://t.me/BR_V2_support')
+case_btn = types.InlineKeyboardButton("🎁 Кейс", callback_data='case_menu')
 menu.add(snoser)
 menu.add(information, profile)
 menu.add(shop, promo)
 menu.add(referral_btn, wheel_btn)
 menu.add(mirrors_pub_btn, free_btn)
+menu.add(case_btn)
 menu.add(support_btn)
 
 # ─── Меню Бесплатно ───────────────────────────────────────────────────────────
@@ -147,6 +149,20 @@ def dsa_text_confirm_markup(text_preview: str) -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
     )
     return markup
+# ─── Кейсы ────────────────────────────────────────────────────────────────────
+case_menu_markup = types.InlineKeyboardMarkup(row_width=1)
+case_menu_markup.add(
+    types.InlineKeyboardButton("🎁 Купить кейс — 2$ / 200₽", callback_data='case_buy'),
+    types.InlineKeyboardButton("📦 Открыть кейс", callback_data='case_open'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+)
+
+case_open_markup = types.InlineKeyboardMarkup(row_width=1)
+case_open_markup.add(
+    types.InlineKeyboardButton("🎲 Открыть!", callback_data='case_open_confirm'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='case_menu'),
+)
+
 # stress_method_btn скрыт — в разработке
 functions.add(back)
 
@@ -214,6 +230,7 @@ mirrors_list_btn = types.InlineKeyboardButton("[🪞] Зеркала", callback_
 add_reports_btn = types.InlineKeyboardButton("[🎯+] Выдать репорты", callback_data='admin_add_reports')
 remove_reports_btn = types.InlineKeyboardButton("[🎯-] Забрать репорты", callback_data='admin_remove_reports')
 create_promo_btn = types.InlineKeyboardButton("[💎] Создать промокод", callback_data='admin_create_promo')
+add_case_btn = types.InlineKeyboardButton("[🎁+] Выдать кейс", callback_data='admin_add_case')
 admin_markup.add(add_subsribe, clear_subscribe)
 admin_markup.add(add_prem, clear_prem)
 admin_markup.add(send_all)
@@ -223,6 +240,7 @@ admin_markup.add(users_list_btn)
 admin_markup.add(mirrors_list_btn)
 admin_markup.add(add_reports_btn, remove_reports_btn)
 admin_markup.add(create_promo_btn)
+admin_markup.add(add_case_btn)
 maintenance_btn = types.InlineKeyboardButton("🔧 Включить тех. работы", callback_data='toggle_maintenance')
 admin_markup.add(maintenance_btn)
 

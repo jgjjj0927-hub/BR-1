@@ -257,6 +257,10 @@ class CreatePromoFSM(StatesGroup):
 	days = State()
 	activations = State()
 
+class AdminAddCaseFSM(StatesGroup):
+	user_id = State()
+	amount = State()
+
 global bot_status
 bot_status = 1
 
@@ -1255,6 +1259,164 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 			await bot.send_message(bot_logs, f"🎡 `{uid}` крутил колесо — {log_text}", parse_mode="Markdown")
+
+		# ─── Кейсы ─────────────────────────────────────────────────────────────
+		elif d == 'case_menu':
+			count = await db.get_unopened_cases(uid)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"🎁 *Кейс BR V2*\n\n"
+					"*Внутри кейса:*\n"
+					"🎯 5 бесплатных репортов\n"
+					"⚡ Подписка на 1 день\n"
+					"💎 Подписка на 30 дней\n"
+					"👑 Премиум навсегда\n\n"
+					f"*└─ Ваших кейсов: {count}*\n\n"
+					"*Цена: 2$ / 200₽*"
+				),
+				parse_mode="Markdown",
+				reply_markup=keyboards.case_menu_markup
+			)
+
+		elif d == 'case_buy':
+			invoice = await asyncio.to_thread(crypto.create_invoice, asset='USDT', amount=2)
+			pay_url = invoice['pay_url']
+			invoice_id = invoice['invoice_id']
+			pay_check = types.InlineKeyboardMarkup(row_width=1)
+			pay_check.add(
+				types.InlineKeyboardButton("💸 Оплатить 2$", url=pay_url),
+				types.InlineKeyboardButton("🔍 Проверить оплату", callback_data=f'case_check_{invoice_id}'),
+				keyboards.back
+			)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"🎁 *Покупка кейса*\n\n"
+					"*Цена: 2 USDT*\n"
+					"*└─ После оплаты нажмите «Проверить оплату»*"
+				),
+				parse_mode="Markdown", reply_markup=pay_check
+			)
+
+		elif d.startswith('case_check_'):
+			invoice_id = d.replace('case_check_', '')
+			if await db.is_case_invoice_used(invoice_id):
+				await bot_instance.answer_callback_query(call.id, "✅ Кейс уже начислен!", show_alert=True)
+				return
+			try:
+				inv = await asyncio.to_thread(crypto.get_invoices, invoice_ids=invoice_id)
+				if inv['items'][0]['status'] != 'paid':
+					await bot_instance.answer_callback_query(call.id, "❌ Оплата не получена!", show_alert=True)
+					return
+			except Exception:
+				await bot_instance.answer_callback_query(call.id, "❌ Ошибка проверки", show_alert=True)
+				return
+			await db.add_case(uid, invoice_id)
+			count = await db.get_unopened_cases(uid)
+			await bot.send_message(bot_logs, f"🎁 `{uid}` (@{username}) купил кейс", parse_mode="Markdown")
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					f"✅ *Кейс куплен!*\n\n"
+					f"*└─ Ваших кейсов: {count}*\n\n"
+					f"*Нажмите «Открыть кейс» чтобы узнать свой приз!*"
+				),
+				parse_mode="Markdown", reply_markup=keyboards.case_menu_markup
+			)
+
+		elif d == 'case_open':
+			count = await db.get_unopened_cases(uid)
+			if count == 0:
+				await bot_instance.edit_message_caption(
+					call.message.chat.id, call.message.message_id,
+					caption=(
+						"📦 *У вас нет кейсов*\n\n"
+						"*└─ Купите кейс за 2$ чтобы испытать удачу!*"
+					),
+					parse_mode="Markdown", reply_markup=keyboards.case_menu_markup
+				)
+				return
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					f"📦 *Открыть кейс?*\n\n"
+					f"*└─ Кейсов: {count}*\n\n"
+					"*Внутри вас ждёт один из призов:*\n"
+					"🎯 5 бесплатных репортов\n"
+					"⚡ Подписка на 1 день\n"
+					"💎 Подписка на 30 дней\n"
+					"👑 Премиум навсегда"
+				),
+				parse_mode="Markdown", reply_markup=keyboards.case_open_markup
+			)
+
+		elif d == 'case_open_confirm':
+			opened = await db.open_case(uid)
+			if not opened:
+				await bot_instance.answer_callback_query(call.id, "❌ Нет кейсов!", show_alert=True)
+				return
+			# Розыгрыш
+			import random as _random
+			roll = _random.randint(1, 100)
+			if roll <= 60:
+				prize_key = "reports_5"
+			elif roll <= 80:
+				prize_key = "sub_1d"
+			elif roll <= 98:
+				prize_key = "sub_30d"
+			elif roll <= 100:
+				prize_key = "premium"
+			else:
+				prize_key = "nothing"
+
+			if prize_key == "reports_5":
+				await db.add_free_reports(uid, 5)
+				prize_text = "🎯 *+5 бесплатных репортов!*"
+				log_prize = "5 репортов"
+			elif prize_key == "sub_1d":
+				new_date = (now_msk() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+				await db.set_subscribe(uid, new_date)
+				prize_text = "⚡ *Подписка на 1 день!*"
+				log_prize = "подписка 1д"
+			elif prize_key == "sub_30d":
+				new_date = (now_msk() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+				await db.set_subscribe(uid, new_date)
+				prize_text = "💎 *Подписка на 30 дней!*"
+				log_prize = "подписка 30д"
+			elif prize_key == "premium":
+				await db.set_premium(uid, 1)
+				prize_text = "👑 *Премиум навсегда!*"
+				log_prize = "премиум"
+			else:
+				prize_text = "😔 *К сожалению, в этот раз ничего...*"
+				log_prize = "ничего"
+
+			count = await db.get_unopened_cases(uid)
+			await bot.send_message(bot_logs,
+				f"🎁 `{uid}` (@{username}) открыл кейс → {log_prize}",
+				parse_mode="Markdown")
+			markup = types.InlineKeyboardMarkup(row_width=1)
+			if count > 0:
+				markup.add(types.InlineKeyboardButton("📦 Открыть ещё", callback_data='case_open_confirm'))
+			markup.add(types.InlineKeyboardButton("🎁 Купить ещё", callback_data='case_buy'))
+			markup.add(types.InlineKeyboardButton("[🔙] Главное меню", callback_data='go_to_main_menu'))
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					f"🎁 *Кейс открыт!*\n\n"
+					f"🎰 *Ваш приз:*\n{prize_text}\n\n"
+					f"*Кейсов осталось: {count}*"
+				),
+				parse_mode="Markdown", reply_markup=markup
+			)
+
+		elif d == 'admin_add_case' and uid in admins:
+			await bot_instance.send_message(uid,
+				'🎁 *Выдача кейса*\n*└─ Введите ID пользователя:*',
+				parse_mode="Markdown")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminAddCaseFSM.user_id.state)
+
 		def sub_expired():
 			return subscribe < now_msk()
 		def bot_off():
@@ -2829,12 +2991,57 @@ async def admin_remove_reports_amount(message: types.Message, state: FSMContext)
 		await message.answer("❌ Введите число.")
 		await state.finish()
 
+# ─── Кейс: Админ выдача ───────────────────────────────────────────────────────
+
+@dp.message_handler(state=AdminAddCaseFSM.user_id)
+async def admin_add_case_uid(message: types.Message, state: FSMContext):
+	try:
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown")
+			await state.finish()
+			return
+		await state.update_data(user_id=target)
+		await message.answer(f"🎁 *ID:* `{target}`\n*Сколько кейсов выдать?*", parse_mode="Markdown")
+		await AdminAddCaseFSM.amount.set()
+	except Exception:
+		await message.answer("❌ Ошибка.")
+		await state.finish()
+
+@dp.message_handler(state=AdminAddCaseFSM.amount)
+async def admin_add_case_amount(message: types.Message, state: FSMContext):
+	try:
+		data = await state.get_data()
+		target = data['user_id']
+		amount = int(message.text.strip())
+		if amount <= 0:
+			raise ValueError
+		for _ in range(amount):
+			await db.add_case(target)
+		await state.finish()
+		await message.answer(f"✅ *Выдано {amount} кейс(ов)* пользователю `{target}`", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎁 *+{amount} кейс(ов)* `{target}` *от админа* `{message.from_user.id}`", parse_mode="Markdown")
+		try:
+			await bot.send_message(target,
+				f"🎁 *Вам выдано {amount} кейс(ов)!*\n*└─ Откройте их в разделе «🎁 Кейс» в главном меню*",
+				parse_mode="Markdown")
+		except Exception:
+			pass
+	except ValueError:
+		await message.answer("❌ Введите число больше 0.")
+		await state.finish()
+	except Exception as e:
+		await message.answer(f"❌ Ошибка: `{str(e)[:100]}`", parse_mode="Markdown")
+		await state.finish()
+
 # ─── Запуск ───────────────────────────────────────────────────────────────────
 
 async def on_startup(dp):
 	try:
 		print(f"DATABASE_URL = {os.environ.get('DATABASE_URL', 'НЕ УСТАНОВЛЕНА')[:50]}")
 		await db.init_db()
+		await db.init_cases_table()
 		print("БД инициализирована успешно.")
 	except Exception as e:
 		print(f"ОШИБКА БД при старте: {e}")

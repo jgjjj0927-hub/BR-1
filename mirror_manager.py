@@ -379,6 +379,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             admin_block_user, admin_unblock_user, admin_delete_user,
             admin_add_reports_uid, admin_add_reports_amount,
             admin_remove_reports_uid, admin_remove_reports_amount,
+            admin_add_case_uid, admin_add_case_amount,
             create_promo_code, create_promo_days, create_promo_activations,
             WaitTextFSM, WaitMailTopicFSM, WaitMailTextFSM,
             WaitLinkFSM, WaitLinkPREMFSM, WaitBotLinkFSM,
@@ -387,7 +388,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             AddSubscribeFSM, ClearSubscribeFSM,
             AddPremFSM, ClearPremFSM, WaitTextZFSM,
             BlockUserFSM, UnblockUserFSM, DeleteUserFSM, CreatePromoFSM,
-            AdminAddReportsFSM, AdminRemoveReportsFSM,
+            AdminAddReportsFSM, AdminRemoveReportsFSM, AdminAddCaseFSM,
         )
 
         handlers = {
@@ -426,6 +427,8 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             AdminAddReportsFSM.amount.state: admin_add_reports_amount,
             AdminRemoveReportsFSM.user_id.state: admin_remove_reports_uid,
             AdminRemoveReportsFSM.amount.state: admin_remove_reports_amount,
+            AdminAddCaseFSM.user_id.state: admin_add_case_uid,
+            AdminAddCaseFSM.amount.state: admin_add_case_amount,
         }
 
         handler = handlers.get(current_state)

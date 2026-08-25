@@ -666,6 +666,67 @@ async def get_target_whitelist() -> list[str]:
         return [r["pattern"] for r in rows]
 
 
+# ─── Кейсы ───────────────────────────────────────────────────────────────────
+
+async def init_cases_table():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS cases (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                invoice_id TEXT UNIQUE NOT NULL,
+                opened BOOLEAN DEFAULT FALSE,
+                prize TEXT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+
+async def add_case(user_id: int, invoice_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO cases (user_id, invoice_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            user_id, invoice_id
+        )
+
+
+async def get_unopened_cases(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM cases WHERE user_id = $1 AND opened = FALSE",
+            user_id
+        ) or 0
+
+
+async def open_case(user_id: int) -> str | None:
+    """Открывает один кейс, возвращает invoice_id или None если нет кейсов."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM cases WHERE user_id = $1 AND opened = FALSE ORDER BY created_at LIMIT 1",
+            user_id
+        )
+        if not row:
+            return None
+        await conn.execute(
+            "UPDATE cases SET opened = TRUE WHERE id = $1",
+            row["id"]
+        )
+        return str(row["id"])
+
+
+async def set_case_prize(case_id: str, prize: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE cases SET prize = $1 WHERE id = $2",
+            prize, int(case_id)
+        )
+
+
 async def is_target_whitelisted(target: str) -> bool:
     """
     Проверяет — находится ли цель в белом списке.
@@ -679,3 +740,65 @@ async def is_target_whitelisted(target: str) -> bool:
         if target == p or target.startswith(p):
             return True
     return False
+
+
+# ─── Кейсы ────────────────────────────────────────────────────────────────────
+
+async def init_cases_table():
+    """Создаёт таблицу кейсов."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS cases (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                opened BOOLEAN DEFAULT FALSE,
+                invoice_id TEXT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+
+async def add_case(user_id: int, invoice_id: str = None) -> int:
+    """Добавляет кейс пользователю. Возвращает id кейса."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO cases (user_id, invoice_id) VALUES ($1, $2) RETURNING id",
+            user_id, invoice_id
+        )
+        return row["id"]
+
+
+async def get_unopened_cases(user_id: int) -> int:
+    """Возвращает количество неоткрытых кейсов у пользователя."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM cases WHERE user_id = $1 AND opened = FALSE",
+            user_id
+        )
+
+
+async def open_case(user_id: int) -> bool:
+    """Открывает один кейс (помечает как opened). Возвращает True если был кейс."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """UPDATE cases SET opened = TRUE
+               WHERE id = (
+                   SELECT id FROM cases WHERE user_id = $1 AND opened = FALSE
+                   ORDER BY created_at ASC LIMIT 1
+               ) RETURNING id""",
+            user_id
+        )
+        return row is not None
+
+
+async def is_case_invoice_used(invoice_id: str) -> bool:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT 1 FROM cases WHERE invoice_id = $1", invoice_id
+        )
+        return row is not None
