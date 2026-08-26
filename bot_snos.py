@@ -60,6 +60,70 @@ os.makedirs(prem_session_folder, exist_ok=True)
 LOG_FOLDER = "logs"
 os.makedirs(LOG_FOLDER, exist_ok=True)
 
+# Ключевой текст для определения "своих" ботов (КД 5 минут)
+FAST_KD_KEYWORD = "Пожалуйста, решите капчу"
+
+AUREPORT_SESSION_FOLDER = 'aureport_sessions'
+
+
+async def detect_bot_type(bot_username: str) -> bool:
+    """
+    Отправляет /start боту и проверяет есть ли в ответе FAST_KD_KEYWORD.
+    Возвращает True если это "свой" бот (КД 5 минут).
+    Использует одну сессию из aureport_sessions/.
+    """
+    if not os.path.exists(AUREPORT_SESSION_FOLDER):
+        return False
+
+    sessions = [
+        os.path.join(AUREPORT_SESSION_FOLDER, f.replace('.session', ''))
+        for f in os.listdir(AUREPORT_SESSION_FOLDER)
+        if f.endswith('.session')
+    ]
+    if not sessions:
+        return False
+
+    session_path = random.choice(sessions)
+    creds = random.choice(API)
+    api_id, api_hash = creds.split(':', 1)
+
+    client = TelegramClient(session_path, int(api_id), api_hash,
+                            system_version='4.16.30-vxCUSTOM')
+    try:
+        await asyncio.wait_for(client.connect(), timeout=8)
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            return False
+
+        # Получаем entity бота
+        entity = await client.get_entity(bot_username)
+
+        # Отправляем /start
+        await client.send_message(entity, '/start')
+        await asyncio.sleep(2)
+
+        # Читаем последние сообщения от бота
+        messages = await client.get_messages(entity, limit=3)
+        for msg in messages:
+            if msg.out:
+                continue
+            text = msg.text or ''
+            if FAST_KD_KEYWORD.lower() in text.lower():
+                await client.disconnect()
+                print(f'[BOT-SNOS] detect_bot_type: FAST KD detected for {bot_username}', flush=True)
+                return True
+
+        await client.disconnect()
+        return False
+
+    except Exception as e:
+        print(f'[BOT-SNOS] detect_bot_type error: {e}', flush=True)
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+        return False
+
 
 def set_bot_snos(b):
     global bot, main_bot

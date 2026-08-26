@@ -17,7 +17,7 @@ from web_snos import web, generate_log_filename
 from mail_snos import send_bulk_emails, load_mails
 from botnet_snos import extract_username_and_message_id, main as botnet_main, set_bot as botnet_set_bot
 from botnet_snos_premium import extract_username_and_message_id2, main2 as botnet_main2, set_bot2 as botnet_set_bot2
-from bot_snos import main_bot_snos, set_bot_snos
+from bot_snos import main_bot_snos, set_bot_snos, detect_bot_type
 from captcha import generate_captcha_text, generate_captcha_image
 from mirror_manager import validate_token, start_mirror, start_all_mirrors
 from bot_stress import main_bot_stress, set_bot_stress
@@ -97,6 +97,7 @@ last_used_mail = {}
 last_used_botnet = {}
 last_used_botnet2 = {}
 last_used_bot_snos = {}
+last_used_bot_snos_fast = {}  # КД 5 минут для "своих" ботов (с капчей)
 last_used_stress = {}
 last_used_channel = {}
 last_used_aureport = {}
@@ -1726,8 +1727,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return
-			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
+					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(bot_reason='personal', _bot_token=_instance_token)
 			await bot_instance.send_message(
 				call.message.chat.id,
@@ -2366,13 +2366,6 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		await state.finish()
 		await _bot.send_message(uid, ">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=main_menu)
 		return
-	if uid not in admins and uid not in no_kd and uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(hours=1):
-		rem = timedelta(hours=1) - (now_msk() - last_used_bot_snos[uid])
-		h = rem.seconds // 3600
-		m = (rem.seconds % 3600) // 60
-		await state.finish()
-		await _bot.send_message(uid, f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=main_menu)
-		return
 
 	if raw.startswith("https://t.me/"):
 		bot_target = "@" + raw.replace("https://t.me/", "").split("/")[0].split("?")[0]
@@ -2394,11 +2387,43 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 			parse_mode="Markdown", reply_markup=main_menu)
 		return
 
+	# Детектируем тип бота — свой (капча) или чужой
+	is_fast_bot = False
+	try:
+		is_fast_bot = await detect_bot_type(bot_target)
+	except Exception as _det_e:
+		print(f'[BOT-SNOS] detect error: {_det_e}', flush=True)
+
+	# Проверяем КД в зависимости от типа бота
+	if uid not in admins and uid not in no_kd:
+		if is_fast_bot:
+			# Свой бот — КД 5 минут
+			if uid in last_used_bot_snos_fast and (now_msk() - last_used_bot_snos_fast[uid]) < timedelta(minutes=5):
+				rem = timedelta(minutes=5) - (now_msk() - last_used_bot_snos_fast[uid])
+				await state.finish()
+				await _bot.send_message(uid, f'❌ *Жди {rem.seconds // 60}м {rem.seconds % 60}с*', parse_mode="Markdown", reply_markup=main_menu)
+				return
+		else:
+			# Чужой бот — КД 1 час
+			if uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(hours=1):
+				rem = timedelta(hours=1) - (now_msk() - last_used_bot_snos[uid])
+				h = rem.seconds // 3600
+				m = (rem.seconds % 3600) // 60
+				await state.finish()
+				await _bot.send_message(uid, f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=main_menu)
+				return
+
 	reason_key = fsm_data.get('bot_reason', 'other')
 	await state.finish()
 
-	last_used_bot_snos[uid] = now_msk()
-	await _bot.send_message(uid, f'🤖 *Запустил жалобы на {bot_target}...*', parse_mode=ParseMode.MARKDOWN)
+	# Ставим КД
+	if is_fast_bot:
+		last_used_bot_snos_fast[uid] = now_msk()
+	else:
+		last_used_bot_snos[uid] = now_msk()
+
+	kd_label = "5 минут" if is_fast_bot else "1 час"
+	await _bot.send_message(uid, f'🤖 *Запустил жалобы на {bot_target}...*\n*└─ КД после: {kd_label}*', parse_mode=ParseMode.MARKDOWN)
 
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	try:
