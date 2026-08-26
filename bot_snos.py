@@ -231,8 +231,20 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
 
     logger.info(f"[BOT-SNOS] start | target: {bot_url} | sessions: {total} | proxies: {len(proxies)}")
 
-    tasks = [_attack_with_session(s, i, bot_username, proxies, reason_key) for i, s in enumerate(sessions)]
-    results = await asyncio.gather(*tasks)
+    # Пачки по 8 — чтобы не было database is locked и массовых таймаутов
+    BATCH_SIZE = 8
+    results = []
+    for i in range(0, total, BATCH_SIZE):
+        batch = sessions[i:i + BATCH_SIZE]
+        batch_results = await asyncio.gather(
+            *[_attack_with_session(s, i + j, bot_username, proxies, reason_key)
+              for j, s in enumerate(batch)],
+            return_exceptions=True
+        )
+        for r in batch_results:
+            results.append(0 if isinstance(r, Exception) else r)
+        if i + BATCH_SIZE < total:
+            await asyncio.sleep(2)
     successful = sum(results)
 
     logger.info(f"[BOT-SNOS] done: {successful}/{total}")
