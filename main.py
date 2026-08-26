@@ -2404,7 +2404,14 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_snos(_bot)
 		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
-		await _offer_monitor(_bot, uid, bot_target, premium, subscribe)
+		# Предлагаем мониторинг
+		try:
+			_ud = await db.get_user(uid)
+			_prem = int(_ud.get('premium', 0)) if _ud else 0
+			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
+			await _offer_monitor(_bot, uid, bot_target, _prem, _sub)
+		except Exception:
+			pass
 	except Exception as e:
 		import traceback
 		print(f"[BOT-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
@@ -2581,7 +2588,14 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_aureport(_bot)
 		await main_aureport(raw, uid, username)
-		await _offer_monitor(_bot, uid, raw, premium, subscribe)
+		# Предлагаем мониторинг
+		try:
+			_ud = await db.get_user(uid)
+			_prem = int(_ud.get('premium', 0)) if _ud else 0
+			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
+			await _offer_monitor(_bot, uid, raw, _prem, _sub)
+		except Exception:
+			pass
 	except Exception as e:
 		print(f"[AUREPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка AU Report:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
