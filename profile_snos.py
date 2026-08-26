@@ -1,9 +1,9 @@
 # coding: utf-8
 """
 Brown V2 | profile_snos.py
-[ТЕСТ] Жалоба на профиль/аккаунт через messages.ReportRequest с id=[]
-Сессии: sessions/ + prem_sessions/
-Распределение: каждая сессия жалуется по уникальной паре (категория, подкатегория)
+[ТЕСТ] Жалоба на профиль через новый метод messages.ReportRequest id=[]
+Маршрут: Другое → Прочее → текст (My account has been compromised...)
+Все сессии из sessions/ + prem_sessions/
 Только для администраторов.
 """
 
@@ -29,6 +29,8 @@ SESSION_FOLDERS = ['sessions', 'prem_sessions']
 LOG_FOLDER = 'logs'
 os.makedirs(LOG_FOLDER, exist_ok=True)
 
+REPORT_TEXT = "My account has been compromised. Please terminate all active sessions immediately to protect my data."
+
 API = [
     '24565698:5a084b434f8505ace703485b9da85040',
     '27904162:e7cba879b1c643ba77490bf328df5eab',
@@ -50,7 +52,6 @@ def set_bot_profile(b):
 
 
 def _get_sessions():
-    """Собирает сессии из sessions/ и prem_sessions/"""
     result = []
     for folder in SESSION_FOLDERS:
         if not os.path.exists(folder):
@@ -66,74 +67,80 @@ def format_log_line(session, target, status):
     return f'[{now}] {os.path.basename(session)}.session -> {target} - [{status}]'
 
 
-async def _get_report_tree(target_username: str) -> list[tuple[bytes, bytes]]:
+async def _find_option(client, peer, keyword_ru: str, keyword_en: str, prev_option: bytes = b'') -> bytes | None:
     """
-    Подключается одной сессией-разведчиком и строит плоский список пар:
-    [(категория, подкатегория), ...]
-    Если у категории нет подкатегорий — добавляем пару (категория, b'')
+    Делает шаг ReportRequest с prev_option и ищет в результате
+    категорию содержащую keyword_ru или keyword_en (регистронезависимо).
+    Возвращает bytes option или None.
+    """
+    try:
+        r = await client(ReportRequest(peer=peer, id=[], option=prev_option, message=''))
+        if not hasattr(r, 'options') or not r.options:
+            return None
+        for opt in r.options:
+            text = opt.text.lower() if hasattr(opt, 'text') and opt.text else ''
+            if keyword_ru.lower() in text or keyword_en.lower() in text:
+                return opt.option
+        # Не нашли по ключевым словам — берём последний вариант (обычно "Другое/Прочее")
+        return r.options[-1].option
+    except Exception as e:
+        logger.warning(f'[PROFILE] _find_option error: {e}')
+        return None
+
+
+async def _scout_options(target_username: str) -> tuple[bytes | None, bytes | None]:
+    """
+    Разведчик: находит option для "Другое" и подкатегорию "Прочее".
+    Возвращает (other_option, misc_option).
     """
     sessions = _get_sessions()
     if not sessions:
-        return []
+        return None, None
 
     scout_path = sessions[0]
     creds = random.choice(API)
     api_id, api_hash = creds.split(':', 1)
 
-    pairs = []
     client = TelegramClient(scout_path, int(api_id), api_hash,
                             system_version='4.16.30-vxCUSTOM')
     try:
         await asyncio.wait_for(client.connect(), timeout=10)
         if not await client.is_user_authorized():
             await client.disconnect()
-            return []
+            return None, None
 
         entity = await client.get_entity(target_username)
         peer = await client.get_input_entity(entity)
 
-        # Шаг 1: получаем все категории
-        r1 = await client(ReportRequest(peer=peer, id=[], option=b'', message=''))
-        if not hasattr(r1, 'options') or not r1.options:
+        # Шаг 1: ищем "Другое" / "Other"
+        other_opt = await _find_option(client, peer, 'другое', 'other', b'')
+        print(f'[PROFILE] Разведчик: other_opt={other_opt}', flush=True)
+
+        if other_opt is None:
             await client.disconnect()
-            return []
+            return None, None
 
-        categories = [opt.option for opt in r1.options]
-        print(f'[PROFILE] Разведчик: категорий={len(categories)} {categories}', flush=True)
-
-        # Шаг 2: для каждой категории получаем подкатегории
-        for cat in categories:
-            try:
-                r2 = await client(ReportRequest(peer=peer, id=[], option=cat, message=''))
-                if hasattr(r2, 'options') and r2.options:
-                    subcats = [opt.option for opt in r2.options]
-                    print(f'[PROFILE] Категория {cat}: подкатегорий={len(subcats)} {subcats}', flush=True)
-                    for sub in subcats:
-                        pairs.append((cat, sub))
-                else:
-                    # Нет подкатегорий — финальный шаг уже на этом уровне
-                    pairs.append((cat, b''))
-                    print(f'[PROFILE] Категория {cat}: подкатегорий нет (финальная)', flush=True)
-                await asyncio.sleep(0.3)
-            except Exception as e:
-                print(f'[PROFILE] Разведчик: ошибка категории {cat}: {e}', flush=True)
-                pairs.append((cat, b''))
+        # Шаг 2: ищем "Прочее" / "Misc" / "Other" в подкатегориях
+        misc_opt = await _find_option(client, peer, 'прочее', 'misc', other_opt)
+        # Если нет подкатегорий — misc_opt будет None, будем отправлять текст сразу
+        print(f'[PROFILE] Разведчик: misc_opt={misc_opt}', flush=True)
 
         await client.disconnect()
+        return other_opt, misc_opt
+
     except Exception as e:
         print(f'[PROFILE] Разведчик ошибка: {e}', flush=True)
         try:
             await client.disconnect()
         except Exception:
             pass
-
-    return pairs
+        return None, None
 
 
 async def _report_session(session_path: str, target_username: str,
-                          cat: bytes, sub: bytes) -> str:
+                          other_opt: bytes, misc_opt: bytes | None) -> str:
     """
-    Одна сессия отправляет жалобу с заданной парой (категория, подкатегория).
+    Одна сессия: Другое → Прочее (если есть) → текст.
     """
     creds = random.choice(API)
     api_id, api_hash = creds.split(':', 1)
@@ -161,30 +168,41 @@ async def _report_session(session_path: str, target_username: str,
             await client.disconnect()
             return f'ОШИБКА: {str(e)[:40]}'
 
-        # Шаг 1: выбираем категорию
+        # Шаг 1: инициируем флоу
         try:
             await client(ReportRequest(peer=peer, id=[], option=b'', message=''))
         except Exception as e:
             await client.disconnect()
             return f'ОШИБКА ШАГ1: {str(e)[:40]}'
 
-        # Шаг 2: выбираем категорию
+        # Шаг 2: выбираем "Другое"
         try:
-            await client(ReportRequest(peer=peer, id=[], option=cat, message=''))
+            await client(ReportRequest(peer=peer, id=[], option=other_opt, message=''))
         except Exception as e:
             await client.disconnect()
             return f'ОШИБКА ШАГ2: {str(e)[:40]}'
 
-        # Шаг 3: выбираем подкатегорию (если есть) или финальный шаг
-        if sub:
+        # Шаг 3: выбираем "Прочее" (если есть подкатегория)
+        if misc_opt and misc_opt != other_opt:
             try:
-                await client(ReportRequest(peer=peer, id=[], option=sub, message=''))
+                await client(ReportRequest(peer=peer, id=[], option=misc_opt, message=''))
             except Exception as e:
                 await client.disconnect()
                 return f'ОШИБКА ШАГ3: {str(e)[:40]}'
 
+        # Финальный шаг: отправляем текст
+        try:
+            await client(ReportRequest(peer=peer, id=[], option=b'', message=REPORT_TEXT))
+        except Exception as e:
+            # Пробуем с пустым option как финал
+            try:
+                await client(ReportRequest(peer=peer, id=[], option=misc_opt or other_opt, message=REPORT_TEXT))
+            except Exception as e2:
+                await client.disconnect()
+                return f'ОШИБКА ФИНАЛ: {str(e2)[:40]}'
+
         await client.disconnect()
-        print(f'[PROFILE] [{session_name}] ✅ cat={cat} sub={sub}', flush=True)
+        print(f'[PROFILE] [{session_name}] ✅ ДОСТАВЛЕНО', flush=True)
         return 'ДОСТАВЛЕНО'
 
     except FloodWaitError as e:
@@ -231,46 +249,45 @@ async def main_profile_snos(target_link: str, user: int, username: str):
         )
         return
 
-    # Сообщение о начале
+    total = len(sessions)
+
     await bot.send_message(
         user,
         f'👤 *\[ТЕСТ\] Profile Report*\n'
         f'*└─ Цель:* `@{target}`\n'
-        f'*└─ Сессий:* `{len(sessions)}`\n\n'
-        f'⏳ *Строю дерево категорий...*',
+        f'*└─ Сессий:* `{total}`\n'
+        f'*└─ Маршрут:* Другое → Прочее → текст\n\n'
+        f'⏳ *Определяю категории...*',
         parse_mode='Markdown'
     )
 
-    # Получаем дерево категорий разведчиком
-    pairs = await _get_report_tree(target)
-    if not pairs:
+    # Разведка — находим нужные option
+    other_opt, misc_opt = await _scout_options(target)
+
+    if other_opt is None:
         await bot.send_message(
             user,
-            '❌ *Не удалось получить категории жалоб!*\n'
+            '❌ *Не удалось определить категории!*\n'
             '*Проверь username и попробуй снова.*',
             parse_mode='Markdown', reply_markup=keyboards.main_menu
         )
         return
 
-    total = len(sessions)
-    print(f'[PROFILE] 🚀 Старт | @{target} | сессий={total} | пар={len(pairs)}', flush=True)
+    print(f'[PROFILE] 🚀 Старт | @{target} | сессий={total} | other={other_opt} | misc={misc_opt}', flush=True)
 
-    # Назначаем каждой сессии пару по индексу (по кругу)
-    assignments = [(sessions[i], pairs[i % len(pairs)]) for i in range(total)]
-
-    # Запускаем пачками по 8
-    BATCH_SIZE = 8
+    # Запускаем пачками по 3 (по одному репорту с трёх аккаунтов → пауза)
+    BATCH_SIZE = 3
     results = []
     for i in range(0, total, BATCH_SIZE):
-        batch = assignments[i:i + BATCH_SIZE]
+        batch = sessions[i:i + BATCH_SIZE]
         batch_results = await asyncio.gather(
-            *[_report_session(s, target, cat, sub) for s, (cat, sub) in batch],
+            *[_report_session(s, target, other_opt, misc_opt) for s in batch],
             return_exceptions=True
         )
-        for (s, _), r in zip(batch, batch_results):
+        for s, r in zip(batch, batch_results):
             results.append((s, r))
         if i + BATCH_SIZE < total:
-            await asyncio.sleep(random.uniform(2, 4))
+            await asyncio.sleep(random.uniform(3, 6))
 
     # Подсчёт
     delivered = sum(1 for _, r in results if r == 'ДОСТАВЛЕНО')
@@ -283,8 +300,8 @@ async def main_profile_snos(target_link: str, user: int, username: str):
         '-' * 42,
         f'Пользователь: {user} (@{username})',
         f'Цель: @{target}',
+        f'Маршрут: Другое -> Прочее -> текст',
         f'Время: {now_str}',
-        f'Пар категорий: {len(pairs)}',
         '-' * 42,
     ]
     for session, result in results:
@@ -303,7 +320,7 @@ async def main_profile_snos(target_link: str, user: int, username: str):
     caption_user = (
         f'👤 *\[ТЕСТ\] Profile Report завершён!*\n\n'
         f'🎯 *Цель:* @{target_esc}\n'
-        f'🔢 *Пар категорий:* `{len(pairs)}`\n'
+        f'📋 *Маршрут:* Другое → Прочее → текст\n'
         f'🕐 *Время:* {now_str}\n\n'
         f'🟢 *Успешно: {delivered}*\n'
         f'🔴 *Не удалось: {failed}*'
