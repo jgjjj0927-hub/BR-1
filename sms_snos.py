@@ -55,13 +55,12 @@ async def _run_all(session: aiohttp.ClientSession, phone: str) -> list[tuple[str
 
     async def req(name: str, coro):
         try:
-            async with asyncio.timeout(t):
-                resp = await coro
-                code = str(resp.status)
-                icon = "✅" if resp.status in (200, 201, 202, 204, 400, 401) else "❌"
-                print(f"[SMS] {name:30s} → {icon} {code}", flush=True)
-                results.append((name, icon, code))
-        except TimeoutError:
+            resp = await asyncio.wait_for(coro, timeout=t)
+            code = str(resp.status)
+            icon = "✅" if resp.status in (200, 201, 202, 204, 400, 401) else "❌"
+            print(f"[SMS] {name:30s} → {icon} {code}", flush=True)
+            results.append((name, icon, code))
+        except asyncio.TimeoutError:
             print(f"[SMS] {name:30s} → ⏱ TIMEOUT", flush=True)
             results.append((name, "⏱", "TIMEOUT"))
         except Exception as e:
