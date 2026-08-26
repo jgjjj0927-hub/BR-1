@@ -373,7 +373,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             send_web_reports, get_mail_subject, start_bulk_email,
             botnet_step1_normal, botnet_step1_premium, bot_snos_step1,
             mirror_token_received, enter_promo, stress_step1, channel_step1,
-            phone_step1, aureport_step1, tida_step1, tida_step2, tida_target_step, tida_ai_desc_step, bank_step1, dsa_step1, dsa_custom_text,
+            aureport_step1, tida_step1, tida_step2, tida_target_step, tida_ai_desc_step, bank_step1, dsa_step1, dsa_custom_text,
             add_sub_uid, add_sub_days, clear_sub_uid,
             add_prem_uid, clear_prem_uid, sendall,
             admin_block_user, admin_unblock_user, admin_delete_user,
@@ -383,14 +383,13 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             create_promo_code, create_promo_days, create_promo_activations,
             WaitTextFSM, WaitMailTopicFSM, WaitMailTextFSM,
             WaitLinkFSM, WaitLinkPREMFSM, WaitBotLinkFSM,
-            WaitMirrorTokenFSM, WaitPromoFSM, WaitStressFSM, WaitChannelFSM, WaitPhoneFSM,
+            WaitMirrorTokenFSM, WaitPromoFSM, WaitStressFSM, WaitChannelFSM,
             WaitAuReportFSM, WaitTidaFSM, WaitBankFSM, WaitDsaFSM,
             AddSubscribeFSM, ClearSubscribeFSM,
             AddPremFSM, ClearPremFSM, WaitTextZFSM,
             BlockUserFSM, UnblockUserFSM, DeleteUserFSM, CreatePromoFSM,
             AdminAddReportsFSM, AdminRemoveReportsFSM, AdminAddCaseFSM,
             WaitProfileFSM, profile_step1,
-            WaitSmsFSM, sms_step1,
         )
 
         handlers = {
@@ -404,7 +403,6 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitPromoFSM.promo.state: enter_promo,
             WaitStressFSM.link.state: stress_step1,
             WaitChannelFSM.link.state: channel_step1,
-            WaitPhoneFSM.phone.state: phone_step1,
             WaitAuReportFSM.link.state: aureport_step1,
             WaitDsaFSM.link.state: dsa_step1,
             WaitDsaFSM.text.state: dsa_custom_text,
@@ -432,7 +430,6 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             AdminAddCaseFSM.user_id.state: admin_add_case_uid,
             AdminAddCaseFSM.amount.state: admin_add_case_amount,
             WaitProfileFSM.link.state: profile_step1,
-            WaitSmsFSM.phone.state: sms_step1,
         }
 
         handler = handlers.get(current_state)

@@ -42,13 +42,10 @@ botnet_method = types.InlineKeyboardButton("🤖 Обычная Отправка
 prem_botnet_method = types.InlineKeyboardButton("👑 Премиальная отправка", callback_data='prem_botnet_method')
 bot_method_btn = types.InlineKeyboardButton("🤖 Бот", callback_data='bot_method')
 channel_method_btn = types.InlineKeyboardButton("📢 Канал", callback_data='channel_method')
-code_method_btn = types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method')
-sms_method_btn = types.InlineKeyboardButton("💬 SMS Бомбер", callback_data='sms_method')
 functions.add(botnet_method)
 functions.add(web_method, mail_method)
 functions.add(prem_botnet_method)
 functions.add(bot_method_btn, channel_method_btn)
-functions.add(code_method_btn, sms_method_btn)
 manual_method_btn = types.InlineKeyboardButton("👤 Заказать удаление", callback_data='manual_method')
 functions.add(manual_method_btn)
 aureport_method_btn = types.InlineKeyboardButton("🇦🇺 AU Report", callback_data='aureport_method')
@@ -333,10 +330,6 @@ def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
     markup.add(
         types.InlineKeyboardButton("🤖 Бот", callback_data='bot_method'),
         types.InlineKeyboardButton("📢 Канал", callback_data='channel_method'),
-    )
-    markup.add(
-        types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method'),
-        types.InlineKeyboardButton("💬 SMS Бомбер", callback_data='sms_method'),
     )
     markup.add(types.InlineKeyboardButton("👤 Заказать удаление", callback_data='manual_method'))
     markup.add(

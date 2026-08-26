@@ -22,14 +22,12 @@ from captcha import generate_captcha_text, generate_captcha_image
 from mirror_manager import validate_token, start_mirror, start_all_mirrors
 from bot_stress import main_bot_stress, set_bot_stress
 from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABELS
-from code_snos import main_code_snos, set_bot_code
 from aureport_snos import main_aureport, set_bot_aureport
 from tida_snos import main_tida, set_bot_tida
 from bank_snos import process_bank_report, set_bot_bank
 from dsa_snos import main_dsa_snos, set_bot_dsa
 from monitor_snos import monitor_loop, set_monitor_bot
 from profile_snos import main_profile_snos, set_bot_profile
-from sms_snos import main_sms_snos, set_bot_sms
 import db
 
 channel_id = config.channel_id
@@ -106,7 +104,6 @@ last_used_tida = {}
 last_used_bank = {}
 last_used_dsa = {}
 _tida_pending: dict = {}  # uid -> {link, text, target, bot_token, username}
-last_used_sms = {}
 
 async def _send_with_monitor_offer(bot_instance, uid: int, caption: str, target: str, premium: int, subscribe):
     """Отправляет результат репортов с предложением мониторинга."""
@@ -280,9 +277,6 @@ class WaitStressFSM(StatesGroup):
 class WaitChannelFSM(StatesGroup):
 	link = State()
 
-class WaitPhoneFSM(StatesGroup):
-	phone = State()
-
 class WaitAuReportFSM(StatesGroup):
 	link = State()
 
@@ -327,9 +321,6 @@ class AdminAddCaseFSM(StatesGroup):
 
 class WaitProfileFSM(StatesGroup):
 	link = State()
-
-class WaitSmsFSM(StatesGroup):
-	phone = State()
 
 global bot_status
 bot_status = 1
@@ -1641,8 +1632,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		# Список методов требующих подтверждения мануала
 		METHODS_REQUIRING_CONFIRM = {
 			"web_method", "mail_method", "botnet_method", "prem_botnet_method",
-			"bot_method", "channel_method", "code_method", "aureport_method",
-			"tida_method", "bank_method", "sms_method",
+			"bot_method", "channel_method", "aureport_method",
+			"tida_method", "bank_method",
 		}
 
 		# ─── Шаг 1: показываем предупреждение при нажатии на метод ──────────
@@ -2084,44 +2075,6 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				f"🏦 *{bank_names[bank_key]}*\n\n"
 				f"*└─ Введите номер телефона или карты цели:*\n\n"
 				f"`+79991234567` или `4276 1234 5678 9012`",
-				parse_mode="Markdown", reply_markup=back_markup
-			)
-
-		# ─── Код-метод ────────────────────────────────────────────────────────
-		elif d == "code_method":
-			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPhoneFSM.phone.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
-			await bot_instance.edit_message_caption(
-				call.message.chat.id, call.message.message_id,
-				caption="📱 *Код-метод*\n\n*└─ Введите номер телефона цели:*\n`+79991234567`",
-				parse_mode="Markdown", reply_markup=back_markup
-			)
-
-		# ─── SMS Бомбер ───────────────────────────────────────────────────────────
-		elif d == "sms_method":
-			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid not in admins and uid not in no_kd and uid in last_used_sms and (now_msk() - last_used_sms[uid]) < timedelta(minutes=30):
-				rem = timedelta(minutes=30) - (now_msk() - last_used_sms[uid])
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup)
-				return
-			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitSmsFSM.phone.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
-			await bot_instance.edit_message_caption(
-				call.message.chat.id, call.message.message_id,
-				caption=(
-					"💬 *SMS Бомбер*\n\n"
-					"*└─ Введите номер телефона цели:*\n"
-					"`79991234567` или `+79991234567`\n\n"
-					"*⚠️ 100 российских сервисов отправят SMS-код*"
-				),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 
@@ -2569,60 +2522,6 @@ async def channel_step1(message: types.Message, state: FSMContext):
 				s = await _bot.get_session(); await s.close()
 			except Exception: pass
 
-@dp.message_handler(state=WaitPhoneFSM.phone)
-async def phone_step1(message: types.Message, state: FSMContext):
-	uid = message.from_user.id
-	username = message.from_user.username or "None"
-	raw = message.text.strip()
-	fsm_data = await state.get_data()
-	_bot_token = fsm_data.get('_bot_token')
-	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
-	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
-
-	await state.finish()
-
-	# Валидация номера
-	phone = raw if raw.startswith("+") else "+" + raw
-	if len(phone) < 8 or not phone[1:].isdigit():
-		await _bot.send_message(uid,
-			"❌ *Неверный формат номера!*\n*Пример:* `+79991234567`",
-			parse_mode="Markdown", reply_markup=main_menu)
-		if _is_mirror_bot:
-			try:
-				s = await _bot.get_session(); await s.close()
-			except Exception: pass
-		return
-
-	# КД 30 минут
-	if uid not in admins and uid not in no_kd and uid in last_used_channel and (now_msk() - last_used_channel[uid]) < timedelta(minutes=30):
-		rem = timedelta(minutes=30) - (now_msk() - last_used_channel[uid])
-		await _bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
-		if _is_mirror_bot:
-			try:
-				s = await _bot.get_session(); await s.close()
-			except Exception: pass
-		return
-
-	last_used_channel[uid] = now_msk()
-	await _bot.send_message(uid,
-		f'📱 *Запускаю код-метод на* `{phone}`*...*\n*└─ Отправляем 25 кодов*',
-		parse_mode="Markdown")
-
-	try:
-		from code_snos import set_bot_code as _set_code
-		_set_code(_bot)
-		await main_code_snos(phone, uid, username)
-	except Exception as e:
-		print(f"[CODE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка код-метода:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
-	finally:
-		set_bot_code(bot)
-		if _is_mirror_bot:
-			try:
-				s = await _bot.get_session(); await s.close()
-			except Exception: pass
-
-
 @dp.message_handler(state=WaitAuReportFSM.link)
 async def aureport_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
@@ -2962,72 +2861,6 @@ async def profile_step1(message: types.Message, state: FSMContext):
 				await session.close()
 			except Exception:
 				pass
-
-
-@dp.message_handler(state=WaitSmsFSM.phone)
-async def sms_step1(message: types.Message, state: FSMContext):
-	uid = message.from_user.id
-	username = message.from_user.username or "None"
-	raw = message.text.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-	fsm_data = await state.get_data()
-	_bot_token = fsm_data.get('_bot_token')
-	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
-	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
-
-	await state.finish()
-
-	# Нормализуем номер → 79991234567
-	if raw.startswith("+"):
-		raw = raw[1:]
-	if raw.startswith("8") and len(raw) == 11:
-		raw = "7" + raw[1:]
-
-	# Валидация
-	if not raw.isdigit() or len(raw) < 10 or len(raw) > 12:
-		await _bot.send_message(uid,
-			"❌ *Неверный формат номера!*\n\n"
-			"*Примеры:*\n`79991234567`\n`+79991234567`",
-			parse_mode="Markdown", reply_markup=main_menu)
-		if _is_mirror_bot:
-			try:
-				s = await _bot.get_session(); await s.close()
-			except Exception: pass
-		return
-
-	# КД 30 минут
-	if uid not in admins and uid not in no_kd and uid in last_used_sms and (now_msk() - last_used_sms[uid]) < timedelta(minutes=30):
-		rem = timedelta(minutes=30) - (now_msk() - last_used_sms[uid])
-		await _bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*',
-			parse_mode="Markdown", reply_markup=main_menu)
-		if _is_mirror_bot:
-			try:
-				s = await _bot.get_session(); await s.close()
-			except Exception: pass
-		return
-
-	if uid not in admins:
-		last_used_sms[uid] = now_msk()
-
-	await _bot.send_message(uid,
-		f'💬 *Запускаю SMS-бомбер на* `+{raw}`*...*\n'
-		f'*└─ 100 сервисов / КД: 30 мин*',
-		parse_mode="Markdown")
-
-	try:
-		set_bot_sms(_bot)
-		await main_sms_snos(raw, uid, username)
-	except Exception as e:
-		import traceback
-		print(f"[SMS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		traceback.print_exc()
-		await _bot.send_message(uid, f'❌ *Ошибка SMS-бомбера:* `{str(e)[:100]}`',
-			parse_mode="Markdown", reply_markup=main_menu)
-	finally:
-		set_bot_sms(bot)
-		if _is_mirror_bot:
-			try:
-				s = await _bot.get_session(); await s.close()
-			except Exception: pass
 
 
 @dp.message_handler(state=WaitStressFSM.link)
@@ -3497,13 +3330,11 @@ async def on_startup(dp):
 	set_bot_snos(bot)
 	set_bot_stress(bot)
 	set_bot_channel(bot)
-	set_bot_code(bot)
 	set_bot_aureport(bot)
 	set_bot_tida(bot)
 	set_bot_bank(bot)
 	set_monitor_bot(bot, bot_logs)
 	set_bot_profile(bot)
-	set_bot_sms(bot)
 	asyncio.ensure_future(monitor_loop())
 	await start_all_mirrors()
 	print("Бот запущен.")
