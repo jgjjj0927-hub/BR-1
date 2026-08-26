@@ -28,6 +28,7 @@ from tida_snos import main_tida, set_bot_tida
 from bank_snos import process_bank_report, set_bot_bank
 from dsa_snos import main_dsa_snos, set_bot_dsa
 from monitor_snos import monitor_loop, set_monitor_bot
+from profile_snos import main_profile_snos, set_bot_profile
 import db
 
 channel_id = config.channel_id
@@ -320,6 +321,9 @@ class CreatePromoFSM(StatesGroup):
 class AdminAddCaseFSM(StatesGroup):
 	user_id = State()
 	amount = State()
+
+class WaitProfileFSM(StatesGroup):
+	link = State()
 
 global bot_status
 bot_status = 1
@@ -821,8 +825,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			return
 
 		if d == 'functions':
-			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="*Заказ*\n\n>*Посмотрите Мануал*", parse_mode="MarkdownV2", reply_markup=functions)
+			# Админам показываем расширенное меню с profile_method
+			if uid in admins:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption="*Заказ*\n\n>*Посмотрите Мануал*\n\n🔧 _Режим администратора_", parse_mode="MarkdownV2",
+					reply_markup=keyboards.get_admin_functions_markup())
+			else:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption="*Заказ*\n\n>*Посмотрите Мануал*", parse_mode="MarkdownV2", reply_markup=functions)
 		elif d == 'profile':
 			sub_text = "Истекла" if subscribe < now_msk() else f"осталось {(subscribe - now_msk()).days} дней"
 			prem = "Да" if premium == 1 else "Нет"
@@ -1979,6 +1989,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"— Кратко опишите нарушение",
 				parse_mode="Markdown", reply_markup=back_markup)
 
+		# ─── [ТЕСТ] Profile Report ────────────────────────────────────────────────
+		elif d == "profile_method":
+			if uid not in admins:
+				await bot_instance.answer_callback_query(call.id, "❌ Только для администраторов!", show_alert=True)
+				return
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup)
+				return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitProfileFSM.link.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"👤 *\[ТЕСТ\] Profile Report*\n\n"
+					"*└─ Введите @username или ссылку:*\n\n"
+					"`@username` или `https://t\.me/username`"
+				),
+				parse_mode="MarkdownV2", reply_markup=back_markup
+			)
+
 		# ─── Логгер ───────────────────────────────────────────────────────────────
 		elif d == "logger_method":
 			if bot_off():
@@ -2815,6 +2846,49 @@ async def bank_step1(message: types.Message, state: FSMContext):
 			except Exception: pass
 
 
+@dp.message_handler(state=WaitProfileFSM.link)
+async def profile_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	# Только для админов — двойная проверка
+	if uid not in admins:
+		await _bot.send_message(uid, "❌ *Только для администраторов!*", parse_mode="Markdown", reply_markup=main_menu)
+		return
+
+	await _bot.send_message(
+		uid,
+		f'👤 *\[ТЕСТ\] Запускаю Profile Report на* `{raw}`*...*\n'
+		f'*└─ Метод: Spam → Defamation/Insult*',
+		parse_mode="Markdown"
+	)
+
+	try:
+		set_bot_profile(_bot)
+		await main_profile_snos(raw, uid, username)
+	except Exception as e:
+		import traceback
+		print(f"[PROFILE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		traceback.print_exc()
+		await _bot.send_message(uid, f'❌ *Ошибка Profile-метода:* `{str(e)[:100]}`',
+			parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_profile(bot)
+		if _is_mirror_bot:
+			try:
+				session = await _bot.get_session()
+				await session.close()
+			except Exception:
+				pass
+
+
 @dp.message_handler(state=WaitStressFSM.link)
 async def stress_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
@@ -3287,6 +3361,7 @@ async def on_startup(dp):
 	set_bot_tida(bot)
 	set_bot_bank(bot)
 	set_monitor_bot(bot, bot_logs)
+	set_bot_profile(bot)
 	asyncio.ensure_future(monitor_loop())
 	await start_all_mirrors()
 	print("Бот запущен.")

@@ -60,6 +60,9 @@ functions.add(dsa_method_btn)
 logger_method_btn = types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method')
 functions.add(logger_method_btn)
 
+# ─── Admin-only методы (добавляются динамически в handle_callback) ─────────────
+# profile_method_btn — показывается только админам, не добавляется в общее меню
+
 # ─── TIDA тип цели ────────────────────────────────────────────────────────────
 tida_target_markup = types.InlineKeyboardMarkup(row_width=1)
 tida_target_markup.add(
@@ -315,6 +318,34 @@ def manual_confirm_step2(method: str) -> types.InlineKeyboardMarkup:
     )
     return markup
 
+
+# ─── Admin functions menu (с profile_method) ──────────────────────────────────
+def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
+    """Меню методов для администраторов — включает тестовый profile_method."""
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(types.InlineKeyboardButton("🤖 Обычная Отправка", callback_data='botnet_method'))
+    markup.add(
+        types.InlineKeyboardButton("🌐 Web", callback_data='web_method'),
+        types.InlineKeyboardButton("✉️ Mail", callback_data='mail_method'),
+    )
+    markup.add(types.InlineKeyboardButton("👑 Премиальная отправка", callback_data='prem_botnet_method'))
+    markup.add(
+        types.InlineKeyboardButton("🤖 Бот", callback_data='bot_method'),
+        types.InlineKeyboardButton("📢 Канал", callback_data='channel_method'),
+    )
+    markup.add(types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method'))
+    markup.add(types.InlineKeyboardButton("👤 Заказать удаление", callback_data='manual_method'))
+    markup.add(
+        types.InlineKeyboardButton("🇦🇺 AU Report", callback_data='aureport_method'),
+        types.InlineKeyboardButton("🟣 TIDA", callback_data='tida_method'),
+    )
+    markup.add(types.InlineKeyboardButton("🏦 Блокировка карты", callback_data='bank_method'))
+    markup.add(types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'))
+    markup.add(types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method'))
+    # Тестовый метод — только для админов
+    markup.add(types.InlineKeyboardButton("👤 [ТЕСТ] Profile Report", callback_data='profile_method'))
+    markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
+    return markup
 
 # ─── Мониторинг ───────────────────────────────────────────────────────────────
 def monitor_add_markup(target: str, can_add: bool) -> types.InlineKeyboardMarkup:
