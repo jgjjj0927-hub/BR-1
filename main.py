@@ -1727,7 +1727,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
+					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup)
+				return
+			if uid not in admins and uid not in no_kd and uid in last_used_bot_snos_fast and (now_msk() - last_used_bot_snos_fast[uid]) < timedelta(minutes=5):
+				rem = timedelta(minutes=5) - (now_msk() - last_used_bot_snos_fast[uid])
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f'❌ *Жди {rem.seconds // 60}м {rem.seconds % 60}с*', parse_mode="Markdown", reply_markup=back_markup)
+				return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(bot_reason='personal', _bot_token=_instance_token)
 			await bot_instance.send_message(
 				call.message.chat.id,
