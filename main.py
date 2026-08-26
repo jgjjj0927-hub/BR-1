@@ -3031,7 +3031,8 @@ async def sms_step1(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler(state=WaitStressFSM.link)
-async def stress_step1(message: types.Message, state: FSMContext):	uid = message.from_user.id
+async def stress_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	raw = message.text.strip()
 	fsm_data = await state.get_data()
