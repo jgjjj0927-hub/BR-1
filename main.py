@@ -1672,7 +1672,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен премиум\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid in last_used_web and (now_msk() - last_used_web[uid]) < timedelta(minutes=30):
+			if uid in last_used_web and uid not in admins and uid not in no_kd and (now_msk() - last_used_web[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_web[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown", reply_markup=back_markup)
@@ -1682,7 +1682,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "mail_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid in last_used_mail and (now_msk() - last_used_mail[uid]) < timedelta(minutes=300):
+			if uid in last_used_mail and uid not in admins and uid not in no_kd and (now_msk() - last_used_mail[uid]) < timedelta(minutes=300):
 				rem = timedelta(minutes=300) - (now_msk() - last_used_mail[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown", reply_markup=back_markup)
@@ -1694,7 +1694,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if sub_expired() and free_reports == 0:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати или получи бесплатный репорт\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid in last_used_botnet and (now_msk() - last_used_botnet[uid]) < timedelta(minutes=5):
+			if uid in last_used_botnet and uid not in admins and uid not in no_kd and (now_msk() - last_used_botnet[uid]) < timedelta(minutes=5):
 				rem = timedelta(minutes=5) - (now_msk() - last_used_botnet[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown", reply_markup=back_markup)
@@ -1705,7 +1705,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен премиум\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if uid in last_used_botnet2 and (now_msk() - last_used_botnet2[uid]) < timedelta(minutes=30):
+			if uid in last_used_botnet2 and uid not in admins and uid not in no_kd and (now_msk() - last_used_botnet2[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_botnet2[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
 			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown", reply_markup=back_markup)
