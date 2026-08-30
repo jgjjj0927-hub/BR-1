@@ -54,7 +54,9 @@ functions.add(aureport_method_btn, tida_method_btn)
 bank_method_btn = types.InlineKeyboardButton("🏦 Блокировка карты", callback_data='bank_method')
 functions.add(bank_method_btn)
 dsa_method_btn = types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method')
+telegraph_method_btn = types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method')
 functions.add(dsa_method_btn)
+functions.add(telegraph_method_btn)
 logger_method_btn = types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method')
 functions.add(logger_method_btn)
 
@@ -360,3 +362,11 @@ def monitor_add_markup(target: str, can_add: bool) -> types.InlineKeyboardMarkup
         ))
     markup.add(types.InlineKeyboardButton("[🔙] Главное меню", callback_data='go_to_main_menu'))
     return markup
+
+# ─── Telegraph — подтверждение текста ────────────────────────────────────────
+telegraph_confirm_markup = types.InlineKeyboardMarkup(row_width=1)
+telegraph_confirm_markup.add(
+    types.InlineKeyboardButton("✅ Отправить", callback_data='telegraph_confirm'),
+    types.InlineKeyboardButton("✏️ Написать свой текст", callback_data='telegraph_custom'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+)

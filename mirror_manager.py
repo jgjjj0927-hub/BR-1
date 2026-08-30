@@ -374,6 +374,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             botnet_step1_normal, botnet_step1_premium, bot_snos_step1,
             mirror_token_received, enter_promo, stress_step1, channel_step1,
             aureport_step1, tida_step1, tida_step2, tida_target_step, tida_ai_desc_step, bank_step1, dsa_step1, dsa_custom_text,
+            telegraph_step1, telegraph_custom_text,
             add_sub_uid, add_sub_days, clear_sub_uid,
             add_prem_uid, clear_prem_uid, sendall,
             admin_block_user, admin_unblock_user, admin_delete_user,
@@ -384,7 +385,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitTextFSM, WaitMailTopicFSM, WaitMailTextFSM,
             WaitLinkFSM, WaitLinkPREMFSM, WaitBotLinkFSM,
             WaitMirrorTokenFSM, WaitPromoFSM, WaitStressFSM, WaitChannelFSM,
-            WaitAuReportFSM, WaitTidaFSM, WaitBankFSM, WaitDsaFSM,
+            WaitAuReportFSM, WaitTidaFSM, WaitBankFSM, WaitDsaFSM, WaitTelegraphFSM,
             AddSubscribeFSM, ClearSubscribeFSM,
             AddPremFSM, ClearPremFSM, WaitTextZFSM,
             BlockUserFSM, UnblockUserFSM, DeleteUserFSM, CreatePromoFSM,
@@ -430,6 +431,8 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             AdminAddCaseFSM.user_id.state: admin_add_case_uid,
             AdminAddCaseFSM.amount.state: admin_add_case_amount,
             WaitProfileFSM.link.state: profile_step1,
+            WaitTelegraphFSM.link.state: telegraph_step1,
+            WaitTelegraphFSM.custom_text.state: telegraph_custom_text,
         }
 
         handler = handlers.get(current_state)

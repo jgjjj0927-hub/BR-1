@@ -393,3 +393,110 @@ async def _notify_user(user_id: int, target: str, reason: str, status: str):
             )
     except Exception:
         pass
+
+# ─── Мониторинг Telegraph-статей ─────────────────────────────────────────────
+# Формат: {url: str, user_id: int, added_at: datetime}
+_telegraph_monitors: list[dict] = []
+_telegraph_lock = asyncio.Lock()
+
+
+def telegraph_monitor_add(url: str, user_id: int):
+    """Добавляет Telegraph-статью в мониторинг."""
+    # Убираем дубли по url+user_id
+    for m in _telegraph_monitors:
+        if m["url"] == url and m["user_id"] == user_id:
+            return
+    _telegraph_monitors.append({
+        "url": url,
+        "user_id": user_id,
+        "added_at": now_msk(),
+        "notified": False,
+    })
+    logger.info(f"[MONITOR-TELEGRAPH] Добавлена {url} для {user_id}")
+
+
+def telegraph_monitor_remove(url: str, user_id: int):
+    """Удаляет Telegraph-статью из мониторинга."""
+    global _telegraph_monitors
+    _telegraph_monitors = [
+        m for m in _telegraph_monitors
+        if not (m["url"] == url and m["user_id"] == user_id)
+    ]
+
+
+async def _check_telegraph_url(url: str) -> int:
+    """Проверяет статью по HTTP. Возвращает HTTP статус."""
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                url,
+                timeout=aiohttp.ClientTimeout(total=10),
+                headers={"User-Agent": "Mozilla/5.0"},
+                allow_redirects=True
+            ) as resp:
+                return resp.status
+    except Exception as e:
+        logger.error(f"[MONITOR-TELEGRAPH] HTTP error {url}: {e}")
+        return 0
+
+
+async def _telegraph_monitor_loop():
+    """Цикл проверки Telegraph-статей каждые 10 минут."""
+    while True:
+        await asyncio.sleep(10 * 60)  # 10 минут
+        if not _telegraph_monitors:
+            continue
+
+        async with _telegraph_lock:
+            to_remove = []
+            for m in list(_telegraph_monitors):
+                if m.get("notified"):
+                    to_remove.append(m)
+                    continue
+
+                status = await _check_telegraph_url(m["url"])
+                logger.info(f"[MONITOR-TELEGRAPH] {m['url']} → {status}")
+
+                if status == 404:
+                    # Статья удалена — уведомляем
+                    m["notified"] = True
+                    to_remove.append(m)
+                    await _notify_telegraph(m["user_id"], m["url"])
+
+            for m in to_remove:
+                try:
+                    _telegraph_monitors.remove(m)
+                except ValueError:
+                    pass
+
+
+async def _notify_telegraph(user_id: int, url: str):
+    """Уведомляет пользователя об удалении Telegraph-статьи."""
+    if not _bot:
+        return
+
+    try:
+        await _bot.send_message(
+            user_id,
+            f"🔍 *Мониторинг BR V2*\n\n"
+            f"🔴 *Telegraph статья удалена!*\n\n"
+            f"📄 *Статья:* {url}\n"
+            f"🕐 *Время:* {now_msk().strftime('%d.%m.%Y %H:%M:%S')}",
+            parse_mode="Markdown",
+            disable_web_page_preview=True
+        )
+        logger.info(f"[MONITOR-TELEGRAPH] Уведомил {user_id} об удалении {url}")
+    except Exception as e:
+        logger.error(f"[MONITOR-TELEGRAPH] Ошибка уведомления {user_id}: {e}")
+
+    try:
+        if _bot_logs:
+            await _bot.send_message(
+                _bot_logs,
+                f"📄 *Telegraph удалена:* {url}\n👤 {user_id}",
+                parse_mode="Markdown",
+                disable_web_page_preview=True
+            )
+    except Exception:
+        pass

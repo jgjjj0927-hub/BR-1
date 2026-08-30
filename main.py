@@ -26,7 +26,8 @@ from aureport_snos import main_aureport, set_bot_aureport
 from tida_snos import main_tida, set_bot_tida
 from bank_snos import process_bank_report, set_bot_bank
 from dsa_snos import main_dsa_snos, set_bot_dsa
-from monitor_snos import monitor_loop, set_monitor_bot
+from telegraph_snos import main_telegraph_snos, set_bot_telegraph, fetch_telegraph_text, generate_telegraph_text
+from monitor_snos import monitor_loop, set_monitor_bot, telegraph_monitor_add
 from profile_snos import main_profile_snos, set_bot_profile
 import db
 
@@ -103,6 +104,7 @@ last_used_aureport = {}
 last_used_tida = {}
 last_used_bank = {}
 last_used_dsa = {}
+last_used_telegraph = {}
 _tida_pending: dict = {}  # uid -> {link, text, target, bot_token, username}
 
 async def _send_with_monitor_offer(bot_instance, uid: int, caption: str, target: str, premium: int, subscribe):
@@ -290,6 +292,14 @@ class WaitTidaFSM(StatesGroup):
 class WaitDsaFSM(StatesGroup):
 	link = State()
 	reason = State()
+	sub_reason = State()
+	text_confirm = State()
+	text = State()
+
+class WaitTelegraphFSM(StatesGroup):
+	link = State()          # ввод ссылки
+	confirm = State()       # подтверждение или свой текст
+	custom_text = State()   # ввод своего текста
 	sub_reason = State()
 	text = State()
 	text_confirm = State()
@@ -1633,7 +1643,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		METHODS_REQUIRING_CONFIRM = {
 			"web_method", "mail_method", "botnet_method", "prem_botnet_method",
 			"bot_method", "channel_method", "aureport_method",
-			"tida_method", "bank_method",
+			"tida_method", "bank_method", "telegraph_method",
 		}
 
 		# ─── Шаг 1: показываем предупреждение при нажатии на метод ──────────
@@ -1938,6 +1948,67 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
+
+		# ─── Telegraph снос ──────────────────────────────────────────────────────
+		elif d == "telegraph_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if uid not in admins and uid not in no_kd and uid in last_used_telegraph and (now_msk() - last_used_telegraph[uid]) < timedelta(minutes=15):
+				rem = timedelta(minutes=15) - (now_msk() - last_used_telegraph[uid])
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTelegraphFSM.link.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"📄 *Telegraph снос*\n\n"
+					"*└─ Введите ссылку на статью:*\n\n"
+					"`https://telegra.ph/...`"
+				),
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+
+		# ─── Telegraph — подтверждение текста ────────────────────────────────────
+		elif d == "telegraph_confirm":
+			await call.answer()
+			fsm_data = await dp_instance.current_state(user=uid).get_data()
+			article_url = fsm_data.get("telegraph_url", "")
+			subject = fsm_data.get("telegraph_subject", "")
+			body = fsm_data.get("telegraph_body", "")
+			_bot_token = fsm_data.get("_bot_token")
+			_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+			_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+			await dp_instance.current_state(chat=uid, user=uid).finish()
+			if uid not in admins:
+				last_used_telegraph[uid] = now_msk()
+			await _bot.send_message(uid,
+				f'📄 *Запускаю Telegraph снос...*\n'
+				f'*└─ Отправляем 12 жалоб*',
+				parse_mode="Markdown")
+			try:
+				set_bot_telegraph(_bot)
+				await main_telegraph_snos(article_url, uid, username, custom_text=body, custom_subject=subject)
+			except Exception as e:
+				print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
+				await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+			finally:
+				set_bot_telegraph(bot)
+				if _is_mirror_bot:
+					try:
+						s = await _bot.get_session(); await s.close()
+					except Exception: pass
+
+		# ─── Telegraph — пользователь хочет свой текст ───────────────────────────
+		elif d == "telegraph_custom":
+			await call.answer()
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTelegraphFSM.custom_text.state)
+			await bot_instance.send_message(uid,
+				"✏️ *Введите свой текст письма:*\n\n"
+				"_Текст будет отправлен на все 3 адреса Telegram_",
+				parse_mode="Markdown", reply_markup=back_markup)
 
 		# ─── DSA причины ──────────────────────────────────────────────────────
 		elif d.startswith("dsa_r_") and await dp_instance.current_state(chat=uid, user=uid).get_state() == WaitDsaFSM.reason.state:
@@ -2561,6 +2632,121 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, f'❌ *Ошибка AU Report:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		set_bot_aureport(bot)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
+@dp.message_handler(state=WaitTelegraphFSM.link)
+async def telegraph_step1(message: types.Message, state: FSMContext):
+	"""Пользователь ввёл ссылку на статью."""
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	# Валидация ссылки
+	if "telegra.ph" not in raw and "teletype.in" not in raw:
+		await _bot.send_message(uid,
+			"❌ *Неверная ссылка!*\n\n"
+			"*Пример:* `https://telegra.ph/название`",
+			parse_mode="Markdown", reply_markup=back_markup)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	# Проверяем доступность статьи
+	await _bot.send_message(uid, "🔍 *Проверяю статью...*", parse_mode="Markdown")
+	article_text, status = await fetch_telegraph_text(raw)
+
+	if status == 404:
+		await state.finish()
+		await _bot.send_message(uid,
+			"❌ *Статья недоступна или удалена (404)*\n\nПопробуйте другую ссылку.",
+			parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	if status != 200:
+		await state.finish()
+		await _bot.send_message(uid,
+			f"❌ *Не удалось получить статью (код {status})*",
+			parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	# Groq генерация
+	await _bot.send_message(uid, "🤖 *Генерирую текст жалобы...*", parse_mode="Markdown")
+	subject, body = await generate_telegraph_text(raw, article_text)
+
+	# Сохраняем в FSM
+	await state.update_data(
+		telegraph_url=raw,
+		telegraph_subject=subject,
+		telegraph_body=body,
+	)
+	await dp.current_state(chat=uid, user=uid).set_state(WaitTelegraphFSM.confirm.state)
+
+	# Показываем сгенерированный текст
+	body_preview = body[:200] + "..." if len(body) > 200 else body
+	await _bot.send_message(uid,
+		f"📄 *Telegraph снос*\n\n"
+		f"*Тема:* `{subject}`\n\n"
+		f"*Текст:*\n`{body_preview}`\n\n"
+		f"*Отправить на:* abuse / support / dmca @telegram.org\n"
+		f"*Писем:* 12 (4 отправителя × 3 адреса)",
+		parse_mode="Markdown",
+		reply_markup=keyboards.telegraph_confirm_markup
+	)
+
+
+@dp.message_handler(state=WaitTelegraphFSM.custom_text)
+async def telegraph_custom_text(message: types.Message, state: FSMContext):
+	"""Пользователь ввёл свой текст письма."""
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	custom_body = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	article_url = fsm_data.get("telegraph_url", "")
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	if not custom_body:
+		await _bot.send_message(uid, "❌ *Пустой текст*", parse_mode="Markdown", reply_markup=main_menu)
+		return
+
+	if uid not in admins:
+		last_used_telegraph[uid] = now_msk()
+
+	custom_subject = f"ToS Violation: {article_url}"
+
+	await _bot.send_message(uid,
+		f'📄 *Запускаю Telegraph снос...*\n*└─ Отправляем 12 жалоб*',
+		parse_mode="Markdown")
+
+	try:
+		set_bot_telegraph(_bot)
+		await main_telegraph_snos(article_url, uid, username, custom_text=custom_body, custom_subject=custom_subject)
+	except Exception as e:
+		print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_telegraph(bot)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -3335,7 +3521,10 @@ async def on_startup(dp):
 	set_bot_bank(bot)
 	set_monitor_bot(bot, bot_logs)
 	set_bot_profile(bot)
+	set_bot_telegraph(bot)
 	asyncio.ensure_future(monitor_loop())
+	from monitor_snos import _telegraph_monitor_loop
+	asyncio.ensure_future(_telegraph_monitor_loop())
 	await start_all_mirrors()
 	print("Бот запущен.")
 
