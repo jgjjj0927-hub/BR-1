@@ -55,8 +55,7 @@ bank_method_btn = types.InlineKeyboardButton("🏦 Блокировка карт
 functions.add(bank_method_btn)
 dsa_method_btn = types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method')
 telegraph_method_btn = types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method')
-functions.add(dsa_method_btn)
-functions.add(telegraph_method_btn)
+functions.add(dsa_method_btn, telegraph_method_btn)
 logger_method_btn = types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method')
 functions.add(logger_method_btn)
 
