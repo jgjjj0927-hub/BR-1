@@ -1,31 +1,28 @@
 """
 Brown V2 | telegraph_snos.py
-Метод: снос Telegraph/Teletype статей
+Метод: снос Telegraph статей через email-relay
 - Парсит содержимое статьи
-- Groq генерирует тему и текст письма (EN, макс 500 символов, без законов)
-- 4 rambler-почты шлют на abuse/support/dmca@telegram.org
-- Задержка 10-25 сек между отправками
+- Groq генерирует тему и текст (EN, макс 500 символов)
+- Отправляет 12 писем через relay (4 почты × 3 адреса)
+- spin_text/spin_subject для уникальности каждого письма
 """
 
 import asyncio
-import smtplib
 import logging
 import os
 import re
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
-from mail_snos import spin_text, spin_subject
 import aiohttp
 
 import config
 from utils import now_msk
+from mail_snos import spin_text, spin_subject, RELAY_URL, RELAY_TOKEN
 
 logger = logging.getLogger(__name__)
 
 GROQ_KEY = os.environ.get("GROQ_KEY", config.GROQ_KEY)
 
-# ─── Почты-отправители ────────────────────────────────────────────────────────
+# ─── Отправители ──────────────────────────────────────────────────────────────
 SENDERS = [
     ("jfjtwncyeb@rambler.ru",  "7066987lMSG2Z"),
     ("ifzenleixs@rambler.ru",  "69679436xM9U4"),
@@ -40,10 +37,6 @@ RECIPIENTS = [
     "dmca@telegram.org",
 ]
 
-SMTP_HOST = "smtp.rambler.ru"
-SMTP_PORT = 587
-SMTP_TIMEOUT = 15
-
 bot = None
 
 
@@ -54,11 +47,6 @@ def set_bot_telegraph(b):
 
 # ─── Парсинг статьи ───────────────────────────────────────────────────────────
 async def fetch_telegraph_text(url: str) -> tuple[str, int]:
-    """
-    Скачивает текст статьи.
-    Возвращает (текст, http_status).
-    Если 404 — статья удалена.
-    """
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -67,13 +55,9 @@ async def fetch_telegraph_text(url: str) -> tuple[str, int]:
                 headers={"User-Agent": "Mozilla/5.0"}
             ) as resp:
                 status = resp.status
-                if status == 404:
-                    return "", 404
                 if status != 200:
                     return "", status
                 html = await resp.text(errors="ignore")
-
-        # Вытаскиваем текст из <article> или <p>
         text = re.sub(r"<[^>]+>", " ", html)
         text = re.sub(r"\s+", " ", text).strip()
         return text[:2000], 200
@@ -84,10 +68,15 @@ async def fetch_telegraph_text(url: str) -> tuple[str, int]:
 
 # ─── Groq генерация ───────────────────────────────────────────────────────────
 async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[str, str]:
-    """
-    Генерирует тему и текст письма через Groq.
-    Возвращает (subject, body).
-    """
+    fallback_subject = f"ToS Violation Report"
+    fallback_body = (
+        f"Dear Telegram Support,\n\n"
+        f"I am reporting a Telegraph article that violates Telegram's Terms of Service "
+        f"(telegram.org/tos). The article contains prohibited content.\n\n"
+        f"Article: {article_url}\n\n"
+        f"Please review and take appropriate action.\n\nThank you."
+    )
+
     prompt = (
         f"You are writing a formal complaint email to Telegram support.\n"
         f"Article URL: {article_url}\n"
@@ -101,15 +90,6 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
         f"Response format (exactly):\n"
         f"SUBJECT: <subject here>\n"
         f"BODY: <body here>"
-    )
-
-    fallback_subject = f"ToS Violation Report: {article_url}"
-    fallback_body = (
-        f"Dear Telegram Support,\n\n"
-        f"I am reporting a Telegraph article that violates Telegram's Terms of Service "
-        f"(telegram.org/tos). The article contains prohibited content.\n\n"
-        f"Article: {article_url}\n\n"
-        f"Please review and take appropriate action.\n\nThank you."
     )
 
     try:
@@ -133,13 +113,11 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
             ) as resp:
                 data = await resp.json(content_type=None)
                 if "choices" not in data:
-                    logger.error(f"[TELEGRAPH] Groq unexpected: {data}")
                     return fallback_subject, fallback_body
 
                 content = data["choices"][0]["message"]["content"].strip()
                 logger.info(f"[TELEGRAPH] Groq raw: {content[:200]}")
 
-                # Парсим SUBJECT и BODY
                 subject = fallback_subject
                 body = fallback_body
 
@@ -158,26 +136,31 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
         return fallback_subject, fallback_body
 
 
-# ─── SMTP отправка одного письма ──────────────────────────────────────────────
-def _send_one(sender_email: str, sender_pass: str,
-              recipient: str, subject: str, body: str) -> bool:
+# ─── Отправка одного письма через relay ───────────────────────────────────────
+async def _send_via_relay(session: aiohttp.ClientSession,
+                          sender_email: str, sender_pass: str,
+                          recipient: str, subject: str, body: str) -> bool:
     try:
-        msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = recipient
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain", "utf-8"))
-
-        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(sender_email, sender_pass)
-        server.sendmail(sender_email, recipient, msg.as_string())
-        server.quit()
-        return True
+        payload = {
+            "token": RELAY_TOKEN,
+            "from_email": sender_email,
+            "from_pass": sender_pass,
+            "to": recipient,
+            "subject": subject,
+            "body": body,
+        }
+        async with session.post(
+            RELAY_URL,
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=20)
+        ) as resp:
+            result = await resp.json(content_type=None)
+            ok = result.get("ok") or result.get("status") == "ok" or resp.status == 200
+            if not ok:
+                logger.error(f"[TELEGRAPH] relay {sender_email}→{recipient}: {result}")
+            return ok
     except Exception as e:
-        logger.error(f"[TELEGRAPH] SMTP {sender_email} → {recipient}: {e}")
+        logger.error(f"[TELEGRAPH] relay {sender_email}→{recipient}: {e}")
         return False
 
 
@@ -186,32 +169,23 @@ async def main_telegraph_snos(
     article_url: str,
     user_id: int,
     username: str,
-    custom_text: str = "",       # если пользователь написал свой текст
-    custom_subject: str = "",    # если пользователь написал свою тему
+    custom_text: str = "",
+    custom_subject: str = "",
 ) -> dict:
-    """
-    Основная функция Telegraph-метода.
-    Возвращает dict с результатами: ok, fail, subject, body
-    """
     from config import bot_logs
     import keyboards
     from aiogram import types as aiogram_types
 
     print(f"\n[TELEGRAPH] 🚀 Старт | {article_url} | {user_id} (@{username})", flush=True)
 
-    # Используем текст пользователя или Groq
     if custom_text and custom_subject:
         subject = custom_subject
         body = custom_text
         print(f"[TELEGRAPH] Используем пользовательский текст", flush=True)
     else:
-        # Парсим статью
         article_text, status = await fetch_telegraph_text(article_url)
         if status == 404:
-            print(f"[TELEGRAPH] 404 — статья удалена", flush=True)
             return {"ok": 0, "fail": 0, "error": "404"}
-
-        # Groq генерация
         print(f"[TELEGRAPH] Генерирую текст через Groq...", flush=True)
         subject, body = await generate_telegraph_text(article_url, article_text)
 
@@ -222,18 +196,16 @@ async def main_telegraph_snos(
     fail = 0
     total = len(SENDERS) * len(RECIPIENTS)
 
-    # Все письма параллельно через gather — каждое с уникальным спином
-    async def send_one_async(sender_email, sender_pass, recipient):
-        # Уникальный текст для каждого письма
-        spun_subject = spin_subject(subject)
+    # Все письма параллельно — каждое со своим спином
+    async def send_one(sender_email, sender_pass, recipient):
+        spun_subj = spin_subject(subject)
         spun_body = spin_text(body)
-        result = await asyncio.get_event_loop().run_in_executor(
-            None, _send_one, sender_email, sender_pass, recipient, spun_subject, spun_body
-        )
+        async with aiohttp.ClientSession() as session:
+            result = await _send_via_relay(session, sender_email, sender_pass, recipient, spun_subj, spun_body)
         return result, recipient
 
     tasks = [
-        send_one_async(email, pwd, recipient)
+        send_one(email, pwd, recipient)
         for email, pwd in SENDERS
         for recipient in RECIPIENTS
     ]
@@ -249,16 +221,14 @@ async def main_telegraph_snos(
 
     print(f"[TELEGRAPH] Итого: ✅ {ok} / ❌ {fail}", flush=True)
 
-    # Добавляем статью в мониторинг если хоть одно письмо ушло
+    # Добавляем в мониторинг
     if ok > 0:
         try:
             from monitor_snos import telegraph_monitor_add
             telegraph_monitor_add(article_url, user_id)
-            print(f"[TELEGRAPH] Статья добавлена в мониторинг", flush=True)
         except Exception as e:
-            print(f"[TELEGRAPH] Ошибка добавления в мониторинг: {e}", flush=True)
+            print(f"[TELEGRAPH] Ошибка мониторинга: {e}", flush=True)
 
-    # Формируем отчёт
     body_preview = body[:80] + "..." if len(body) > 80 else body
 
     caption = (
