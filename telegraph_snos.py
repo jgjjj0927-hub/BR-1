@@ -8,7 +8,6 @@ Brown V2 | telegraph_snos.py
 """
 
 import asyncio
-import random
 import smtplib
 import logging
 import os
@@ -41,7 +40,7 @@ RECIPIENTS = [
 ]
 
 SMTP_HOST = "smtp.rambler.ru"
-SMTP_PORT = 465
+SMTP_PORT = 587
 SMTP_TIMEOUT = 15
 
 bot = None
@@ -167,7 +166,10 @@ def _send_one(sender_email: str, sender_pass: str,
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT)
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
         server.login(sender_email, sender_pass)
         server.sendmail(sender_email, recipient, msg.as_string())
         server.quit()
@@ -218,24 +220,27 @@ async def main_telegraph_snos(
     fail = 0
     total = len(SENDERS) * len(RECIPIENTS)
 
-    # Рассылка: каждый отправитель → все получатели, задержка между отправками
-    for i, (sender_email, sender_pass) in enumerate(SENDERS):
-        for recipient in RECIPIENTS:
-            result = await asyncio.get_event_loop().run_in_executor(
-                None, _send_one, sender_email, sender_pass, recipient, subject, body
-            )
-            if result:
-                ok += 1
-                print(f"[TELEGRAPH] ✅ → {recipient}", flush=True)
-            else:
-                fail += 1
-                print(f"[TELEGRAPH] ❌ → {recipient}", flush=True)
+    # Все письма параллельно через gather
+    async def send_one_async(sender_email, sender_pass, recipient):
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, _send_one, sender_email, sender_pass, recipient, subject, body
+        )
+        return result, recipient
 
-            # Задержка 10-25 сек между каждым письмом
-            if ok + fail < total:
-                delay = random.uniform(10, 25)
-                print(f"[TELEGRAPH] ⏳ Жду {delay:.0f}с...", flush=True)
-                await asyncio.sleep(delay)
+    tasks = [
+        send_one_async(email, pwd, recipient)
+        for email, pwd in SENDERS
+        for recipient in RECIPIENTS
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=False)
+
+    for result, recipient in results:
+        if result:
+            ok += 1
+            print(f"[TELEGRAPH] ✅ → {recipient}", flush=True)
+        else:
+            fail += 1
+            print(f"[TELEGRAPH] ❌ → {recipient}", flush=True)
 
     print(f"[TELEGRAPH] Итого: ✅ {ok} / ❌ {fail}", flush=True)
 
