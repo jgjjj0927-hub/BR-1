@@ -336,8 +336,10 @@ def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton("🟣 TIDA", callback_data='tida_method'),
     )
     markup.add(types.InlineKeyboardButton("🏦 Блокировка карты", callback_data='bank_method'))
-    markup.add(types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'))
-    markup.add(types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method'))
+    markup.add(
+        types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'),
+        types.InlineKeyboardButton("� Telegraph снос", callback_data='telegraph_method'),
+    )
     # Тестовый метод — только для админов
     markup.add(types.InlineKeyboardButton("👤 [ТЕСТ] Profile Report", callback_data='profile_method'))
     markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
