@@ -15,6 +15,7 @@ import re
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+from mail_snos import spin_text, spin_subject
 import aiohttp
 
 import config
@@ -136,6 +137,7 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
                     return fallback_subject, fallback_body
 
                 content = data["choices"][0]["message"]["content"].strip()
+                logger.info(f"[TELEGRAPH] Groq raw: {content[:200]}")
 
                 # Парсим SUBJECT и BODY
                 subject = fallback_subject
@@ -220,10 +222,13 @@ async def main_telegraph_snos(
     fail = 0
     total = len(SENDERS) * len(RECIPIENTS)
 
-    # Все письма параллельно через gather
+    # Все письма параллельно через gather — каждое с уникальным спином
     async def send_one_async(sender_email, sender_pass, recipient):
+        # Уникальный текст для каждого письма
+        spun_subject = spin_subject(subject)
+        spun_body = spin_text(body)
         result = await asyncio.get_event_loop().run_in_executor(
-            None, _send_one, sender_email, sender_pass, recipient, subject, body
+            None, _send_one, sender_email, sender_pass, recipient, spun_subject, spun_body
         )
         return result, recipient
 
