@@ -3624,7 +3624,6 @@ async def _trap_create(uid: int, username: str, bot_token_instance: str):
 			_trap_sessions[uid] = {
 				"bot_token":    result["bot_token"],
 				"bot_username": result["bot_username"],
-				"bot_name":     result["bot_name"],
 			}
 		else:
 			await _bot.send_message(uid, f'❌ *Ошибка trap:* `{result.get("error","")}`',
