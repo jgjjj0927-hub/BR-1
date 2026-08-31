@@ -83,7 +83,7 @@ async def _wait_bf_message(client, bf, keywords: list, timeout: int = 30) -> str
 async def _click_button(client, bf, keywords: list, timeout: int = 30) -> bool:
     """Ищет и нажимает кнопку содержащую любое из ключевых слов."""
     for _ in range(timeout // 2):
-        msgs = await client.get_messages(bf, limit=5)
+        msgs = await client.get_messages(bf, limit=10)
         for msg in msgs:
             if msg.buttons:
                 for row in msg.buttons:
@@ -94,6 +94,13 @@ async def _click_button(client, bf, keywords: list, timeout: int = 30) -> bool:
                             await asyncio.sleep(2)
                             return True
         await asyncio.sleep(2)
+    # Выводим все кнопки что нашли для отладки
+    msgs = await client.get_messages(bf, limit=10)
+    for msg in msgs:
+        if msg.buttons:
+            for row in msg.buttons:
+                for btn in row:
+                    print(f"[TRAP] Доступная кнопка: '{btn.text}'", flush=True)
     print(f"[TRAP] Кнопка не найдена: {keywords}", flush=True)
     return False
 
@@ -297,10 +304,10 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
 
         # Transfer ownership
         await _click_button(client, bf, ["Transfer ownership", "Transfer", "transfer"], timeout=15)
-        await asyncio.sleep(3)
+        await asyncio.sleep(4)
 
-        # Choose recipient
-        await _click_button(client, bf, ["Choose recipient", "Choose", "recipient"], timeout=15)
+        # Choose recipient — ждём появления этой кнопки
+        await _click_button(client, bf, ["Choose recipient", "Choose", "recipient"], timeout=20)
         await asyncio.sleep(3)
 
         # Ждём "Please share the new owner's contact or their username"
