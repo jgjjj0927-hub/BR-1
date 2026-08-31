@@ -78,18 +78,19 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
     )
 
     prompt = (
-        f"You are writing a formal complaint email to Telegram support.\n"
+        f"Write a short formal complaint email to Telegram support about a Telegraph article.\n"
         f"Article URL: {article_url}\n"
-        f"Article content (excerpt): {article_text[:800]}\n\n"
-        f"Generate:\n"
-        f"1. A short email subject line (max 60 characters, English)\n"
-        f"2. Email body (English only, max 500 characters total, "
-        f"mention the article violates Telegram Terms of Service at telegram.org/tos, "
-        f"include the article URL, be direct and formal, "
-        f"no laws or legal references, no filler phrases)\n\n"
-        f"Response format (exactly):\n"
-        f"SUBJECT: <subject here>\n"
-        f"BODY: <body here>"
+        f"Article content: {article_text[:600]}\n\n"
+        f"Rules:\n"
+        f"- English only\n"
+        f"- Max 400 characters for the body\n"
+        f"- Mention the article violates telegram.org/tos\n"
+        f"- Include the article URL\n"
+        f"- No legal references\n"
+        f"- Be direct and formal\n\n"
+        f"First line = email subject (max 60 chars)\n"
+        f"Rest = email body\n"
+        f"No labels, no formatting, just the text."
     )
 
     try:
@@ -116,18 +117,16 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
                     return fallback_subject, fallback_body
 
                 content = data["choices"][0]["message"]["content"].strip()
-                logger.info(f"[TELEGRAPH] Groq raw: {content[:200]}")
+                print(f"[TELEGRAPH] Groq raw: {content[:200]}", flush=True)
 
-                subject = fallback_subject
-                body = fallback_body
+                lines = content.strip().split("\n")
+                subject = lines[0].strip()[:100] if lines else fallback_subject
+                body = "\n".join(lines[1:]).strip()[:600] if len(lines) > 1 else fallback_body
 
-                subj_match = re.search(r"SUBJECT:\s*(.+?)(?:\n|$)", content)
-                body_match = re.search(r"BODY:\s*(.+?)$", content, re.DOTALL)
-
-                if subj_match:
-                    subject = subj_match.group(1).strip()[:100]
-                if body_match:
-                    body = body_match.group(1).strip()[:600]
+                if not subject:
+                    subject = fallback_subject
+                if not body:
+                    body = fallback_body
 
                 return subject, body
 
