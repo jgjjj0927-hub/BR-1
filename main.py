@@ -3529,7 +3529,8 @@ async def on_startup(dp):
 	asyncio.ensure_future(monitor_loop())
 	from monitor_snos import _telegraph_monitor_loop
 	asyncio.ensure_future(_telegraph_monitor_loop())
-	await start_all_mirrors()
+	# Зеркала запускаем в фоне — основной бот стартует сразу
+	asyncio.ensure_future(start_all_mirrors())
 	print("Бот запущен.")
 
 if __name__ == "__main__":
