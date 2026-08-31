@@ -489,14 +489,42 @@ async def start_mirror(token: str):
 async def start_all_mirrors():
     tokens = await db.get_all_mirror_tokens()
     print(f"[MIRROR] 📦 Загружаем {len(tokens)} зеркал из БД...", flush=True)
-    # Ограничиваем количество запускаемых зеркал
-    tokens = tokens[:MIRROR_LIMIT]
-    for token in tokens:
+
+    # Параллельно валидируем все токены
+    async def check_and_start(token: str):
+        username = await validate_token(token)
+        if username is None:
+            print(f"[MIRROR] 🚫 Токен невалидный при старте, удаляем: {token[:20]}", flush=True)
+            await db.remove_mirror_by_token(token)
+            return False
+        return True
+
+    # Проверяем все токены параллельно (пачками по 20 чтобы не перегружать)
+    valid_tokens = []
+    batch_size = 20
+    for i in range(0, len(tokens), batch_size):
+        batch = tokens[i:i + batch_size]
+        results = await asyncio.gather(*[check_and_start(t) for t in batch], return_exceptions=False)
+        for token, ok in zip(batch, results):
+            if ok:
+                valid_tokens.append(token)
+
+    print(f"[MIRROR] ✅ Валидных токенов: {len(valid_tokens)} из {len(tokens)}", flush=True)
+
+    # Ограничиваем до MIRROR_LIMIT и запускаем
+    valid_tokens = valid_tokens[:MIRROR_LIMIT]
+    for token in valid_tokens:
         await start_mirror(token)
 
+    print(f"[MIRROR] 🚀 Запущено зеркал: {len(valid_tokens)}", flush=True)
 
-async def validate_token(token: str) -> str | None:
-    try:
+
+def get_running_tokens() -> list[str]:
+    """Возвращает список токенов реально запущенных зеркал."""
+    return [t for t, task in _running_mirrors.items() if not task.done()]
+
+
+async def validate_token(token: str) -> str | None:    try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"https://api.telegram.org/bot{token}/getMe",

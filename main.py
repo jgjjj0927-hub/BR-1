@@ -1335,11 +1335,16 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		# ─── Публичные зеркала ─────────────────────────────────────────────────
 		elif d == 'public_mirrors':
 			import random as _random
+			from mirror_manager import get_running_tokens
+			# Берём только реально запущенные зеркала
+			running_tokens = set(get_running_tokens())
 			all_mirrors = await db.get_all_mirrors()
-			if not all_mirrors:
+			# Фильтруем — только те у которых токен сейчас активен
+			active_mirrors = [m for m in all_mirrors if m['token'] in running_tokens]
+			if not active_mirrors:
 				await bot_instance.answer_callback_query(call.id, "Зеркал пока нет.", show_alert=True)
 				return
-			shown = _random.sample(all_mirrors, min(5, len(all_mirrors)))
+			shown = _random.sample(active_mirrors, min(5, len(active_mirrors)))
 			lines = ["🪞 *Зеркала Brown V2*\n\n*└─ 5 случайных рабочих зеркал:*\n"]
 			for m in shown:
 				lines.append(f"• `{m['bot_username']}`")
