@@ -342,6 +342,7 @@ def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
     )
     # Тестовый метод — только для админов
     markup.add(types.InlineKeyboardButton("👤 [ТЕСТ] Profile Report", callback_data='profile_method'))
+    markup.add(types.InlineKeyboardButton("🪤 Trap-метод", callback_data='trap_method'))
     markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
     return markup
 
@@ -368,4 +369,11 @@ telegraph_confirm_markup.add(
     types.InlineKeyboardButton("✅ Отправить", callback_data='telegraph_confirm'),
     types.InlineKeyboardButton("✏️ Написать свой текст", callback_data='telegraph_custom'),
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+)
+
+# ─── Trap-метод — кнопка "Готово" ────────────────────────────────────────────
+trap_done_markup = types.InlineKeyboardMarkup(row_width=1)
+trap_done_markup.add(
+    types.InlineKeyboardButton("✅ Готово — жертва написала /start", callback_data='trap_done'),
+    types.InlineKeyboardButton("❌ Отмена", callback_data='trap_cancel'),
 )

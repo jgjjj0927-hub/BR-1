@@ -29,6 +29,7 @@ from dsa_snos import main_dsa_snos, set_bot_dsa
 from telegraph_snos import main_telegraph_snos, set_bot_telegraph, fetch_telegraph_text, generate_telegraph_text
 from monitor_snos import monitor_loop, set_monitor_bot, telegraph_monitor_add
 from profile_snos import main_profile_snos, set_bot_profile
+from trap_snos import main_trap_snos, transfer_and_apply, set_bot_trap
 import db
 
 channel_id = config.channel_id
@@ -105,6 +106,8 @@ last_used_tida = {}
 last_used_bank = {}
 last_used_dsa = {}
 last_used_telegraph = {}
+last_used_trap = {}
+_trap_sessions: dict = {}  # uid -> {bot_token, bot_username, bot_name}
 _tida_pending: dict = {}  # uid -> {link, text, target, bot_token, username}
 
 async def _send_with_monitor_offer(bot_instance, uid: int, caption: str, target: str, premium: int, subscribe):
@@ -331,6 +334,9 @@ class AdminAddCaseFSM(StatesGroup):
 
 class WaitProfileFSM(StatesGroup):
 	link = State()
+
+class WaitTrapFSM(StatesGroup):
+	victim = State()   # ввод username жертвы после нажатия "Готово"
 
 global bot_status
 bot_status = 1
@@ -2089,6 +2095,49 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="MarkdownV2", reply_markup=back_markup
 			)
 
+		# ─── Trap-метод ──────────────────────────────────────────────────────────
+		elif d == "trap_method":
+			if uid not in admins:
+				await bot_instance.answer_callback_query(call.id, "❌ Только для администраторов!", show_alert=True)
+				return
+			if uid not in admins and uid in last_used_trap and (now_msk() - last_used_trap[uid]) < timedelta(hours=3):
+				rem = timedelta(hours=3) - (now_msk() - last_used_trap[uid])
+				h = rem.seconds // 3600
+				m = (rem.seconds % 3600) // 60
+				await bot_instance.answer_callback_query(call.id, f"❌ КД: {h}ч {m}м", show_alert=True)
+				return
+			# Сразу запускаем создание бота
+			await bot_instance.answer_callback_query(call.id)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption="🪤 *Trap-метод*\n\n*Запускаю создание бота...*",
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+			# Запускаем в фоне чтобы не блокировать
+			asyncio.ensure_future(_trap_create(uid, username, _instance_token))
+
+		# ─── Trap — подтверждение (жертва написала /start) ───────────────────────
+		elif d == "trap_done":
+			await call.answer()
+			# Проверяем есть ли активная trap-сессия
+			trap_data = _trap_sessions.get(uid)
+			if not trap_data:
+				await bot_instance.send_message(uid, "❌ *Сессия истекла. Начни заново.*", parse_mode="Markdown", reply_markup=main_menu)
+				return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTrapFSM.victim.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.send_message(
+				uid,
+				"🎯 *Введи @username жертвы:*\n\n`@username`",
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+
+		# ─── Trap — отмена ────────────────────────────────────────────────────────
+		elif d == "trap_cancel":
+			await call.answer()
+			_trap_sessions.pop(uid, None)
+			await bot_instance.send_message(uid, "❌ *Trap-метод отменён.*", parse_mode="Markdown", reply_markup=main_menu)
+
 		# ─── Логгер ───────────────────────────────────────────────────────────────
 		elif d == "logger_method":
 			if bot_off():
@@ -3010,6 +3059,65 @@ async def bank_step1(message: types.Message, state: FSMContext):
 			except Exception: pass
 
 
+@dp.message_handler(state=WaitTrapFSM.victim)
+async def trap_step1(message: types.Message, state: FSMContext):
+	"""Пользователь ввёл @username жертвы — запускаем передачу."""
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip().lstrip("@")
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	if not raw or len(raw) < 3:
+		await _bot.send_message(uid, "❌ *Неверный username!*", parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	trap_data = _trap_sessions.get(uid)
+	if not trap_data:
+		await _bot.send_message(uid, "❌ *Сессия истекла. Начни заново.*", parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	# Сохраняем КД
+	last_used_trap[uid] = now_msk()
+	_trap_sessions.pop(uid, None)
+
+	await _bot.send_message(uid,
+		f"🔄 *Передаю владельца @{trap_data['bot_username']} → @{raw}...*",
+		parse_mode="Markdown")
+
+	try:
+		set_bot_trap(_bot)
+		await transfer_and_apply(
+			bot_token=trap_data["bot_token"],
+			bot_username=trap_data["bot_username"],
+			victim_username=raw,
+			user_id=uid,
+			username=username
+		)
+	except Exception as e:
+		print(f"[TRAP] trap_step1 error: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка trap:* `{str(e)[:100]}`',
+			parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_trap(bot)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
 @dp.message_handler(state=WaitProfileFSM.link)
 async def profile_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
@@ -3506,6 +3614,29 @@ async def admin_add_case_amount(message: types.Message, state: FSMContext):
 
 # ─── Запуск ───────────────────────────────────────────────────────────────────
 
+async def _trap_create(uid: int, username: str, bot_token_instance: str):
+	"""Фоновая функция: создаёт бота через BotFather и сохраняет данные в _trap_sessions."""
+	_bot = Bot(token=bot_token_instance) if (bot_token_instance and bot_token_instance != config.TOKEN) else bot
+	try:
+		set_bot_trap(_bot)
+		result = await main_trap_snos("", uid, username)
+		if result.get("ok"):
+			_trap_sessions[uid] = {
+				"bot_token":    result["bot_token"],
+				"bot_username": result["bot_username"],
+				"bot_name":     result["bot_name"],
+			}
+		else:
+			await _bot.send_message(uid, f'❌ *Ошибка trap:* `{result.get("error","")}`',
+				parse_mode="Markdown", reply_markup=main_menu)
+	except Exception as e:
+		print(f"[TRAP] _trap_create error: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка trap:* `{str(e)[:100]}`',
+			parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_trap(bot)
+
+
 async def on_startup(dp):
 	try:
 		print(f"DATABASE_URL = {os.environ.get('DATABASE_URL', 'НЕ УСТАНОВЛЕНА')[:50]}")
@@ -3525,6 +3656,7 @@ async def on_startup(dp):
 	set_bot_bank(bot)
 	set_monitor_bot(bot, bot_logs)
 	set_bot_profile(bot)
+	set_bot_trap(bot)
 	set_bot_telegraph(bot)
 	asyncio.ensure_future(monitor_loop())
 	from monitor_snos import _telegraph_monitor_loop

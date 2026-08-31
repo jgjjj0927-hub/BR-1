@@ -1,34 +1,4 @@
-﻿"""
-Brown V2 | mirror_manager.py
-Зеркальные боты — полный функционал как основной бот.
-Callback делегируется в handle_callback из main.py.
-"""
-
-import asyncio
-import os
-import random
-import time as _time
-from datetime import datetime, timedelta
-
-import aiohttp
-from aiogram import Bot, Dispatcher, types
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.types import InputFile, ParseMode
-from aiogram.utils.exceptions import Unauthorized, TerminatedByOtherGetUpdates
-
-import config
-import db
-import keyboards
-from captcha import generate_captcha_text, generate_captcha_image
-
-_running_mirrors: dict[str, asyncio.Task] = {}
-_mirror_bots: dict[str, Bot] = {}  # token → Bot instance
-# Вложенный словарь: {mirror_token: {user_id: captcha_code}}
-# Предотвращает коллизии когда один uid открыл несколько зеркал
-_mirror_captcha_codes: dict[str, dict[int, str]] = {}
-
+﻿dqd
 MIRROR_LIMIT = 100  # максимум активных зеркал одновременно
 
 
@@ -391,6 +361,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             BlockUserFSM, UnblockUserFSM, DeleteUserFSM, CreatePromoFSM,
             AdminAddReportsFSM, AdminRemoveReportsFSM, AdminAddCaseFSM,
             WaitProfileFSM, profile_step1,
+            WaitTrapFSM, trap_step1,
         )
 
         handlers = {
@@ -460,10 +431,11 @@ async def _run_mirror(token: str):
         await asyncio.sleep(5)
         await start_mirror(token)
         return
-    except Exception as e:
-        print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
-    finally:
-        try:
+            WaitProfileFSM.link.state: profile_step1,
+            WaitTrapFSM.victim.state: trap_step1,
+            WaitTelegraphFSM.link.state: telegraph_step1,
+            WaitTelegraphFSM.custom_text.state: telegraph_custom_text,
+        }ry:
             await dp.storage.close()
             await dp.storage.wait_closed()
         except Exception:
