@@ -1,4 +1,32 @@
 ﻿d
+"""
+Brown V2 | mirror_manager.py
+Зеркальные боты — полный функционал как основной бот.
+Callback делегируется в handle_callback из main.py.
+"""
+import asyncio
+import os
+import random
+import time as _time
+from datetime import datetime, timedelta
+
+import aiohttp
+from aiogram import Bot, Dispatcher, types
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.types import InputFile, ParseMode
+from aiogram.utils.exceptions import Unauthorized, TerminatedByOtherGetUpdates
+
+import config
+import db
+import keyboards
+from captcha import generate_captcha_text, generate_captcha_image
+
+_running_mirrors: dict[str, asyncio.Task] = {}
+_mirror_bots: dict[str, Bot] = {}  # token → Bot instance
+_mirror_captcha_codes: dict[str, dict[int, str]] = {}
+
 MIRROR_LIMIT = 100  # максимум активных зеркал одновременно
 
 
