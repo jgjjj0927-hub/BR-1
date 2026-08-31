@@ -11,6 +11,9 @@ import asyncio
 import logging
 import os
 import re
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import aiohttp
 
@@ -30,12 +33,16 @@ SENDERS = [
     ("asagkqfygx@rambler.ru",  "90629300zd5Xm"),
 ]
 
-# ─── Получатели ───────────────────────────────────────────────────────────────
 RECIPIENTS = [
     "abuse@telegram.org",
     "support@telegram.org",
     "dmca@telegram.org",
 ]
+
+# Rambler SMTP (порт 587 работает с VPS)
+SMTP_HOST = "smtp.rambler.ru"
+SMTP_PORT = 587
+SMTP_TIMEOUT = 15
 
 bot = None
 
@@ -166,31 +173,30 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
 
 
 # ─── Отправка одного письма через relay ───────────────────────────────────────
-async def _send_via_relay(session: aiohttp.ClientSession,
-                          sender_email: str, sender_pass: str,
-                          recipient: str, subject: str, body: str) -> bool:
+def _send_smtp(sender_email: str, sender_pass: str,
+               recipient: str, subject: str, body: str) -> tuple[bool, str]:
+    """Отправляет письмо напрямую через Rambler SMTP 587+STARTTLS."""
     try:
-        payload = {
-            "token": RELAY_TOKEN,
-            "sender": sender_email,
-            "password": sender_pass,
-            "receiver": recipient,
-            "subject": subject,
-            "body": body,
-        }
-        async with session.post(
-            RELAY_URL,
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=30)
-        ) as resp:
-            result = await resp.json(content_type=None)
-            ok = result.get("ok", False)
-            if not ok:
-                logger.error(f"[TELEGRAPH] relay {sender_email}→{recipient}: {result}")
-            return ok
+        msg = MIMEMultipart()
+        msg["From"] = sender_email
+        msg["To"] = recipient
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(sender_email, sender_pass)
+        server.sendmail(sender_email, recipient, msg.as_string())
+        server.quit()
+        return True, ""
+    except smtplib.SMTPAuthenticationError:
+        return False, "auth error"
+    except smtplib.SMTPException as e:
+        return False, str(e)[:60]
     except Exception as e:
-        logger.error(f"[TELEGRAPH] relay {sender_email}→{recipient}: {e}")
-        return False
+        return False, str(e)[:60]
 
 
 # ─── Главная функция ──────────────────────────────────────────────────────────
@@ -229,9 +235,12 @@ async def main_telegraph_snos(
     async def send_one(sender_email, sender_pass, recipient):
         spun_subj = spin_subject(subject)
         spun_body = spin_text(body)
-        async with aiohttp.ClientSession() as session:
-            result = await _send_via_relay(session, sender_email, sender_pass, recipient, spun_subj, spun_body)
-        return result, recipient
+        ok, err = await asyncio.get_event_loop().run_in_executor(
+            None, _send_smtp, sender_email, sender_pass, recipient, spun_subj, spun_body
+        )
+        if not ok:
+            print(f"[TELEGRAPH] SMTP {sender_email}→{recipient}: {err}", flush=True)
+        return ok, recipient
 
     tasks = [
         send_one(email, pwd, recipient)
@@ -247,7 +256,6 @@ async def main_telegraph_snos(
         else:
             fail += 1
             print(f"[TELEGRAPH] ❌ → {recipient}", flush=True)
-
     print(f"[TELEGRAPH] Итого: ✅ {ok} / ❌ {fail}", flush=True)
 
     # Добавляем в мониторинг
