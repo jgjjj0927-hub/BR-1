@@ -524,7 +524,8 @@ def get_running_tokens() -> list[str]:
     return [t for t, task in _running_mirrors.items() if not task.done()]
 
 
-async def validate_token(token: str) -> str | None:    try:
+async def validate_token(token: str) -> str | None:
+    try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"https://api.telegram.org/bot{token}/getMe",
