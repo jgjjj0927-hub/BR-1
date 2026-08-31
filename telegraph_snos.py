@@ -172,19 +172,19 @@ async def _send_via_relay(session: aiohttp.ClientSession,
     try:
         payload = {
             "token": RELAY_TOKEN,
-            "from_email": sender_email,
-            "from_pass": sender_pass,
-            "to": recipient,
+            "sender": sender_email,
+            "password": sender_pass,
+            "receiver": recipient,
             "subject": subject,
             "body": body,
         }
         async with session.post(
             RELAY_URL,
             json=payload,
-            timeout=aiohttp.ClientTimeout(total=20)
+            timeout=aiohttp.ClientTimeout(total=30)
         ) as resp:
             result = await resp.json(content_type=None)
-            ok = result.get("ok") or result.get("status") == "ok" or resp.status == 200
+            ok = result.get("ok", False)
             if not ok:
                 logger.error(f"[TELEGRAPH] relay {sender_email}→{recipient}: {result}")
             return ok
