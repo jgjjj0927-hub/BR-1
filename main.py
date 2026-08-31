@@ -2700,11 +2700,10 @@ async def telegraph_step1(message: types.Message, state: FSMContext):
 	await dp.current_state(chat=uid, user=uid).set_state(WaitTelegraphFSM.confirm.state)
 
 	# Показываем сгенерированный текст
-	body_preview = body[:200] + "..." if len(body) > 200 else body
 	await _bot.send_message(uid,
 		f"📄 *Telegraph снос*\n\n"
 		f"*Тема:* `{subject}`\n\n"
-		f"*Текст:*\n`{body_preview}`\n\n"
+		f"*Текст:*\n`{body}`\n\n"
 		f"*Отправить на:* abuse / support / dmca @telegram.org\n"
 		f"*Писем:* 12 (4 отправителя × 3 адреса)",
 		parse_mode="Markdown",

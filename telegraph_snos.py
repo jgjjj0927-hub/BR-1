@@ -45,22 +45,52 @@ def set_bot_telegraph(b):
     bot = b
 
 
-# ─── Парсинг статьи ───────────────────────────────────────────────────────────
+# ─── Парсинг статьи через Telegraph API ──────────────────────────────────────
 async def fetch_telegraph_text(url: str) -> tuple[str, int]:
+    """
+    Получает чистый текст статьи через официальный Telegraph API.
+    Возвращает (текст, http_status).
+    """
     try:
+        # Извлекаем path из URL: https://telegra.ph/path-01-01 → path-01-01
+        path = url.strip().rstrip("/")
+        path = re.sub(r"https?://(telegra\.ph|graph\.org)/", "", path)
+
+        api_url = f"https://api.telegra.ph/getPage/{path}?return_content=true"
+
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                url,
+                api_url,
                 timeout=aiohttp.ClientTimeout(total=10),
                 headers={"User-Agent": "Mozilla/5.0"}
             ) as resp:
-                status = resp.status
-                if status != 200:
-                    return "", status
-                html = await resp.text(errors="ignore")
-        text = re.sub(r"<[^>]+>", " ", html)
+                if resp.status != 200:
+                    return "", resp.status
+                data = await resp.json(content_type=None)
+
+        if not data.get("ok"):
+            return "", 404
+
+        # Рекурсивно извлекаем текст из content nodes
+        def extract_text(nodes) -> str:
+            if not nodes:
+                return ""
+            result = []
+            for node in nodes:
+                if isinstance(node, str):
+                    result.append(node)
+                elif isinstance(node, dict):
+                    children = node.get("children", [])
+                    result.append(extract_text(children))
+            return " ".join(result)
+
+        content = data.get("result", {}).get("content", [])
+        text = extract_text(content)
         text = re.sub(r"\s+", " ", text).strip()
-        return text[:2000], 200
+
+        print(f"[TELEGRAPH] Статья получена: {len(text)} символов", flush=True)
+        return text[:3000], 200
+
     except Exception as e:
         logger.error(f"[TELEGRAPH] fetch error: {e}")
         return "", 0
@@ -228,15 +258,12 @@ async def main_telegraph_snos(
         except Exception as e:
             print(f"[TELEGRAPH] Ошибка мониторинга: {e}", flush=True)
 
-    body_preview = body[:80] + "..." if len(body) > 80 else body
-
     caption = (
         f"📄 *Telegraph снос завершён!*\n"
         f"*└─* [Статья]({article_url})\n\n"
         f"📨 *Жалоб отправлено:* `{ok}/{total}`\n"
         f"✅ *Успешно:* `{ok}`\n"
-        f"❌ *Ошибок:* `{fail}`\n\n"
-        f"📝 *Текст:* `{body_preview}`"
+        f"❌ *Ошибок:* `{fail}`"
     )
 
     caption_log = (
