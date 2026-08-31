@@ -1,9 +1,10 @@
-﻿d
+"""
 """
 Brown V2 | mirror_manager.py
 Зеркальные боты — полный функционал как основной бот.
 Callback делегируется в handle_callback из main.py.
 """
+
 import asyncio
 import os
 import random
@@ -25,6 +26,8 @@ from captcha import generate_captcha_text, generate_captcha_image
 
 _running_mirrors: dict[str, asyncio.Task] = {}
 _mirror_bots: dict[str, Bot] = {}  # token → Bot instance
+# Вложенный словарь: {mirror_token: {user_id: captcha_code}}
+# Предотвращает коллизии когда один uid открыл несколько зеркал
 _mirror_captcha_codes: dict[str, dict[int, str]] = {}
 
 MIRROR_LIMIT = 100  # максимум активных зеркал одновременно
@@ -390,6 +393,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             AdminAddReportsFSM, AdminRemoveReportsFSM, AdminAddCaseFSM,
             WaitProfileFSM, profile_step1,
             WaitTrapFSM, trap_step1,
+            WaitTelegraphFSM, telegraph_step1, telegraph_custom_text,
         )
 
         handlers = {
@@ -490,9 +494,7 @@ async def start_all_mirrors():
     tokens = await db.get_all_mirror_tokens()
     print(f"[MIRROR] 📦 Загружаем {len(tokens)} зеркал из БД...", flush=True)
 
-    # Проверяем токены через getMe параллельно (пачками по 50)
-    # getMe не создаёт polling сессию — безопасно для существующих сессий
-    async def check_token(token: str) -> tuple[str, bool]:
+    async def check_token(token: str) -> tuple:
         result = await validate_token(token)
         if result is None:
             print(f"[MIRROR] 🚫 Невалидный токен, удаляем: {token[:20]}", flush=True)
@@ -508,24 +510,18 @@ async def start_all_mirrors():
         valid_tokens.extend(t for t, ok in results if ok)
 
     print(f"[MIRROR] ✅ Валидных: {len(valid_tokens)} из {len(tokens)}", flush=True)
-
-    # Ограничиваем до MIRROR_LIMIT
     valid_tokens = valid_tokens[:MIRROR_LIMIT]
-
-    # Запускаем зеркала в фоне — основной бот уже работает
     asyncio.ensure_future(_start_mirrors_background(valid_tokens))
     print(f"[MIRROR] 🚀 Запуск {len(valid_tokens)} зеркал в фоне...", flush=True)
 
 
-async def _start_mirrors_background(tokens: list[str]):
-    """Запускает зеркала в фоне с минимальной задержкой между ними."""
+async def _start_mirrors_background(tokens: list):
     for token in tokens:
         await start_mirror(token)
         await asyncio.sleep(0.05)
 
 
-def get_running_tokens() -> list[str]:
-    """Возвращает список токенов реально запущенных зеркал."""
+def get_running_tokens() -> list:
     return [t for t, task in _running_mirrors.items() if not task.done()]
 
 
@@ -534,9 +530,9 @@ async def validate_token(token: str) -> str | None:
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"https://api.telegram.org/bot{token}/getMe",
-                timeout=aiohttp.ClientTimeout(total=2)
+                timeout=aiohttp.ClientTimeout(total=5)
             ) as resp:
-                data = await resp.json(content_type=None)
+                data = await resp.json()
                 if data.get("ok"):
                     return "@" + data["result"]["username"]
                 return None
