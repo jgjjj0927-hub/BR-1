@@ -14,35 +14,67 @@ import re
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 
 import aiohttp
 
 import config
 from utils import now_msk
-from mail_snos import spin_text, spin_subject, RELAY_URL, RELAY_TOKEN
+from mail_snos import spin_text, spin_subject
 
 logger = logging.getLogger(__name__)
 
 GROQ_KEY = os.environ.get("GROQ_KEY", config.GROQ_KEY)
 
-# ─── Отправители ──────────────────────────────────────────────────────────────
-SENDERS = [
-    ("jfjtwncyeb@rambler.ru",  "7066987lMSG2Z"),
-    ("ifzenleixs@rambler.ru",  "69679436xM9U4"),
-    ("gozpezocmj@rambler.ru",  "8282635Gkvuvq"),
-    ("asagkqfygx@rambler.ru",  "90629300zd5Xm"),
-]
+# ─── SMTP-настройки по домену ─────────────────────────────────────────────────
+SMTP_CONFIGS = {
+    "gmail.com": ("smtp.gmail.com", 587),
+    "rambler.ru": ("smtp.rambler.ru", 587),
+    "mail.ru":   ("smtp.mail.ru",   587),
+    "yandex.ru": ("smtp.yandex.ru", 587),
+    "ya.ru":     ("smtp.yandex.ru", 587),
+}
+SMTP_TIMEOUT = 20
+
+
+def _get_smtp_config(email: str) -> tuple[str, int]:
+    domain = email.split("@")[-1].lower()
+    return SMTP_CONFIGS.get(domain, ("smtp." + domain, 587))
+
+
+# ─── Загрузка отправителей из mails.txt ──────────────────────────────────────
+def _load_senders() -> list[tuple[str, str]]:
+    """
+    Читает mails.txt (формат 'email:password' или 'email:app password со пробелами').
+    Возвращает список (email, password).
+    """
+    path = Path(__file__).parent / "mails.txt"
+    senders = []
+    if not path.exists():
+        logger.warning("[TELEGRAPH] mails.txt не найден, используем fallback")
+        return senders
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ":" not in line:
+                continue
+            email, _, pwd = line.partition(":")
+            email = email.strip()
+            pwd = pwd.strip()
+            if email and pwd:
+                senders.append((email, pwd))
+    return senders
+
+
+SENDERS = _load_senders()
 
 RECIPIENTS = [
     "abuse@telegram.org",
     "support@telegram.org",
     "dmca@telegram.org",
 ]
-
-# Rambler SMTP (порт 587 работает с VPS)
-SMTP_HOST = "smtp.rambler.ru"
-SMTP_PORT = 587
-SMTP_TIMEOUT = 15
 
 bot = None
 
@@ -175,7 +207,8 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
 # ─── Отправка одного письма через relay ───────────────────────────────────────
 def _send_smtp(sender_email: str, sender_pass: str,
                recipient: str, subject: str, body: str) -> tuple[bool, str]:
-    """Отправляет письмо напрямую через Rambler SMTP 587+STARTTLS."""
+    """Отправляет письмо через SMTP 587+STARTTLS. Хост определяется по домену отправителя."""
+    smtp_host, smtp_port = _get_smtp_config(sender_email)
     try:
         msg = MIMEMultipart()
         msg["From"] = sender_email
@@ -183,7 +216,7 @@ def _send_smtp(sender_email: str, sender_pass: str,
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT)
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=SMTP_TIMEOUT)
         server.ehlo()
         server.starttls()
         server.ehlo()
@@ -230,6 +263,10 @@ async def main_telegraph_snos(
     ok = 0
     fail = 0
     total = len(SENDERS) * len(RECIPIENTS)
+
+    if total == 0:
+        print("[TELEGRAPH] ⚠️ SENDERS пуст — нет почт в mails.txt", flush=True)
+        return {"ok": 0, "fail": 0, "subject": subject, "body": body}
 
     # Все письма параллельно — каждое со своим спином
     async def send_one(sender_email, sender_pass, recipient):
