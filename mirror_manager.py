@@ -1,7 +1,6 @@
 """
-"""
 Brown V2 | mirror_manager.py
-Зеркальные боты - полный функционал как основной бот.
+Зеркальные боты — полный функционал как основной бот.
 Callback делегируется в handle_callback из main.py.
 """
 
@@ -374,8 +373,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             send_web_reports, get_mail_subject, start_bulk_email,
             botnet_step1_normal, botnet_step1_premium, bot_snos_step1,
             mirror_token_received, enter_promo, stress_step1, channel_step1,
-            aureport_step1, tida_step1, tida_step2, tida_target_step, tida_ai_desc_step, bank_step1, dsa_step1, dsa_custom_text,
-            telegraph_step1, telegraph_custom_text,
+            phone_step1, aureport_step1, tida_step1, tida_step2, tida_target_step, tida_ai_desc_step, bank_step1, dsa_step1, dsa_custom_text,
             add_sub_uid, add_sub_days, clear_sub_uid,
             add_prem_uid, clear_prem_uid, sendall,
             admin_block_user, admin_unblock_user, admin_delete_user,
@@ -385,8 +383,8 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             create_promo_code, create_promo_days, create_promo_activations,
             WaitTextFSM, WaitMailTopicFSM, WaitMailTextFSM,
             WaitLinkFSM, WaitLinkPREMFSM, WaitBotLinkFSM,
-            WaitMirrorTokenFSM, WaitPromoFSM, WaitStressFSM, WaitChannelFSM,
-            WaitAuReportFSM, WaitTidaFSM, WaitBankFSM, WaitDsaFSM, WaitTelegraphFSM,
+            WaitMirrorTokenFSM, WaitPromoFSM, WaitStressFSM, WaitChannelFSM, WaitPhoneFSM,
+            WaitAuReportFSM, WaitTidaFSM, WaitBankFSM, WaitDsaFSM,
             AddSubscribeFSM, ClearSubscribeFSM,
             AddPremFSM, ClearPremFSM, WaitTextZFSM,
             BlockUserFSM, UnblockUserFSM, DeleteUserFSM, CreatePromoFSM,
@@ -407,6 +405,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitPromoFSM.promo.state: enter_promo,
             WaitStressFSM.link.state: stress_step1,
             WaitChannelFSM.link.state: channel_step1,
+            WaitPhoneFSM.phone.state: phone_step1,
             WaitAuReportFSM.link.state: aureport_step1,
             WaitDsaFSM.link.state: dsa_step1,
             WaitDsaFSM.text.state: dsa_custom_text,
@@ -492,12 +491,12 @@ async def start_mirror(token: str):
 
 async def start_all_mirrors():
     tokens = await db.get_all_mirror_tokens()
-    print(f"[MIRROR] 📦 Загружаем {len(tokens)} зеркал из БД...", flush=True)
+    print(f"[MIRROR] Загружаем {len(tokens)} зеркал из БД...", flush=True)
 
     async def check_token(token: str) -> tuple:
         result = await validate_token(token)
         if result is None:
-            print(f"[MIRROR] 🚫 Невалидный токен, удаляем: {token[:20]}", flush=True)
+            print(f"[MIRROR] Невалидный токен, удаляем: {token[:20]}", flush=True)
             await db.remove_mirror_by_token(token)
             return token, False
         return token, True
@@ -509,10 +508,10 @@ async def start_all_mirrors():
         results = await asyncio.gather(*[check_token(t) for t in batch])
         valid_tokens.extend(t for t, ok in results if ok)
 
-    print(f"[MIRROR] ✅ Валидных: {len(valid_tokens)} из {len(tokens)}", flush=True)
+    print(f"[MIRROR] Валидных: {len(valid_tokens)} из {len(tokens)}", flush=True)
     valid_tokens = valid_tokens[:MIRROR_LIMIT]
     asyncio.ensure_future(_start_mirrors_background(valid_tokens))
-    print(f"[MIRROR] 🚀 Запуск {len(valid_tokens)} зеркал в фоне...", flush=True)
+    print(f"[MIRROR] Запуск {len(valid_tokens)} зеркал в фоне...", flush=True)
 
 
 async def _start_mirrors_background(tokens: list):
