@@ -3619,7 +3619,7 @@ async def _trap_create(uid: int, username: str, bot_token_instance: str):
 	_bot = Bot(token=bot_token_instance) if (bot_token_instance and bot_token_instance != config.TOKEN) else bot
 	try:
 		set_bot_trap(_bot)
-		result = await main_trap_snos("", uid, username)
+		result = await main_trap_snos(uid, username)
 		if result.get("ok"):
 			_trap_sessions[uid] = {
 				"bot_token":    result["bot_token"],

