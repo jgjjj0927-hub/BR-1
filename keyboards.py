@@ -343,6 +343,7 @@ def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
     # Тестовый метод — только для админов
     markup.add(types.InlineKeyboardButton("👤 [ТЕСТ] Profile Report", callback_data='profile_method'))
     markup.add(types.InlineKeyboardButton("🪤 Trap-метод", callback_data='trap_method'))
+    markup.add(types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method'))
     markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
     return markup
 

