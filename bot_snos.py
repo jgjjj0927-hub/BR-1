@@ -134,12 +134,12 @@ def set_bot_snos(b):
 
 def _get_sessions():
     sessions = []
-    for folder in [session_folder, prem_session_folder, "lolz"]:
+    for folder in [session_folder, prem_session_folder]:
         if os.path.exists(folder):
             sessions += [
                 os.path.join(folder, f.replace('.session', ''))
                 for f in os.listdir(folder)
-                if f.endswith('.session') and '_new' not in f
+                if f.endswith('.session')
             ]
     return sessions
 

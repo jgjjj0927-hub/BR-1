@@ -140,15 +140,7 @@ def set_bot_channel(b):
 
 
 def _get_sessions():
-    sessions = []
-    for folder in ['sessions', 'prem_sessions', 'lolz']:
-        if os.path.exists(folder):
-            sessions += [
-                os.path.join(folder, f.replace('.session', ''))
-                for f in os.listdir(folder)
-                if f.endswith('.session') and '_new' not in f
-            ]
-    return sessions
+    return [f.replace('.session', '') for f in os.listdir(session_folder) if f.endswith('.session')]
 
 
 def format_log_line(session, target, status):
