@@ -127,34 +127,57 @@ async def main():
     tasks = [bounded_check(p, f, fn) for p, f, fn in all_sessions]
     checked = await asyncio.gather(*tasks)
 
-    # Сортируем: сначала невалидные
-    order = {"invalid": 0, "banned": 1, "error": 2, "ok": 3}
-    checked = sorted(checked, key=lambda x: order.get(x[3], 9))
+    # Сортировка по числовому ID (старые первые) происходит в блоке вывода
+    checked = list(checked)
 
     ok_count = 0
     bad_list = []
 
-    print(f"{'Файл':<40} {'Папка':<20} {'Статус':<10} {'Инфо'}")
-    print("-" * 110)
+    # Извлекаем числовой ID из имени файла для сортировки
+    def sort_key(item):
+        path, folder, filename, status, info = item
+        stem = filename.replace(".session", "").replace("_new", "").replace("_telethon", "")
+        # Убираем + в начале (для aureport типа +61...)
+        stem = stem.lstrip("+").replace(" ", "")
+        try:
+            return (folder, int(stem))
+        except ValueError:
+            return (folder, 0)
+
+    checked = sorted(checked, key=sort_key)
+
+    # Заголовок таблицы
+    print(f"\n{'Сессия':<45} {'Папка':<20} {'Статус':<8} {'Ник':<20} {'Юз':<22} {'Номер'}")
+    print("-" * 130)
 
     for path, folder, filename, status, info in checked:
         if status == "ok":
             ok_count += 1
             icon = "✅"
+            # Парсим info: "Ник | @юз | +номер" или "Ник | нет юзера | +номер"
+            parts = [p.strip() for p in info.split("|")]
+            nick = parts[0] if len(parts) > 0 else "-"
+            uz   = parts[1] if len(parts) > 1 else "-"
+            num  = parts[2] if len(parts) > 2 else "-"
         elif status == "invalid":
             icon = "❌"
             bad_list.append((path, folder, filename, status, info))
+            nick, uz, num = "не авторизован", "-", "-"
         elif status == "banned":
             icon = "🚫"
             bad_list.append((path, folder, filename, status, info))
+            nick, uz, num = "забанен/удалён", "-", "-"
         else:
             icon = "⚠️ "
             bad_list.append((path, folder, filename, status, info))
+            nick, uz, num = info[:30], "-", "-"
 
-        print(f"{icon} {filename:<38} {folder:<20} {status:<10} {info}")
+        stem = filename.replace(".session", "")
+        print(f"{icon} {stem:<43} {folder:<20} {status:<8} {nick:<20} {uz:<22} {num}")
 
-    print("-" * 110)
-    print(f"\n✅ Валидных   : {ok_count}")
+    print("-" * 130)
+    print(f"\n{'='*60}")
+    print(f"✅ Валидных   : {ok_count}")
     print(f"❌ Невалидных : {len(bad_list)}")
     print(f"📦 Всего      : {total}\n")
 
