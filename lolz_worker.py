@@ -18,8 +18,6 @@ Brown V2 | lolz_worker.py
 import asyncio
 import os
 import re
-import hashlib
-import hmac
 import logging
 import random
 
@@ -29,12 +27,7 @@ from telethon.tl.functions.auth import (
     SendCodeRequest,
     SignInRequest,
 )
-from telethon.tl.functions.account import (
-    UpdatePasswordSettingsRequest,
-    GetPasswordRequest,
-)
-from telethon.tl.types import PasswordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow
-from telethon.errors import SessionPasswordNeededError, FloodWaitError
+from telethon.errors import FloodWaitError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -115,58 +108,14 @@ async def _read_tg_code(client: TelegramClient, timeout: int = CODE_WAIT) -> str
 
 
 async def _set_cloud_password(client: TelegramClient, password: str) -> bool:
-    """
-    Ставит облачный пароль через СТАРУЮ сессию.
-    Использует SRP-протокол через Telethon.
-    """
+    """Ставит облачный пароль через СТАРУЮ сессию используя Telethon edit_2fa."""
     try:
-        pwd_info = await client(GetPasswordRequest())
-
-        # Если пароль уже стоит — пропускаем
-        if pwd_info.has_password:
-            logger.info("Облачный пароль уже установлен, пропускаем")
-            return True
-
-        # Генерируем новый пароль через Telethon
-        from telethon.password import compute_check
-        new_password = password.encode("utf-8")
-
-        # Устанавливаем пароль
-        await client(UpdatePasswordSettingsRequest(
-            password=compute_check(pwd_info, ""),  # старый пароль — пустой
-            new_settings=client._get_srp_id_for_password(password)  # noqa
-        ))
-        logger.info("Облачный пароль установлен")
+        await client.edit_2fa(new_password=password, hint="")
+        logger.info("Облачный пароль установлен ✅")
         return True
     except Exception as e:
         logger.warning(f"Ошибка установки пароля: {e}")
-        # Пробуем через input_settings напрямую
-        try:
-            from telethon.tl.types import account
-            pwd_info = await client(GetPasswordRequest())
-            await client(UpdatePasswordSettingsRequest(
-                password=None,
-                new_settings=account.PasswordInputSettings(
-                    new_algo=pwd_info.new_algo,
-                    new_password_hash=_compute_srp_password(pwd_info, password),
-                    hint="",
-                    email=None,
-                )
-            ))
-            return True
-        except Exception as e2:
-            logger.warning(f"Второй метод пароля тоже не сработал: {e2}")
-            return False
-
-
-def _compute_srp_password(pwd_info, password: str) -> bytes:
-    """Вычисляет хэш пароля для SRP."""
-    try:
-        from telethon.password import compute_digest
-        return compute_digest(pwd_info.new_algo, password)
-    except Exception:
-        # Упрощённый вариант
-        return hashlib.sha256(password.encode()).digest()
+        return False
 
 
 # ─── Основная логика обработки одной сессии ──────────────────────────────────
