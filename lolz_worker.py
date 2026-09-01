@@ -36,7 +36,14 @@ from telethon.tl.functions.account import (
 from telethon.tl.types import PasswordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow
 from telethon.errors import SessionPasswordNeededError, FloodWaitError
 
-logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("logs/lolz_worker.log", encoding="utf-8"),
+    ]
+)
 logger = logging.getLogger("lolz_worker")
 
 # ─── Конфиг ───────────────────────────────────────────────────────────────────
@@ -231,11 +238,12 @@ async def process_lolz_session(session_path: str) -> bool:
         try:
             await asyncio.wait_for(new_client.connect(), timeout=15)
 
+            from telethon.tl.types import CodeSettings
             sent = await new_client(SendCodeRequest(
                 phone_number=f"+{phone}",
                 api_id=new_api_id,
                 api_hash=new_api_hash,
-                settings=None
+                settings=CodeSettings()
             ))
             phone_code_hash = sent.phone_code_hash
             logger.info(f"[{session_name}] Код запрошен, ждём...")
