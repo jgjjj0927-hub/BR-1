@@ -52,7 +52,7 @@ OUTPUT_FOLDER    = "sessions"      # куда кладём _new сессии
 PREM_FOLDER      = "prem_sessions"
 CLOUD_PASS       = "Ali095095"
 CHECK_INTERVAL   = 10 * 60        # 10 минут
-CODE_WAIT        = 30             # секунд ждём код
+CODE_WAIT        = 60             # секунд ждём код
 CODE_RETRIES     = 6              # попыток прочитать код
 
 API_PAIRS = [
@@ -87,40 +87,31 @@ def _rand_api() -> tuple[int, str]:
 
 async def _read_tg_code(client: TelegramClient, timeout: int = CODE_WAIT) -> str | None:
     """
-    Читает код входа из диалога с официальным аккаунтом Telegram.
-    Ищет сообщения содержащие 5-значный код за последние timeout секунд.
+    Слушает входящие сообщения через event handler.
+    Ищет 5-значный код от Telegram (777000).
     """
-    import time
-    start = time.monotonic()
-    seen_ids = set()
+    from telethon import events as tl_events
 
-    # Сначала запоминаем уже существующие сообщения
+    code_found = asyncio.Future()
+
+    @client.on(tl_events.NewMessage(incoming=True))
+    async def handler(event):
+        if code_found.done():
+            return
+        text = event.message.text or ""
+        match = re.search(r'\b(\d{5})\b', text)
+        if match:
+            code = match.group(1)
+            logger.info(f"Код получен: {code} | от: {event.sender_id}")
+            code_found.set_result(code)
+
     try:
-        msgs = await client.get_messages("Telegram", limit=5)
-        for m in msgs:
-            seen_ids.add(m.id)
-    except Exception:
-        pass
-
-    while time.monotonic() - start < timeout:
-        await asyncio.sleep(3)
-        try:
-            msgs = await client.get_messages("Telegram", limit=5)
-            for msg in msgs:
-                if msg.id in seen_ids:
-                    continue
-                seen_ids.add(msg.id)
-                if msg.text:
-                    # Ищем 5-значный код
-                    match = re.search(r'\b(\d{5})\b', msg.text)
-                    if match:
-                        code = match.group(1)
-                        logger.info(f"Код получен: {code}")
-                        return code
-        except Exception as e:
-            logger.warning(f"Ошибка чтения кода: {e}")
-
-    return None
+        code = await asyncio.wait_for(code_found, timeout=timeout)
+        return code
+    except asyncio.TimeoutError:
+        return None
+    finally:
+        client.remove_event_handler(handler)
 
 
 async def _set_cloud_password(client: TelegramClient, password: str) -> bool:
