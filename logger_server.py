@@ -583,7 +583,7 @@ async def delete_promo(pid: int):
 @app.get("/create/{owner_id}")
 async def create_link(owner_id: str, request: Request):
     import secrets
-    token = secrets.token_urlsafe(16)
+    token = secrets.token_urlsafe(4)
     try:
         owner_int = int(owner_id)
     except ValueError:
@@ -635,19 +635,22 @@ async def logger_hit(token: str, request: Request):
             token, owner_id, ip, ua[:300], country, city, isp
         )
 
+    def _h(t: str) -> str:
+        return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
     msg = (
-        "🔗 *Логгер сработал\!*\n\n"
-        f"🌐 *IP:* `{ip}`\n"
-        f"🏳️ *Страна:* {country}\n"
-        f"🏙 *Город:* {city}\n"
-        f"📡 *Провайдер:* {isp}\n"
-        f"📱 *UA:* `{ua[:80]}`"
+        "🔗 <b>Логгер сработал!</b>\n\n"
+        f"🌐 <b>IP:</b> <code>{_h(ip)}</code>\n"
+        f"🏳️ <b>Страна:</b> {_h(country)}\n"
+        f"🏙 <b>Город:</b> {_h(city)}\n"
+        f"📡 <b>Провайдер:</b> {_h(isp)}\n"
+        f"📱 <b>UA:</b> <code>{_h(ua[:80])}</code>"
     )
     try:
         async with aiohttp.ClientSession() as s:
             await s.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": owner_id, "text": msg, "parse_mode": "MarkdownV2"},
+                json={"chat_id": owner_id, "text": msg, "parse_mode": "HTML"},
                 timeout=aiohttp.ClientTimeout(total=5)
             )
     except Exception as e:
