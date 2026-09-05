@@ -32,6 +32,7 @@ DEPSEARCH_TOKEN = "OsMTcjyHTRtfABnWA4V3d12SYKVIYE8z"
 from profile_snos import main_profile_snos, set_bot_profile
 from trap_snos import main_trap_snos, transfer_and_apply, set_bot_trap
 from session_snos import main_session_snos, set_bot_session
+from code_spam_snos import main_code_spam, set_bot_code_spam
 import db
 
 channel_id = config.channel_id
@@ -111,6 +112,7 @@ last_used_bank = {}
 last_used_dsa = {}
 last_used_telegraph = {}
 last_used_trap = {}
+last_used_code_spam = {}
 _trap_sessions: dict = {}  # uid -> {bot_token, bot_username, bot_name}
 _tida_pending: dict = {}  # uid -> {link, text, target, bot_token, username}
 
@@ -365,6 +367,9 @@ class WaitSessionFSM(StatesGroup):
     wait_username = State()
     wait_phone    = State()
 
+class WaitCodeSpamFSM(StatesGroup):
+    wait_phone = State()
+
 class WaitProbivFSM(StatesGroup):
 	query = State()
 
@@ -424,6 +429,37 @@ async def session_got_phone(message: types.Message, state: FSMContext):
         message.from_user.username or "",
         data['victim_username'],
         message.text.strip()
+    ))
+
+# ─── Спам кодами ──────────────────────────────────────────────────────────────
+
+@dp.callback_query_handler(lambda c: c.data == 'code_spam_method')
+async def code_spam_start(call: types.CallbackQuery, state: FSMContext):
+    uid = call.from_user.id
+    now = now_msk()
+    if uid not in admins and uid not in no_kd:
+        if uid in last_used_code_spam and (now - last_used_code_spam[uid]) < timedelta(hours=1):
+            rem = timedelta(hours=1) - (now - last_used_code_spam[uid])
+            h = int(rem.total_seconds() // 3600)
+            m = int((rem.total_seconds() % 3600) // 60)
+            await call.answer(f"⏳ КД: {h}ч {m}мин", show_alert=True)
+            return
+    await call.message.answer(
+        "📲 *Спам кодами*\n\nВведи *номер телефона* жертвы:\n`+79991234567`",
+        parse_mode="Markdown",
+    )
+    await WaitCodeSpamFSM.wait_phone.set()
+
+@dp.message_handler(state=WaitCodeSpamFSM.wait_phone)
+async def code_spam_got_phone(message: types.Message, state: FSMContext):
+    uid = message.from_user.id
+    await state.finish()
+    last_used_code_spam[uid] = now_msk()
+    set_bot_code_spam(bot)
+    asyncio.create_task(main_code_spam(
+        uid,
+        message.from_user.username or "",
+        message.text.strip(),
     ))
 
 @dp.message_handler(commands=['on'])
