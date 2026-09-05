@@ -69,6 +69,9 @@ functions.add(bank_method_btn)
 dsa_method_btn = types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method')
 telegraph_method_btn = types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method')
 functions.add(dsa_method_btn, telegraph_method_btn)
+code_method_btn = types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method')
+logger_method_btn = types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method')
+functions.add(code_method_btn, logger_method_btn)
 
 # ─── Admin-only методы (добавляются динамически в handle_callback) ─────────────
 # profile_method_btn — показывается только админам, не добавляется в общее меню
@@ -355,9 +358,12 @@ def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
     )
     # Тестовый метод — только для админов
     markup.add(types.InlineKeyboardButton("👤 [ТЕСТ] Profile Report", callback_data='profile_method'))
+    markup.add(
+        types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method'),
+        types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method'),
+    )
     markup.add(types.InlineKeyboardButton("🪤 Trap-метод", callback_data='trap_method'))
     markup.add(types.InlineKeyboardButton("💀 Снос сессий", callback_data='session_method'))
-    markup.add(types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method'))
     markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
     return markup
 

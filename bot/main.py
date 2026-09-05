@@ -25,6 +25,7 @@ from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABE
 from aureport_snos import main_aureport, set_bot_aureport
 from tida_snos import main_tida, set_bot_tida
 from bank_snos import process_bank_report, set_bot_bank
+from code_snos import main_code_snos, set_bot_code
 from dsa_snos import main_dsa_snos, set_bot_dsa
 from telegraph_snos import main_telegraph_snos, set_bot_telegraph, fetch_telegraph_text, generate_telegraph_text
 from monitor_snos import monitor_loop, set_monitor_bot, telegraph_monitor_add
@@ -333,6 +334,9 @@ class WaitTelegraphFSM(StatesGroup):
 class WaitBankFSM(StatesGroup):
 	card = State()
 	bank_key = State()
+
+class WaitCodeFSM(StatesGroup):
+	phone = State()
 
 class AdminAddReportsFSM(StatesGroup):
 	user_id = State()
@@ -2780,6 +2784,24 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 
+		# ─── Спам кодами ─────────────────────────────────────────────────────
+		elif d == "code_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"📱 *Спам кодами*\n\n"
+					"*└─ Введите номер телефона цели:*\n\n"
+					"`+79991234567`"
+				),
+				parse_mode="Markdown", reply_markup=back_markup
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitCodeFSM.phone.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+
 		# ─── Стрессер ─────────────────────────────────────────────────────────
 		elif d == "stress_method":
 			if bot_off():
@@ -3648,6 +3670,42 @@ async def bank_step1(message: types.Message, state: FSMContext):
 			except Exception: pass
 
 
+@dp.message_handler(state=WaitCodeFSM.phone)
+async def code_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	phone = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	if len(phone) < 7 or not any(c.isdigit() for c in phone):
+		await _bot.send_message(uid, "❌ *Введите корректный номер телефона!*\n`+79991234567`", parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	await _bot.send_message(uid, f"📱 *Запускаю код-метод...*\n*└─ Номер:* `{phone}`\n\n_Это займёт 1-2 минуты_", parse_mode="Markdown")
+
+	try:
+		set_bot_code(_bot)
+		await main_code_snos(phone, uid, username)
+	except Exception as e:
+		print(f"[CODE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		set_bot_code(bot)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
 @dp.message_handler(state=WaitTrapFSM.victim)
 async def trap_step1(message: types.Message, state: FSMContext):
 	"""Пользователь ввёл @username жертвы — запускаем передачу."""
@@ -4291,6 +4349,7 @@ async def on_startup(dp):
 	set_bot_aureport(bot)
 	set_bot_tida(bot)
 	set_bot_bank(bot)
+	set_bot_code(bot)
 	set_monitor_bot(bot, bot_logs)
 	set_bot_profile(bot)
 	set_bot_trap(bot)
