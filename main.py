@@ -1068,6 +1068,8 @@ async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
 	try:
 		set_bot_dsa(_bot)
 		await main_dsa_snos(link, uid, username, reason_key, sub_key, text, count=1, _bot=_bot)
+		try: await db.log_attack(uid, link, "dsa")
+		except Exception: pass
 		# Предлагаем мониторинг
 		try:
 			_ud = await db.get_user(uid)
@@ -2458,6 +2460,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			try:
 				set_bot_tida(_bot)
 				await main_tida(tida_link, tida_text, uid, tida_username)
+				try: await db.log_attack(uid, tida_link, "tida")
+				except Exception: pass
 				# Предлагаем мониторинг
 				await _offer_monitor(_bot, uid, tida_link, premium, subscribe)
 			except Exception as e:
@@ -2579,6 +2583,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			try:
 				set_bot_telegraph(_bot)
 				await main_telegraph_snos(article_url, uid, username, custom_text=body, custom_subject=subject)
+				try: await db.log_attack(uid, article_url, "telegraph")
+				except Exception: pass
 			except Exception as e:
 				print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
 				await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -3285,6 +3291,8 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_aureport(_bot)
 		await main_aureport(raw, uid, username)
+		try: await db.log_attack(uid, raw, "aureport")
+		except Exception: pass
 		# Предлагаем мониторинг
 		try:
 			_ud = await db.get_user(uid)
@@ -3407,6 +3415,8 @@ async def telegraph_custom_text(message: types.Message, state: FSMContext):
 	try:
 		set_bot_telegraph(_bot)
 		await main_telegraph_snos(article_url, uid, username, custom_text=custom_body, custom_subject=custom_subject)
+		try: await db.log_attack(uid, article_url, "telegraph")
+		except Exception: pass
 	except Exception as e:
 		print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -3660,6 +3670,8 @@ async def bank_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_bank(_bot)
 		await process_bank_report(bank_key, card_data, uid, username)
+		try: await db.log_attack(uid, bank_key, "bank")
+		except Exception: pass
 	except Exception as e:
 		print(f"[BANK] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -3757,6 +3769,8 @@ async def profile_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_profile(_bot)
 		await main_profile_snos(raw, uid, username)
+		try: await db.log_attack(uid, raw, "profile")
+		except Exception: pass
 	except Exception as e:
 		import traceback
 		print(f"[PROFILE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
