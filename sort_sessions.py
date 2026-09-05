@@ -8,7 +8,7 @@ import os
 import random
 from telethon import TelegramClient
 
-FOLDERS = ["sessions", "prem_sessions"]
+FOLDERS = ["sessions"]
 MAX_CONCURRENT = 10
 
 API_PAIRS = [
