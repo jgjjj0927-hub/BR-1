@@ -4181,6 +4181,28 @@ async def _trap_create(uid: int, username: str, bot_token_instance: str):
 		set_bot_trap(bot)
 
 
+async def _sub_expiry_notify_loop():
+	import asyncio as _asyncio
+	while True:
+		try:
+			user_ids = await db.get_expiring_soon_users()
+			for uid_ in user_ids:
+				try:
+					await bot.send_message(
+						uid_,
+						"⏰ *Подписка истекает через ~3 часа*\n\n"
+						"Продли сейчас — не теряй доступ к методам.\n\n"
+						"_Напиши администратору для продления._",
+						parse_mode="Markdown"
+					)
+					await db.mark_sub_expiry_notified(uid_)
+				except Exception:
+					pass
+		except Exception:
+			pass
+		await _asyncio.sleep(600)
+
+
 async def on_startup(dp):
 	try:
 		print(f"DATABASE_URL = {os.environ.get('DATABASE_URL', 'НЕ УСТАНОВЛЕНА')[:50]}")
@@ -4206,6 +4228,7 @@ async def on_startup(dp):
 	asyncio.ensure_future(monitor_loop())
 	from monitor_snos import _telegraph_monitor_loop
 	asyncio.ensure_future(_telegraph_monitor_loop())
+	asyncio.ensure_future(_sub_expiry_notify_loop())
 	# Зеркала запускаем в фоне — основной бот стартует сразу
 	asyncio.ensure_future(start_all_mirrors())
 	print("Бот запущен.")

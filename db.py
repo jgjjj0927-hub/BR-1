@@ -53,6 +53,7 @@ async def init_db():
             ("username", "TEXT DEFAULT ''"),
             ("manual_confirmed", "INT DEFAULT 0"),
             ("lang", "TEXT DEFAULT 'ru'"),
+            ("sub_expiry_notified", "BOOLEAN DEFAULT FALSE"),
         ]:
             try:
                 await conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
@@ -161,7 +162,7 @@ async def set_subscribe(user_id: int, new_date, force: bool = False):
                 delta = new_date - datetime.now()
                 new_date = current + delta
         await conn.execute(
-            "UPDATE users SET subscribe = $1 WHERE user_id = $2",
+            "UPDATE users SET subscribe = $1, sub_expiry_notified = FALSE WHERE user_id = $2",
             new_date, user_id
         )
 
@@ -1009,6 +1010,41 @@ async def get_attack_history(user_id: int, limit: int = 15) -> list:
             user_id, limit
         )
         return [dict(r) for r in rows]
+
+
+# ─── Уведомления об истечении подписки ───────────────────────────────────────
+
+async def get_expiring_soon_users() -> list:
+    """Возвращает пользователей у которых подписка истекает через 2.5–3.5 ч и ещё не уведомлены."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT user_id FROM users
+            WHERE subscribe BETWEEN NOW() + INTERVAL '2.5 hours' AND NOW() + INTERVAL '3.5 hours'
+              AND (sub_expiry_notified = FALSE OR sub_expiry_notified IS NULL)
+            """
+        )
+        return [r['user_id'] for r in rows]
+
+
+async def mark_sub_expiry_notified(user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET sub_expiry_notified = TRUE WHERE user_id = $1",
+            user_id
+        )
+
+
+async def reset_sub_expiry_notified(user_id: int):
+    """Сбрасывает флаг когда подписка продлена (чтобы уведомить при следующем истечении)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET sub_expiry_notified = FALSE WHERE user_id = $1",
+            user_id
+        )
 
 
 # ─── Пробив — лимиты ──────────────────────────────────────────────────────────
