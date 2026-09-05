@@ -59,6 +59,9 @@ API_PAIRS = [
 os.makedirs(LOLZ_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+# FloodWait-кэш: session_name -> timestamp до которого нельзя трогать
+_flood_until: dict[str, float] = {}
+
 # ─── Утилиты ──────────────────────────────────────────────────────────────────
 
 def _get_lolz_sessions() -> list[str]:
@@ -80,31 +83,40 @@ def _rand_api() -> tuple[int, str]:
 
 async def _read_tg_code(client: TelegramClient, timeout: int = CODE_WAIT) -> str | None:
     """
-    Слушает входящие сообщения через event handler.
-    Ищет 5-значный код от Telegram (777000).
+    Polling: каждые 5 секунд проверяем новые сообщения от 777000.
+    Надёжнее event-handler, который может не сработать при connect-only.
     """
-    from telethon import events as tl_events
+    import time
 
-    code_found = asyncio.Future()
-
-    @client.on(tl_events.NewMessage(incoming=True))
-    async def handler(event):
-        if code_found.done():
-            return
-        text = event.message.text or ""
-        match = re.search(r'\b(\d{5})\b', text)
-        if match:
-            code = match.group(1)
-            logger.info(f"Код получен: {code} | от: {event.sender_id}")
-            code_found.set_result(code)
-
+    # Запоминаем ID последнего сообщения ДО запроса кода
+    last_msg_id = 0
     try:
-        code = await asyncio.wait_for(code_found, timeout=timeout)
-        return code
-    except asyncio.TimeoutError:
-        return None
-    finally:
-        client.remove_event_handler(handler)
+        msgs = await client.get_messages(777000, limit=1)
+        if msgs:
+            last_msg_id = msgs[0].id
+    except Exception:
+        pass
+
+    deadline = time.monotonic() + timeout
+    poll_interval = 5  # секунд между проверками
+
+    while time.monotonic() < deadline:
+        await asyncio.sleep(poll_interval)
+        try:
+            msgs = await client.get_messages(777000, limit=5)
+            for msg in msgs:
+                if msg.id <= last_msg_id:
+                    continue
+                text = msg.text or ""
+                match = re.search(r'\b(\d{5})\b', text)
+                if match:
+                    code = match.group(1)
+                    logger.info(f"Код получен: {code} (msg_id={msg.id})")
+                    return code
+        except Exception as e:
+            logger.warning(f"Ошибка при чтении кода: {e}")
+
+    return None
 
 
 async def _set_cloud_password(client: TelegramClient, password: str) -> bool:
@@ -125,7 +137,16 @@ async def process_lolz_session(session_path: str) -> bool:
     Обрабатывает одну lolz-сессию.
     Возвращает True если успешно.
     """
+    import time
     session_name = os.path.basename(session_path)
+
+    # Проверяем FloodWait-кэш
+    if session_name in _flood_until:
+        remaining = _flood_until[session_name] - time.monotonic()
+        if remaining > 0:
+            logger.info(f"[{session_name}] ⏸ FloodWait кэш — жду ещё {remaining:.0f}с, пропускаю")
+            return False
+
     logger.info(f"[{session_name}] Начинаю обработку...")
 
     api_id, api_hash = _rand_api()
@@ -190,6 +211,13 @@ async def process_lolz_session(session_path: str) -> bool:
 
         except Exception as e:
             logger.warning(f"[{session_name}] Ошибка запроса кода: {e}")
+            # Если FloodWait — запоминаем сколько ждать
+            import time as _time
+            flood_match = re.search(r'wait of (\d+) seconds', str(e))
+            if flood_match:
+                wait_sec = int(flood_match.group(1))
+                _flood_until[session_name] = _time.monotonic() + wait_sec
+                logger.info(f"[{session_name}] FloodWait {wait_sec}с — следующая попытка через {wait_sec//60}м")
             try:
                 await new_client.disconnect()
             except Exception:
