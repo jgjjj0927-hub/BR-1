@@ -81,40 +81,71 @@ def _rand_api() -> tuple[int, str]:
     return int(api_id), api_hash
 
 
-async def _read_tg_code(client: TelegramClient, timeout: int = CODE_WAIT) -> str | None:
+def _extract_codes_from_error(err: Exception) -> list[str]:
     """
-    Polling: каждые 5 секунд проверяем новые сообщения от 777000.
-    Надёжнее event-handler, который может не сработать при connect-only.
+    Telethon иногда не может распарсить новый TL-конструктор от Telegram,
+    но сырые байты с текстом сообщения есть прямо в строке исключения.
+    Извлекаем все 5-значные коды из текста ошибки.
+    """
+    err_str = str(err)
+    # Ищем "Login code: 12345" и "Telegram: 12345" (русский вариант)
+    return re.findall(r'(?:Login code|Telegram):\s*(\d{5})', err_str)
+
+
+async def _get_last_code(client: TelegramClient) -> str | None:
+    """Возвращает последний код из диалога с 777000 (для фильтрации старых кодов)."""
+    try:
+        msgs = await client.get_messages(777000, limit=3)
+        for msg in msgs:
+            text = msg.text or ""
+            m = re.search(r'\b(\d{5})\b', text)
+            if m:
+                return m.group(1)
+    except Exception as e:
+        # Парсим из ошибки — возвращаем первый (самый новый) код
+        codes = _extract_codes_from_error(e)
+        if codes:
+            return codes[0]
+    return None
+
+
+async def _read_tg_code(client: TelegramClient, timeout: int = CODE_WAIT,
+                        exclude_code: str | None = None) -> str | None:
+    """
+    Polling каждые 5 секунд. Если get_messages крашит из-за нового TL-конструктора,
+    читаем коды прямо из raw-байт в тексте исключения.
+    exclude_code — код который был ДО запроса (исключаем, чтобы не взять старый).
     """
     import time
 
-    # Запоминаем ID последнего сообщения ДО запроса кода
-    last_msg_id = 0
-    try:
-        msgs = await client.get_messages(777000, limit=1)
-        if msgs:
-            last_msg_id = msgs[0].id
-    except Exception:
-        pass
-
     deadline = time.monotonic() + timeout
-    poll_interval = 5  # секунд между проверками
+    poll_interval = 5
 
     while time.monotonic() < deadline:
         await asyncio.sleep(poll_interval)
         try:
-            msgs = await client.get_messages(777000, limit=5)
+            msgs = await client.get_messages(777000, limit=10)
             for msg in msgs:
-                if msg.id <= last_msg_id:
-                    continue
                 text = msg.text or ""
                 match = re.search(r'\b(\d{5})\b', text)
                 if match:
                     code = match.group(1)
+                    if code == exclude_code:
+                        continue
                     logger.info(f"Код получен: {code} (msg_id={msg.id})")
                     return code
         except Exception as e:
-            logger.warning(f"Ошибка при чтении кода: {e}")
+            # Telethon не смог распарсить новый TL-тип, но текст есть в ошибке
+            codes = _extract_codes_from_error(e)
+            logger.info(f"Коды из raw-байт ошибки: {codes}")
+            for code in codes:
+                if code != exclude_code:
+                    logger.info(f"Код получен из raw: {code}")
+                    return code
+            if codes:
+                logger.warning("Все найденные коды совпадают с предыдущим, ждём...")
+            else:
+                logger.warning(f"Ошибка чтения (код не в байтах): {str(e)[:100]}")
 
     return None
 
@@ -187,6 +218,11 @@ async def process_lolz_session(session_path: str) -> bool:
 
         # ── Шаг 2: Запрашиваем код входа ─────────────────────────────────────
         logger.info(f"[{session_name}] Запрашиваю код входа...")
+
+        # Запоминаем последний код ДО запроса — чтобы потом не взять старый
+        prev_code = await _get_last_code(lolz_client)
+        logger.info(f"[{session_name}] Предыдущий код в диалоге: {prev_code or 'нет'}")
+
         new_api_id, new_api_hash = _rand_api()
         new_session_name = f"{session_name}_new"
         new_session_path = os.path.join(OUTPUT_FOLDER, new_session_name)
@@ -232,7 +268,7 @@ async def process_lolz_session(session_path: str) -> bool:
             return False
 
         # ── Шаг 3: Читаем код из диалога с Telegram ───────────────────────────
-        code = await _read_tg_code(lolz_client, timeout=CODE_WAIT)
+        code = await _read_tg_code(lolz_client, timeout=CODE_WAIT, exclude_code=prev_code)
 
         if not code:
             logger.warning(f"[{session_name}] Код не получен за {CODE_WAIT}с")
