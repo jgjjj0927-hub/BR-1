@@ -3866,26 +3866,45 @@ async def clear_prem_uid(message: types.Message, state: FSMContext):
 @dp.message_handler(state=WaitTextZFSM.text, content_types=types.ContentTypes.ANY)
 async def sendall(message: types.Message, state: FSMContext):
 	await state.finish()
+	status_msg = await message.answer('📤 *Рассылка запущена...*', parse_mode='Markdown')
+	asyncio.create_task(_do_broadcast(message, status_msg))
+
+async def _do_broadcast(source: types.Message, status_msg: types.Message):
 	users = await db.get_all_user_ids()
 	ok, fail = 0, 0
+	total = len(users)
 
-	# Рассылка только через основной бот (не через зеркала)
-	for user_id in users:
+	for i, user_id in enumerate(users):
 		try:
-			if message.text:
-				await bot.send_message(user_id, message.text, parse_mode='Markdown', reply_markup=del_message2)
-			elif message.photo:
-				await bot.send_photo(user_id, message.photo[-1].file_id, caption=message.caption, parse_mode='Markdown', reply_markup=del_message2)
-			else:
-				await bot.send_message(user_id, message.caption or "📢", parse_mode='Markdown', reply_markup=del_message2)
+			await source.copy_to(user_id, reply_markup=del_message2)
 			ok += 1
 		except Exception:
 			fail += 1
-		await asyncio.sleep(0.05)  # ~20 сообщений/сек, не ловим 429
+		await asyncio.sleep(0.05)
+		# Обновляем прогресс каждые 200 отправок
+		if (i + 1) % 200 == 0:
+			try:
+				await status_msg.edit_text(
+					f'📤 *Рассылка...*\n*Прогресс:* {i+1}/{total}\n*✅* {ok} *❌* {fail}',
+					parse_mode='Markdown'
+				)
+			except Exception:
+				pass
 
-	await message.answer(f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}',
-		parse_mode='Markdown', reply_markup=main_menu)
-	await bot.send_message(bot_logs, f"📢 *Рассылка завершена*\n*✅ {ok} / ❌ {fail}*", parse_mode='Markdown')
+	try:
+		await status_msg.edit_text(
+			f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}',
+			parse_mode='Markdown', reply_markup=main_menu
+		)
+	except Exception:
+		await source.answer(
+			f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}',
+			parse_mode='Markdown', reply_markup=main_menu
+		)
+	try:
+		await bot.send_message(bot_logs, f"📢 *Рассылка завершена*\n*✅ {ok} / ❌ {fail}*", parse_mode='Markdown')
+	except Exception:
+		pass
 
 # ─── Промокоды (активация) ────────────────────────────────────────────────────
 
