@@ -11,6 +11,7 @@ from config import bot_logs
 import keyboards
 from utils import now_msk
 from report_texts import GENERAL_TEXTS as reasons_texts
+from utils import enable_wal
 
 reasons = [
     b'2',  # Child abuse
@@ -85,6 +86,7 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
     random_reason_text = random.choice(reasons_texts)
 
     print(f"[BOTNET] [{session}] Подключаемся (api_id={api_id})...", flush=True)
+    enable_wal(f"./sessions/{session}")
 
     try:
         client = TelegramClient(
@@ -111,6 +113,9 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
         # Получаем TARGET только один раз (первая сессия, которая успела)
         if target_ref[0] is None:
             msg = await client.get_messages(chat, ids=message_id)
+            if msg is None:
+                print(f"[BOTNET] [{session}] ⚠️ NO_MSG — сообщение не найдено (удалено?)", flush=True)
+                return "NO_MSG", None
             if msg.from_id is not None:
                 user_entity = await client.get_entity(msg.from_id)
                 target_ref[0] = msg.from_id.user_id if isinstance(msg.from_id, PeerUser) else "?"

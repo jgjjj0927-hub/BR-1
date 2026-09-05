@@ -2907,21 +2907,29 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 				return
 			free_left = await db.get_free_reports(uid)
 			await _bot.send_message(uid, f'🎯 *Использован бесплатный репорт! Осталось: {free_left}*', parse_mode=ParseMode.MARKDOWN)
-		await _bot.send_message(uid, '📤 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
+		_ud_pre = await db.get_user(uid)
+		_is_prem = int(_ud_pre.get('premium', 0)) if _ud_pre else 0
+		prem_label = "👑 *[PREMIUM]* " if _is_prem else ""
+		await _bot.send_message(uid, f'📤 {prem_label}*Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		botnet_set_bot(_bot)
-		await botnet_main(chat_username, message_id, uid, username, url)
-		try: await db.log_attack(uid, url, "botnet")
-		except Exception: pass
-		# КД только после успешного запуска
+		# Ставим КД сразу — чтобы нельзя было спамить очередь
 		last_used_botnet[uid] = now_msk()
-		# Предлагаем мониторинг
-		try:
-			_ud = await db.get_user(uid)
-			_prem = int(_ud.get('premium', 0)) if _ud else 0
-			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
-			await _offer_monitor(_bot, uid, url, _prem, _sub)
-		except Exception:
-			pass
+
+		from task_queue import enqueue as _tq_enqueue
+
+		async def _do_botnet():
+			await botnet_main(chat_username, message_id, uid, username, url)
+			try: await db.log_attack(uid, url, "botnet")
+			except Exception: pass
+			try:
+				_ud2 = await db.get_user(uid)
+				_p2 = int(_ud2.get('premium', 0)) if _ud2 else 0
+				_s2 = datetime.strptime(str(_ud2['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud2 else now_msk() - timedelta(days=1)
+				await _offer_monitor(_bot, uid, url, _p2, _s2)
+			except Exception:
+				pass
+
+		await _tq_enqueue(_do_botnet, premium=bool(_is_prem))
 	except ValueError:
 		await _bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
@@ -3121,36 +3129,44 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	else:
 		last_used_bot_snos[uid] = now_msk()
 
+	_ud_bs = await db.get_user(uid)
+	_is_prem_bs = int(_ud_bs.get('premium', 0)) if _ud_bs else 0
+	prem_label_bs = "👑 *[PREMIUM]* " if _is_prem_bs else ""
 	kd_label = "5 минут" if is_fast_bot else "1 час"
-	await _bot.send_message(uid, f'🤖 *Запустил жалобы на {bot_target}...*\n*└─ КД после: {kd_label}*', parse_mode=ParseMode.MARKDOWN)
+	await _bot.send_message(uid, f'🤖 {prem_label_bs}*Запустил жалобы на {bot_target}...*\n*└─ КД после: {kd_label}*', parse_mode=ParseMode.MARKDOWN)
 
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
-	try:
-		set_bot_snos(_bot)
-		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
-		try: await db.log_attack(uid, bot_target, "bot")
-		except Exception: pass
-		# Предлагаем мониторинг
+	set_bot_snos(_bot)
+
+	from task_queue import enqueue as _tq_enqueue
+
+	async def _do_bot_snos():
 		try:
-			_ud = await db.get_user(uid)
-			_prem = int(_ud.get('premium', 0)) if _ud else 0
-			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
-			await _offer_monitor(_bot, uid, bot_target, _prem, _sub)
-		except Exception:
-			pass
-	except Exception as e:
-		import traceback
-		print(f"[BOT-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		traceback.print_exc()
-		await _bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
-	finally:
-		set_bot_snos(bot)
-		if _is_mirror_bot:
+			await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
+			try: await db.log_attack(uid, bot_target, "bot")
+			except Exception: pass
 			try:
-				session = await _bot.get_session()
-				await session.close()
+				_ud2 = await db.get_user(uid)
+				_p2 = int(_ud2.get('premium', 0)) if _ud2 else 0
+				_s2 = datetime.strptime(str(_ud2['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud2 else now_msk() - timedelta(days=1)
+				await _offer_monitor(_bot, uid, bot_target, _p2, _s2)
 			except Exception:
 				pass
+		except Exception as e:
+			import traceback
+			print(f"[BOT-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+			traceback.print_exc()
+			await _bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+		finally:
+			set_bot_snos(bot)
+
+	await _tq_enqueue(_do_bot_snos, premium=bool(_is_prem_bs))
+	if _is_mirror_bot:
+		try:
+			session = await _bot.get_session()
+			await session.close()
+		except Exception:
+			pass
 
 @dp.message_handler(state=WaitChannelFSM.link)
 async def channel_step1(message: types.Message, state: FSMContext):
@@ -3209,32 +3225,39 @@ async def channel_step1(message: types.Message, state: FSMContext):
 				await _bot.send_message(uid, f'🎯 *Использован бесплатный репорт! Осталось: {free_left}*', parse_mode=ParseMode.MARKDOWN)
 
 	last_used_channel[uid] = now_msk()
+	_ud_ch = await db.get_user(uid)
+	_is_prem_ch = int(_ud_ch.get('premium', 0)) if _ud_ch else 0
+	prem_label_ch = "👑 *[PREMIUM]* " if _is_prem_ch else ""
 	msg_info = f" (сообщение #{message_id})" if message_id else ""
-	await _bot.send_message(uid, f'📢 *Запустил жалобы на канал {ch_target}{msg_info}...*', parse_mode="Markdown")
+	await _bot.send_message(uid, f'📢 {prem_label_ch}*Запустил жалобы на канал {ch_target}{msg_info}...*', parse_mode="Markdown")
 
-	try:
-		set_bot_channel(_bot)
-		await main_channel_snos(ch_target, reason_key, uid, username, message_id=message_id)
-		try: await db.log_attack(uid, ch_target, "channel")
-		except Exception: pass
-		# Предлагаем мониторинг
+	set_bot_channel(_bot)
+	from task_queue import enqueue as _tq_enqueue
+
+	async def _do_channel():
 		try:
-			_ud = await db.get_user(uid)
-			_prem = int(_ud.get('premium', 0)) if _ud else 0
-			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
-			await _offer_monitor(_bot, uid, raw, _prem, _sub)
-		except Exception:
-			pass
-	except Exception as e:
-		print(f"[CH-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка канал-метода:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
-	finally:
-		from channel_snos import set_bot_channel as _set_ch
-		_set_ch(bot)
-		if _is_mirror_bot:
-			try:
-				s = await _bot.get_session(); await s.close()
+			await main_channel_snos(ch_target, reason_key, uid, username, message_id=message_id)
+			try: await db.log_attack(uid, ch_target, "channel")
 			except Exception: pass
+			try:
+				_ud2 = await db.get_user(uid)
+				_p2 = int(_ud2.get('premium', 0)) if _ud2 else 0
+				_s2 = datetime.strptime(str(_ud2['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud2 else now_msk() - timedelta(days=1)
+				await _offer_monitor(_bot, uid, raw, _p2, _s2)
+			except Exception:
+				pass
+		except Exception as e:
+			print(f"[CH-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+			await _bot.send_message(uid, f'❌ *Ошибка канал-метода:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		finally:
+			from channel_snos import set_bot_channel as _set_ch
+			_set_ch(bot)
+
+	await _tq_enqueue(_do_channel, premium=bool(_is_prem_ch))
+	if _is_mirror_bot:
+		try:
+			s = await _bot.get_session(); await s.close()
+		except Exception: pass
 
 @dp.message_handler(state=WaitAuReportFSM.link)
 async def aureport_step1(message: types.Message, state: FSMContext):
@@ -4301,6 +4324,9 @@ async def on_startup(dp):
 	asyncio.ensure_future(_sub_expiry_notify_loop())
 	# Зеркала запускаем в фоне — основной бот стартует сразу
 	asyncio.ensure_future(start_all_mirrors())
+	# Приоритетная очередь задач (премиум вперёд)
+	from task_queue import start_worker as _start_queue_worker
+	asyncio.ensure_future(_start_queue_worker())
 	print("Бот запущен.")
 
 
@@ -4613,13 +4639,23 @@ async def media_admin_reject_reason(message: types.Message, state: FSMContext):
 
 if __name__ == "__main__":
 	import sys
-	# Отключаем буферизацию вывода — логи сразу видны в Railway/консоли
+	import fcntl
+
 	sys.stdout.reconfigure(line_buffering=True)
+
+	# PID-lock — защита от двух одновременных экземпляров
+	_pid_file = open("/tmp/brv2_bot.lock", "w")
+	try:
+		fcntl.flock(_pid_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+	except BlockingIOError:
+		print("❌ Другой экземпляр бота уже запущен! PID-lock занят. Завершаемся.", flush=True)
+		sys.exit(1)
+	_pid_file.write(str(os.getpid()))
+	_pid_file.flush()
+
 	while True:
 		try:
 			print("Бот запускается...", flush=True)
-			
-
 			executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
 		except KeyboardInterrupt:
 			exit()

@@ -12,7 +12,7 @@ from telethon.errors import FloodWaitError
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk
+from utils import now_msk, enable_wal
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +189,7 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
 
     creds = random.choice(API)
     api_id, api_hash = creds.split(":", 1)
+    enable_wal(session_path)
 
     try:
         client = TelegramClient(

@@ -9,7 +9,7 @@ from aiogram import Bot, types
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk
+from utils import now_msk, enable_wal
 
 reasons = [
     b'2',  # Child abuse
@@ -1084,6 +1084,7 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
     random_reason_text = random.choice(reasons_texts)
 
     print(f"[PREM] [{session}] Подключаемся (api_id={api_id})...", flush=True)
+    enable_wal(f"./prem_sessions/{session}")
 
     client = TelegramClient(
         f"./prem_sessions/{session}", int(api_id), api_hash,
@@ -1105,6 +1106,9 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
 
         if target_ref[0] is None:
             msg = await client.get_messages(chat, ids=message_id)
+            if msg is None:
+                print(f"[PREM] [{session}] ⚠️ NO_MSG — сообщение не найдено (удалено?)", flush=True)
+                return "NO_MSG", None
             if msg.from_id is not None:
                 user_entity = await client.get_entity(msg.from_id)
                 target_ref[0] = msg.from_id.user_id if isinstance(msg.from_id, PeerUser) else "?"
