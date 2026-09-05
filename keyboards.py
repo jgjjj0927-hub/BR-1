@@ -22,6 +22,7 @@ menu.add(referral_btn, wheel_btn)
 menu.add(mirrors_pub_btn, free_btn)
 menu.add(case_btn, monitor_btn)
 media_btn = types.InlineKeyboardButton("🎥 Медиа", callback_data='media')
+menu.add(media_btn)
 menu.add(probiv_btn)
 menu.add(support_btn)
 

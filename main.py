@@ -1270,7 +1270,18 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="MarkdownV2", reply_markup=card_markup)
 		elif d == "preminfo":
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="👑 *Премиум*\n\n>*└─ почты, веб, прем отправку*\n\n‼️ Покупается как ДОПОЛНЕНИЕ к подписке ‼️",
+				caption=(
+					"👑 *Премиум — стоит ли брать?*\n\n"
+					"Премиум — это дополнение к подписке\\. Покупается один раз, навсегда\\.\n\n"
+					"*Что открывается:*\n"
+					"├ 👑 *Премиальная отправка* — усиленный ботнет, больше аккаунтов, выше шанс сноса\n"
+					"├ 📧 *Mail-метод* — репорты через почты напрямую\n"
+					"├ 🌐 *Web-метод* — репорты через веб\n"
+					"├ 🔍 *Мониторинг ×5* — 5 целей одновременно вместо 3\n"
+					"└ ⏱ *Мониторинг 24ч* — срок 24 часа вместо 12\n\n"
+					"*Итог:* обычная подписка — базовые методы\\. Премиум — максимальная мощность\\.\n\n"
+					"💡 _Если цель сложная — без премиума шансы ниже_"
+				),
 				parse_mode="MarkdownV2", reply_markup=back_markup)
 		elif d == "close":
 			await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
@@ -1329,6 +1340,22 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				call.message.chat.id, call.message.message_id,
 				caption=text, parse_mode="Markdown", reply_markup=markup
 			)
+
+		elif d.startswith('monitor_mute_'):
+			try:
+				monitor_id = int(d[len('monitor_mute_'):])
+			except ValueError:
+				await bot_instance.answer_callback_query(call.id, "❌ Ошибка", show_alert=True)
+				return
+			ok = await db.set_monitor_silent(monitor_id, uid, True)
+			if ok:
+				await bot_instance.answer_callback_query(call.id, "🔕 Уведомления отключены до сноса", show_alert=True)
+				try:
+					await bot_instance.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+				except Exception:
+					pass
+			else:
+				await bot_instance.answer_callback_query(call.id, "❌ Монитор не найден", show_alert=True)
 
 		elif d == 'monitor_limit':
 			await bot_instance.answer_callback_query(

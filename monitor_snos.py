@@ -351,10 +351,35 @@ async def _check_one(monitor: dict):
 
         await db.update_monitor_check(monitor_id, new_status)
 
-        if prev_status == "alive" and new_status == "dead" and not monitor.get("notified"):
+        if new_status == "dead" and not monitor.get("notified"):
             await db.mark_monitor_notified(monitor_id)
             await _notify_user(user_id, target, result["reason"], result["status"])
             await db.deactivate_monitor(monitor_id)
+        elif new_status == "alive" and not monitor.get("notify_silent"):
+            await _notify_user_alive(user_id, target, monitor_id)
+
+
+async def _notify_user_alive(user_id: int, target: str, monitor_id: int):
+    """Периодическое уведомление — цель жива."""
+    if not _bot:
+        return
+    from aiogram import types as tg_types
+    markup = tg_types.InlineKeyboardMarkup(row_width=1)
+    markup.add(tg_types.InlineKeyboardButton(
+        "🔕 Отключить до сноса", callback_data=f'monitor_mute_{monitor_id}'
+    ))
+    try:
+        await _bot.send_message(
+            user_id,
+            f"🔍 *Мониторинг BR V2*\n\n"
+            f"🟢 *Цель жива*\n\n"
+            f"🎯 *Цель:* `{target}`\n"
+            f"🕐 *Следующая проверка через 10 минут*",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+    except Exception as e:
+        logger.error(f"[MONITOR] Ошибка alive-уведомления {user_id}: {e}")
 
 
 async def _notify_user(user_id: int, target: str, reason: str, status: str):

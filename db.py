@@ -845,10 +845,15 @@ async def init_monitors_table():
                 status TEXT DEFAULT 'alive',
                 active BOOLEAN DEFAULT TRUE,
                 notified BOOLEAN DEFAULT FALSE,
+                notify_silent BOOLEAN DEFAULT FALSE,
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT NOW(),
                 last_check TIMESTAMP DEFAULT NOW()
             )
+        """)
+        # Добавляем колонку если её нет (для существующих БД)
+        await conn.execute("""
+            ALTER TABLE monitors ADD COLUMN IF NOT EXISTS notify_silent BOOLEAN DEFAULT FALSE
         """)
 
 
@@ -945,6 +950,17 @@ async def deactivate_monitor(monitor_id: int):
             "UPDATE monitors SET active = FALSE WHERE id = $1",
             monitor_id
         )
+
+
+async def set_monitor_silent(monitor_id: int, user_id: int, silent: bool) -> bool:
+    """Включает/выключает тихий режим (без периодических уведомлений). Возвращает True если найден."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE monitors SET notify_silent = $1 WHERE id = $2 AND user_id = $3 RETURNING id",
+            silent, monitor_id, user_id
+        )
+        return row is not None
 
 
 async def delete_monitor(monitor_id: int, user_id: int) -> bool:
