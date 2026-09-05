@@ -1227,23 +1227,22 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				'profile': '👤 Профиль',
 			}
 			if not history:
-				_htxt = "📋 *История жалоб*\n\n_Жалобы ещё не отправлялись_"
+				_htxt = "📋 История жалоб\n\nЖалобы ещё не отправлялись"
 			else:
-				_htxt = "📋 *История жалоб* (последние 15)\n\n"
+				_htxt = "📋 История жалоб (последние 15)\n\n"
 				for _h in history:
 					_method = _METHOD_LABELS.get(_h['method'], _h['method'])
 					_dt = _h['created_at'].strftime("%d.%m %H:%M") if _h['created_at'] else "—"
 					_url = _h['target_url']
 					_sc = _h['success_count']
 					_sc_str = f"  ✅ {_sc}" if _sc > 0 else ""
-					_url_safe = _url[:60].replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace('`', '\\`')
-				_htxt += f"• {_method} | {_dt}{_sc_str}\n  {_url_safe}\n"
+					_htxt += f"• {_method} | {_dt}{_sc_str}\n  {_url[:60]}\n"
 			_hist_markup = types.InlineKeyboardMarkup(row_width=1)
 			_hist_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='profile'))
 			try:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_htxt, parse_mode="Markdown", reply_markup=_hist_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_htxt, reply_markup=_hist_markup)
 			except Exception:
-				await bot_instance.edit_message_text(_htxt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=_hist_markup)
+				await bot_instance.edit_message_text(_htxt, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=_hist_markup)
 
 		elif d == 'lang_change':
 			_lang_markup = types.InlineKeyboardMarkup(row_width=2)
