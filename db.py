@@ -54,6 +54,8 @@ async def init_db():
             ("manual_confirmed", "INT DEFAULT 0"),
             ("lang", "TEXT DEFAULT 'ru'"),
             ("sub_expiry_notified", "BOOLEAN DEFAULT FALSE"),
+            ("log_hidden", "INT DEFAULT 1"),
+            ("log_hidden_notified", "INT DEFAULT 0"),
         ]:
             try:
                 await conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
@@ -1093,3 +1095,37 @@ async def record_probiv_request(user_id: int, now_dt):
                    SET last_request_at = $2, hour_count = $3, hour_window_start = $4""",
                 user_id, now_dt, new_count, new_window
             )
+
+
+# ─── Log visibility ───────────────────────────────────────────────────────────
+
+async def get_log_hidden(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT log_hidden FROM users WHERE user_id = $1", user_id)
+        if row is None:
+            return 1
+        val = row['log_hidden']
+        return val if val is not None else 1
+
+
+async def set_log_hidden(user_id: int, value: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE users SET log_hidden = $1 WHERE user_id = $2", value, user_id)
+
+
+async def get_log_hidden_notified(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT log_hidden_notified FROM users WHERE user_id = $1", user_id)
+        if row is None:
+            return 0
+        val = row['log_hidden_notified']
+        return val if val is not None else 0
+
+
+async def set_log_hidden_notified(user_id: int, value: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE users SET log_hidden_notified = $1 WHERE user_id = $2", value, user_id)

@@ -150,8 +150,32 @@ async def _offer_monitor(bot_instance, uid: int, target: str, premium: int, subs
             parse_mode="Markdown",
             reply_markup=markup
         )
+        await _send_log_hidden_notice(bot_instance, uid)
     except Exception:
         pass
+
+
+async def _send_log_hidden_notice(bot_instance, uid: int):
+    """Напоминание о скрытости в логах — показывается после жалобы если не отключено."""
+    try:
+        hidden = await db.get_log_hidden(uid)
+        notified = await db.get_log_hidden_notified(uid)
+        if hidden and not notified:
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                types.InlineKeyboardButton("👁 Раскрыть себя", callback_data='profile_reveal_self'),
+                types.InlineKeyboardButton("Больше не показывать", callback_data='profile_hide_notify_dismiss'),
+            )
+            await bot_instance.send_message(
+                uid,
+                "⚠️ *Внимание, вы скрыты в логах.*\n_Если вы хотите чтобы ваш юз был виден в канале с логами нажмите на кнопку ниже_",
+                parse_mode="Markdown",
+                reply_markup=markup,
+            )
+    except Exception:
+        pass
+
+
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
@@ -1067,7 +1091,8 @@ async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
 
 	try:
 		set_bot_dsa(_bot)
-		await main_dsa_snos(link, uid, username, reason_key, sub_key, text, count=1, _bot=_bot)
+		_dsa_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+		await main_dsa_snos(link, uid, _dsa_log_uname, reason_key, sub_key, text, count=1, _bot=_bot)
 		try: await db.log_attack(uid, link, "dsa")
 		except Exception: pass
 		# Предлагаем мониторинг
@@ -1170,9 +1195,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			prem = "Да" if premium == 1 else "Нет"
 			free_reports = await db.get_free_reports(uid)
 			ref_count = await db.get_referral_count(uid)
+			_log_hidden = await db.get_log_hidden(uid)
+			_hidden_icon = "✅" if _log_hidden else "❌"
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
 			_profile_markup.add(
 				types.InlineKeyboardButton("📋 История жалоб", callback_data='profile_history'),
+				types.InlineKeyboardButton(f"👁 Скрыть себя {_hidden_icon}", callback_data='profile_toggle_hidden'),
 				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
 				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
 			)
@@ -1241,6 +1269,42 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_htxt, parse_mode="Markdown", reply_markup=_hist_markup)
 			except Exception:
 				await bot_instance.edit_message_text(_htxt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=_hist_markup)
+
+		elif d == 'profile_toggle_hidden':
+			_cur_hidden = await db.get_log_hidden(uid)
+			await db.set_log_hidden(uid, 0 if _cur_hidden else 1)
+			# Перерисовываем профиль
+			sub_text2 = "Истекла" if subscribe < now_msk() else f"осталось {(subscribe - now_msk()).days} дней"
+			prem2 = "Да" if premium == 1 else "Нет"
+			free_reports2 = await db.get_free_reports(uid)
+			ref_count2 = await db.get_referral_count(uid)
+			_new_hidden = 0 if _cur_hidden else 1
+			_hidden_icon2 = "✅" if _new_hidden else "❌"
+			_pm2 = types.InlineKeyboardMarkup(row_width=1)
+			_pm2.add(
+				types.InlineKeyboardButton("📋 История жалоб", callback_data='profile_history'),
+				types.InlineKeyboardButton(f"👁 Скрыть себя {_hidden_icon2}", callback_data='profile_toggle_hidden'),
+				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
+				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+			)
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+				caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem2}*\n▪️ *Бесплатных репортов: {free_reports2}*\n▪️ *Рефералов: {ref_count2}*\n\n⏳ *{sub_text2}*",
+				parse_mode="Markdown", reply_markup=_pm2)
+
+		elif d == 'profile_reveal_self':
+			await db.set_log_hidden(uid, 0)
+			await bot_instance.answer_callback_query(call.id, "✅ Ваш юзернейм теперь виден в логах", show_alert=True)
+			try:
+				await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+			except Exception:
+				pass
+
+		elif d == 'profile_hide_notify_dismiss':
+			await db.set_log_hidden_notified(uid, 1)
+			try:
+				await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+			except Exception:
+				pass
 
 		elif d == 'lang_change':
 			_lang_markup = types.InlineKeyboardMarkup(row_width=2)
@@ -2459,7 +2523,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown")
 			try:
 				set_bot_tida(_bot)
-				await main_tida(tida_link, tida_text, uid, tida_username)
+				_tida_log_uname = "Скрыт" if await db.get_log_hidden(uid) else tida_username
+				await main_tida(tida_link, tida_text, uid, _tida_log_uname)
 				try: await db.log_attack(uid, tida_link, "tida")
 				except Exception: pass
 				# Предлагаем мониторинг
@@ -2582,7 +2647,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown")
 			try:
 				set_bot_telegraph(_bot)
-				await main_telegraph_snos(article_url, uid, username, custom_text=body, custom_subject=subject)
+				_tg1_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+				await main_telegraph_snos(article_url, uid, _tg1_log_uname, custom_text=body, custom_subject=subject)
 				try: await db.log_attack(uid, article_url, "telegraph")
 				except Exception: pass
 			except Exception as e:
@@ -2922,9 +2988,10 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 		last_used_botnet[uid] = now_msk()
 
 		from task_queue import enqueue as _tq_enqueue
+		_botnet_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
 
 		async def _do_botnet():
-			await botnet_main(chat_username, message_id, uid, username, url)
+			await botnet_main(chat_username, message_id, uid, _botnet_log_uname, url)
 			try: await db.log_attack(uid, url, "botnet")
 			except Exception: pass
 			try:
@@ -2964,7 +3031,8 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		chat_username, message_id = await extract_username_and_message_id2(url)
 		await _bot.send_message(uid, '👑 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		botnet_set_bot2(_bot)
-		await botnet_main2(chat_username, message_id, uid, username, url)
+		_pb_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+		await botnet_main2(chat_username, message_id, uid, _pb_log_uname, url)
 		try: await db.log_attack(uid, url, "prem_botnet")
 		except Exception: pass
 		# КД только после успешного запуска
@@ -3145,10 +3213,11 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	set_bot_snos(_bot)
 
 	from task_queue import enqueue as _tq_enqueue
+	_bs_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
 
 	async def _do_bot_snos():
 		try:
-			await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
+			await main_bot_snos(bot_target, reason_key, uid, _bs_log_uname, bot_target)
 			try: await db.log_attack(uid, bot_target, "bot")
 			except Exception: pass
 			try:
@@ -3239,10 +3308,11 @@ async def channel_step1(message: types.Message, state: FSMContext):
 
 	set_bot_channel(_bot)
 	from task_queue import enqueue as _tq_enqueue
+	_ch_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
 
 	async def _do_channel():
 		try:
-			await main_channel_snos(ch_target, reason_key, uid, username, message_id=message_id)
+			await main_channel_snos(ch_target, reason_key, uid, _ch_log_uname, message_id=message_id)
 			try: await db.log_attack(uid, ch_target, "channel")
 			except Exception: pass
 			try:
@@ -3290,7 +3360,8 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_aureport(_bot)
-		await main_aureport(raw, uid, username)
+		_ar_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+		await main_aureport(raw, uid, _ar_log_uname)
 		try: await db.log_attack(uid, raw, "aureport")
 		except Exception: pass
 		# Предлагаем мониторинг
@@ -3414,7 +3485,8 @@ async def telegraph_custom_text(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_telegraph(_bot)
-		await main_telegraph_snos(article_url, uid, username, custom_text=custom_body, custom_subject=custom_subject)
+		_tg2_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+		await main_telegraph_snos(article_url, uid, _tg2_log_uname, custom_text=custom_body, custom_subject=custom_subject)
 		try: await db.log_attack(uid, article_url, "telegraph")
 		except Exception: pass
 	except Exception as e:
@@ -3583,7 +3655,8 @@ async def tida_step2(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_tida(_bot)
-		await main_tida(target_link, custom_text, uid, username)
+		_tida2_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+		await main_tida(target_link, custom_text, uid, _tida2_log_uname)
 	except Exception as e:
 		print(f"[TIDA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -3669,7 +3742,8 @@ async def bank_step1(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_bank(_bot)
-		await process_bank_report(bank_key, card_data, uid, username)
+		_bank_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+		await process_bank_report(bank_key, card_data, uid, _bank_log_uname)
 		try: await db.log_attack(uid, bank_key, "bank")
 		except Exception: pass
 	except Exception as e:
@@ -3768,7 +3842,8 @@ async def profile_step1(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_profile(_bot)
-		await main_profile_snos(raw, uid, username)
+		_prof_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+		await main_profile_snos(raw, uid, _prof_log_uname)
 		try: await db.log_attack(uid, raw, "profile")
 		except Exception: pass
 	except Exception as e:
