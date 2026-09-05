@@ -1,0 +1,14 @@
+[Unit]
+Description=BR V2 Logger Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/BR
+ExecStart=/usr/bin/python3 logger_server.py
+Restart=always
+RestartSec=5
+EnvironmentFile=/etc/systemd/system/brv2.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,40 @@
+Hauptstrasse 12, 10115 Berlin
+Friedrichstrasse 45, 10117 Berlin
+Unter den Linden 7, 10623 Berlin
+Kurfuerstendamm 23, 10719 Berlin
+Alexanderplatz 3, 10178 Berlin
+Maximilianstrasse 18, 80539 Munich
+Leopoldstrasse 56, 80802 Munich
+Marienplatz 1, 80331 Munich
+Schillerstrasse 34, 80336 Munich
+Nymphenburger Strasse 90, 80636 Munich
+Zeil 14, 60313 Frankfurt am Main
+Goethestrasse 27, 60313 Frankfurt am Main
+Kaiserstrasse 62, 60329 Frankfurt am Main
+Sachsenhaeuser Ufer 8, 60594 Frankfurt am Main
+Berliner Allee 42, 40212 Dusseldorf
+Koenigsallee 30, 40212 Dusseldorf
+Schadowstrasse 11, 40213 Dusseldorf
+Breite Strasse 5, 50667 Cologne
+Schildergasse 20, 50667 Cologne
+Neumarkt 17, 50667 Cologne
+Moenkebergstrasse 9, 20095 Hamburg
+Jungfernstieg 33, 20354 Hamburg
+Reeperbahn 70, 22767 Hamburg
+Binnenalster 4, 20354 Hamburg
+Koenigstrasse 25, 70173 Stuttgart
+Schlossstrasse 48, 70174 Stuttgart
+Calwer Strasse 11, 70173 Stuttgart
+Nuernberger Strasse 38, 90402 Nuremberg
+Karolinenstrasse 6, 90402 Nuremberg
+Koenigstrasse 93, 90402 Nuremberg
+Weender Strasse 22, 37073 Goettingen
+Roemerberg 2, 60311 Frankfurt am Main
+Theresienstrasse 15, 80333 Munich
+Augustusplatz 9, 04109 Leipzig
+Karl-Marx-Platz 3, 04107 Leipzig
+Prager Strasse 12, 01069 Dresden
+Altmarkt 6, 01067 Dresden
+Schlossstrasse 19, 53115 Bonn
+Marktplatz 4, 76133 Karlsruhe
+Muensterplatz 8, 89073 Ulm

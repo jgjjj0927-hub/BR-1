@@ -1,0 +1,9 @@
+aiogram==2.25.2
+telethon==1.40.0
+aiohttp==3.8.6
+aiofiles==23.2.1
+Pillow==10.4.0
+pyCryptoPayAPI==1.0.2
+asyncpg==0.29.0
+aiohttp-socks==0.8.4
+PySocks==1.7.1
