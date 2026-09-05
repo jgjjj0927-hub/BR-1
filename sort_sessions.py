@@ -8,7 +8,7 @@ import os
 import random
 from telethon import TelegramClient
 
-LOLZ_FOLDER = "lolz"
+FOLDERS = ["sessions", "prem_sessions"]
 MAX_CONCURRENT = 10
 
 API_PAIRS = [
@@ -45,34 +45,34 @@ async def get_session_info(session_path: str) -> dict | None:
 
 
 async def main():
-    if not os.path.exists(LOLZ_FOLDER):
-        print(f"Папка {LOLZ_FOLDER} не найдена")
-        return
+    sessions = []
+    for folder in FOLDERS:
+        if not os.path.exists(folder):
+            continue
+        for f in os.listdir(folder):
+            if f.endswith(".session") and "_new" not in f:
+                sessions.append((folder, os.path.join(folder, f.replace(".session", ""))))
 
-    sessions = [
-        os.path.join(LOLZ_FOLDER, f.replace(".session", ""))
-        for f in os.listdir(LOLZ_FOLDER)
-        if f.endswith(".session") and "_new" not in f
-    ]
 
     print(f"Найдено {len(sessions)} сессий, читаю...")
 
     sem = asyncio.Semaphore(MAX_CONCURRENT)
 
-    async def _run(path):
+    async def _run(folder, path):
         async with sem:
-            return await get_session_info(path)
+            r = await get_session_info(path)
+            if r:
+                r["folder"] = folder
+            return r
 
-    results = await asyncio.gather(*[_run(s) for s in sessions])
+    results = await asyncio.gather(*[_run(f, p) for f, p in sessions])
     valid = [r for r in results if r is not None]
-
-    # Сортировка: меньший ID = старее аккаунт
     valid.sort(key=lambda x: x["id"])
 
-    print(f"\n{'№':<4} {'ID':<15} {'Телефон':<20} {'Файл'}")
-    print("─" * 65)
+    print(f"\n{'№':<4} {'ID':<15} {'Телефон':<20} {'Папка':<16} {'Файл'}")
+    print("─" * 75)
     for i, acc in enumerate(valid, 1):
-        print(f"{i:<4} {acc['id']:<15} +{acc['phone']:<20} {os.path.basename(acc['path'])}")
+        print(f"{i:<4} {acc['id']:<15} +{acc['phone']:<20} {acc['folder']:<16} {os.path.basename(acc['path'])}")
 
     print(f"\nВсего авторизовано: {len(valid)} из {len(sessions)}")
 
