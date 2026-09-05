@@ -1,7 +1,6 @@
 from aiogram import types
 import config
 
-menu = types.InlineKeyboardMarkup(row_width=2)
 profile = types.InlineKeyboardButton("📕 Профиль", callback_data='profile')
 information = types.InlineKeyboardButton("❓ Информация", callback_data='information')
 shop = types.InlineKeyboardButton("🛍 Цены", callback_data='shop')
@@ -15,16 +14,26 @@ support_btn = types.InlineKeyboardButton("🆘 Поддержка", url='https:/
 case_btn = types.InlineKeyboardButton("📦 Кейс", callback_data='case_menu')
 monitor_btn = types.InlineKeyboardButton("🔍 Мониторинг", callback_data='monitor_menu')
 probiv_btn = types.InlineKeyboardButton("🕵️ Пробив", callback_data='probiv')
-menu.add(snoser)
-menu.add(information, profile)
-menu.add(shop, promo)
-menu.add(referral_btn, wheel_btn)
-menu.add(mirrors_pub_btn, free_btn)
-menu.add(case_btn, monitor_btn)
 media_btn = types.InlineKeyboardButton("🎥 Медиа", callback_data='media')
-menu.add(media_btn)
-menu.add(probiv_btn)
-menu.add(support_btn)
+
+
+def get_menu(is_admin: bool = False) -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=2)
+    m.add(snoser)
+    m.add(information, profile)
+    m.add(shop, promo)
+    m.add(referral_btn, wheel_btn)
+    m.add(mirrors_pub_btn, free_btn)
+    m.add(case_btn, monitor_btn)
+    m.add(media_btn)
+    m.add(probiv_btn)
+    if is_admin:
+        m.add(types.InlineKeyboardButton("⚙️ Админ панель", callback_data='admin_panel'))
+    m.add(support_btn)
+    return m
+
+
+menu = get_menu(is_admin=False)
 
 # ─── Меню Бесплатно ───────────────────────────────────────────────────────────
 free_menu_markup = types.InlineKeyboardMarkup(row_width=1)
