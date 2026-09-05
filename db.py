@@ -52,6 +52,7 @@ async def init_db():
             ("wheel_prize", "TEXT DEFAULT ''"),
             ("username", "TEXT DEFAULT ''"),
             ("manual_confirmed", "INT DEFAULT 0"),
+            ("lang", "TEXT DEFAULT 'ru'"),
         ]:
             try:
                 await conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
@@ -85,6 +86,14 @@ async def init_db():
                 code TEXT NOT NULL,
                 user_id BIGINT NOT NULL,
                 PRIMARY KEY (code, user_id)
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS probiv_usage (
+                user_id BIGINT PRIMARY KEY,
+                last_request_at TIMESTAMPTZ DEFAULT '1999-01-01 00:00:00+00',
+                hour_count INT DEFAULT 0,
+                hour_window_start TIMESTAMPTZ DEFAULT '1999-01-01 00:00:00+00'
             )
         """)
         # Фикс NULL значений для старых пользователей
@@ -180,6 +189,24 @@ async def is_verified(user_id: int) -> bool:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT verified FROM users WHERE user_id = $1", user_id)
         return bool(row["verified"]) if row else False
+
+
+async def get_lang(user_id: int) -> str:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT lang FROM users WHERE user_id = $1", user_id)
+        if not row:
+            return 'ru'
+        return row['lang'] or 'ru'
+
+
+async def set_lang(user_id: int, lang: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute("UPDATE users SET lang = $1 WHERE user_id = $2", lang, user_id)
+        except Exception:
+            pass
 
 
 async def get_all_user_ids() -> list[int]:
@@ -929,3 +956,51 @@ async def delete_monitor(monitor_id: int, user_id: int) -> bool:
             monitor_id, user_id
         )
         return row is not None
+
+
+# ─── Пробив — лимиты ──────────────────────────────────────────────────────────
+
+async def get_probiv_usage(user_id: int) -> dict:
+    """Возвращает данные использования пробива для пользователя."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT last_request_at, hour_count, hour_window_start FROM probiv_usage WHERE user_id = $1",
+            user_id
+        )
+        if not row:
+            return {"last_request_at": None, "hour_count": 0, "hour_window_start": None}
+        return dict(row)
+
+
+async def record_probiv_request(user_id: int, now_dt):
+    """Записывает новый запрос пробива. Сбрасывает счётчик если прошёл час."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT hour_count, hour_window_start FROM probiv_usage WHERE user_id = $1",
+            user_id
+        )
+        if row is None:
+            await conn.execute(
+                """INSERT INTO probiv_usage (user_id, last_request_at, hour_count, hour_window_start)
+                   VALUES ($1, $2, 1, $2)""",
+                user_id, now_dt
+            )
+        else:
+            window = row["hour_window_start"]
+            count = row["hour_count"]
+            window_cmp = window.replace(tzinfo=None) if (window and getattr(window, "tzinfo", None)) else window
+            if window_cmp and (now_dt - window_cmp).total_seconds() < 3600:
+                new_count = count + 1
+                new_window = window
+            else:
+                new_count = 1
+                new_window = now_dt
+            await conn.execute(
+                """INSERT INTO probiv_usage (user_id, last_request_at, hour_count, hour_window_start)
+                   VALUES ($1, $2, $3, $4)
+                   ON CONFLICT (user_id) DO UPDATE
+                   SET last_request_at = $2, hour_count = $3, hour_window_start = $4""",
+                user_id, now_dt, new_count, new_window
+            )

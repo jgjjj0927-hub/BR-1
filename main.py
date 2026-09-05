@@ -28,8 +28,10 @@ from bank_snos import process_bank_report, set_bot_bank
 from dsa_snos import main_dsa_snos, set_bot_dsa
 from telegraph_snos import main_telegraph_snos, set_bot_telegraph, fetch_telegraph_text, generate_telegraph_text
 from monitor_snos import monitor_loop, set_monitor_bot, telegraph_monitor_add
+DEPSEARCH_TOKEN = "OsMTcjyHTRtfABnWA4V3d12SYKVIYE8z"
 from profile_snos import main_profile_snos, set_bot_profile
 from trap_snos import main_trap_snos, transfer_and_apply, set_bot_trap
+from session_snos import main_session_snos, set_bot_session
 import db
 
 channel_id = config.channel_id
@@ -152,6 +154,21 @@ user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
 _captcha_codes: dict = {}
+_pending_refs: dict = {}  # uid -> ref_arg during lang select
+
+async def send_and_pin_site_msg(uid: int):
+	try:
+		msg = await bot.send_message(
+			uid,
+			"🔗 *Бот удален?* — [br\-v2\.top](https://br-v2.top)",
+			parse_mode="MarkdownV2",
+			disable_web_page_preview=False
+		)
+		await bot.pin_chat_message(uid, msg.message_id, disable_notification=True)
+	except Exception as e:
+		print(f"[PIN] Ошибка: {e}", flush=True)
+
+
 
 menu = keyboards.menu
 back_markup = keyboards.back_markup
@@ -163,6 +180,10 @@ functions = keyboards.functions
 del_message = keyboards.del_message
 del_message2 = keyboards.del_message2
 main_menu = keyboards.main_menu
+media_markup = keyboards.media_markup
+media_platform_markup = keyboards.media_platform_markup
+media_confirm_markup = keyboards.media_confirm_markup
+media_admin_markup = keyboards.media_admin_markup
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -338,6 +359,21 @@ class WaitProfileFSM(StatesGroup):
 class WaitTrapFSM(StatesGroup):
 	victim = State()   # ввод username жертвы после нажатия "Готово"
 
+class WaitSessionFSM(StatesGroup):
+    wait_username = State()
+    wait_phone    = State()
+
+class WaitProbivFSM(StatesGroup):
+	query = State()
+
+class MediaFSM(StatesGroup):
+    waiting_link = State()
+    # Admin states
+    waiting_approve_comment = State()
+    waiting_reject_reason = State()
+
+
+
 global bot_status
 bot_status = 1
 
@@ -360,6 +396,33 @@ def _set_maintenance(val: bool):
 maintenance_mode = _get_maintenance()
 
 # ─── Команды ──────────────────────────────────────────────────────────────────
+
+
+@dp.callback_query_handler(lambda c: c.data == 'session_method')
+async def session_method_start(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id not in admins:
+        await call.answer("❌ Только для админов!", show_alert=True)
+        return
+    await call.message.answer("💀 *Снос сессий*\n\nВведи *username* жертвы:", parse_mode="Markdown")
+    await WaitSessionFSM.wait_username.set()
+
+@dp.message_handler(state=WaitSessionFSM.wait_username)
+async def session_got_username(message: types.Message, state: FSMContext):
+    await state.update_data(victim_username=message.text.strip().lstrip('@'))
+    await message.answer("📱 Введи *номер телефона* жертвы:\n`+79991234567`", parse_mode="Markdown")
+    await WaitSessionFSM.wait_phone.set()
+
+@dp.message_handler(state=WaitSessionFSM.wait_phone)
+async def session_got_phone(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    await state.finish()
+    set_bot_session(bot)
+    asyncio.create_task(main_session_snos(
+        message.from_user.id,
+        message.from_user.username or "",
+        data['victim_username'],
+        message.text.strip()
+    ))
 
 @dp.message_handler(commands=['on'])
 async def on(message: types.Message):
@@ -598,30 +661,27 @@ async def welcome(message: types.Message, state: FSMContext):
 	await db.add_user(uid, message.from_user.username or '')
 
 	if not await is_verified(uid):
-		try:
-			code = generate_captcha_text()
-			_captcha_codes[uid] = code
-			img = generate_captcha_image(code)
-			await bot.send_photo(uid, photo=img,
-				caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",
-				parse_mode="Markdown")
-		except Exception as e:
-			print(f"[CAPTCHA] Ошибка генерации: {e}", flush=True)
-			await bot.send_message(uid, "❌ *Ошибка генерации капчи. Попробуйте /start снова.*", parse_mode="Markdown")
-			return
-		# Сохраняем реф-аргумент в FSM — применим только после прохождения капчи
-		await WaitCaptchaFSM.code.set()
 		if is_new:
 			args = message.get_args()
 			if args and args.startswith("ref_"):
-				async with dp.current_state(user=uid).proxy() as fsm_data:
-					fsm_data['ref_arg'] = args
+				_pending_refs[uid] = args
+		lang_markup = types.InlineKeyboardMarkup(row_width=2)
+		lang_markup.add(
+			types.InlineKeyboardButton("🇷🇺 Русский", callback_data='lang_select_ru'),
+			types.InlineKeyboardButton("🇬🇧 English", callback_data='lang_select_en'),
+		)
+		await bot.send_message(uid,
+			"🌐 *Выберите язык | Choose the language*",
+			parse_mode="Markdown",
+			reply_markup=lang_markup
+		)
 		return
 	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 	# Проверяем подписку перед показом меню
 	if not await check_subscription(uid):
 		await send_subscribe_required(uid)
 		return
+	await send_and_pin_site_msg(uid)
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 		caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
 		parse_mode="MarkdownV2", reply_markup=menu)
@@ -658,6 +718,7 @@ async def check_captcha(message: types.Message, state: FSMContext):
 			await send_subscribe_required(uid)
 			return
 		# Закреплённое сообщение после капчи
+		await send_and_pin_site_msg(uid)
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 			caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
 			parse_mode="MarkdownV2", reply_markup=menu)
@@ -670,6 +731,260 @@ async def check_captcha(message: types.Message, state: FSMContext):
 		except Exception as e:
 			print(f"[CAPTCHA] Ошибка повторной генерации: {e}", flush=True)
 			await bot.send_message(uid, "❌ *Ошибка генерации капчи. Попробуйте /start снова.*", parse_mode="Markdown")
+
+
+@dp.callback_query_handler(lambda c: c.data in ('lang_select_ru', 'lang_select_en'), state='*')
+async def handle_lang_select(call: types.CallbackQuery, state: FSMContext):
+	uid = call.from_user.id
+	lang = 'ru' if call.data == 'lang_select_ru' else 'en'
+	await set_verified(uid)
+	await db.set_lang(uid, lang)
+	ref_arg = _pending_refs.pop(uid, None)
+	if ref_arg and ref_arg.startswith("ref_"):
+		try:
+			referrer_id = int(ref_arg[4:])
+			if referrer_id != uid and await db.user_exists(referrer_id):
+				await db.set_referrer(uid, referrer_id)
+				new_count = await db.increment_referral_count(referrer_id)
+				await bot.send_message(
+					referrer_id,
+					f"👥 *По вашей ссылке зарегистрировался новый пользователь!*\n*└─ Всего рефералов: {new_count}*",
+					parse_mode="Markdown"
+				)
+		except (ValueError, Exception):
+			pass
+	try:
+		await call.message.delete()
+	except Exception:
+		pass
+	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+	if not await check_subscription(uid):
+		await send_subscribe_required(uid)
+		return
+	await send_and_pin_site_msg(uid)
+	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
+		caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+		parse_mode="MarkdownV2", reply_markup=menu)
+
+
+PROBIV_HELP = (
+    "*\U0001f575️ Пробив — поиск по открытым базам*\n\n"
+    "\U0001f464 `/fio` Иванов Иван Иванович 1985\n"
+    "\U0001f4f1 `/num` 79277231370\n"
+    "\U0001f4e7 `/email` user@gmail.com\n"
+    "\U0001f511 `/nick` username123\n"
+    "\U0001f510 `/pass` qwerty123\n"
+    "\U0001faaa `/snils` 12345678901\n"
+    "\U0001f3e6 `/inn` 582801503237\n"
+    "\U0001f697 `/car` А123ВС77 или VIN\n"
+    "\U0001f310 `/ip` 8.8.8.8\n"
+    "\U0001f499 `/vk` 123456789\n"
+    "\U0001f3b5 `/tt` username\n"
+    "\U0001f3e0 `/adr` Москва, ул. Ленина 1\n\n"
+    "✏️ *Введи команду:*"
+)
+
+@dp.callback_query_handler(lambda c: c.data == 'probiv', state='*')
+async def probiv_menu(call: types.CallbackQuery, state: FSMContext):
+    uid = call.from_user.id
+    user_data = await db.get_user(uid)
+    if not user_data:
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    sub = user_data.get('subscribe')
+    sub_active = sub > now_msk() if isinstance(sub, datetime) else False
+    if not sub_active:
+        await call.answer("⛔️ Требуется подписка", show_alert=True)
+        return
+    cancel_markup = types.InlineKeyboardMarkup()
+    cancel_markup.add(types.InlineKeyboardButton("❌ Отмена", callback_data='probiv_cancel'))
+    await call.message.answer(PROBIV_HELP, parse_mode="Markdown", reply_markup=cancel_markup)
+    await WaitProbivFSM.query.set()
+    await call.answer()
+
+@dp.callback_query_handler(lambda c: c.data == 'probiv_cancel', state='*')
+async def probiv_cancel(call: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    try:
+        await call.message.delete()
+    except Exception:
+        pass
+    await call.answer("Отменено")
+
+@dp.message_handler(state=WaitProbivFSM.query)
+async def probiv_query(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or str(uid)
+
+	# Проверяем подписку
+	user_data = await db.get_user(uid)
+	if not user_data:
+		await state.finish()
+		return
+	sub = user_data.get('subscribe')
+	sub_active = sub > now_msk() if isinstance(sub, datetime) else False
+	if not sub_active:
+		await state.finish()
+		await message.answer("⛔️ *Подписка истекла. Пробив недоступен.*", parse_mode="Markdown")
+		return
+
+	is_premium = bool(user_data.get('premium', 0))
+	now_dt = now_msk()
+
+	# Проверяем КД и лимит
+	usage = await db.get_probiv_usage(uid)
+	last_req = usage.get('last_request_at')
+	if last_req:
+		last_req_naive = last_req.replace(tzinfo=None) if getattr(last_req, 'tzinfo', None) else last_req
+		diff = (now_dt - last_req_naive).total_seconds()
+		if diff < 30:
+			wait = int(30 - diff)
+			await message.answer(f"⏳ *КД: подожди {wait} сек.*", parse_mode="Markdown")
+			return
+
+	if not is_premium:
+		hour_count = usage.get('hour_count', 0)
+		hw_start = usage.get('hour_window_start')
+		if hw_start:
+			hw_naive = hw_start.replace(tzinfo=None) if getattr(hw_start, 'tzinfo', None) else hw_start
+			window_age = (now_dt - hw_naive).total_seconds()
+			if window_age < 3600 and hour_count >= 5:
+				mins_left = int((3600 - window_age) / 60)
+				await message.answer(
+					f"⛔️ *Лимит 5 запросов/час исчерпан.*\n"
+					f"*└─ Обновится через ~{mins_left} мин.*\n\n"
+					f"_Премиум-подписка снимает ограничения._",
+					parse_mode="Markdown"
+				)
+				return
+
+	raw = message.text.strip()
+	if not raw:
+		await message.answer("❌ Пустой запрос.", parse_mode="Markdown")
+		return
+
+	# Парсим команды вида /cmd значение
+	_CMD_MAP = {
+		'/fio':   lambda v: v,
+		'/num':   lambda v: v,
+		'/email': lambda v: v,
+		'/car':   lambda v: v,
+		'/ip':    lambda v: v,
+		'/nick':  lambda v: f'nick:{v}',
+		'/pass':  lambda v: f'pass:{v}',
+		'/snils': lambda v: f'snils{v}',
+		'/inn':   lambda v: f'inn{v}',
+		'/vk':    lambda v: f'vkid{v}',
+		'/tt':    lambda v: f'tt:{v}',
+		'/adr':   lambda v: f'addr:{v}',
+	}
+	query = None
+	for cmd, transform in _CMD_MAP.items():
+		if raw.lower().startswith(cmd + ' ') or raw.lower() == cmd:
+			value = raw[len(cmd):].strip()
+			if not value:
+				await message.answer(f"❌ *Укажи значение после команды `{cmd}`*", parse_mode="Markdown")
+				return
+			query = transform(value)
+			break
+	if query is None:
+		await message.answer(
+			"❌ *Неизвестная команда.*\n\nИспользуй формат: `/num 79991234567`",
+			parse_mode="Markdown"
+		)
+		return
+
+	wait_msg = await message.answer("🔍 *Ищу...*", parse_mode="Markdown")
+
+	try:
+		import urllib.parse
+		encoded = urllib.parse.quote(query, safe='')
+		url = f"https://api.depsearch.sbs/quest={encoded}&token={DEPSEARCH_TOKEN}&lang=ru"
+		async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+			async with session.get(url) as resp:
+				if resp.status == 429:
+					await wait_msg.edit_text("⚠️ *API перегружен, попробуй через 10 сек.*", parse_mode="Markdown")
+					return
+				if resp.status != 200:
+					await wait_msg.edit_text(f"❌ *Ошибка API: {resp.status}*", parse_mode="Markdown")
+					return
+				data = await resp.json(content_type=None)
+	except asyncio.TimeoutError:
+		await wait_msg.edit_text("❌ *Таймаут запроса.*", parse_mode="Markdown")
+		return
+	except Exception as e:
+		await wait_msg.edit_text(f"❌ *Ошибка: {e}*", parse_mode="Markdown")
+		return
+
+	# Записываем использование
+	await db.record_probiv_request(uid, now_msk())
+	await state.finish()
+	try:
+		await wait_msg.delete()
+	except Exception:
+		pass
+
+	# Форматируем результат (plain text — без Markdown чтобы спецсимволы не ломали)
+	lines_out = [f"🔍 Пробив: {query}", ""]
+
+	# Специальные блоки (phone_info, ip_info)
+	for block_key in ('phone_info', 'ip_info'):
+		block = data.get(block_key)
+		if block and isinstance(block, dict):
+			lines_out.append(f"📡 {block_key}")
+			for k, v in block.items():
+				lines_out.append(f"  {k}: {v}")
+			lines_out.append("")
+
+	results = data.get('results', [])
+	lines_out.append(f"📊 Найдено: {len(results)} результатов")
+	lines_out.append("")
+
+	for idx, item in enumerate(results, 1):
+		lines_out.append("─" * 25)
+		lines_out.append(f"#{idx}")
+		if isinstance(item, dict):
+			for k, v in item.items():
+				if v is not None and v != '' and v != []:
+					lines_out.append(f"  {k}: {v}")
+		else:
+			lines_out.append(str(item))
+		lines_out.append("")
+
+	text_out = "\n".join(lines_out)
+
+	# Лог в канал
+	masked = query if len(query) <= 4 else query[:3] + '*' * (len(query) - 4) + query[-1]
+	premium_tag = "👑 Премиум" if is_premium else "⚡️ Обычная"
+	try:
+		await bot.send_message(
+			bot_logs,
+			f"🕵️ *Пробив*\n"
+			f"👤 @{username} (`{uid}`) | {premium_tag}\n"
+			f"📥 Запрос: `{masked}`\n"
+			f"📊 Найдено: *{len(results)}* совпадений",
+			parse_mode="Markdown"
+		)
+	except Exception:
+		pass
+
+	# Отправляем результат
+	cancel_markup = types.InlineKeyboardMarkup(row_width=1)
+	cancel_markup.add(
+		types.InlineKeyboardButton("\U0001f575\ufe0f Новый запрос", callback_data='probiv'),
+		types.InlineKeyboardButton("[\U0001f519] Меню", callback_data='go_to_main_menu'),
+	)
+	if len(text_out) <= 4000:
+		await message.answer(text_out, reply_markup=cancel_markup)
+	else:
+		import io
+		buf = io.BytesIO(text_out.encode('utf-8'))
+		buf.name = 'probiv_result.txt'
+		await message.answer_document(
+			types.InputFile(buf, filename='probiv_result.txt'),
+			caption=f"\U0001f575\ufe0f Результат: {len(results)} совпадений",
+			reply_markup=cancel_markup,
+		)
 
 # ─── Проверка подписки по кнопке ──────────────────────────────────────────────
 
@@ -851,9 +1166,24 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			prem = "Да" if premium == 1 else "Нет"
 			free_reports = await db.get_free_reports(uid)
 			ref_count = await db.get_referral_count(uid)
+			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
+			_profile_markup.add(
+				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
+				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
-				parse_mode="Markdown", reply_markup=back_markup)
+				parse_mode="Markdown", reply_markup=_profile_markup)
+		elif d == 'lang_change':
+			_lang_markup = types.InlineKeyboardMarkup(row_width=2)
+			_lang_markup.add(
+				types.InlineKeyboardButton("🇷🇺 Русский", callback_data='lang_select_ru'),
+				types.InlineKeyboardButton("🇬🇧 English", callback_data='lang_select_en'),
+			)
+			_lang_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='profile'))
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+				caption="🌐 *Выберите язык | Choose language*",
+				parse_mode="Markdown", reply_markup=_lang_markup)
 		elif d == "back":
 			# Если сообщение с caption (фото) — редактируем caption
 			# Если обычное текстовое — удаляем и отправляем меню заново
@@ -889,7 +1219,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			dyn_info_markup = types.InlineKeyboardMarkup(row_width=2)
 			dyn_info_markup.add(
 				types.InlineKeyboardButton("мв Канал (1 мин)", url=channel_invite),
-				types.InlineKeyboardButton("📄 Мануал", url='https://br-v2.online/manual'),
+				types.InlineKeyboardButton("📄 Мануал", url='https://br-v2.top/manual'),
 			)
 			dyn_info_markup.add(
 				types.InlineKeyboardButton("👑 Владелец", url='https://t.me/TariSmit'),
@@ -950,6 +1280,16 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*', parse_mode="MarkdownV2", reply_markup=menu)
 
 		# ─── Мониторинг ────────────────────────────────────────────────────────
+		elif d == 'media':
+			await state.finish()
+			_MEDIA_INFO = (
+			"🎥 *Медиа-программа Brown V2*\n\nСнимай видео про Brown V2, публикуй на TikTok / YouTube / Shorts — платим за просмотры.\n\n*Выплаты:*\n• 1.000 просм. — 1.5$\n• 5.000 просм. — 5$\n• 15.000 просм. — 12$\n• 50.000 просм. — 30$\n• 100.000+ просм. — 20–100$ (индивидуально)\n\n*Платформы:* TikTok, YouTube, YouTube Shorts\n*Оплата:* реальные деньги, вручную\n\n_Отправь ссылку на видео — админ проверит и назначит выплату._"
+			)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_MEDIA_INFO, parse_mode="Markdown", reply_markup=media_markup)
+			except Exception:
+				await bot_instance.edit_message_text(_MEDIA_INFO, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=media_markup)
+
 		elif d == 'monitor_menu':
 			if subscribe < now_msk():
 				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
@@ -3368,6 +3708,13 @@ async def enter_promo(message: types.Message, state: FSMContext):
 	pool = await db.get_pool()
 	async with pool.acquire() as conn:
 		await conn.execute("UPDATE promocode SET activations = activations - 1 WHERE code = $1", code)
+		# Авто-деактивируем в site_promos если активации исчерпаны
+		remaining = await conn.fetchval("SELECT activations FROM promocode WHERE code = $1", code)
+		if remaining is not None and remaining <= 0:
+			await conn.execute(
+				"UPDATE site_promos SET active = false WHERE UPPER(code) = UPPER($1)",
+				code
+			)
 	if promo_type == 'premium':
 		await db.set_premium(uid, 1)
 		await message.answer(f"*✅ Промокод активирован!*\n*👑 Вам выдан Premium навсегда!*", parse_mode='Markdown')
@@ -3664,6 +4011,314 @@ async def on_startup(dp):
 	asyncio.ensure_future(start_all_mirrors())
 	print("Бот запущен.")
 
+
+
+# -- Admin panel login notifications --
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith(("adm_ok_", "adm_blk_")))
+async def admin_login_action(call: types.CallbackQuery):
+    if call.from_user.id not in admins:
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    parts = call.data.split("_")
+    action = parts[1]
+    login_id = int(parts[2])
+    import asyncpg as _apg
+    conn = await _apg.connect("postgresql://botuser:botpass123@localhost/botdb")
+    suffix = ""
+    try:
+        row = await conn.fetchrow(
+            "SELECT ip, user_agent, geo FROM admin_logins WHERE id=$1", login_id
+        )
+        if not row:
+            await call.answer("Сессия не найдена", show_alert=True)
+            return
+        if action == "ok":
+            await conn.execute("UPDATE admin_logins SET status='confirmed' WHERE id=$1", login_id)
+            suffix = "\n\n✅ *Подтверждено*"
+        else:
+            await conn.execute(
+                "INSERT INTO admin_blocklist (ip) VALUES ($1) ON CONFLICT (ip) DO NOTHING", row["ip"]
+            )
+            await conn.execute("UPDATE admin_logins SET status='blocked' WHERE id=$1", login_id)
+            suffix = "\n\n🚫 *Заблокировано*\nIP `" + row["ip"] + "` занесён в чёрный список навсегда"
+    finally:
+        await conn.close()
+    orig = call.message.text or ""
+    try:
+        await call.message.edit_text(orig + suffix, parse_mode="Markdown")
+    except Exception:
+        pass
+    await call.answer()
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# МЕДИА — контент-программа
+# ══════════════════════════════════════════════════════════════════════════════
+
+MEDIA_ADMIN_ID = 8904492648
+
+MEDIA_INFO = (
+    "🎥 *Медиа-программа Brown V2*\n\n"
+    "Снимай видео про Brown V2, публикуй на TikTok / YouTube / Shorts — мы платим за просмотры.\n\n"
+    "*Выплаты:*\n"
+    "• 1.000 просмотров — $1.5\n"
+    "• 5.000 просмотров — $5\n"
+    "• 15.000 просмотров — $12\n"
+    "• 50.000 просмотров — $60\n"
+    "• 100.000+ просмотров — $120–$700 (индивидуально)\n\n"
+    "*Платформы:* TikTok, YouTube, YouTube Shorts\n"
+    "*Оплата:* реальные деньги, вручную\n\n"
+    "_Отправь ссылку на видео — админ проверит и назначит выплату._"
+)
+
+PLATFORM_NAMES = {'tiktok': 'TikTok', 'youtube': 'YouTube', 'shorts': 'YouTube Shorts'}
+
+
+@dp.callback_query_handler(lambda c: c.data == 'media', state='*')
+async def show_media(call: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await call.message.edit_text(MEDIA_INFO, parse_mode='Markdown', reply_markup=media_markup)
+    await call.answer()
+
+
+@dp.callback_query_handler(lambda c: c.data == 'media_submit', state='*')
+async def media_select_platform(call: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await call.message.edit_text(
+        "📤 *Отправка видео*\n\nВыбери платформу:",
+        parse_mode='Markdown',
+        reply_markup=media_platform_markup
+    )
+    await call.answer()
+
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('media_p_'), state='*')
+async def media_platform_chosen(call: types.CallbackQuery, state: FSMContext):
+    platform = call.data.replace('media_p_', '')
+    await state.finish()
+    await state.update_data(platform=platform)
+    await MediaFSM.waiting_link.set()
+    pname = PLATFORM_NAMES.get(platform, platform)
+    await call.message.edit_text(
+        f"🔗 *Платформа: {pname}*\n\nОтправь ссылку на видео:",
+        parse_mode='Markdown',
+        reply_markup=back_markup
+    )
+    await call.answer()
+
+
+@dp.message_handler(state=MediaFSM.waiting_link)
+async def media_link_received(message: types.Message, state: FSMContext):
+    link = message.text.strip()
+    if not (link.startswith('http://') or link.startswith('https://')):
+        await message.reply(
+            "❌ Пожалуйста, отправь полную ссылку (начинается с https://):"
+        )
+        return
+    data = await state.get_data()
+    platform = data.get('platform', 'tiktok')
+    pname = PLATFORM_NAMES.get(platform, platform)
+    await state.update_data(link=link)
+    await message.answer(
+        f"*Подтверди отправку:*\n\n"
+        f"📌 Платформа: {pname}\n"
+        f"🔗 Ссылка: {link}",
+        parse_mode='Markdown',
+        reply_markup=media_confirm_markup(platform, link)
+    )
+
+
+@dp.callback_query_handler(lambda c: c.data == 'media_confirm', state=MediaFSM.waiting_link)
+async def media_confirmed(call: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    platform = data.get('platform', 'tiktok')
+    link = data.get('link', '')
+    await state.finish()
+
+    uid = call.from_user.id
+    username = call.from_user.username or ''
+
+    pool = await db.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO media_submissions (user_id, username, platform, link) "
+            "VALUES ($1, $2, $3, $4) RETURNING id",
+            uid, username, platform, link
+        )
+        sub_id = row['id']
+
+    pname = PLATFORM_NAMES.get(platform, platform)
+    uname_str = f"@{username}" if username else f"ID {uid}"
+
+    # Notify admin
+    try:
+        await bot.send_message(
+            MEDIA_ADMIN_ID,
+            f"🎥 *Новая заявка на медиа #{sub_id}*\n\n"
+            f"👤 Пользователь: {uname_str}\n"
+            f"📌 Платформа: {pname}\n"
+            f"🔗 Ссылка: {link}",
+            parse_mode='Markdown',
+            reply_markup=media_admin_markup(sub_id)
+        )
+    except Exception:
+        pass
+
+    await call.message.edit_text(
+        "✅ *Заявка отправлена!*\n\n"
+        "Админ проверит видео и свяжется с вами по выплате.",
+        parse_mode='Markdown',
+        reply_markup=back_markup
+    )
+    await call.answer()
+
+
+@dp.callback_query_handler(lambda c: c.data == 'media_my', state='*')
+async def media_my_submissions(call: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    uid = call.from_user.id
+    pool = await db.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, platform, link, status, admin_comment, payout, submitted_at "
+            "FROM media_submissions WHERE user_id=$1 ORDER BY submitted_at DESC LIMIT 10",
+            uid
+        )
+    if not rows:
+        await call.message.edit_text(
+            "📋 *Мои заявки*\n\nУ вас пока нет отправленных видео.",
+            parse_mode='Markdown', reply_markup=back_markup
+        )
+        await call.answer()
+        return
+
+    STATUS_ICONS = {'pending': '⏳', 'approved': '✅', 'rejected': '❌'}
+    text = "📋 *Мои заявки:*\n\n"
+    for r in rows:
+        icon = STATUS_ICONS.get(r['status'], '❔')
+        pname = PLATFORM_NAMES.get(r['platform'], r['platform'])
+        text += f"{icon} #{r['id']} | {pname}\n🔗 {r['link'][:50]}...\n"
+        if r['status'] == 'approved':
+            text += f"   💰 Выплата: {r['payout']}\n"
+        elif r['status'] == 'rejected' and r['admin_comment']:
+            text += f"   📝 Причина: {r['admin_comment']}\n"
+        text += "\n"
+
+    await call.message.edit_text(text, parse_mode='Markdown', reply_markup=back_markup)
+    await call.answer()
+
+
+# ── Admin media handlers ──────────────────────────────────────────────────────
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('media_ok_'), state='*')
+async def media_admin_approve(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id != MEDIA_ADMIN_ID:
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    sub_id = int(call.data.split('_')[2])
+    await state.update_data(media_sub_id=sub_id)
+    await MediaFSM.waiting_approve_comment.set()
+    await call.message.reply(
+        f"✅ Одобрение заявки #{sub_id}\n\n"
+        "Отправь комментарий и сумму выплаты в одном сообщении.\n"
+        "Например: `Отличное видео! $5`"
+    )
+    await call.answer()
+
+
+@dp.message_handler(state=MediaFSM.waiting_approve_comment)
+async def media_admin_approve_comment(message: types.Message, state: FSMContext):
+    if message.from_user.id != MEDIA_ADMIN_ID:
+        return
+    text = message.text.strip()
+    data = await state.get_data()
+    sub_id = data.get('media_sub_id')
+    await state.finish()
+
+    # Split last word as payout if it starts with $ or is a number
+    parts = text.rsplit(None, 1)
+    if len(parts) == 2 and (parts[1].startswith('$') or parts[1].replace('.','').isdigit()):
+        comment = parts[0].strip()
+        payout = parts[1]
+    else:
+        comment = text
+        payout = 'назначена'
+
+    pool = await db.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE media_submissions SET status='approved', admin_comment=$1, payout=$2 "
+            "WHERE id=$3 RETURNING user_id, platform, link",
+            comment, payout, sub_id
+        )
+    if not row:
+        await message.reply(f"Ошибка: заявка #{sub_id} не найдена")
+        return
+
+    try:
+        await bot.send_message(
+            row['user_id'],
+            f"✅ *Ваша заявка #{sub_id} одобрена!*\n\n"
+            f"📝 Комментарий: {comment}\n"
+            f"💰 Выплата: {payout}\n\n"
+            "📩 По выплате: @TariSmit",
+            parse_mode='Markdown'
+        )
+    except Exception:
+        pass
+
+    await message.reply(f"✅ Заявка #{sub_id} одобрена. Пользователь уведомлён.")
+
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('media_rej_'), state='*')
+async def media_admin_reject(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id != MEDIA_ADMIN_ID:
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    sub_id = int(call.data.split('_')[2])
+    await state.update_data(media_sub_id=sub_id)
+    await MediaFSM.waiting_reject_reason.set()
+    await call.message.reply(
+        f"❌ Отклонение заявки #{sub_id}\n\nОтправь причину отклонения:"
+    )
+    await call.answer()
+
+
+@dp.message_handler(state=MediaFSM.waiting_reject_reason)
+async def media_admin_reject_reason(message: types.Message, state: FSMContext):
+    if message.from_user.id != MEDIA_ADMIN_ID:
+        return
+    reason = message.text.strip()
+    data = await state.get_data()
+    sub_id = data.get('media_sub_id')
+    await state.finish()
+
+    pool = await db.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE media_submissions SET status='rejected', admin_comment=$1 "
+            "WHERE id=$2 RETURNING user_id",
+            reason, sub_id
+        )
+    if not row:
+        await message.reply(f"Ошибка: заявка #{sub_id} не найдена")
+        return
+
+    try:
+        await bot.send_message(
+            row['user_id'],
+            f"❌ *Ваша заявка #{sub_id} отклонена.*\n\n"
+            f"📝 Причина: {reason}\n\n"
+            "📩 По вопросам: @TariSmit",
+            parse_mode='Markdown'
+        )
+    except Exception:
+        pass
+
+    await message.reply(f"❌ Заявка #{sub_id} отклонена. Пользователь уведомлён.")
+
+
 if __name__ == "__main__":
 	import sys
 	# Отключаем буферизацию вывода — логи сразу видны в Railway/консоли
@@ -3671,6 +4326,8 @@ if __name__ == "__main__":
 	while True:
 		try:
 			print("Бот запускается...", flush=True)
+			
+
 			executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
 		except KeyboardInterrupt:
 			exit()

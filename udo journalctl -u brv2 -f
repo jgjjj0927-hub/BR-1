@@ -1,0 +1,18 @@
+[0;1;32m●[0m brv2.service - Brown V2 Bot
+     Loaded: loaded (/etc/systemd/system/brv2.service; enabled; vendor preset: enabled)
+     Active: [0;1;32mactive (running)[0m since Sun 2026-08-09 11:43:07 UTC; 4s ago
+   Main PID: 5695 (python3)
+      Tasks: 2 (limit: 1099)
+     Memory: 56.2M
+        CPU: 1.478s
+     CGroup: /system.slice/brv2.service
+             └─5695 /usr/bin/python3 main.py
+
+Aug 09 11:43:07 VM-622545 systemd[1]: Started Brown V2 Bot.
+Aug 09 11:43:08 VM-622545 python3[5695]: Deprecation warning! The 'result_as_class' parameter should be set to False or True, default behaviour will be changed to 'True' in future versions!
+Aug 09 11:43:08 VM-622545 python3[5695]: Бот запускается...
+Aug 09 11:43:09 VM-622545 python3[5695]: Updates were skipped successfully.
+Aug 09 11:43:09 VM-622545 python3[5695]: DATABASE_URL = postgresql://botuser:botpass123@localhost/botdb
+Aug 09 11:43:09 VM-622545 python3[5695]: БД инициализирована успешно.
+Aug 09 11:43:09 VM-622545 python3[5695]: [MIRROR] 📦 Загружаем 136 зеркал из БД...
+Aug 09 11:43:09 VM-622545 python3[5695]: Бот запущен.

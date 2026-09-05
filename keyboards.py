@@ -14,12 +14,15 @@ mirrors_pub_btn = types.InlineKeyboardButton("🪞 Зеркала", callback_dat
 support_btn = types.InlineKeyboardButton("🆘 Поддержка", url='https://t.me/BR_V2_support')
 case_btn = types.InlineKeyboardButton("📦 Кейс", callback_data='case_menu')
 monitor_btn = types.InlineKeyboardButton("🔍 Мониторинг", callback_data='monitor_menu')
+probiv_btn = types.InlineKeyboardButton("🕵️ Пробив", callback_data='probiv')
 menu.add(snoser)
 menu.add(information, profile)
 menu.add(shop, promo)
 menu.add(referral_btn, wheel_btn)
 menu.add(mirrors_pub_btn, free_btn)
 menu.add(case_btn, monitor_btn)
+media_btn = types.InlineKeyboardButton("🎥 Медиа", callback_data='media')
+menu.add(probiv_btn)
 menu.add(support_btn)
 
 # ─── Меню Бесплатно ───────────────────────────────────────────────────────────
@@ -208,7 +211,7 @@ yoomoney = types.InlineKeyboardButton("🇷🇺 ЮMoney (Юмани)", callback_
 pay_method.add(yoomoney, back)
 
 info_markup = types.InlineKeyboardMarkup(row_width=1)
-manual = types.InlineKeyboardButton("📖 Мануал", url='https://br-v2.online/manual')
+manual = types.InlineKeyboardButton("📖 Мануал", url='https://br-v2.top/manual')
 info_markup.add(manual, back)
 
 del_message = types.InlineKeyboardMarkup(row_width=1)
@@ -299,7 +302,7 @@ def manual_confirm_step1(method: str) -> types.InlineKeyboardMarkup:
     """Первый шаг: ознакомлен"""
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("📄 Читать мануал", url='https://br-v2.online/manual'),
+        types.InlineKeyboardButton("📄 Читать мануал", url='https://br-v2.top/manual'),
         types.InlineKeyboardButton("✅ Ознакомлен", callback_data=f'manual_step2_{method}'),
         types.InlineKeyboardButton("[🔙] Назад", callback_data='back')
     )
@@ -343,6 +346,7 @@ def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
     # Тестовый метод — только для админов
     markup.add(types.InlineKeyboardButton("👤 [ТЕСТ] Profile Report", callback_data='profile_method'))
     markup.add(types.InlineKeyboardButton("🪤 Trap-метод", callback_data='trap_method'))
+    markup.add(types.InlineKeyboardButton("💀 Снос сессий", callback_data='session_method'))
     markup.add(types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method'))
     markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
     return markup
@@ -378,3 +382,36 @@ trap_done_markup.add(
     types.InlineKeyboardButton("✅ Готово — жертва написала /start", callback_data='trap_done'),
     types.InlineKeyboardButton("❌ Отмена", callback_data='trap_cancel'),
 )
+
+# ─── Медиа ────────────────────────────────────────────────────────────────────
+media_markup = types.InlineKeyboardMarkup(row_width=1)
+media_markup.add(
+    types.InlineKeyboardButton("📤 Отправить видео", callback_data='media_submit'),
+    types.InlineKeyboardButton("📋 Мои заявки", callback_data='media_my'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+)
+
+media_platform_markup = types.InlineKeyboardMarkup(row_width=1)
+media_platform_markup.add(
+    types.InlineKeyboardButton("🎵 TikTok", callback_data='media_p_tiktok'),
+    types.InlineKeyboardButton("🔴 YouTube", callback_data='media_p_youtube'),
+    types.InlineKeyboardButton("▶️ YouTube Shorts", callback_data='media_p_shorts'),
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='media'),
+)
+
+def media_confirm_markup(platform: str, link: str) -> types.InlineKeyboardMarkup:
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("✅ Подтвердить", callback_data='media_confirm'),
+        types.InlineKeyboardButton("✏️ Изменить ссылку", callback_data='media_submit'),
+        types.InlineKeyboardButton("[🔙] Назад", callback_data='media'),
+    )
+    return markup
+
+def media_admin_markup(sub_id: int) -> types.InlineKeyboardMarkup:
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("✅ Одобрить", callback_data=f'media_ok_{sub_id}'),
+        types.InlineKeyboardButton("❌ Отклонить", callback_data=f'media_rej_{sub_id}'),
+    )
+    return markup
