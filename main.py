@@ -1303,6 +1303,84 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			except Exception:
 				await bot_instance.edit_message_text(_MEDIA_INFO, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=media_markup)
 
+		elif d == 'media_submit':
+			await state.finish()
+			_txt = "📤 *Отправка видео*\n\nВыбери платформу:"
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_txt, parse_mode="Markdown", reply_markup=media_platform_markup)
+			except Exception:
+				await bot_instance.edit_message_text(_txt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=media_platform_markup)
+
+		elif d.startswith('media_p_'):
+			platform = d[len('media_p_'):]
+			await state.finish()
+			await state.update_data(platform=platform)
+			await MediaFSM.waiting_link.set()
+			_PLATFORM_NAMES = {'tiktok': 'TikTok', 'youtube': 'YouTube', 'shorts': 'YouTube Shorts'}
+			pname = _PLATFORM_NAMES.get(platform, platform)
+			_txt = f"🔗 *Платформа: {pname}*\n\nОтправь ссылку на видео:"
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_txt, parse_mode="Markdown", reply_markup=back_markup)
+			except Exception:
+				await bot_instance.edit_message_text(_txt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=back_markup)
+
+		elif d == 'media_confirm':
+			fsm_data = await state.get_data()
+			platform = fsm_data.get('platform', 'tiktok')
+			link = fsm_data.get('link', '')
+			await state.finish()
+			_PLATFORM_NAMES = {'tiktok': 'TikTok', 'youtube': 'YouTube', 'shorts': 'YouTube Shorts'}
+			pname = _PLATFORM_NAMES.get(platform, platform)
+			pool = await db.get_pool()
+			async with pool.acquire() as conn:
+				_row = await conn.fetchrow(
+					"INSERT INTO media_submissions (user_id, username, platform, link) VALUES ($1, $2, $3, $4) RETURNING id",
+					uid, call.from_user.username or '', platform, link
+				)
+				sub_id = _row['id']
+			uname_str = f"@{call.from_user.username}" if call.from_user.username else f"ID {uid}"
+			try:
+				await bot_instance.send_message(
+					MEDIA_ADMIN_ID,
+					f"🎥 *Новая заявка на медиа #{sub_id}*\n\n👤 Пользователь: {uname_str}\n📌 Платформа: {pname}\n🔗 Ссылка: {link}",
+					parse_mode='Markdown', reply_markup=media_admin_markup(sub_id)
+				)
+			except Exception:
+				pass
+			_txt = "✅ *Заявка отправлена!*\n\nАдмин проверит видео и свяжется с вами по выплате."
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_txt, parse_mode="Markdown", reply_markup=back_markup)
+			except Exception:
+				await bot_instance.edit_message_text(_txt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=back_markup)
+
+		elif d == 'media_my':
+			await state.finish()
+			pool = await db.get_pool()
+			async with pool.acquire() as conn:
+				_rows = await conn.fetch(
+					"SELECT id, platform, link, status, admin_comment, payout, submitted_at FROM media_submissions WHERE user_id=$1 ORDER BY submitted_at DESC LIMIT 10",
+					uid
+				)
+			if not _rows:
+				_txt = "📋 *Мои заявки*\n\nУ вас пока нет отправленных видео."
+			else:
+				_STATUS_ICONS = {'pending': '⏳', 'approved': '✅', 'rejected': '❌'}
+				_PLATFORM_NAMES = {'tiktok': 'TikTok', 'youtube': 'YouTube', 'shorts': 'YouTube Shorts'}
+				_txt = "📋 *Мои заявки:*\n\n"
+				for _r in _rows:
+					_icon = _STATUS_ICONS.get(_r['status'], '❔')
+					_pname = _PLATFORM_NAMES.get(_r['platform'], _r['platform'])
+					_txt += f"{_icon} #{_r['id']} | {_pname}\n🔗 {_r['link'][:50]}...\n"
+					if _r['status'] == 'approved':
+						_txt += f"   💰 Выплата: {_r['payout']}\n"
+					elif _r['status'] == 'rejected' and _r['admin_comment']:
+						_txt += f"   📝 Причина: {_r['admin_comment']}\n"
+					_txt += "\n"
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_txt, parse_mode="Markdown", reply_markup=back_markup)
+			except Exception:
+				await bot_instance.edit_message_text(_txt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=back_markup)
+
 		elif d == 'monitor_menu':
 			if subscribe < now_msk():
 				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
