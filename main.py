@@ -1495,10 +1495,16 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			markup = types.InlineKeyboardMarkup(row_width=1)
 			markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
-			await bot_instance.edit_message_caption(
-				call.message.chat.id, call.message.message_id,
-				caption=text, parse_mode="Markdown", reply_markup=markup
-			)
+			try:
+				await bot_instance.edit_message_caption(
+					call.message.chat.id, call.message.message_id,
+					caption=text, parse_mode="Markdown", reply_markup=markup
+				)
+			except Exception:
+				await bot_instance.edit_message_text(
+					text, chat_id=call.message.chat.id, message_id=call.message.message_id,
+					parse_mode="Markdown", reply_markup=markup
+				)
 
 		elif d.startswith('monitor_mute_'):
 			try:
