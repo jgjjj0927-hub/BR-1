@@ -41,7 +41,7 @@ if 8701067595 not in admins:
     admins = list(admins) + [8701067595]
 if 8904492648 not in admins:
     admins = list(admins) + [8904492648]
-admins2 = [8120267775]
+admins2 = []
 no_kd = config.NO_KD
 bot_logs = config.bot_logs
 report_count333 = 200
