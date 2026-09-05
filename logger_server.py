@@ -454,6 +454,29 @@ async def confirm_login(login_id: int):
     return {"ok": True}
 
 
+@app.get("/api/admin/confirm-action/{login_id}")
+async def confirm_action_get(login_id: int, action: str = "", key: str = ""):
+    from fastapi.responses import HTMLResponse
+    if key != ADMIN_TOKEN:
+        return HTMLResponse("<h2>❌ Неверный ключ</h2>", status_code=403)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT ip FROM admin_logins WHERE id=$1", login_id)
+        if not row:
+            return HTMLResponse("<h2>❌ Сессия не найдена</h2>", status_code=404)
+        ip = row["ip"]
+        if action == "ok":
+            await conn.execute("UPDATE admin_logins SET status='confirmed' WHERE id=$1", login_id)
+            return HTMLResponse(f"<h2>✅ Вход подтверждён</h2><p>ID: {login_id} | IP: {ip}</p>")
+        elif action == "block":
+            await conn.execute("UPDATE admin_logins SET status='blocked' WHERE id=$1", login_id)
+            await conn.execute(
+                "INSERT INTO admin_blocklist (ip) VALUES ($1) ON CONFLICT (ip) DO NOTHING", ip
+            )
+            return HTMLResponse(f"<h2>🚫 IP заблокирован</h2><p>{ip}</p>")
+        else:
+            return HTMLResponse("<h2>❌ Неизвестное действие</h2>", status_code=400)
+
+
 # -- Admin: mirrors
 
 @app.post("/api/admin/mirrors", dependencies=[Depends(require_admin)])
