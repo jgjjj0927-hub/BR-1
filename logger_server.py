@@ -454,6 +454,16 @@ async def confirm_login(login_id: int):
     return {"ok": True}
 
 
+@app.get("/api/admin/check-session/{login_id}")
+async def check_session(login_id: int, authorization: str = ""):
+    from fastapi import Header
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT status FROM admin_logins WHERE id=$1", login_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"status": row["status"]}
+
+
 @app.get("/api/admin/confirm-action/{login_id}")
 async def confirm_action_get(login_id: int, action: str = "", key: str = ""):
     from fastapi.responses import HTMLResponse
