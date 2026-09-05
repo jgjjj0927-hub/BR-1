@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useLang } from '../App';
 
 const SUPPORT = 'https://t.me/BR_V2_Support';
-const BOT = 'https://t.me/Brrown_V2_bot';
+const BOT = 'https://t.me/Brrown_V2bot';
 const OWNER = 'https://t.me/TariSmit';
 
 export default function Footer() {

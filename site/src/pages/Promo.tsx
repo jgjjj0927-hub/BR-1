@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLang } from '../App';
 import { Promo as PromoType } from '../api';
 
-const BOT = 'https://t.me/Brrown_V2_bot';
+const BOT = 'https://t.me/Brrown_V2bot';
 
 const T = {
   ru: {
@@ -11,7 +11,7 @@ const T = {
     sub: 'Используй промокод в боте для получения подписки или бесплатных репортов',
     how: 'Как активировать',
     howSteps: [
-      'Открой бота @Brrown_V2_bot',
+      'Открой бота @Brrown_V2bot',
       'Нажми кнопку 🎁 Промокод',
       'Введи код из списка ниже',
     ],
@@ -36,7 +36,7 @@ const T = {
     sub: 'Use a promo code in the bot to get a subscription or free reports',
     how: 'How to activate',
     howSteps: [
-      'Open the bot @Brrown_V2_bot',
+      'Open the bot @Brrown_V2bot',
       'Tap 🎁 Promo Code',
       'Enter the code from the list below',
     ],
