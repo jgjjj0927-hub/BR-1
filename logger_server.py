@@ -610,7 +610,7 @@ async def logger_hit(token: str, request: Request):
         row = await conn.fetchrow("SELECT owner_id FROM logger_links WHERE token=$1", token)
 
     if not row:
-        return RedirectResponse("https://t.me/BR_V2_support")
+        return RedirectResponse("https://t.me/Brrown_V2_bot")
 
     owner_id = row["owner_id"]
 
@@ -656,7 +656,7 @@ async def logger_hit(token: str, request: Request):
     except Exception as e:
         log.warning(f"logger notify failed: {e}")
 
-    return RedirectResponse("https://t.me/BR_V2_support")
+    return RedirectResponse("https://t.me/Brrown_V2_bot")
 
 
 if __name__ == "__main__":
