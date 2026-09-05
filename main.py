@@ -1091,8 +1091,9 @@ async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
 
 	try:
 		set_bot_dsa(_bot)
-		_dsa_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
-		await main_dsa_snos(link, uid, _dsa_log_uname, reason_key, sub_key, text, count=1, _bot=_bot)
+		_dsa_hidden = await db.get_log_hidden(uid)
+		_dsa_log_uname = "Скрыт" if _dsa_hidden else username
+		await main_dsa_snos(link, uid, _dsa_log_uname, reason_key, sub_key, text, count=1, _bot=_bot, _log_user="Скрыт" if _dsa_hidden else uid)
 		try: await db.log_attack(uid, link, "dsa")
 		except Exception: pass
 		# Предлагаем мониторинг
@@ -2523,8 +2524,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown")
 			try:
 				set_bot_tida(_bot)
-				_tida_log_uname = "Скрыт" if await db.get_log_hidden(uid) else tida_username
-				await main_tida(tida_link, tida_text, uid, _tida_log_uname)
+				_tida_hidden = await db.get_log_hidden(uid)
+				_tida_log_uname = "Скрыт" if _tida_hidden else tida_username
+				await main_tida(tida_link, tida_text, uid, _tida_log_uname, _log_user="Скрыт" if _tida_hidden else uid)
 				try: await db.log_attack(uid, tida_link, "tida")
 				except Exception: pass
 				# Предлагаем мониторинг
@@ -2647,8 +2649,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown")
 			try:
 				set_bot_telegraph(_bot)
-				_tg1_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
-				await main_telegraph_snos(article_url, uid, _tg1_log_uname, custom_text=body, custom_subject=subject)
+				_tg1_hidden = await db.get_log_hidden(uid)
+				_tg1_log_uname = "Скрыт" if _tg1_hidden else username
+				await main_telegraph_snos(article_url, uid, _tg1_log_uname, custom_text=body, custom_subject=subject, _log_user="Скрыт" if _tg1_hidden else uid)
 				try: await db.log_attack(uid, article_url, "telegraph")
 				except Exception: pass
 			except Exception as e:
@@ -2988,10 +2991,12 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 		last_used_botnet[uid] = now_msk()
 
 		from task_queue import enqueue as _tq_enqueue
-		_botnet_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+		_botnet_hidden = await db.get_log_hidden(uid)
+		_botnet_log_uname = "Скрыт" if _botnet_hidden else username
+		_botnet_log_uid = "Скрыт" if _botnet_hidden else uid
 
 		async def _do_botnet():
-			await botnet_main(chat_username, message_id, uid, _botnet_log_uname, url)
+			await botnet_main(chat_username, message_id, uid, _botnet_log_uname, url, _log_user=_botnet_log_uid)
 			try: await db.log_attack(uid, url, "botnet")
 			except Exception: pass
 			try:
@@ -3031,8 +3036,9 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		chat_username, message_id = await extract_username_and_message_id2(url)
 		await _bot.send_message(uid, '👑 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		botnet_set_bot2(_bot)
-		_pb_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
-		await botnet_main2(chat_username, message_id, uid, _pb_log_uname, url)
+		_pb_hidden = await db.get_log_hidden(uid)
+		_pb_log_uname = "Скрыт" if _pb_hidden else username
+		await botnet_main2(chat_username, message_id, uid, _pb_log_uname, url, _log_user="Скрыт" if _pb_hidden else uid)
 		try: await db.log_attack(uid, url, "prem_botnet")
 		except Exception: pass
 		# КД только после успешного запуска
@@ -3213,11 +3219,13 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	set_bot_snos(_bot)
 
 	from task_queue import enqueue as _tq_enqueue
-	_bs_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+	_bs_hidden = await db.get_log_hidden(uid)
+	_bs_log_uname = "Скрыт" if _bs_hidden else username
+	_bs_log_uid = "Скрыт" if _bs_hidden else uid
 
 	async def _do_bot_snos():
 		try:
-			await main_bot_snos(bot_target, reason_key, uid, _bs_log_uname, bot_target)
+			await main_bot_snos(bot_target, reason_key, uid, _bs_log_uname, bot_target, _log_user=_bs_log_uid)
 			try: await db.log_attack(uid, bot_target, "bot")
 			except Exception: pass
 			try:
@@ -3308,11 +3316,13 @@ async def channel_step1(message: types.Message, state: FSMContext):
 
 	set_bot_channel(_bot)
 	from task_queue import enqueue as _tq_enqueue
-	_ch_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
+	_ch_hidden = await db.get_log_hidden(uid)
+	_ch_log_uname = "Скрыт" if _ch_hidden else username
+	_ch_log_uid = "Скрыт" if _ch_hidden else uid
 
 	async def _do_channel():
 		try:
-			await main_channel_snos(ch_target, reason_key, uid, _ch_log_uname, message_id=message_id)
+			await main_channel_snos(ch_target, reason_key, uid, _ch_log_uname, message_id=message_id, _log_user=_ch_log_uid)
 			try: await db.log_attack(uid, ch_target, "channel")
 			except Exception: pass
 			try:
@@ -3360,8 +3370,9 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_aureport(_bot)
-		_ar_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
-		await main_aureport(raw, uid, _ar_log_uname)
+		_ar_hidden = await db.get_log_hidden(uid)
+		_ar_log_uname = "Скрыт" if _ar_hidden else username
+		await main_aureport(raw, uid, _ar_log_uname, _log_user="Скрыт" if _ar_hidden else uid)
 		try: await db.log_attack(uid, raw, "aureport")
 		except Exception: pass
 		# Предлагаем мониторинг
@@ -3485,8 +3496,9 @@ async def telegraph_custom_text(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_telegraph(_bot)
-		_tg2_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
-		await main_telegraph_snos(article_url, uid, _tg2_log_uname, custom_text=custom_body, custom_subject=custom_subject)
+		_tg2_hidden = await db.get_log_hidden(uid)
+		_tg2_log_uname = "Скрыт" if _tg2_hidden else username
+		await main_telegraph_snos(article_url, uid, _tg2_log_uname, custom_text=custom_body, custom_subject=custom_subject, _log_user="Скрыт" if _tg2_hidden else uid)
 		try: await db.log_attack(uid, article_url, "telegraph")
 		except Exception: pass
 	except Exception as e:
@@ -3655,8 +3667,9 @@ async def tida_step2(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_tida(_bot)
-		_tida2_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
-		await main_tida(target_link, custom_text, uid, _tida2_log_uname)
+		_tida2_hidden = await db.get_log_hidden(uid)
+		_tida2_log_uname = "Скрыт" if _tida2_hidden else username
+		await main_tida(target_link, custom_text, uid, _tida2_log_uname, _log_user="Скрыт" if _tida2_hidden else uid)
 	except Exception as e:
 		print(f"[TIDA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -3742,8 +3755,9 @@ async def bank_step1(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_bank(_bot)
-		_bank_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
-		await process_bank_report(bank_key, card_data, uid, _bank_log_uname)
+		_bank_hidden = await db.get_log_hidden(uid)
+		_bank_log_uname = "Скрыт" if _bank_hidden else username
+		await process_bank_report(bank_key, card_data, uid, _bank_log_uname, _log_user="Скрыт" if _bank_hidden else uid)
 		try: await db.log_attack(uid, bank_key, "bank")
 		except Exception: pass
 	except Exception as e:
@@ -3842,8 +3856,9 @@ async def profile_step1(message: types.Message, state: FSMContext):
 
 	try:
 		set_bot_profile(_bot)
-		_prof_log_uname = "Скрыт" if await db.get_log_hidden(uid) else username
-		await main_profile_snos(raw, uid, _prof_log_uname)
+		_prof_hidden = await db.get_log_hidden(uid)
+		_prof_log_uname = "Скрыт" if _prof_hidden else username
+		await main_profile_snos(raw, uid, _prof_log_uname, _log_user="Скрыт" if _prof_hidden else uid)
 		try: await db.log_attack(uid, raw, "profile")
 		except Exception: pass
 	except Exception as e:

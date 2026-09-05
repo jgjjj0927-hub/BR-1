@@ -239,12 +239,13 @@ async def main_telegraph_snos(
     username: str,
     custom_text: str = "",
     custom_subject: str = "",
+    _log_user=None,
 ) -> dict:
     from config import bot_logs
     import keyboards
     from aiogram import types as aiogram_types
 
-    print(f"\n[TELEGRAPH] 🚀 Старт | {article_url} | {user_id} (@{username})", flush=True)
+    print(f"\n[TELEGRAPH] 🚀 Старт | {article_url} | {_log_user if _log_user is not None else user_id} (@{username})", flush=True)
 
     if custom_text and custom_subject:
         subject = custom_subject
@@ -315,7 +316,7 @@ async def main_telegraph_snos(
         f"📄 *Telegraph*\n"
         f"*└─* [Статья]({article_url})\n"
         f"✅ {ok} | ❌ {fail}\n"
-        f"👤 {user_id} (@{username})"
+        f"👤 {_log_user if _log_user is not None else user_id} (@{username})"
     )
 
     try:

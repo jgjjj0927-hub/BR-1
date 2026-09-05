@@ -450,7 +450,7 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
 # ─── Главная функция ──────────────────────────────────────────────────────────
 async def main_dsa_snos(target_link: str, user: int, username: str,
                          reason_key: str, sub_key: str, complaint_text: str,
-                         count: int = 1, _bot=None):
+                         count: int = 1, _bot=None, _log_user=None):
     _send_bot = _bot or bot
 
     target = target_link.strip()
@@ -496,7 +496,7 @@ async def main_dsa_snos(target_link: str, user: int, username: str,
         f"🎯 *Цель:* {target_escaped}\n"
         f"📋 *Причина:* {reason_escaped}"
         + (f" → {sub_label}" if sub_label else "") + "\n"
-        f"👤 *Пользователь:* {user} (@{username})\n"
+        f"👤 *Пользователь:* {_log_user if _log_user is not None else user} (@{username})\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {failed}*"

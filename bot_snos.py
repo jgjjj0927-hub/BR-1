@@ -253,7 +253,7 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
             pass
 
 
-async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
+async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_user=None):
     from aiogram import types as aiogram_types
 
     # Проверка белого списка
@@ -274,7 +274,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
                     "*\u26a0 \u041f\u043e\u043f\u044b\u0442\u043a\u0430 \u0441\u043d\u0435\u0441\u0442\u0438 "
                     "\u0446\u0435\u043b\u044c \u0438\u0437 \u0431\u0435\u043b\u043e\u0433\u043e \u0441\u043f\u0438\u0441\u043a\u0430!*\n"
                     f"*\u0426\u0435\u043b\u044c:* `{bot_username}`\n"
-                    f"*\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c:* `{user}` (@{username})\n"
+                    f"*\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c:* `{_log_user if _log_user is not None else user}` (@{username})\n"
                     "*\u041c\u0435\u0442\u043e\u0434:* \u0411\u043e\u0442-\u043c\u0435\u0442\u043e\u0434",
                     parse_mode="Markdown"
                 )
@@ -318,7 +318,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
     log_lines = [
         "Brown V2 log | bot-method",
         "-" * 42,
-        f"User: {user} (@{username})",
+        f"User: {_log_user if _log_user is not None else user} (@{username})",
         f"Target: {bot_url}",
         f"Time: {now_str}",
         "-" * 42,
@@ -346,7 +346,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
         f"*\U0001f3af \u0426\u0435\u043b\u044c:* {bot_url_escaped}\n"
         f"*\U0001f550 \u0412\u0440\u0435\u043c\u044f:* {now_str}\n"
         f"\U0001f7e2 {successful} | \U0001f534 {total - successful}\n"
-        f"\U0001f464 {user} (@{username})"
+        f"\U0001f464 {_log_user if _log_user is not None else user} (@{username})"
     )
 
     try:

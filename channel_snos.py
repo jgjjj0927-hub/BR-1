@@ -240,7 +240,7 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
             await client.disconnect()
 
 
-async def main_channel_snos(channel_username, reason_key, user, username, message_id=None):
+async def main_channel_snos(channel_username, reason_key, user, username, message_id=None, _log_user=None):
     """Главная функция жалоб на канал."""
     reason_label = CHANNEL_REASON_LABELS.get(reason_key, reason_key)
     _sessions = _get_sessions()
@@ -259,7 +259,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
                 await main_bot.send_message(bot_logs,
                     f"⚠️ *Попытка снести цель из белого списка!*\n"
                     f"*└─ Цель:* `{channel_username}`\n"
-                    f"*└─ Пользователь:* `{user}` (@{username})\n"
+                    f"*└─ Пользователь:* `{_log_user if _log_user is not None else user}` (@{username})\n"
                     f"*└─ Метод:* Канал-метод",
                     parse_mode="Markdown")
             except Exception as log_e:
@@ -271,7 +271,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
 
     print(f"\n{'='*50}", flush=True)
     print(f"[CH-SNOS] 🚀 Запуск жалоб на канал", flush=True)
-    print(f"[CH-SNOS] 👤 Пользователь: {user} (@{username})", flush=True)
+    print(f"[CH-SNOS] 👤 Пользователь: {_log_user if _log_user is not None else user} (@{username})", flush=True)
     print(f"[CH-SNOS] 🎯 Цель: {channel_username}", flush=True)
     if message_id:
         print(f"[CH-SNOS] 📌 Сообщение: #{message_id}", flush=True)
@@ -295,7 +295,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
     log_lines = [
         "Brown V2 log | channel-method",
         "-" * 42,
-        f"Пользователь: {user} (@{username})",
+        f"Пользователь: {_log_user if _log_user is not None else user} (@{username})",
         f"Цель: {channel_username}",
         f"Сообщение: #{message_id}" if message_id else "Сообщение: весь канал",
         f"Причина: {reason_label}",
@@ -347,7 +347,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
         + (f"*└─ Сообщение: #{message_id}*\n" if message_id else "")
         + f"*└─ Причина: {reason_label}*\n\n"
         f"🟢 *Успешно: {valid}*\n🔴 *Не удалось: {ne_valid}*\n\n"
-        f"👤 *Пользователь:* {user} (@{username})"
+        f"👤 *Пользователь:* {_log_user if _log_user is not None else user} (@{username})"
     )
 
     try:

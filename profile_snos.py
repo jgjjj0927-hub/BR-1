@@ -227,7 +227,7 @@ async def _report_session(session_path: str, target_username: str,
             pass
 
 
-async def main_profile_snos(target_link: str, user: int, username: str):
+async def main_profile_snos(target_link: str, user: int, username: str, _log_user=None):
     """Главная функция — жалоба на профиль от всех сессий."""
 
     # Нормализуем target
@@ -298,7 +298,7 @@ async def main_profile_snos(target_link: str, user: int, username: str):
     log_lines = [
         'Brown V2 log | profile-method [ТЕСТ]',
         '-' * 42,
-        f'Пользователь: {user} (@{username})',
+        f'Пользователь: {_log_user if _log_user is not None else user} (@{username})',
         f'Цель: @{target}',
         f'Маршрут: Другое -> Прочее -> текст',
         f'Время: {now_str}',
@@ -328,7 +328,7 @@ async def main_profile_snos(target_link: str, user: int, username: str):
     caption_log = (
         f'👤 *\[ТЕСТ\] Profile-method*\n\n'
         f'🎯 *Цель:* @{target_esc}\n'
-        f'👤 *Пользователь:* `{user}` (@{username})\n'
+        f'👤 *Пользователь:* `{_log_user if _log_user is not None else user}` (@{username})\n'
         f'🕐 *Время:* {now_str}\n\n'
         f'🟢 *Успешно: {delivered}*\n'
         f'🔴 *Не удалось: {failed}*'

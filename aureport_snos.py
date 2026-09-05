@@ -192,7 +192,7 @@ async def _single_session_flow(session_path: str, target: str, proxy=None) -> bo
             pass
 
 
-async def main_aureport(target_link: str, user: int, username: str):
+async def main_aureport(target_link: str, user: int, username: str, _log_user=None):
     sessions = _get_sessions()
     if not sessions:
         await bot.send_message(user,
@@ -235,7 +235,7 @@ async def main_aureport(target_link: str, user: int, username: str):
     caption_log = (
         f"🇦🇺 *AU Report*\n\n"
         f"🎯 *Цель:* {target_escaped}\n"
-        f"👤 *Пользователь:* {user} (@{username})\n"
+        f"👤 *Пользователь:* {_log_user if _log_user is not None else user} (@{username})\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"

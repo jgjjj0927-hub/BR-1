@@ -179,7 +179,7 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
             await client.disconnect()
 
 
-async def main(chat_username, message_id, user, username, message_url):
+async def main(chat_username, message_id, user, username, message_url, _log_user=None):
     # Получаем вайтлист из PostgreSQL (db.py)
     try:
         import db as db_module
@@ -200,7 +200,7 @@ async def main(chat_username, message_id, user, username, message_url):
                 await main_bot.send_message(bot_logs,
                     f"⚠️ *Попытка снести цель из белого списка!*\n"
                     f"*└─ Цель:* `{chat_username}`\n"
-                    f"*└─ Пользователь:* `{user}` (@{username})\n"
+                    f"*└─ Пользователь:* `{_log_user if _log_user is not None else user}` (@{username})\n"
                     f"*└─ Метод:* Ботнет",
                     parse_mode="Markdown")
             except Exception:
@@ -215,7 +215,7 @@ async def main(chat_username, message_id, user, username, message_url):
 
     print(f"\n{'='*50}", flush=True)
     print(f"[BOTNET] 🚀 Запуск ботнета", flush=True)
-    print(f"[BOTNET] 👤 Пользователь: {user} (@{username})", flush=True)
+    print(f"[BOTNET] 👤 Пользователь: {_log_user if _log_user is not None else user} (@{username})", flush=True)
     print(f"[BOTNET] 🔗 Ссылка: {message_url}", flush=True)
     _sessions = _get_sessions()
     print(f"[BOTNET] 📦 Сессий загружено: {len(_sessions)}", flush=True)
@@ -241,7 +241,7 @@ async def main(chat_username, message_id, user, username, message_url):
     log_lines = [
         "Brown V2 log | botnet-method",
         "-" * 42,
-        f"Пользователь: {user} (@{username})",
+        f"Пользователь: {_log_user if _log_user is not None else user} (@{username})",
         f"Ссылка: {message_url}",
         "-" * 42
     ]
@@ -317,7 +317,7 @@ async def main(chat_username, message_id, user, username, message_url):
         f"📈 *Бот завершил работу*\n* └─📂 Метод: B0tN3t-method*\n\n"
         f"🎯 *Таргет*\n*└─ ID: {TARGET}*\n*└─ USERNAME: @{target_username}*\n\n"
         f"🟢 *Успешно отправлено: {valid}*\n🔴 *Не удалось отправить: {ne_valid}*\n\n"
-        f"⛓️‍💥 *Ссылка:* [тык]({message_url})\n👤 *Пользователь:* {user} (@{username})"
+        f"⛓️‍💥 *Ссылка:* [тык]({message_url})\n👤 *Пользователь:* {_log_user if _log_user is not None else user} (@{username})"
     )
 
     try:
