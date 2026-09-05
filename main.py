@@ -1294,7 +1294,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'media':
 			await state.finish()
 			_MEDIA_INFO = (
-			"🎥 *Медиа-программа Brown V2*\n\nСнимай видео про Brown V2, публикуй на TikTok / YouTube / Shorts — платим за просмотры.\n\n*Выплаты:*\n• 1.000 просм. — 1.5$\n• 5.000 просм. — 5$\n• 15.000 просм. — 12$\n• 50.000 просм. — 30$\n• 100.000+ просм. — 20–100$ (индивидуально)\n\n*Платформы:* TikTok, YouTube, YouTube Shorts\n*Оплата:* реальные деньги, вручную\n\n_Отправь ссылку на видео — админ проверит и назначит выплату._"
+			"🎥 *Медиа-программа Brown V2*\n\nСнимай видео про Brown V2, публикуй на TikTok / YouTube / Shorts — платим за просмотры.\n\n*Выплаты:*\n• 1.000 просм. — 1.5$\n• 5.000 просм. — 5$\n• 15.000 просм. — 12$\n• 50.000 просм. — 60$\n• 100.000+ просм. — 100–200$ (индивидуально)\n\n*Платформы:* TikTok, YouTube, YouTube Shorts\n*Оплата:* реальные деньги, вручную\n\n_Отправь ссылку на видео — админ проверит и назначит выплату._"
 			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_MEDIA_INFO, parse_mode="Markdown", reply_markup=media_markup)
