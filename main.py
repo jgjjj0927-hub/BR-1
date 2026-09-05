@@ -1383,7 +1383,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d == 'media_terms':
 			_txt = (
-				"📜 *Условия медиа-программы*\n\n"
+				"📜 *Условия медиа\\-программы*\n\n"
 				"✅ *Обязательно в ролике:*\n"
 				"└ Название проекта — Brown V2\n"
 				"└ Ссылка на сайт — br\\-v2\\.top\n\n"
