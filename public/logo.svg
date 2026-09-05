@@ -1,0 +1,16 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1a1a1f"/>
+      <stop offset="1" stop-color="#0a0a0b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="30" y1="30" x2="98" y2="98" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="127" height="127" rx="27.5" stroke="rgba(255,255,255,0.08)"/>
+  <text x="64" y="58" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="34" font-weight="800" fill="url(#accent)" letter-spacing="-1">BR</text>
+  <text x="64" y="88" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="600" fill="#8a8a92" letter-spacing="2">V2</text>
+</svg>

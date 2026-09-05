@@ -1,0 +1,236 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useLang } from '../App';
+import { FeatureIcon } from '../components/Icons';
+import { api, Mirror, Review } from '../api';
+
+const BOT = 'https://t.me/Brrown_V2_bot';
+const SUPPORT = 'https://t.me/BR_V2_Support';
+
+const T = {
+  ru: {
+    badge: 'Официальный сайт Brown V2',
+    h1a: 'Твой доступ к Telegram.',
+    h1b: 'Быстро. Чисто. Без лишнего.',
+    sub: 'Brown V2 — Telegram-бот для массовой подачи жалоб с активными зеркалами, поддержкой 24/7 и понятным интерфейсом.',
+    open: 'Открыть бота',
+    howto: 'Как пользоваться',
+    users: 'пользователей в боте',
+    methods: 'методов',
+    support: 'Поддержка 24/7',
+    mirrors: 'Активные зеркала',
+    mirrorsSub: 'Если основной бот недоступен — используй одно из зеркал. Полный функционал.',
+    noMirrors: 'Зеркала обновляются администратором',
+    active: 'Активно',
+    dead: 'Не работает',
+    reviewsTitle: 'Отзывы',
+    reviewsSub: 'Реальные отзывы пользователей',
+    noReviews: 'Отзывы скоро появятся',
+    ctaTitle: 'Готов начать?',
+    ctaSub: 'Открой бота и выбери подходящий тариф',
+    ctaBtn: 'Запустить бота',
+    ctaSupport: 'Написать в поддержку',
+    featTitle: 'Почему Brown V2',
+    feat: [
+      ['zap', 'Быстрый запуск', 'Стартуй за 30 секунд — без сложной регистрации'],
+      ['lock', 'Прозрачные условия', 'Цены и сроки указаны заранее, скрытых платежей нет'],
+      ['link', 'Зеркала', 'Работаем даже если основной бот недоступен'],
+      ['cpu', 'ИИ-методы', 'TIDA и DSA используют ИИ для генерации жалоб'],
+      ['bell', 'Мониторинг', 'Уведомление когда цель будет снесена'],
+      ['gift', 'Бесплатные репорты', 'Колесо фортуны и промокоды каждую неделю'],
+      ['search', 'Пробив', 'Поиск по открытым базам: телефон, ФИО, email, авто и многое другое'],
+    ],
+  },
+  en: {
+    badge: 'Official Brown V2 website',
+    h1a: 'Your Telegram access.',
+    h1b: 'Fast. Clean. No noise.',
+    sub: 'Brown V2 — a Telegram bot for mass reporting with active mirrors, 24/7 support, and a simple interface.',
+    open: 'Open bot',
+    howto: 'How it works',
+    users: 'users in the bot',
+    methods: 'methods',
+    support: '24/7 support',
+    mirrors: 'Active mirrors',
+    mirrorsSub: 'If the main bot is unavailable — use a mirror. Full functionality.',
+    noMirrors: 'Mirrors are managed by the administrator',
+    active: 'Active',
+    dead: 'Down',
+    reviewsTitle: 'Reviews',
+    reviewsSub: 'Real user feedback',
+    noReviews: 'Reviews coming soon',
+    ctaTitle: 'Ready to start?',
+    ctaSub: 'Open the bot and choose a plan',
+    ctaBtn: 'Launch bot',
+    ctaSupport: 'Contact support',
+    featTitle: 'Why Brown V2',
+    feat: [
+      ['zap', 'Fast start', 'Launch in 30 seconds — no complex registration'],
+      ['lock', 'Clear terms', 'Prices upfront, no hidden fees'],
+      ['link', 'Mirrors', 'Works even when the main bot is down'],
+      ['cpu', 'AI methods', 'TIDA and DSA use AI to generate reports'],
+      ['bell', 'Monitoring', 'Get notified when the target is taken down'],
+      ['gift', 'Free reports', 'Fortune wheel and promo codes weekly'],
+      ['search', 'Lookup', 'Search open databases: phone, name, email, car and more'],
+    ],
+  },
+};
+
+export default function Home() {
+  const { lang } = useLang();
+  const t = T[lang];
+  const [userCount, setUserCount] = useState<number | null>(null);
+  const [mirrors, setMirrors] = useState<Mirror[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+
+  useEffect(() => {
+    api.stats().then(s => setUserCount(s.users)).catch(() => {});
+    api.mirrors().then(setMirrors).catch(() => {});
+    api.reviews().then(setReviews).catch(() => {});
+  }, []);
+
+  return (
+    <div className="home">
+      {/* Hero */}
+      <section className="hero container">
+        <div className="hero-body">
+          <div className="eyebrow">
+            <span className="dot" />
+            {t.badge}
+          </div>
+          <h1>
+            {t.h1a}<br />
+            <span className="accent-text">{t.h1b}</span>
+          </h1>
+          <p className="hero-sub">{t.sub}</p>
+          <div className="hero-btns">
+            <a href={BOT} target="_blank" rel="noreferrer" className="btn-primary">
+              {t.open}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <Link to="/manual" className="btn-ghost">
+              {t.howto}
+            </Link>
+          </div>
+          <div className="hero-stats">
+            <div className="hstat">
+              <strong>{userCount !== null ? userCount.toLocaleString() : '—'}</strong>
+              <span>{t.users}</span>
+            </div>
+            <div className="hstat-div" />
+            <div className="hstat">
+              <strong>17</strong>
+              <span>{t.methods}</span>
+            </div>
+            <div className="hstat-div" />
+            <div className="hstat">
+              <strong>24/7</strong>
+              <span>{t.support}</span>
+            </div>
+          </div>
+        </div>
+        <div className="hero-visual">
+          <div className="glow-orb" />
+          <div className="logo-frame logo-img-frame">
+            <img src="/logo.png" alt="Brown V2" width="220" height="220" style={{ borderRadius: '50%', display: 'block' }} />
+          </div>
+          <div className="float-chip top">
+            <span className="pulse-dot" />
+            <span>Brown V2</span>
+          </div>
+          <div className="float-chip bot">
+            <span>👥</span>
+            <strong>{userCount !== null ? userCount.toLocaleString() : '...'}</strong>
+            <span>{t.users}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="section container">
+        <div className="sec-head">
+          <div className="sec-label">Brown V2</div>
+          <h2>{t.featTitle}</h2>
+        </div>
+        <div className="feat-grid">
+          {t.feat.map(([icon, title, desc]) => (
+            <div className="feat-card" key={title}>
+              <div className="feat-icon"><FeatureIcon name={icon} /></div>
+              <h3>{title}</h3>
+              <p>{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Mirrors */}
+      <section className="section mirrors-sec">
+        <div className="container">
+          <div className="sec-head">
+            <div className="sec-label">🪞</div>
+            <h2>{t.mirrors}</h2>
+            <p>{t.mirrorsSub}</p>
+          </div>
+          {mirrors.length === 0 ? (
+            <p className="empty-note">{t.noMirrors}</p>
+          ) : (
+            <div className="mirror-list">
+              {mirrors.map(m => (
+                <a key={m.id} href={m.url} target="_blank" rel="noreferrer" className={`mirror-row ${m.status}`}>
+                  <span className={`m-dot ${m.status}`} />
+                  <div className="m-info">
+                    <strong>{m.name}</strong>
+                    <small>{m.url.replace('https://t.me/', 't.me/')}</small>
+                  </div>
+                  <span className="m-status-label">
+                    {m.status === 'active' ? t.active : t.dead}
+                  </span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Reviews */}
+      <section className="section container">
+        <div className="sec-head">
+          <div className="sec-label">💬</div>
+          <h2>{t.reviewsTitle}</h2>
+          <p>{t.reviewsSub}</p>
+        </div>
+        {reviews.length === 0 ? (
+          <p className="empty-note">{t.noReviews}</p>
+        ) : (
+          <div className="reviews-grid">
+            {reviews.map(r => (
+              <div key={r.id} className="review-card">
+                <div className="rev-author">
+                  <div className="rev-avatar">
+                    {r.avatar ? <img src={r.avatar} alt={r.author} /> : r.author.charAt(0).toUpperCase()}
+                  </div>
+                  <strong>{r.author}</strong>
+                </div>
+                <p>{r.text}</p>
+                <span className="rev-date">{new Date(r.created_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US')}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* CTA */}
+      <section className="cta-banner container">
+        <div className="cta-inner">
+          <h2>{t.ctaTitle}</h2>
+          <p>{t.ctaSub}</p>
+          <div className="cta-btns">
+            <a href={BOT} target="_blank" rel="noreferrer" className="btn-primary">{t.ctaBtn}</a>
+            <a href={SUPPORT} target="_blank" rel="noreferrer" className="btn-ghost">{t.ctaSupport}</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
