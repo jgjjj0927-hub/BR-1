@@ -1400,6 +1400,32 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			except Exception:
 				await bot_instance.edit_message_text(_txt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="MarkdownV2", reply_markup=_terms_back)
 
+		elif d.startswith('media_ok_'):
+			if uid != MEDIA_ADMIN_ID:
+				await bot_instance.answer_callback_query(call.id, "Нет доступа", show_alert=True)
+				return
+			sub_id = int(d.split('_')[2])
+			await state.update_data(media_sub_id=sub_id)
+			await MediaFSM.waiting_approve_comment.set()
+			await bot_instance.send_message(
+				call.message.chat.id,
+				f"✅ Одобрение заявки #{sub_id}\n\nОтправь комментарий и сумму выплаты в одном сообщении.\nНапример: `Отличное видео! $5`"
+			)
+			await bot_instance.answer_callback_query(call.id)
+
+		elif d.startswith('media_rej_'):
+			if uid != MEDIA_ADMIN_ID:
+				await bot_instance.answer_callback_query(call.id, "Нет доступа", show_alert=True)
+				return
+			sub_id = int(d.split('_')[2])
+			await state.update_data(media_sub_id=sub_id)
+			await MediaFSM.waiting_reject_reason.set()
+			await bot_instance.send_message(
+				call.message.chat.id,
+				f"❌ Отклонение заявки #{sub_id}\n\nОтправь причину отклонения:"
+			)
+			await bot_instance.answer_callback_query(call.id)
+
 		elif d == 'monitor_menu':
 			if subscribe < now_msk():
 				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
