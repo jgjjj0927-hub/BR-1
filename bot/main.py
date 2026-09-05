@@ -1236,7 +1236,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					_url = _h['target_url']
 					_sc = _h['success_count']
 					_sc_str = f"  ✅ {_sc}" if _sc > 0 else ""
-					_htxt += f"• {_method} | {_dt}{_sc_str}\n  {_url[:60]}\n"
+					_url_safe = _url[:60].replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace('`', '\\`')
+				_htxt += f"• {_method} | {_dt}{_sc_str}\n  {_url_safe}\n"
 			_hist_markup = types.InlineKeyboardMarkup(row_width=1)
 			_hist_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='profile'))
 			try:
