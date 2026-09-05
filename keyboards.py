@@ -389,6 +389,7 @@ media_markup = types.InlineKeyboardMarkup(row_width=1)
 media_markup.add(
     types.InlineKeyboardButton("📤 Отправить видео", callback_data='media_submit'),
     types.InlineKeyboardButton("📋 Мои заявки", callback_data='media_my'),
+    types.InlineKeyboardButton("📜 Условия", callback_data='media_terms'),
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
 )
 

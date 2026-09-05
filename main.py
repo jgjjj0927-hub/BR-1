@@ -1381,6 +1381,25 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			except Exception:
 				await bot_instance.edit_message_text(_txt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=back_markup)
 
+		elif d == 'media_terms':
+			_txt = (
+				"📜 *Условия медиа-программы*\n\n"
+				"✅ *Обязательно в ролике:*\n"
+				"└ Название проекта — Brown V2\n"
+				"└ Ссылка на сайт — br\\-v2\\.top\n\n"
+				"⚠️ *Проверка и санкции:*\n"
+				"└ Проверяем просмотры, лайки и рост аудитории\\.\n"
+				"└ При накрутке выплата не производится\\.\n"
+				"└ При нарушении — блокировка бота навсегда\\.\n\n"
+				"🎬 Снимайте ролики на YouTube, TikTok, Shorts\\."
+			)
+			_terms_back = types.InlineKeyboardMarkup(row_width=1)
+			_terms_back.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='media'))
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_txt, parse_mode="MarkdownV2", reply_markup=_terms_back)
+			except Exception:
+				await bot_instance.edit_message_text(_txt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="MarkdownV2", reply_markup=_terms_back)
+
 		elif d == 'monitor_menu':
 			if subscribe < now_msk():
 				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
