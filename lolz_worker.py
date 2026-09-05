@@ -44,9 +44,10 @@ LOLZ_FOLDER      = "lolz"
 OUTPUT_FOLDER    = "sessions"      # куда кладём _new сессии
 PREM_FOLDER      = "prem_sessions"
 CLOUD_PASS       = "Ali095095"
-CHECK_INTERVAL   = 10 * 60        # 10 минут
-CODE_WAIT        = 60             # секунд ждём код
+CHECK_INTERVAL   = 3 * 60         # 3 минуты
+CODE_WAIT        = 30             # секунд ждём код
 CODE_RETRIES     = 6              # попыток прочитать код
+MAX_CONCURRENT   = 5              # параллельных сессий
 
 API_PAIRS = [
     ("24565698",  "5a084b434f8505ace703485b9da85040"),
@@ -301,19 +302,22 @@ async def worker_loop():
         if not sessions:
             logger.info("Нет сессий в lolz/ — жду...")
         else:
-            logger.info(f"Найдено {len(sessions)} lolz-сессий, обрабатываю...")
-            for session_path in sessions:
-                try:
-                    success = await process_lolz_session(session_path)
-                    if success:
-                        logger.info(f"✅ {os.path.basename(session_path)} обработана успешно")
-                    else:
-                        logger.info(f"⏳ {os.path.basename(session_path)} — не удалось, попробую позже")
-                except Exception as e:
-                    logger.error(f"❌ {session_path}: {e}")
+            logger.info(f"Найдено {len(sessions)} lolz-сессий, обрабатываю параллельно (до {MAX_CONCURRENT})...")
+            sem = asyncio.Semaphore(MAX_CONCURRENT)
 
-                # Пауза между аккаунтами
-                await asyncio.sleep(5)
+            async def _run(session_path):
+                async with sem:
+                    try:
+                        success = await process_lolz_session(session_path)
+                        if success:
+                            logger.info(f"✅ {os.path.basename(session_path)} обработана успешно")
+                        else:
+                            logger.info(f"⏳ {os.path.basename(session_path)} — не удалось, попробую позже")
+                    except Exception as e:
+                        logger.error(f"❌ {session_path}: {e}")
+                    await asyncio.sleep(1)
+
+            await asyncio.gather(*[_run(s) for s in sessions])
 
         logger.info(f"Следующая проверка через {CHECK_INTERVAL // 60} минут...")
         await asyncio.sleep(CHECK_INTERVAL)
