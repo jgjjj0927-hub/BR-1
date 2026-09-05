@@ -454,8 +454,8 @@ async def admin(message):
 	if message.from_user.id in admins:
 		try:
 			users_count = await db.get_users_count()
-			sessions_count = len(os.listdir(session_folder)) if os.path.exists(session_folder) else 0
-			sessions_count_prem = len(os.listdir(session_folder_prem)) if os.path.exists(session_folder_prem) else 0
+			sessions_count = len([f for f in os.listdir(session_folder) if f.endswith('.session')]) if os.path.exists(session_folder) else 0
+			sessions_count_prem = len([f for f in os.listdir(session_folder_prem) if f.endswith('.session')]) if os.path.exists(session_folder_prem) else 0
 			subscribers_count = await db.get_subscribers_count()
 			mirrors_count = await db.get_mirrors_count()
 			reports_users_count = await db.get_users_with_reports_count()
