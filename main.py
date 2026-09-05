@@ -1168,12 +1168,46 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			ref_count = await db.get_referral_count(uid)
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
 			_profile_markup.add(
+				types.InlineKeyboardButton("📋 История жалоб", callback_data='profile_history'),
 				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
 				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
 			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
 				parse_mode="Markdown", reply_markup=_profile_markup)
+		elif d == 'profile_history':
+			history = await db.get_attack_history(uid, limit=15)
+			_METHOD_LABELS = {
+				'botnet': '🤖 Ботнет',
+				'prem_botnet': '👑 Прем ботнет',
+				'web': '🌐 Веб',
+				'mail': '📧 Почта',
+				'bot': '🤖 Бот-метод',
+				'channel': '📢 Канал',
+				'dsa': '⚖️ DSA',
+				'telegraph': '📡 Telegraph',
+				'tida': '🎵 TikTok',
+				'aureport': '🔍 Аурепорт',
+				'profile': '👤 Профиль',
+			}
+			if not history:
+				_htxt = "📋 *История жалоб*\n\n_Жалобы ещё не отправлялись_"
+			else:
+				_htxt = "📋 *История жалоб* (последние 15)\n\n"
+				for _h in history:
+					_method = _METHOD_LABELS.get(_h['method'], _h['method'])
+					_dt = _h['created_at'].strftime("%d.%m %H:%M") if _h['created_at'] else "—"
+					_url = _h['target_url']
+					_sc = _h['success_count']
+					_sc_str = f"  ✅ {_sc}" if _sc > 0 else ""
+					_htxt += f"• {_method} | {_dt}{_sc_str}\n  `{_url[:60]}`\n"
+			_hist_markup = types.InlineKeyboardMarkup(row_width=1)
+			_hist_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='profile'))
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_htxt, parse_mode="Markdown", reply_markup=_hist_markup)
+			except Exception:
+				await bot_instance.edit_message_text(_htxt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=_hist_markup)
+
 		elif d == 'lang_change':
 			_lang_markup = types.InlineKeyboardMarkup(row_width=2)
 			_lang_markup.add(
@@ -2735,6 +2769,8 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 			count=report_count333, log_path=log_path, user_id=uid, username=username)
 	# КД ставим только после завершения отправки
 	last_used_web[uid] = now_msk()
+	try: await db.log_attack(uid, fsm_data.get('web_target', 'web-report'), "web", success)
+	except Exception: pass
 	try:
 		await _bot.send_document(uid, types.InputFile(log_path),
 			caption=f"⚙️ *Веб*\n🟢 *Успешно: {success}*\n🔴 *Не удалось: {error}*",
@@ -2778,6 +2814,8 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 		bot=_bot, chat_id=message.from_user.id)
 	# КД ставим только после реального завершения отправки
 	last_used_mail[message.from_user.id] = now_msk()
+	try: await db.log_attack(message.from_user.id, f"mail:{subject[:100]}", "mail", success)
+	except Exception: pass
 	try:
 		await _bot.send_document(message.from_user.id, types.InputFile(log_path),
 			caption=f"⚙️ *Почты*\n🟢 {success}\n🔴 {error}", parse_mode="Markdown", reply_markup=main_menu)
@@ -2821,6 +2859,8 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, '📤 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		botnet_set_bot(_bot)
 		await botnet_main(chat_username, message_id, uid, username, url)
+		try: await db.log_attack(uid, url, "botnet")
+		except Exception: pass
 		# КД только после успешного запуска
 		last_used_botnet[uid] = now_msk()
 		# Предлагаем мониторинг
@@ -2860,6 +2900,8 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, '👑 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
 		botnet_set_bot2(_bot)
 		await botnet_main2(chat_username, message_id, uid, username, url)
+		try: await db.log_attack(uid, url, "prem_botnet")
+		except Exception: pass
 		# КД только после успешного запуска
 		last_used_botnet2[uid] = now_msk()
 		# Предлагаем мониторинг
@@ -3035,6 +3077,8 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_snos(_bot)
 		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
+		try: await db.log_attack(uid, bot_target, "bot")
+		except Exception: pass
 		# Предлагаем мониторинг
 		try:
 			_ud = await db.get_user(uid)
@@ -3120,6 +3164,8 @@ async def channel_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_channel(_bot)
 		await main_channel_snos(ch_target, reason_key, uid, username, message_id=message_id)
+		try: await db.log_attack(uid, ch_target, "channel")
+		except Exception: pass
 		# Предлагаем мониторинг
 		try:
 			_ud = await db.get_user(uid)
@@ -4141,6 +4187,7 @@ async def on_startup(dp):
 		await db.init_db()
 		await db.init_cases_table()
 		await db.init_monitors_table()
+		await db.init_attack_log_table()
 		print("БД инициализирована успешно.")
 	except Exception as e:
 		print(f"ОШИБКА БД при старте: {e}")

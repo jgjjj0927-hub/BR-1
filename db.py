@@ -974,6 +974,43 @@ async def delete_monitor(monitor_id: int, user_id: int) -> bool:
         return row is not None
 
 
+# ─── История атак ─────────────────────────────────────────────────────────────
+
+async def init_attack_log_table():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS attack_log (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                target_url TEXT NOT NULL,
+                method TEXT NOT NULL,
+                success_count INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        await conn.execute("CREATE INDEX IF NOT EXISTS attack_log_user_idx ON attack_log(user_id, created_at DESC)")
+
+
+async def log_attack(user_id: int, target_url: str, method: str, success_count: int = 0):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO attack_log (user_id, target_url, method, success_count) VALUES ($1, $2, $3, $4)",
+            user_id, target_url[:500], method, success_count
+        )
+
+
+async def get_attack_history(user_id: int, limit: int = 15) -> list:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT target_url, method, success_count, created_at FROM attack_log WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
+            user_id, limit
+        )
+        return [dict(r) for r in rows]
+
+
 # ─── Пробив — лимиты ──────────────────────────────────────────────────────────
 
 async def get_probiv_usage(user_id: int) -> dict:
