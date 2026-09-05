@@ -1460,10 +1460,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 			await bot_instance.answer_callback_query(call.id)
 
-		elif d == 'monitor_menu':
+		elif d == 'monitor_menu' or d.startswith('monitor_menu_p_'):
 			if subscribe < now_msk():
 				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
 				return
+			page = int(d.split('_p_')[1]) if '_p_' in d else 0
+			PER_PAGE = 5
 			monitors = await db.get_user_monitors(uid)
 			active = [m for m in monitors if m['active']]
 			limit = 5 if premium else 3
@@ -1479,21 +1481,32 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					time_left = expires - now_dt
 					h = max(0, int(time_left.total_seconds() // 3600))
 					mins = max(0, int((time_left.total_seconds() % 3600) // 60))
-					lines.append(f"{status_icon} `{m['target'][:40]}` — {h}ч {mins}м осталось")
+					lines.append(f"{status_icon} `{m['target'][:45]}` — {h}ч {mins}м осталось")
 				else:
 					status_icon = "🔴" if m['status'] == 'dead' else "⚫"
-					lines.append(f"{status_icon} `{m['target'][:40]}` — завершён")
+					lines.append(f"{status_icon} `{m['target'][:45]}` — завершён")
 
-			text = (
-				f"🔍 *Мониторинг BR V2*\n\n"
-				f"*Активных:* {len(active)}/{limit}\n\n"
-			)
-			if lines:
-				text += "\n".join(lines[-10:])
+			total = len(lines)
+			total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+			page = max(0, min(page, total_pages - 1))
+			page_lines = lines[page * PER_PAGE:(page + 1) * PER_PAGE]
+
+			text = f"🔍 *Мониторинг BR V2*\n\n*Активных:* {len(active)}/{limit}\n\n"
+			if page_lines:
+				text += "\n".join(page_lines)
+				if total_pages > 1:
+					text += f"\n\n_Стр. {page + 1}/{total_pages}_"
 			else:
 				text += "_Нет активных мониторов_\n\nДобавьте цель после отправки репортов"
 
-			markup = types.InlineKeyboardMarkup(row_width=1)
+			markup = types.InlineKeyboardMarkup(row_width=2)
+			nav_btns = []
+			if page > 0:
+				nav_btns.append(types.InlineKeyboardButton("◀️", callback_data=f'monitor_menu_p_{page - 1}'))
+			if page < total_pages - 1:
+				nav_btns.append(types.InlineKeyboardButton("▶️", callback_data=f'monitor_menu_p_{page + 1}'))
+			if nav_btns:
+				markup.add(*nav_btns)
 			markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
 			try:
 				await bot_instance.edit_message_caption(
