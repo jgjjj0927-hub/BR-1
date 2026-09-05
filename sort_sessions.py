@@ -50,7 +50,7 @@ async def main():
         if not os.path.exists(folder):
             continue
         for f in os.listdir(folder):
-            if f.endswith(".session") and "_new" not in f:
+            if f.endswith(".session"):
                 sessions.append((folder, os.path.join(folder, f.replace(".session", ""))))
 
 
