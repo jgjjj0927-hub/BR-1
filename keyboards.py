@@ -281,7 +281,7 @@ shop_markup.add(sub1, sub3)
 shop_markup.add(sub7, sub30)
 shop_markup.add(subforever)
 shop_markup.add(premupgrade)
-shop_markup.add(buyforadmins, preminfo)
+shop_markup.add(preminfo)
 shop_markup.add(back)
 
 check_markup = types.InlineKeyboardMarkup(row_width=1)

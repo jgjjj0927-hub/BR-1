@@ -574,8 +574,8 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 		method_markup = types.InlineKeyboardMarkup(row_width=1)
 		method_markup.add(
 			types.InlineKeyboardButton(f"CryptoBot — {amount_usd}$", callback_data=f'pay_crypto_{st}'),
-			types.InlineKeyboardButton(f"🇷🇺 СБП — {amount_rub}₽", callback_data=f'pay_sbp_{st}'),
-			types.InlineKeyboardButton(f"TonKeeper — {amount_usd}$", callback_data=f'pay_ton_{st}'),
+			types.InlineKeyboardButton("🇷🇺 СБП", callback_data=f'pay_sbp_{st}'),
+			types.InlineKeyboardButton("TonKeeper", callback_data=f'pay_ton_{st}'),
 			keyboards.back,
 		)
 		await bot.edit_message_caption(
