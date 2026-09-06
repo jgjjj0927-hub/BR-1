@@ -570,24 +570,53 @@ async def listtargetwl(message: types.Message):
 
 # ─── Подписки / оплата ────────────────────────────────────────────────────────
 
-@dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'), state='*')
+_SUB_MAP = {
+	"1":          {"usd": "1",  "rub": 100,  "days": "1",   "label": "на 1 день"},
+	"3":          {"usd": "2",  "rub": 175,  "days": "3",   "label": "на 3 дня"},
+	"7":          {"usd": 4,    "rub": 350,  "days": "7",   "label": "на 7 дней"},
+	"30":         {"usd": 8,    "rub": 700,  "days": "30",  "label": "на 30 дней"},
+	"forever":    {"usd": 6,    "rub": 500,  "days": "999", "label": "навсегда"},
+	"premupgrade":{"usd": 5,    "rub": 400,  "days": "1",   "label": "Премиум"},
+}
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_') and not c.data.startswith('sub_30d') and not c.data.startswith('sub_1d'), state='*')
 async def handle_subscription(callback_query: types.CallbackQuery):
 	try:
 		user_id = callback_query.from_user.id
 		if not await check_user_in_db(user_id):
 			return
-		sub_map = {
-			"1": ("1", "1", "на 1 день"),
-			"3": ("2", "3", "на 3 дня"),
-			"7": (4, "7", "на 7 дней"),
-			"30": (8, "30", "на 30 дней"),
-			"forever": (6, "999", "навсегда"),
-			"premupgrade": (5, "1", "Премиум"),
-		}
 		st = callback_query.data.split('_')[1]
-		if st not in sub_map:
+		if st not in _SUB_MAP:
 			return
-		amount, sub_days, pidor = sub_map[st]
+		cfg = _SUB_MAP[st]
+		pay_sel = types.InlineKeyboardMarkup(row_width=1)
+		pay_sel.add(
+			types.InlineKeyboardButton(f"💲 USDT — {cfg['usd']}$", callback_data=f'sub_usdt_{st}'),
+			types.InlineKeyboardButton(f"🇷🇺 ЮMoney — {cfg['rub']}₽", callback_data=f'ym_pay_{st}'),
+			keyboards.back
+		)
+		await bot.edit_message_caption(
+			chat_id=callback_query.message.chat.id,
+			message_id=callback_query.message.message_id,
+			caption=f">⚙️ *Покупка — {cfg['label']}*\n\n*Выберите способ оплаты:*",
+			parse_mode="MarkdownV2", reply_markup=pay_sel
+		)
+	except Exception as e:
+		print(f"handle_subscription: {e}")
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_usdt_'), state='*')
+async def handle_subscription_usdt(callback_query: types.CallbackQuery):
+	try:
+		user_id = callback_query.from_user.id
+		if not await check_user_in_db(user_id):
+			return
+		st = callback_query.data[len('sub_usdt_'):]
+		if st not in _SUB_MAP:
+			return
+		cfg = _SUB_MAP[st]
+		amount = cfg["usd"]
+		sub_days = cfg["days"]
+		pidor = cfg["label"]
 		invoice = await asyncio.to_thread(crypto.create_invoice, asset='USDT', amount=amount)
 		pay_url = invoice['pay_url']
 		invoice_id = invoice['invoice_id']
@@ -604,7 +633,50 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 			parse_mode="MarkdownV2", reply_markup=pay_check
 		)
 	except Exception as e:
-		print(f"handle_subscription: {e}")
+		print(f"handle_subscription_usdt: {e}")
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('ym_pay_'), state='*')
+async def handle_yoomoney_pay(callback_query: types.CallbackQuery):
+	try:
+		import urllib.parse
+		user_id = callback_query.from_user.id
+		if not await check_user_in_db(user_id):
+			return
+		plan = callback_query.data[len('ym_pay_'):]
+		if plan not in _SUB_MAP:
+			return
+		cfg = _SUB_MAP[plan]
+		rub = cfg["rub"]
+		label = cfg["label"]
+		pay_label = f"sub_{user_id}_{plan}"
+		targets = urllib.parse.quote(f"Подписка Brown V2 {label}", safe='')
+		ym_url = (
+			f"https://yoomoney.ru/quickpay/confirm.xml"
+			f"?receiver={config.YOOMONEY_WALLET}"
+			f"&quickpay-form=button"
+			f"&targets={targets}"
+			f"&sum={rub}"
+			f"&label={pay_label}"
+		)
+		pay_markup = types.InlineKeyboardMarkup(row_width=1)
+		pay_markup.add(
+			types.InlineKeyboardButton(f"💳 Оплатить {rub}₽ через ЮМани", url=ym_url),
+			keyboards.back
+		)
+		await bot.edit_message_caption(
+			chat_id=callback_query.message.chat.id,
+			message_id=callback_query.message.message_id,
+			caption=(
+				f"🇷🇺 *Оплата через ЮMoney — {label}*\n\n"
+				f"*Сумма:* `{rub}₽`\n\n"
+				f"1\\. Нажмите кнопку ниже\n"
+				f"2\\. Оплатите картой или балансом ЮМани\n"
+				f"3\\. Подписка активируется автоматически в течение минуты"
+			),
+			parse_mode="MarkdownV2", reply_markup=pay_markup
+		)
+	except Exception as e:
+		print(f"handle_yoomoney_pay: {e}")
 
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'), state='*')
 async def check_status_callback(callback_query: types.CallbackQuery):

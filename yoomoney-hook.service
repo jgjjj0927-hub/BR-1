@@ -1,0 +1,17 @@
+[Unit]
+Description=Brown V2 — YooMoney webhook receiver
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/PATH/TO/BR
+ExecStart=/usr/bin/python3 /PATH/TO/BR/yoomoney_hook.py
+Restart=always
+RestartSec=5
+Environment=YOOMONEY_SECRET=ВАШ_СЕКРЕТ
+Environment=TOKEN=ВАШ_ТОКЕН_БОТА
+Environment=BOT_LOGS=ВАШ_ЧАТ_ЛОГОВ
+Environment=DATABASE_URL=postgresql://...
+
+[Install]
+WantedBy=multi-user.target
