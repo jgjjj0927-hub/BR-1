@@ -615,6 +615,20 @@ async def pay_crypto_callback(callback_query: types.CallbackQuery):
 	except Exception as e:
 		print(f"pay_crypto_callback: {e}")
 
+async def _create_pay_link(ym_url: str) -> str:
+	try:
+		import aiohttp as _aiohttp
+		async with _aiohttp.ClientSession() as _s:
+			async with _s.post(
+				'http://127.0.0.1:8081/register_pay',
+				json={'url': ym_url},
+				timeout=_aiohttp.ClientTimeout(total=5)
+			) as resp:
+				data = await resp.json()
+				return f"https://br-v2.top/pay/{data['token']}"
+	except Exception:
+		return ym_url
+
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_sbp_'), state='*')
 async def pay_sbp_callback(callback_query: types.CallbackQuery):
 	try:
@@ -633,13 +647,13 @@ async def pay_sbp_callback(callback_query: types.CallbackQuery):
 			f"?receiver={_YM_WALLET}"
 			f"&quickpay-form=shop"
 			f"&targets={targets}"
-			f"&paymentType=SB"
 			f"&sum={amount_rub}"
 			f"&label={label}"
 		)
+		short_url = await _create_pay_link(ym_url)
 		sbp_markup = types.InlineKeyboardMarkup(row_width=1)
 		sbp_markup.add(
-			types.InlineKeyboardButton("💳 Оплатить через СБП", url=ym_url),
+			types.InlineKeyboardButton("💳 Оплатить", url=short_url),
 			types.InlineKeyboardButton("✅ Оплатил", callback_data=f'sbp_paid_{st}'),
 			keyboards.back,
 		)
