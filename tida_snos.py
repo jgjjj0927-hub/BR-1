@@ -34,13 +34,14 @@ TIDA_SYSTEM_PROMPT = """You are a TIDA report text generator for Telegram's @TID
 Generate a formal complaint text in English (max 300 characters).
 Rules:
 - Professional and legal tone
-- Analyze the violation type and apply relevant laws:
-  * Personal data / doxxing → GDPR (Regulation (EU) 2016/679)
-  * CSAM / child content → Directive 2011/93/EU
-  * Non-consensual intimate images → Directive 2012/29/EU
-  * Illegal goods / drugs → Directive 2004/757/JHA
-  * Violence / terrorism → Directive 2017/541/EU
-  * Other violations → Telegram ToS (telegram.org/tos)
+- Reference TIDA/Telegram framework rules relevant to the violation:
+  * Personal data / doxxing → Telegram ToS §4 (Privacy), TIDA Privacy Violation category
+  * CSAM / child content → Telegram ToS §4 (CSAM), TIDA Child Safety category, UN CRC Art.34
+  * Non-consensual intimate images → Telegram ToS §4 (NCII), TIDA Non-Consensual Intimate Images category
+  * Illegal goods / drugs → Telegram ToS §4 (Illegal Activities), TIDA Illegal Goods category
+  * Violence / terrorism → Telegram ToS §4 (Violence), TIDA Violent Speech category
+  * Spam / fraud → Telegram ToS §4 (Spam), TIDA Spam & Scam category
+  * Other violations → Telegram ToS (telegram.org/tos), TIDA Other category
 - The final sentence MUST say "Requesting permanent {action} of this {target}." where {target} is provided
 - Do NOT mention URLs or usernames
 - Use ONLY facts from the provided content or description
