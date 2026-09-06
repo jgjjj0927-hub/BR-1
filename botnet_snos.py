@@ -73,10 +73,11 @@ def format_log_line(session, message_url, status):
     now = now_msk().strftime("%H:%M:%S")
     return f"[{now}] {session}.session -> {message_url} - [{status}]"
 
-async def _report_one_session(session, chat_username, message_id, message_url, whitelist, target_ref):
+async def _report_one_session(session, chat_username, message_id, message_url, whitelist, target_ref, peer_ref):
     """
     Отправляет жалобу от одной сессии.
     target_ref — список [TARGET, target_username], общий для всех задач.
+    peer_ref — список [chat_id | None], кешируем числовой ID канала после первого резолва.
     Возвращает (status: str, flood_seconds: int | None)
     """
     random_api = random.choice(API)
@@ -95,17 +96,36 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
         print(f"[BOTNET] [{session}] ❌ Ошибка открытия сессии: {e}", flush=True)
         return "ОШИБКА СЕССИИ", None
     try:
-        try:
-            await asyncio.wait_for(client.connect(), timeout=3)
-        except asyncio.TimeoutError:
-            print(f"[BOTNET] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)", flush=True)
-            return "ОШИБКА СОЕДИНЕНИЯ", None
+        # Fix 1: timeout 10s; Fix 3: retry on "database is locked"
+        for db_attempt in range(3):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=10)
+                break
+            except asyncio.TimeoutError:
+                print(f"[BOTNET] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)", flush=True)
+                return "ОШИБКА СОЕДИНЕНИЯ", None
+            except Exception as e:
+                if "database is locked" in str(e) and db_attempt < 2:
+                    print(f"[BOTNET] [{session}] 🔒 database is locked, retry {db_attempt + 1}...", flush=True)
+                    await asyncio.sleep(random.uniform(1, 2))
+                else:
+                    raise
 
         if not await client.is_user_authorized():
             print(f"[BOTNET] [{session}] ❌ НЕВАЛИД (не авторизован)", flush=True)
             return "НЕВАЛИД", None
 
-        chat = await client.get_entity(chat_username)
+        # Fix 2: резолвим канал один раз, остальные используют числовой ID
+        try:
+            chat = await client.get_entity(chat_username)
+            if peer_ref[0] is None:
+                peer_ref[0] = chat.id
+        except Exception as e:
+            if peer_ref[0] is not None and "No user has" in str(e):
+                print(f"[BOTNET] [{session}] ⚠️ Username не резолвится, используем peer_id={peer_ref[0]}", flush=True)
+                chat = await client.get_entity(peer_ref[0])
+            else:
+                raise
         print(f"[BOTNET] [{session}] ✅ Подключён, чат получен: {chat_username}", flush=True)
 
         # Получаем TARGET только один раз (первая сессия, которая успела)
@@ -218,13 +238,14 @@ async def main(chat_username, message_id, user, username, message_url):
 
     # Общий изменяемый объект для TARGET между параллельными задачами
     target_ref = [None, "Неизвестный пользователь"]
+    peer_ref = [None]  # кешируем числовой ID канала после первого резолва
 
     # Запускаем сессии пачками по 8 с задержкой 3-5 сек между пачками
     BATCH_SIZE = 8
     results = []
     for i in range(0, len(_sessions), BATCH_SIZE):
         batch = _sessions[i:i + BATCH_SIZE]
-        batch_tasks = [_report_one_session(s, chat_username, message_id, message_url, whitelist, target_ref) for s in batch]
+        batch_tasks = [_report_one_session(s, chat_username, message_id, message_url, whitelist, target_ref, peer_ref) for s in batch]
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
         results.extend(zip(batch, batch_results))
         if i + BATCH_SIZE < len(_sessions):

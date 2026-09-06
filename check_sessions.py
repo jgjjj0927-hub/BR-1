@@ -131,6 +131,8 @@ async def main():
     checked = list(checked)
 
     ok_count = 0
+    invalid_count = 0
+    error_count = 0
     bad_list = []
 
     # Извлекаем числовой ID из имени файла для сортировки
@@ -161,14 +163,17 @@ async def main():
             num  = parts[2] if len(parts) > 2 else "-"
         elif status == "invalid":
             icon = "❌"
+            invalid_count += 1
             bad_list.append((path, folder, filename, status, info))
             nick, uz, num = "не авторизован", "-", "-"
         elif status == "banned":
             icon = "🚫"
+            invalid_count += 1
             bad_list.append((path, folder, filename, status, info))
             nick, uz, num = "забанен/удалён", "-", "-"
         else:
             icon = "⚠️ "
+            error_count += 1
             bad_list.append((path, folder, filename, status, info))
             nick, uz, num = info[:30], "-", "-"
 
@@ -178,7 +183,8 @@ async def main():
     print("-" * 130)
     print(f"\n{'='*60}")
     print(f"✅ Валидных   : {ok_count}")
-    print(f"❌ Невалидных : {len(bad_list)}")
+    print(f"❌ Невалидных : {invalid_count}")
+    print(f"⚠️  Ошибок     : {error_count}")
     print(f"📦 Всего      : {total}\n")
 
     if not bad_list:
@@ -186,7 +192,7 @@ async def main():
         return
 
     # Спрашиваем об удалении
-    print(f"\nНевалидных сессий: {len(bad_list)}")
+    print(f"\nНевалидных сессий: {invalid_count} (+ {error_count} ошибок соединения)")
     print("Удалить все невалидные? (y/n/s - выбрать конкретные): ", end="", flush=True)
     choice = input().strip().lower()
 
