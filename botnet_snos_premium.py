@@ -1120,17 +1120,23 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
 
         if target_ref[0] is None:
             msg = await client.get_messages(chat, ids=message_id)
-            if msg.from_id is not None:
-                user_entity = await client.get_entity(msg.from_id)
-                target_ref[0] = msg.from_id.user_id if isinstance(msg.from_id, PeerUser) else "?"
-                target_ref[1] = user_entity.username or "Нет username"
-                print(f"[PREM] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, @{target_ref[1]}", flush=True)
-                if target_ref[0] in whitelist:
-                    print(f"[PREM] [{session}] 🍕 WHITELIST — таргет в белом списке", flush=True)
-                    return "WHITELIST", None
+            if msg is not None and msg.from_id is not None:
+                try:
+                    user_entity = await client.get_entity(msg.from_id)
+                    target_ref[0] = msg.from_id.user_id if isinstance(msg.from_id, PeerUser) else "?"
+                    target_ref[1] = user_entity.username or "Нет username"
+                    print(f"[PREM] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, @{target_ref[1]}", flush=True)
+                    if target_ref[0] in whitelist:
+                        print(f"[PREM] [{session}] 🍕 WHITELIST — таргет в белом списке", flush=True)
+                        return "WHITELIST", None
+                except Exception:
+                    target_ref[0] = "anon"
+                    target_ref[1] = "Анонимный"
             else:
-                print(f"[PREM] [{session}] ⚠️ NO_ID — не удалось получить from_id сообщения", flush=True)
-                return "NO_ID", None
+                # Анонимный пост или канальное сообщение — продолжаем репорт
+                target_ref[0] = "anon"
+                target_ref[1] = "Анонимный"
+                print(f"[PREM] [{session}] ⚠️ from_id=None (анонимный/канал) — продолжаем репорт", flush=True)
 
         # Получаем список причин от сервера динамически (3-шаговый флоу)
         try:
@@ -1241,14 +1247,9 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
             except:
                 pass
             return
-        elif status == "NO_ID":
-            print(f"[PREM] ⚠️ Не удалось получить ID пользователя", flush=True)
-            await bot.send_message(user, "🍕 *Не удалось получить ID пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
-            return
-        elif status == "NOT_FOUND":
-            print(f"[PREM] ❌ Не могу получить ID — NOT_FOUND", flush=True)
-            await bot.send_message(user, "🍕 *Не могу получить ID этого пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
-            return
+        elif status in ("NO_ID", "NOT_FOUND"):
+            ne_valid += 1
+            log_lines.append(format_log_line(session, message_url, status))
         elif status == "ДОСТАВЛЕНО":
             valid += 1
             log_lines.append(format_log_line(session, message_url, "ДОСТАВЛЕНО"))
