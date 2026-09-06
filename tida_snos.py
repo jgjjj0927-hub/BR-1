@@ -394,14 +394,25 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
     return success
 
 
-async def _single_session_flow(session_path: str, target: str, custom_text: str, proxy=None) -> bool:
+async def _single_session_flow(session_path: str, target: str, custom_text: str, proxy=None, tida_peer_ref=None) -> bool:
     session_name = os.path.basename(session_path)
+    if tida_peer_ref is None:
+        tida_peer_ref = [None]
     client = await _create_client(session_path, proxy)
     if not client:
         return False
 
     try:
-        bot_entity = await client.get_entity("TIDABOT")
+        try:
+            bot_entity = await client.get_entity("TIDABOT")
+            if tida_peer_ref[0] is None:
+                tida_peer_ref[0] = bot_entity.id
+        except Exception as e:
+            if tida_peer_ref[0] is not None and "No user has" in str(e):
+                bot_entity = await client.get_entity(tida_peer_ref[0])
+            else:
+                logger.error(f"[TIDA] [{session_name}] Не найден TIDABOT: {e}")
+                return False
         logger.info(f"[TIDA] [{session_name}] Бот найден")
 
         success = await _send_one_report(client, bot_entity, target, custom_text, 1)
@@ -443,7 +454,8 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
 
     logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {'есть' if proxy else 'нет'}")
 
-    results = await asyncio.gather(*[_single_session_flow(s, target, custom_text, proxy) for s in sessions], return_exceptions=True)
+    tida_peer_ref = [None]
+    results = await asyncio.gather(*[_single_session_flow(s, target, custom_text, proxy, tida_peer_ref) for s in sessions], return_exceptions=True)
     successful = sum(1 for r in results if r is True)
 
     logger.info(f"[TIDA] 🏁 Итог: {successful}/{total}")
