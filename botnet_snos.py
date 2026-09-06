@@ -194,7 +194,7 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
             await client.disconnect()
 
 
-async def main(chat_username, message_id, user, username, message_url):
+async def main(chat_username, message_id, user, username, message_url, _log_user=None):
     # Получаем вайтлист из PostgreSQL (db.py)
     try:
         import db as db_module
