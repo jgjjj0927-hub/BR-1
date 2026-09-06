@@ -148,28 +148,45 @@ def format_log_line(session, target, status):
     return f"[{now}] {session}.session -> {target} - [{status}]"
 
 
-async def _report_one_channel_session(session, channel_username, reason_key, message_id=None):
+async def _report_one_channel_session(session, channel_username, reason_key, message_id=None, peer_ref=None):
     """Отправляет жалобу на канал от одной сессии."""
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":", 1)
     reason_main, _ = CHANNEL_REASONS[reason_key]
+    if peer_ref is None:
+        peer_ref = [None]
 
     client = TelegramClient(
         f"./sessions/{session}", int(api_id), api_hash,
         system_version='4.16.30-vxCUSTOM'
     )
     try:
-        try:
-            await asyncio.wait_for(client.connect(), timeout=8)
-        except asyncio.TimeoutError:
-            print(f"[CH-SNOS] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ", flush=True)
-            return "ОШИБКА СОЕДИНЕНИЯ"
+        for db_attempt in range(3):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=10)
+                break
+            except asyncio.TimeoutError:
+                print(f"[CH-SNOS] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ", flush=True)
+                return "ОШИБКА СОЕДИНЕНИЯ"
+            except Exception as e:
+                if "database is locked" in str(e) and db_attempt < 2:
+                    await asyncio.sleep(random.uniform(1, 2))
+                else:
+                    raise
 
         if not await client.is_user_authorized():
             print(f"[CH-SNOS] [{session}] ❌ НЕВАЛИД", flush=True)
             return "НЕВАЛИД"
 
-        peer = await client.get_entity(channel_username)
+        try:
+            peer = await client.get_entity(channel_username)
+            if peer_ref[0] is None:
+                peer_ref[0] = peer.id
+        except Exception as e:
+            if peer_ref[0] is not None and "No user has" in str(e):
+                peer = await client.get_entity(peer_ref[0])
+            else:
+                raise
         print(f"[CH-SNOS] [{session}] ✅ Подключён к {channel_username}", flush=True)
 
         # Fallback причина
@@ -240,7 +257,7 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
             await client.disconnect()
 
 
-async def main_channel_snos(channel_username, reason_key, user, username, message_id=None):
+async def main_channel_snos(channel_username, reason_key, user, username, message_id=None, _log_user=None):
     """Главная функция жалоб на канал."""
     reason_label = CHANNEL_REASON_LABELS.get(reason_key, reason_key)
     _sessions = _get_sessions()
@@ -280,10 +297,11 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
     print(f"{'='*50}", flush=True)
 
     BATCH_SIZE = 8
+    peer_ref = [None]
     results = []
     for i in range(0, len(_sessions), BATCH_SIZE):
         batch = _sessions[i:i + BATCH_SIZE]
-        batch_tasks = [_report_one_channel_session(s, channel_username, reason_key, message_id) for s in batch]
+        batch_tasks = [_report_one_channel_session(s, channel_username, reason_key, message_id, peer_ref) for s in batch]
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
         results.extend(zip(batch, batch_results))
         if i + BATCH_SIZE < len(_sessions):

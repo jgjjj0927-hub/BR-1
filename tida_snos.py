@@ -300,7 +300,18 @@ async def _create_client(session_path: str, proxy=None):
         api_hash = config.TIDA_API_HASH
         client = TelegramClient(session_path, api_id, api_hash, proxy=proxy,
                                 system_version='4.16.30-vxCUSTOM')
-        await asyncio.wait_for(client.connect(), timeout=15)
+        for db_attempt in range(3):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=15)
+                break
+            except asyncio.TimeoutError:
+                logger.warning(f"[TIDA] Таймаут подключения {session_path}")
+                return None
+            except Exception as e:
+                if "database is locked" in str(e) and db_attempt < 2:
+                    await asyncio.sleep(random.uniform(1, 2))
+                else:
+                    raise
         if not await client.is_user_authorized():
             await client.disconnect()
             return None
@@ -404,7 +415,7 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
             pass
 
 
-async def main_tida(target_link: str, custom_text: str, user: int, username: str):
+async def main_tida(target_link: str, custom_text: str, user: int, username: str, _log_user=None):
     sessions = _get_sessions()
     if not sessions:
         await bot.send_message(user,

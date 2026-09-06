@@ -1076,7 +1076,7 @@ def format_log_line(session, message_url, status):
     now = now_msk().strftime("%H:%M:%S")
     return f"[{now}] {session}.session -> {message_url} - [{status}]"
 
-async def _report_one_session_prem(session, chat_username, message_id, message_url, whitelist, target_ref):
+async def _report_one_session_prem(session, chat_username, message_id, message_url, whitelist, target_ref, peer_ref):
     """Параллельная отправка жалобы от одной премиум-сессии."""
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":", 1)
@@ -1090,17 +1090,32 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
         system_version='4.16.30-vxCUSTOM'
     )
     try:
-        try:
-            await asyncio.wait_for(client.connect(), timeout=6)
-        except asyncio.TimeoutError:
-            print(f"[PREM] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)", flush=True)
-            return "ОШИБКА СОЕДИНЕНИЯ", None
+        for db_attempt in range(3):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=10)
+                break
+            except asyncio.TimeoutError:
+                print(f"[PREM] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)", flush=True)
+                return "ОШИБКА СОЕДИНЕНИЯ", None
+            except Exception as e:
+                if "database is locked" in str(e) and db_attempt < 2:
+                    await asyncio.sleep(random.uniform(1, 2))
+                else:
+                    raise
 
         if not await client.is_user_authorized():
             print(f"[PREM] [{session}] ❌ НЕВАЛИД (не авторизован)", flush=True)
             return "НЕВАЛИД", None
 
-        chat = await client.get_entity(chat_username)
+        try:
+            chat = await client.get_entity(chat_username)
+            if peer_ref[0] is None:
+                peer_ref[0] = chat.id
+        except Exception as e:
+            if peer_ref[0] is not None and "No user has" in str(e):
+                chat = await client.get_entity(peer_ref[0])
+            else:
+                raise
         print(f"[PREM] [{session}] ✅ Подключён, чат получен: {chat_username}", flush=True)
 
         if target_ref[0] is None:
@@ -1164,7 +1179,7 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
             await client.disconnect()
 
 
-async def main2(chat_username, message_id, user, username, message_url):
+async def main2(chat_username, message_id, user, username, message_url, _log_user=None):
     # Получаем вайтлист из PostgreSQL (db.py)
     try:
         import db as db_module
@@ -1185,13 +1200,14 @@ async def main2(chat_username, message_id, user, username, message_url):
     print(f"{'='*50}", flush=True)
 
     target_ref = [None, "Неизвестный пользователь"]
+    peer_ref = [None]
 
     # Запускаем сессии пачками по 8 с задержкой 3-5 сек между пачками
     BATCH_SIZE = 8
     results = []
     for i in range(0, len(_sessions), BATCH_SIZE):
         batch = _sessions[i:i + BATCH_SIZE]
-        batch_tasks = [_report_one_session_prem(s, chat_username, message_id, message_url, whitelist, target_ref) for s in batch]
+        batch_tasks = [_report_one_session_prem(s, chat_username, message_id, message_url, whitelist, target_ref, peer_ref) for s in batch]
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
         results.extend(zip(batch, batch_results))
         if i + BATCH_SIZE < len(_sessions):

@@ -199,11 +199,18 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
         logger.warning(f"[BOT-SNOS] [{session_name}] failed to open session: {e}")
         return 0
     try:
-        try:
-            await asyncio.wait_for(client.connect(), timeout=10)
-        except asyncio.TimeoutError:
-            logger.warning(f"[BOT-SNOS] [{session_name}] timeout")
-            return 0
+        for db_attempt in range(3):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=10)
+                break
+            except asyncio.TimeoutError:
+                logger.warning(f"[BOT-SNOS] [{session_name}] timeout")
+                return 0
+            except Exception as e:
+                if "database is locked" in str(e) and db_attempt < 2:
+                    await asyncio.sleep(random.uniform(1, 2))
+                else:
+                    raise
 
         if not await client.is_user_authorized():
             logger.warning(f"[BOT-SNOS] [{session_name}] not authorized")
@@ -252,7 +259,7 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
             pass
 
 
-async def main_bot_snos(bot_username, reason_key, user, username, bot_url):
+async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_user=None):
     from aiogram import types as aiogram_types
 
     # Проверка белого списка
