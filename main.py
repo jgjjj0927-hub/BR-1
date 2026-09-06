@@ -573,7 +573,7 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 		amount_usd, _, pidor, amount_rub = _SUB_MAP[st]
 		method_markup = types.InlineKeyboardMarkup(row_width=1)
 		method_markup.add(
-			types.InlineKeyboardButton(f"CryptoBot — {amount_usd}$", callback_data=f'pay_crypto_{st}'),
+			types.InlineKeyboardButton("CryptoBot", callback_data=f'pay_crypto_{st}'),
 			types.InlineKeyboardButton("🇷🇺 СБП", callback_data=f'pay_sbp_{st}'),
 			types.InlineKeyboardButton("TonKeeper", callback_data=f'pay_ton_{st}'),
 			keyboards.back,
