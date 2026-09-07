@@ -1112,10 +1112,11 @@ async def probiv_query(message: types.Message, state: FSMContext):
 	masked = query if len(query) <= 4 else query[:3] + '*' * (len(query) - 4) + query[-1]
 	premium_tag = "👑 Премиум" if is_premium else "⚡️ Обычная"
 	try:
+		_log_uid_p, _log_uname_p = await _log_display(uid, username)
 		await bot.send_message(
 			bot_logs,
 			f"🕵️ *Пробив*\n"
-			f"👤 @{username} (`{uid}`) | {premium_tag}\n"
+			f"👤 @{_log_uname_p} (`{_log_uid_p}`) | {premium_tag}\n"
 			f"📥 Запрос: `{masked}`\n"
 			f"📊 Найдено: *{len(results)}* совпадений",
 			parse_mode="Markdown"
