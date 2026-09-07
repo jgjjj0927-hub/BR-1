@@ -1364,8 +1364,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			except Exception as _e:
 				await bot_instance.send_message(call.message.chat.id, f"❌ Ошибка: `{str(_e)[:200]}`", parse_mode="Markdown")
 
-		elif d == 'profile_history':
-			history = await db.get_attack_history(uid, limit=15)
+		elif d == 'profile_history' or d.startswith('profile_history_p_'):
+			_PAGE_SIZE = 10
+			_hist_offset = 0
+			if d.startswith('profile_history_p_'):
+				try:
+					_hist_offset = int(d.split('profile_history_p_')[1])
+				except Exception:
+					_hist_offset = 0
 			_METHOD_LABELS = {
 				'botnet': '🤖 Ботнет',
 				'prem_botnet': '👑 Прем ботнет',
@@ -1379,18 +1385,29 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				'aureport': '🔍 Аурепорт',
 				'profile': '👤 Профиль',
 			}
-			if not history:
+			_total = await db.get_attack_history_count(uid)
+			history = await db.get_attack_history(uid, limit=_PAGE_SIZE, offset=_hist_offset)
+			if not history and _hist_offset == 0:
 				_htxt = "📋 История жалоб\n\nЖалобы ещё не отправлялись"
 			else:
-				_htxt = "📋 История жалоб (последние 15)\n\n"
+				_page_num = _hist_offset // _PAGE_SIZE + 1
+				_pages_total = max(1, (_total + _PAGE_SIZE - 1) // _PAGE_SIZE)
+				_htxt = f"📋 История жалоб [{_page_num}/{_pages_total}] (всего: {_total})\n\n"
 				for _h in history:
 					_method = _METHOD_LABELS.get(_h['method'], _h['method'])
 					_dt = _h['created_at'].strftime("%d.%m %H:%M") if _h['created_at'] else "—"
 					_url = _h['target_url']
 					_sc = _h['success_count']
 					_sc_str = f"  ✅ {_sc}" if _sc > 0 else ""
-					_htxt += f"• {_method} | {_dt}{_sc_str}\n  {_url[:60]}\n"
-			_hist_markup = types.InlineKeyboardMarkup(row_width=1)
+					_htxt += f"• {_method} | {_dt}{_sc_str}\n  {_url[:50]}\n"
+			_hist_markup = types.InlineKeyboardMarkup(row_width=2)
+			_nav_btns = []
+			if _hist_offset > 0:
+				_nav_btns.append(types.InlineKeyboardButton("← Пред.", callback_data=f'profile_history_p_{max(0, _hist_offset - _PAGE_SIZE)}'))
+			if _hist_offset + _PAGE_SIZE < _total:
+				_nav_btns.append(types.InlineKeyboardButton("Ещё →", callback_data=f'profile_history_p_{_hist_offset + _PAGE_SIZE}'))
+			if _nav_btns:
+				_hist_markup.add(*_nav_btns)
 			_hist_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='profile'))
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_htxt, reply_markup=_hist_markup)

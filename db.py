@@ -1003,14 +1003,21 @@ async def log_attack(user_id: int, target_url: str, method: str, success_count: 
         )
 
 
-async def get_attack_history(user_id: int, limit: int = 15) -> list:
+async def get_attack_history(user_id: int, limit: int = 10, offset: int = 0) -> list:
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT target_url, method, success_count, created_at FROM attack_log WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
-            user_id, limit
+            "SELECT target_url, method, success_count, created_at FROM attack_log WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+            user_id, limit, offset
         )
         return [dict(r) for r in rows]
+
+
+async def get_attack_history_count(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT COUNT(*) as cnt FROM attack_log WHERE user_id = $1", user_id)
+        return row["cnt"] if row else 0
 
 
 # ─── Уведомления об истечении подписки ───────────────────────────────────────
