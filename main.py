@@ -19,6 +19,7 @@ from botnet_snos import extract_username_and_message_id, main as botnet_main, se
 from botnet_snos_premium import extract_username_and_message_id2, main2 as botnet_main2, set_bot2 as botnet_set_bot2
 from bot_snos import main_bot_snos, set_bot_snos, detect_bot_type
 from captcha import generate_captcha_text, generate_captcha_image
+from translations import t
 from mirror_manager import validate_token, start_mirror, start_all_mirrors
 from bot_stress import main_bot_stress, set_bot_stress
 from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABELS
@@ -251,9 +252,14 @@ async def check_subscription(uid: int, bot_instance=None) -> bool:
 	sub2 = await subsribe_channel(uid, channel2_id)
 	return sub1 and sub2
 
-async def send_subscribe_required(uid: int, bot_instance=None):
+async def send_subscribe_required(uid: int, bot_instance=None, lang: str = None):
 	"""Отправляет сообщение с требованием подписки."""
 	b = bot_instance or bot
+	if lang is None:
+		try:
+			lang = await db.get_lang(uid)
+		except Exception:
+			lang = 'ru'
 	try:
 		import time as _time
 		expire = int(_time.time()) + 60
@@ -266,13 +272,11 @@ async def send_subscribe_required(uid: int, bot_instance=None):
 		invite2 = config.bot_channel2_link
 	markup = types.InlineKeyboardMarkup(row_width=1)
 	markup.add(
-		types.InlineKeyboardButton("[1️⃣] Подпишись (1 мин)", url=invite1),
-		types.InlineKeyboardButton("[2️⃣] Подпишись (1 мин)", url=invite2),
-		types.InlineKeyboardButton("[🔎] Проверить", callback_data='start_check_sub')
+		types.InlineKeyboardButton(t('sub_btn_1', lang), url=invite1),
+		types.InlineKeyboardButton(t('sub_btn_2', lang), url=invite2),
+		types.InlineKeyboardButton(t('sub_btn_check', lang), callback_data='start_check_sub')
 	)
-	await b.send_message(uid,
-		"*⚠️ Для использования бота подпишитесь на каналы!*\n*└─ Ссылки действуют 1 минуту*",
-		parse_mode="Markdown", reply_markup=markup)
+	await b.send_message(uid, t('sub_required', lang), parse_mode="Markdown", reply_markup=markup)
 
 # ─── FSM ──────────────────────────────────────────────────────────────────────
 
@@ -816,29 +820,35 @@ async def welcome(message: types.Message, state: FSMContext):
 	await db.add_user(uid, message.from_user.username or '')
 
 	if not await is_verified(uid):
+		ref_arg = None
 		if is_new:
 			args = message.get_args()
 			if args and args.startswith("ref_"):
-				_pending_refs[uid] = args
-		lang_markup = types.InlineKeyboardMarkup(row_width=2)
-		lang_markup.add(
-			types.InlineKeyboardButton("🇷🇺 Русский", callback_data='lang_select_ru'),
-			types.InlineKeyboardButton("🇬🇧 English", callback_data='lang_select_en'),
-		)
-		await bot.send_message(uid,
-			"🌐 *Выберите язык | Choose the language*",
-			parse_mode="Markdown",
-			reply_markup=lang_markup
-		)
+				ref_arg = args
+		try:
+			code = generate_captcha_text()
+			_captcha_codes[uid] = code
+			await state.set_state(WaitCaptchaFSM.code)
+			await state.update_data(ref_arg=ref_arg)
+			await bot.send_photo(uid, photo=generate_captcha_image(code),
+				caption=t('captcha_prompt'), parse_mode="Markdown")
+		except Exception as e:
+			print(f"[CAPTCHA] Ошибка генерации: {e}", flush=True)
+			await bot.send_message(uid, t('captcha_error'), parse_mode="Markdown")
 		return
 	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 	# Проверяем подписку перед показом меню
+	lang = 'ru'
+	try:
+		lang = await db.get_lang(uid)
+	except Exception:
+		pass
 	if not await check_subscription(uid):
-		await send_subscribe_required(uid)
+		await send_subscribe_required(uid, lang=lang)
 		return
 	await send_and_pin_site_msg(uid)
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-		caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+		caption=t('menu_caption', lang),
 		parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 
 @dp.message_handler(state=WaitCaptchaFSM.code)
@@ -867,25 +877,22 @@ async def check_captcha(message: types.Message, state: FSMContext):
 			except (ValueError, Exception):
 				pass
 
-		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
-		# Проверяем подписку после капчи
-		if not await check_subscription(uid):
-			await send_subscribe_required(uid)
-			return
-		# Закреплённое сообщение после капчи
-		await send_and_pin_site_msg(uid)
-		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-			caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
-			parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
+		# После капчи показываем выбор языка
+		lang_markup = types.InlineKeyboardMarkup(row_width=2)
+		lang_markup.add(
+			types.InlineKeyboardButton("🇷🇺 Русский", callback_data='lang_select_ru'),
+			types.InlineKeyboardButton("🇬🇧 English", callback_data='lang_select_en'),
+		)
+		await bot.send_message(uid, t('captcha_ok_lang'), parse_mode="Markdown", reply_markup=lang_markup)
 	else:
 		try:
 			code = generate_captcha_text()
 			_captcha_codes[uid] = code
 			await bot.send_photo(uid, photo=generate_captcha_image(code),
-				caption="*❌ Неверно! Попробуй ещё раз:*", parse_mode="Markdown")
+				caption=t('captcha_wrong'), parse_mode="Markdown")
 		except Exception as e:
 			print(f"[CAPTCHA] Ошибка повторной генерации: {e}", flush=True)
-			await bot.send_message(uid, "❌ *Ошибка генерации капчи. Попробуйте /start снова.*", parse_mode="Markdown")
+			await bot.send_message(uid, t('captcha_error'), parse_mode="Markdown")
 
 
 @dp.callback_query_handler(lambda c: c.data in ('lang_select_ru', 'lang_select_en'), state='*')
@@ -894,31 +901,17 @@ async def handle_lang_select(call: types.CallbackQuery, state: FSMContext):
 	lang = 'ru' if call.data == 'lang_select_ru' else 'en'
 	await set_verified(uid)
 	await db.set_lang(uid, lang)
-	ref_arg = _pending_refs.pop(uid, None)
-	if ref_arg and ref_arg.startswith("ref_"):
-		try:
-			referrer_id = int(ref_arg[4:])
-			if referrer_id != uid and await db.user_exists(referrer_id):
-				await db.set_referrer(uid, referrer_id)
-				new_count = await db.increment_referral_count(referrer_id)
-				await bot.send_message(
-					referrer_id,
-					f"👥 *По вашей ссылке зарегистрировался новый пользователь!*\n*└─ Всего рефералов: {new_count}*",
-					parse_mode="Markdown"
-				)
-		except (ValueError, Exception):
-			pass
 	try:
 		await call.message.delete()
 	except Exception:
 		pass
 	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 	if not await check_subscription(uid):
-		await send_subscribe_required(uid)
+		await send_subscribe_required(uid, lang=lang)
 		return
 	await send_and_pin_site_msg(uid)
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-		caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+		caption=t('menu_caption', lang),
 		parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 
 
@@ -1147,6 +1140,11 @@ async def probiv_query(message: types.Message, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data == 'start_check_sub', state='*')
 async def start_check_sub_callback(call: types.CallbackQuery):
 	uid = call.from_user.id
+	lang = 'ru'
+	try:
+		lang = await db.get_lang(uid)
+	except Exception:
+		pass
 	if await check_subscription(uid):
 		try:
 			await bot.delete_message(uid, call.message.message_id)
@@ -1154,10 +1152,10 @@ async def start_check_sub_callback(call: types.CallbackQuery):
 			pass
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
-			caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+			caption=t('menu_caption', lang),
 			parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 	else:
-		await bot.answer_callback_query(call.id, "❌ Вы ещё не подписались!", show_alert=True)
+		await bot.answer_callback_query(call.id, t('sub_check_fail', lang).replace('*', ''), show_alert=True)
 
 # ─── Главный callback хендлер ─────────────────────────────────────────────────
 
@@ -1297,6 +1295,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		# Кнопка проверки подписки — обрабатываем здесь тоже (для зеркал)
 		if d == 'start_check_sub':
+			_lang = 'ru'
+			try:
+				_lang = await db.get_lang(uid)
+			except Exception:
+				pass
 			if await check_subscription(uid):
 				try:
 					await bot_instance.delete_message(uid, call.message.message_id)
@@ -1304,10 +1307,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					pass
 				await bot_instance.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 				await bot_instance.send_photo(uid, photo=open('material/menu.png', 'rb'),
-					caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+					caption=t('menu_caption', _lang),
 					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 			else:
-				await bot_instance.answer_callback_query(call.id, "❌ Вы ещё не подписались!", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('sub_check_fail', _lang).replace('*', ''), show_alert=True)
 			return
 
 		if d == 'functions':
