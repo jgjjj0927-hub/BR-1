@@ -339,6 +339,14 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
     with open(log_path, "w", encoding="utf-8") as f:
         f.write("\n".join(log_lines))
 
+    try:
+        import db as _db_mod
+        _is_hid = await _db_mod.get_is_hidden(user)
+        _log_uid = "\u0441\u043a\u0440\u044b\u0442" if _is_hid else str(user)
+        _log_uname = "\u0441\u043a\u0440\u044b\u0442" if _is_hid else username
+    except Exception:
+        _log_uid, _log_uname = str(user), username
+
     bot_url_escaped = bot_url.replace('_', '\\_')
     caption_user = (
         f"*\U0001f916 \u0411\u043e\u0442-\u043c\u0435\u0442\u043e\u0434 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043d!*\n\n"
@@ -352,7 +360,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
         f"*\U0001f3af \u0426\u0435\u043b\u044c:* {bot_url_escaped}\n"
         f"*\U0001f550 \u0412\u0440\u0435\u043c\u044f:* {now_str}\n"
         f"\U0001f7e2 {successful} | \U0001f534 {total - successful}\n"
-        f"\U0001f464 {user} (@{username})"
+        f"\U0001f464 {_log_uid} (@{_log_uname})"
     )
 
     try:

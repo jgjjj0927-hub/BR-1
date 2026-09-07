@@ -1292,11 +1292,19 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
         f"🟢 *Успешно отправлено: {valid}*\n"
         f"🔴 *Не удалось отправить: {ne_valid}*"
     )
+    try:
+        import db as _db_mod
+        _is_hid = await _db_mod.get_is_hidden(user)
+        _log_uid = "скрыт" if _is_hid else str(user)
+        _log_uname = "скрыт" if _is_hid else username
+    except Exception:
+        _log_uid, _log_uname = str(user), username
+
     caption_log = (
         f"📈 *Бот завершил работу*\n* └─📂 Метод: B0tN3t-method [PREMIUM]*\n\n"
         f"🎯 *Таргет*\n*└─ ID: {TARGET}*\n*└─ USERNAME: @{target_username}*\n\n"
         f"🟢 *Успешно отправлено: {valid}*\n🔴 *Не удалось отправить: {ne_valid}*\n\n"
-        f"⛓️‍💥 *Ссылка:* [тык]({message_url})\n👤 *Пользователь:* {user} (@{username})"
+        f"⛓️‍💥 *Ссылка:* [тык]({message_url})\n👤 *Пользователь:* {_log_uid} (@{_log_uname})"
     )
 
     try:

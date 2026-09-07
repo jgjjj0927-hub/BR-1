@@ -54,6 +54,7 @@ async def init_db():
             ("manual_confirmed", "INT DEFAULT 0"),
             ("lang", "TEXT DEFAULT 'ru'"),
             ("sub_expiry_notified", "BOOLEAN DEFAULT FALSE"),
+            ("is_hidden", "BOOLEAN DEFAULT TRUE"),
         ]:
             try:
                 await conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
@@ -1093,3 +1094,20 @@ async def record_probiv_request(user_id: int, now_dt):
                    SET last_request_at = $2, hour_count = $3, hour_window_start = $4""",
                 user_id, now_dt, new_count, new_window
             )
+
+
+async def get_is_hidden(user_id: int) -> bool:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT is_hidden FROM users WHERE user_id = $1", user_id)
+        return bool(row["is_hidden"]) if row else False
+
+
+async def toggle_hidden(user_id: int) -> bool:
+    """Переключает is_hidden, возвращает новое значение."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT is_hidden FROM users WHERE user_id = $1", user_id)
+        new_val = not bool(row["is_hidden"]) if row else True
+        await conn.execute("UPDATE users SET is_hidden = $1 WHERE user_id = $2", new_val, user_id)
+        return new_val

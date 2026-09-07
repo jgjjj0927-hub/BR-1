@@ -359,13 +359,21 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
         + f"\n🟢 *Успешно: {valid}*\n"
         f"🔴 *Не удалось: {ne_valid}*"
     )
+    try:
+        import db as _db_mod
+        _is_hid = await _db_mod.get_is_hidden(user)
+        _log_uid = "скрыт" if _is_hid else str(user)
+        _log_uname = "скрыт" if _is_hid else username
+    except Exception:
+        _log_uid, _log_uname = str(user), username
+
     caption_log = (
         f"📈 *Канал-метод завершён*\n"
         f"*└─ Цель: {channel_username}*\n"
         + (f"*└─ Сообщение: #{message_id}*\n" if message_id else "")
         + f"*└─ Причина: {reason_label}*\n\n"
         f"🟢 *Успешно: {valid}*\n🔴 *Не удалось: {ne_valid}*\n\n"
-        f"👤 *Пользователь:* {user} (@{username})"
+        f"👤 *Пользователь:* {_log_uid} (@{_log_uname})"
     )
 
     try:

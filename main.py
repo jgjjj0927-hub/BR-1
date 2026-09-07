@@ -153,11 +153,37 @@ async def _offer_monitor(bot_instance, uid: int, target: str, premium: int, subs
         )
     except Exception:
         pass
+    try:
+        is_hidden = await db.get_is_hidden(uid)
+        if is_hidden:
+            _hide_markup = types.InlineKeyboardMarkup(row_width=2)
+            _hide_markup.add(
+                types.InlineKeyboardButton("Понял", callback_data='hidden_notice_ok'),
+                types.InlineKeyboardButton("Раскрыть", callback_data='reveal_self'),
+            )
+            await bot_instance.send_message(
+                uid,
+                "👁 *Внимание, вы скрыты в логах.*\n_Ваши отправки будут анонимными в логах._",
+                parse_mode="Markdown",
+                reply_markup=_hide_markup
+            )
+    except Exception:
+        pass
 user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
 _captcha_codes: dict = {}
 _pending_refs: dict = {}  # uid -> ref_arg during lang select
+
+
+async def _log_display(uid: int, username: str) -> tuple[str, str]:
+    """Возвращает (display_uid, display_username) с учётом скрытия в логах."""
+    try:
+        if await db.get_is_hidden(uid):
+            return "скрыт", "скрыт"
+    except Exception:
+        pass
+    return str(uid), username
 
 async def send_and_pin_site_msg(uid: int):
 	try:
@@ -1295,10 +1321,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			prem = "Да" if premium == 1 else "Нет"
 			free_reports = await db.get_free_reports(uid)
 			ref_count = await db.get_referral_count(uid)
+			is_hidden = await db.get_is_hidden(uid)
+			hide_btn_text = "👁 Скрыть себя ✅" if is_hidden else "👁 Скрыть себя ❌"
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
 			_profile_markup.add(
 				types.InlineKeyboardButton("📋 История жалоб", callback_data='profile_history'),
 				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
+				types.InlineKeyboardButton(hide_btn_text, callback_data='profile_toggle_hidden'),
 				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
 			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
@@ -1367,6 +1396,43 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			except Exception:
 				await bot_instance.edit_message_text(_htxt, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=_hist_markup)
 
+		elif d == 'profile_toggle_hidden':
+			new_hidden = await db.toggle_hidden(uid)
+			await call.answer("✅ Скрыт в логах" if new_hidden else "❌ Виден в логах", show_alert=False)
+			# Перерисовываем профиль
+			sub_text = "Истекла" if subscribe < now_msk() else f"осталось {(subscribe - now_msk()).days} дней"
+			prem = "Да" if premium == 1 else "Нет"
+			free_reports = await db.get_free_reports(uid)
+			ref_count = await db.get_referral_count(uid)
+			hide_btn_text = "👁 Скрыть себя ✅" if new_hidden else "👁 Скрыть себя ❌"
+			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
+			_profile_markup.add(
+				types.InlineKeyboardButton("📋 История жалоб", callback_data='profile_history'),
+				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
+				types.InlineKeyboardButton(hide_btn_text, callback_data='profile_toggle_hidden'),
+				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+			)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
+					parse_mode="Markdown", reply_markup=_profile_markup)
+			except Exception:
+				pass
+		elif d == 'hidden_notice_ok':
+			await call.answer()
+			try:
+				await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+			except Exception:
+				pass
+		elif d == 'reveal_self':
+			pool_ = await db.get_pool()
+			async with pool_.acquire() as _conn:
+				await _conn.execute("UPDATE users SET is_hidden = FALSE WHERE user_id = $1", uid)
+			await call.answer("👁 Теперь вы видны в логах", show_alert=False)
+			try:
+				await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+			except Exception:
+				pass
 		elif d == 'lang_change':
 			_lang_markup = types.InlineKeyboardMarkup(row_width=2)
 			_lang_markup.add(
@@ -2973,8 +3039,9 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 			reply_markup=main_menu, parse_mode="Markdown")
 	except Exception: pass
 	try:
+		_log_uid, _log_uname = await _log_display(uid, username)
 		await bot.send_document(bot_logs, types.InputFile(log_path),
-			caption=f"📈 *Веб*\n🟢 {success}\n🔴 {error}\n👤 {uid} (@{username})", parse_mode="Markdown")
+			caption=f"📈 *Веб*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid} (@{_log_uname})", parse_mode="Markdown")
 	except Exception: pass
 	try: os.remove(log_path)
 	except Exception: pass
@@ -3015,8 +3082,9 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 	try:
 		await _bot.send_document(message.from_user.id, types.InputFile(log_path),
 			caption=f"⚙️ *Почты*\n🟢 {success}\n🔴 {error}", parse_mode="Markdown", reply_markup=main_menu)
+		_log_uid_m, _log_uname_m = await _log_display(message.from_user.id, message.from_user.username or "None")
 		await bot.send_document(bot_logs, types.InputFile(log_path),
-			caption=f"📈 *Почты*\n🟢 {success}\n🔴 {error}\n👤 {message.from_user.id}", parse_mode="Markdown")
+			caption=f"📈 *Почты*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid_m} (@{_log_uname_m})", parse_mode="Markdown")
 	except Exception as e: print(e)
 	try: os.remove(log_path)
 	except Exception: pass
