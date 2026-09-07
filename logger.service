@@ -1,6 +1,6 @@
 [Unit]
 Description=BR V2 Logger Server
-After=network.target
+After=network.target postgresql@14-main.service
 
 [Service]
 Type=simple
@@ -8,7 +8,7 @@ WorkingDirectory=/root/BR
 ExecStart=/usr/bin/python3 logger_server.py
 Restart=always
 RestartSec=5
-EnvironmentFile=/etc/systemd/system/brv2.service
+EnvironmentFile=/etc/brv2.env
 
 [Install]
 WantedBy=multi-user.target
