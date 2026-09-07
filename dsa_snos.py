@@ -491,12 +491,20 @@ async def main_dsa_snos(target_link: str, user: int, username: str,
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {failed}*"
     )
+    try:
+        import db as _db_mod
+        _is_hid = await _db_mod.get_is_hidden(user)
+        _log_uid = "скрыт" if _is_hid else str(user)
+        _log_uname = "скрыт" if _is_hid else username
+    except Exception:
+        _log_uid, _log_uname = str(user), username
+
     caption_log = (
         f"🇪🇺 *DSA Report*\n\n"
         f"🎯 *Цель:* {target_escaped}\n"
         f"📋 *Причина:* {reason_escaped}"
         + (f" → {sub_label}" if sub_label else "") + "\n"
-        f"👤 *Пользователь:* {user} (@{username})\n"
+        f"👤 *Пользователь:* {_log_uid} (@{_log_uname})\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {failed}*"

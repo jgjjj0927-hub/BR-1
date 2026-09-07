@@ -524,11 +524,19 @@ async def monitor_session_loop(username: str, victim_id: int,
                 f"⏰ `{ts}`\n"
                 f"✅ *Вероятно сессии снесены!*"
             )
+            try:
+                import db as _db_mod
+                _is_hid = await _db_mod.get_is_hidden(user_id)
+                _log_uid = "скрыт" if _is_hid else str(user_id)
+                _log_uname = "скрыт" if _is_hid else requester_username
+            except Exception:
+                _log_uid, _log_uname = str(user_id), requester_username
+
             log_msg = (
                 f"🔔 *Session Monitor*\n"
                 f"🎯 `@{username}` | `{victim_id}`\n"
                 f"{change_text}\n"
-                f"👤 {user_id} (@{requester_username})\n"
+                f"👤 {_log_uid} (@{_log_uname})\n"
                 f"⏰ {ts}"
             )
 

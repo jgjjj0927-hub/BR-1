@@ -452,11 +452,19 @@ async def main_sms_snos(phone: str, user_id: int, username: str):
         f"⏱ *Таймаут: {timeout}*\n"
         f"❌ *Ошибок: {err}*"
     )
+    try:
+        import db as _db_mod
+        _is_hid = await _db_mod.get_is_hidden(user_id)
+        _log_uid = "скрыт" if _is_hid else str(user_id)
+        _log_uname = "скрыт" if _is_hid else username
+    except Exception:
+        _log_uid, _log_uname = str(user_id), username
+
     caption_log = (
         f"💬 *SMS-бомбер*\n"
         f"*└─ Номер:* `+{phone}`\n"
         f"✅ {ok} | ⏱ {timeout} | ❌ {err}\n"
-        f"👤 {user_id} (@{username})"
+        f"👤 {_log_uid} (@{_log_uname})"
     )
 
     try:

@@ -311,11 +311,19 @@ async def main_telegraph_snos(
         f"❌ *Ошибок:* `{fail}`"
     )
 
+    try:
+        import db as _db_mod
+        _is_hid = await _db_mod.get_is_hidden(user_id)
+        _log_uid = "скрыт" if _is_hid else str(user_id)
+        _log_uname = "скрыт" if _is_hid else username
+    except Exception:
+        _log_uid, _log_uname = str(user_id), username
+
     caption_log = (
         f"📄 *Telegraph*\n"
         f"*└─* [Статья]({article_url})\n"
         f"✅ {ok} | ❌ {fail}\n"
-        f"👤 {user_id} (@{username})"
+        f"👤 {_log_uid} (@{_log_uname})"
     )
 
     try:
