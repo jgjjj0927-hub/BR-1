@@ -1222,6 +1222,8 @@ async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
 	try:
 		set_bot_dsa(_bot)
 		await main_dsa_snos(link, uid, username, reason_key, sub_key, text, count=1, _bot=_bot)
+		try: await db.log_attack(uid, link, "dsa")
+		except Exception as e: print(f"[HISTORY] dsa log error: {e}", flush=True)
 		# Предлагаем мониторинг
 		try:
 			_ud = await db.get_user(uid)
@@ -2669,6 +2671,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			try:
 				set_bot_tida(_bot)
 				await main_tida(tida_link, tida_text, uid, tida_username)
+				try: await db.log_attack(uid, tida_link, "tida")
+				except Exception as e: print(f"[HISTORY] tida-ai log error: {e}", flush=True)
 				# Предлагаем мониторинг
 				await _offer_monitor(_bot, uid, tida_link, premium, subscribe)
 			except Exception as e:
@@ -2790,6 +2794,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			try:
 				set_bot_telegraph(_bot)
 				await main_telegraph_snos(article_url, uid, username, custom_text=body, custom_subject=subject)
+				try: await db.log_attack(uid, article_url, "telegraph")
+				except Exception as e: print(f"[HISTORY] telegraph-cb log error: {e}", flush=True)
 			except Exception as e:
 				print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
 				await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -3049,8 +3055,8 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 			count=report_count333, log_path=log_path, user_id=uid, username=username)
 	# КД ставим только после завершения отправки
 	last_used_web[uid] = now_msk()
-	try: await db.log_attack(uid, fsm_data.get('web_target', 'web-report'), "web", success)
-	except Exception: pass
+	try: await db.log_attack(uid, fsm_data.get('web_target', message.text[:100] if message.text else 'web-report'), "web", success)
+	except Exception as e: print(f"[HISTORY] web log error: {e}", flush=True)
 	try:
 		await _bot.send_document(uid, types.InputFile(log_path),
 			caption=f"⚙️ *Веб*\n🟢 *Успешно: {success}*\n🔴 *Не удалось: {error}*",
@@ -3096,7 +3102,7 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 	# КД ставим только после реального завершения отправки
 	last_used_mail[message.from_user.id] = now_msk()
 	try: await db.log_attack(message.from_user.id, f"mail:{subject[:100]}", "mail", success)
-	except Exception: pass
+	except Exception as e: print(f"[HISTORY] mail log error: {e}", flush=True)
 	try:
 		await _bot.send_document(message.from_user.id, types.InputFile(log_path),
 			caption=f"⚙️ *Почты*\n🟢 {success}\n🔴 {error}", parse_mode="Markdown", reply_markup=main_menu)
@@ -3142,7 +3148,7 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 		botnet_set_bot(_bot)
 		await botnet_main(chat_username, message_id, uid, username, url)
 		try: await db.log_attack(uid, url, "botnet")
-		except Exception: pass
+		except Exception as e: print(f"[HISTORY] botnet log error: {e}", flush=True)
 		# КД только после успешного запуска
 		last_used_botnet[uid] = now_msk()
 		# Предлагаем мониторинг
@@ -3183,7 +3189,7 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		botnet_set_bot2(_bot)
 		await botnet_main2(chat_username, message_id, uid, username, url)
 		try: await db.log_attack(uid, url, "prem_botnet")
-		except Exception: pass
+		except Exception as e: print(f"[HISTORY] prem_botnet log error: {e}", flush=True)
 		# КД только после успешного запуска
 		last_used_botnet2[uid] = now_msk()
 		# Предлагаем мониторинг
@@ -3360,7 +3366,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		set_bot_snos(_bot)
 		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
 		try: await db.log_attack(uid, bot_target, "bot")
-		except Exception: pass
+		except Exception as e: print(f"[HISTORY] bot log error: {e}", flush=True)
 		# Предлагаем мониторинг
 		try:
 			_ud = await db.get_user(uid)
@@ -3447,7 +3453,7 @@ async def channel_step1(message: types.Message, state: FSMContext):
 		set_bot_channel(_bot)
 		await main_channel_snos(ch_target, reason_key, uid, username, message_id=message_id)
 		try: await db.log_attack(uid, ch_target, "channel")
-		except Exception: pass
+		except Exception as e: print(f"[HISTORY] channel log error: {e}", flush=True)
 		# Предлагаем мониторинг
 		try:
 			_ud = await db.get_user(uid)
@@ -3493,6 +3499,8 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_aureport(_bot)
 		await main_aureport(raw, uid, username)
+		try: await db.log_attack(uid, raw, "aureport")
+		except Exception as e: print(f"[HISTORY] aureport log error: {e}", flush=True)
 		# Предлагаем мониторинг
 		try:
 			_ud = await db.get_user(uid)
@@ -3615,6 +3623,8 @@ async def telegraph_custom_text(message: types.Message, state: FSMContext):
 	try:
 		set_bot_telegraph(_bot)
 		await main_telegraph_snos(article_url, uid, username, custom_text=custom_body, custom_subject=custom_subject)
+		try: await db.log_attack(uid, article_url, "telegraph")
+		except Exception as e: print(f"[HISTORY] telegraph log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -3782,6 +3792,8 @@ async def tida_step2(message: types.Message, state: FSMContext):
 	try:
 		set_bot_tida(_bot)
 		await main_tida(target_link, custom_text, uid, username)
+		try: await db.log_attack(uid, target_link, "tida")
+		except Exception as e: print(f"[HISTORY] tida log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[TIDA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -3868,6 +3880,8 @@ async def bank_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_bank(_bot)
 		await process_bank_report(bank_key, card_data, uid, username)
+		try: await db.log_attack(uid, f"bank:{card_data[:50]}", "bank")
+		except Exception as e: print(f"[HISTORY] bank log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[BANK] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -4001,6 +4015,8 @@ async def profile_step1(message: types.Message, state: FSMContext):
 	try:
 		set_bot_profile(_bot)
 		await main_profile_snos(raw, uid, username)
+		try: await db.log_attack(uid, raw, "profile")
+		except Exception as e: print(f"[HISTORY] profile log error: {e}", flush=True)
 	except Exception as e:
 		import traceback
 		print(f"[PROFILE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
@@ -4057,6 +4073,8 @@ async def stress_step1(message: types.Message, state: FSMContext):
 
 	try:
 		started = await main_bot_stress(bot_target, uid, username, is_admin)
+		try: await db.log_attack(uid, bot_target, "stress")
+		except Exception as e: print(f"[HISTORY] stress log error: {e}", flush=True)
 		# КД только если атака успешно запустилась (нашлись кнопки)
 		if started and not is_admin:
 			last_used_stress[uid] = now_msk()
