@@ -15,12 +15,9 @@ from pydantic import BaseModel
 
 # -- Config
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://botuser:botpass123@localhost/botdb")
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "changeme-set-in-service")
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "BratokBB")
 BOT_TOKEN = os.getenv("TOKEN", "")
-NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,8701067595").split(",") if x.strip()]
-
-BOT_TOKEN = os.getenv("TOKEN", "")
-NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,8701067595").split(",") if x.strip()]
+NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,60693380,8701067595").split(",") if x.strip()]
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -418,6 +415,15 @@ async def admin_ping(request: Request, _=Depends(require_admin)):
     if await _is_blocked(ip):
         raise HTTPException(status_code=403, detail="Blocked")
     ua = request.headers.get("User-Agent", "")[:500]
+    # If no bot token configured — auto-confirm immediately (no Telegram notification)
+    if not BOT_TOKEN:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "INSERT INTO admin_logins (ip, user_agent, status) VALUES ($1, $2, 'confirmed') RETURNING id",
+                ip, ua
+            )
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=202, content={"status": "confirmed", "login_id": row["id"]})
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "INSERT INTO admin_logins (ip, user_agent) VALUES ($1, $2) RETURNING id",

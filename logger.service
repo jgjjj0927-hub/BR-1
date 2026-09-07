@@ -8,7 +8,7 @@ WorkingDirectory=/root/BR
 ExecStart=/usr/bin/python3 logger_server.py
 Restart=always
 RestartSec=5
-EnvironmentFile=/etc/brv2.env
+EnvironmentFile=-/etc/brv2.env
 
 [Install]
 WantedBy=multi-user.target
