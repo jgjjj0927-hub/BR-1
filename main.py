@@ -4525,6 +4525,11 @@ async def _sub_expiry_notify_loop():
 
 async def on_startup(dp):
 	try:
+		await bot.delete_webhook(drop_pending_updates=True)
+		print("Webhook удалён при старте.", flush=True)
+	except Exception as e:
+		print(f"Webhook delete error: {e}", flush=True)
+	try:
 		print(f"DATABASE_URL = {os.environ.get('DATABASE_URL', 'НЕ УСТАНОВЛЕНА')[:50]}")
 		await db.init_db()
 		await db.init_cases_table()
