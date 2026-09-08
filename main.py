@@ -849,7 +849,7 @@ async def welcome(message: types.Message, state: FSMContext):
 	await send_and_pin_site_msg(uid)
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 		caption=t('menu_caption', lang),
-		parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
+		parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins, lang))
 
 @dp.message_handler(state=WaitCaptchaFSM.code)
 async def check_captcha(message: types.Message, state: FSMContext):
@@ -912,7 +912,7 @@ async def handle_lang_select(call: types.CallbackQuery, state: FSMContext):
 	await send_and_pin_site_msg(uid)
 	await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 		caption=t('menu_caption', lang),
-		parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
+		parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins, lang))
 
 
 PROBIV_HELP = (
@@ -1153,7 +1153,7 @@ async def start_check_sub_callback(call: types.CallbackQuery):
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
 			caption=t('menu_caption', lang),
-			parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
+			parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins, lang))
 	else:
 		await bot.answer_callback_query(call.id, t('sub_check_fail', lang).replace('*', ''), show_alert=True)
 
@@ -1312,7 +1312,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 				await bot_instance.send_photo(uid, photo=open('material/menu.png', 'rb'),
 					caption=t('menu_caption', _lang),
-					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
+					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins, _lang))
 			else:
 				await bot_instance.answer_callback_query(call.id, t('sub_check_fail', _lang).replace('*', ''), show_alert=True)
 			return
@@ -1498,7 +1498,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=t('menu_caption', _user_lang),
-					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
+					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins, _user_lang))
 			except Exception:
 				try:
 					await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
@@ -1506,7 +1506,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					pass
 				await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
 					caption=t('menu_caption', _user_lang),
-					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
+					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins, _user_lang))
 			# Сбрасываем FSM состояние если есть
 			try:
 				current = await state.get_state()
@@ -1598,7 +1598,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "go_to_main_menu":
 			await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
 			await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
-				caption=t('menu_caption', _user_lang), parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
+				caption=t('menu_caption', _user_lang), parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins, _user_lang))
 
 		# ─── Мониторинг ────────────────────────────────────────────────────────
 		elif d == 'media':
@@ -1607,9 +1607,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			"🎥 *Медиа-программа Brown V2*\n\nСнимай видео про Brown V2, публикуй на TikTok / YouTube / Shorts — платим за просмотры.\n\n*Выплаты:*\n• 1.000 просм. — 1.5$\n• 5.000 просм. — 5$\n• 15.000 просм. — 12$\n• 50.000 просм. — 60$\n• 100.000+ просм. — 100–200$ (индивидуально)\n\n*Платформы:* TikTok, YouTube, YouTube Shorts\n*Оплата:* реальные деньги, вручную\n\n_Отправь ссылку на видео — админ проверит и назначит выплату._"
 			)
 			try:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_MEDIA_INFO, parse_mode="Markdown", reply_markup=media_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_MEDIA_INFO, parse_mode="Markdown", reply_markup=keyboards.get_media_markup(_user_lang))
 			except Exception:
-				await bot_instance.edit_message_text(_MEDIA_INFO, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=media_markup)
+				await bot_instance.edit_message_text(_MEDIA_INFO, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=keyboards.get_media_markup(_user_lang))
 
 		elif d == 'media_submit':
 			await state.finish()
@@ -2112,7 +2112,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					f"*└─ При 2-м зеркале — +1 репорт (1 раз)*\n\n"
 					f"*Зеркал можно создавать неограниченно*"
 				),
-				parse_mode="Markdown", reply_markup=keyboards.free_menu_markup
+				parse_mode="Markdown", reply_markup=keyboards.get_free_menu_markup(_user_lang)
 			)
 
 		elif d == 'mirror_create':
@@ -2205,7 +2205,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 						f"▪️ 5% — 3 репорта\n"
 						f"▪️ 1% — 5 репортов 🍀"
 					),
-					parse_mode="Markdown", reply_markup=keyboards.wheel_markup
+					parse_mode="Markdown", reply_markup=keyboards.get_wheel_markup(_user_lang)
 				)
 			else:
 				await bot_instance.edit_message_caption(
@@ -2220,7 +2220,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 						f"▪️ 1% — 5 репортов 🍀\n\n"
 						f"✅ *Крутить можно!*"
 					),
-					parse_mode="Markdown", reply_markup=keyboards.wheel_markup
+					parse_mode="Markdown", reply_markup=keyboards.get_wheel_markup(_user_lang)
 				)
 
 		elif d == 'spin_wheel':
@@ -2368,7 +2368,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					f"*└─ Ваших кейсов: {count}*\n\n"
 					f"*Нажмите «Открыть кейс» чтобы узнать свой приз!*"
 				),
-				parse_mode="Markdown", reply_markup=keyboards.case_menu_markup
+				parse_mode="Markdown", reply_markup=keyboards.get_case_menu_markup(_user_lang)
 			)
 
 		elif d == 'case_open':
@@ -2380,7 +2380,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 						"📦 *У вас нет кейсов*\n\n"
 						"*└─ Купите кейс за 2$ чтобы испытать удачу!*"
 					),
-					parse_mode="Markdown", reply_markup=keyboards.case_menu_markup
+					parse_mode="Markdown", reply_markup=keyboards.get_case_menu_markup(_user_lang)
 				)
 				return
 			await bot_instance.edit_message_caption(
@@ -4673,7 +4673,12 @@ PLATFORM_NAMES = {'tiktok': 'TikTok', 'youtube': 'YouTube', 'shorts': 'YouTube S
 @dp.callback_query_handler(lambda c: c.data == 'media', state='*')
 async def show_media(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    await call.message.edit_text(MEDIA_INFO, parse_mode='Markdown', reply_markup=media_markup)
+    _lang = 'ru'
+    try:
+        _lang = await db.get_lang(call.from_user.id)
+    except Exception:
+        pass
+    await call.message.edit_text(MEDIA_INFO, parse_mode='Markdown', reply_markup=keyboards.get_media_markup(_lang))
     await call.answer()
 
 

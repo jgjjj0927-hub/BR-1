@@ -319,6 +319,15 @@ case_menu_markup.add(
     back,
 )
 
+def get_case_menu_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton(t('btn_case_buy', lang), callback_data='case_buy'),
+        types.InlineKeyboardButton(t('btn_case_open', lang), callback_data='case_open'),
+        get_back_btn(lang),
+    )
+    return m
+
 case_buy_markup = types.InlineKeyboardMarkup(row_width=1)
 case_buy_markup.add(
     types.InlineKeyboardButton("💲 USDT (CryptoPay)", callback_data='case_buy_usdt'),
@@ -424,6 +433,14 @@ wheel_markup = types.InlineKeyboardMarkup(row_width=1)
 spin_btn = types.InlineKeyboardButton("🎡 Крутить!", callback_data='spin_wheel')
 wheel_markup.add(spin_btn, back)
 
+def get_wheel_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton(t('btn_spin', lang), callback_data='spin_wheel'),
+        get_back_btn(lang),
+    )
+    return m
+
 bank_select_markup = types.InlineKeyboardMarkup(row_width=1)
 bank_select_markup.add(
     types.InlineKeyboardButton("🟡 Т-Банк (Тинькофф)", callback_data='bank_tbank'),
@@ -453,6 +470,16 @@ media_markup.add(
     types.InlineKeyboardButton("📜 Условия", callback_data='media_terms'),
     back,
 )
+
+def get_media_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton(t('btn_media_submit', lang), callback_data='media_submit'),
+        types.InlineKeyboardButton(t('btn_media_my', lang), callback_data='media_my'),
+        types.InlineKeyboardButton(t('btn_media_terms', lang), callback_data='media_terms'),
+        get_back_btn(lang),
+    )
+    return m
 
 media_platform_markup = types.InlineKeyboardMarkup(row_width=1)
 media_platform_markup.add(
