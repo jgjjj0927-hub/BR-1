@@ -1291,6 +1291,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		username = call.from_user.username or "None"
 		fullname = call.from_user.first_name
 		_user_lang = await db.get_lang(uid)
+		back_markup = keyboards.get_back_markup(_user_lang)
+		main_menu = keyboards.get_main_menu_markup(_user_lang)
+		functions = keyboards.get_functions(_user_lang)
 
 		d = call.data
 
@@ -1318,27 +1321,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			# Админам показываем расширенное меню с profile_method
 			if uid in admins:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption="*Заказ*\n\n>*Посмотрите Мануал*\n\n🔧 _Режим администратора_", parse_mode="MarkdownV2",
-					reply_markup=keyboards.get_admin_functions_markup())
+					caption=t('panel_caption_admin', _user_lang), parse_mode="MarkdownV2",
+					reply_markup=keyboards.get_admin_functions_markup(_user_lang))
 			else:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption="*Заказ*\n\n>*Посмотрите Мануал*", parse_mode="MarkdownV2", reply_markup=functions)
+					caption=t('panel_caption', _user_lang), parse_mode="MarkdownV2", reply_markup=functions)
 		elif d == 'profile':
-			sub_text = "Истекла" if subscribe < now_msk() else f"осталось {(subscribe - now_msk()).days} дней"
-			prem = "Да" if premium == 1 else "Нет"
+			sub_text = t('profile_sub_expired', _user_lang) if subscribe < now_msk() else t('profile_sub_left', _user_lang, days=(subscribe - now_msk()).days)
+			prem = t('profile_prem_yes', _user_lang) if premium == 1 else t('profile_prem_no', _user_lang)
 			free_reports = await db.get_free_reports(uid)
 			ref_count = await db.get_referral_count(uid)
 			is_hidden = await db.get_is_hidden(uid)
-			hide_btn_text = "👁 Скрыть себя ✅" if is_hidden else "👁 Скрыть себя ❌"
+			hide_btn_text = t('profile_hide_on', _user_lang) if is_hidden else t('profile_hide_off', _user_lang)
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
 			_profile_markup.add(
-				types.InlineKeyboardButton("📋 История жалоб", callback_data='profile_history'),
-				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
+				types.InlineKeyboardButton(t('profile_history_btn', _user_lang), callback_data='profile_history'),
+				types.InlineKeyboardButton(t('profile_lang_btn', _user_lang), callback_data='lang_change'),
 				types.InlineKeyboardButton(hide_btn_text, callback_data='profile_toggle_hidden'),
-				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+				keyboards.get_back_btn(_user_lang),
 			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
+				caption=f"{t('profile_caption', _user_lang)}\n\n{t('profile_name', _user_lang, name=fullname)}\n{t('profile_id', _user_lang, uid=uid)}\n{t('profile_username', _user_lang, username=username)}\n{t('profile_premium', _user_lang, prem=prem)}\n{t('profile_free_reports', _user_lang, count=free_reports)}\n{t('profile_refs', _user_lang, count=ref_count)}\n\n{t('profile_sub_status', _user_lang, sub_text=sub_text)}",
 				parse_mode="Markdown", reply_markup=_profile_markup)
 		elif d == 'admin_panel':
 			if uid not in admins:
@@ -1423,22 +1426,21 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'profile_toggle_hidden':
 			new_hidden = await db.toggle_hidden(uid)
 			await call.answer("✅ Скрыт в логах" if new_hidden else "❌ Виден в логах", show_alert=False)
-			# Перерисовываем профиль
-			sub_text = "Истекла" if subscribe < now_msk() else f"осталось {(subscribe - now_msk()).days} дней"
-			prem = "Да" if premium == 1 else "Нет"
+			sub_text = t('profile_sub_expired', _user_lang) if subscribe < now_msk() else t('profile_sub_left', _user_lang, days=(subscribe - now_msk()).days)
+			prem = t('profile_prem_yes', _user_lang) if premium == 1 else t('profile_prem_no', _user_lang)
 			free_reports = await db.get_free_reports(uid)
 			ref_count = await db.get_referral_count(uid)
-			hide_btn_text = "👁 Скрыть себя ✅" if new_hidden else "👁 Скрыть себя ❌"
+			hide_btn_text = t('profile_hide_on', _user_lang) if new_hidden else t('profile_hide_off', _user_lang)
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
 			_profile_markup.add(
-				types.InlineKeyboardButton("📋 История жалоб", callback_data='profile_history'),
-				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
+				types.InlineKeyboardButton(t('profile_history_btn', _user_lang), callback_data='profile_history'),
+				types.InlineKeyboardButton(t('profile_lang_btn', _user_lang), callback_data='lang_change'),
 				types.InlineKeyboardButton(hide_btn_text, callback_data='profile_toggle_hidden'),
-				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+				keyboards.get_back_btn(_user_lang),
 			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
+					caption=f"{t('profile_caption', _user_lang)}\n\n{t('profile_name', _user_lang, name=fullname)}\n{t('profile_id', _user_lang, uid=uid)}\n{t('profile_username', _user_lang, username=username)}\n{t('profile_premium', _user_lang, prem=prem)}\n{t('profile_free_reports', _user_lang, count=free_reports)}\n{t('profile_refs', _user_lang, count=ref_count)}\n\n{t('profile_sub_status', _user_lang, sub_text=sub_text)}",
 					parse_mode="Markdown", reply_markup=_profile_markup)
 			except Exception:
 				pass
@@ -1471,22 +1473,22 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_new_lang = 'ru' if d == 'profile_lang_ru' else 'en'
 			await db.set_lang(uid, _new_lang)
 			await call.answer("🇷🇺 Русский выбран" if _new_lang == 'ru' else "🇬🇧 English selected", show_alert=False)
-			sub_text = "Истекла" if subscribe < now_msk() else f"осталось {(subscribe - now_msk()).days} дней"
-			prem = "Да" if premium == 1 else "Нет"
+			sub_text = t('profile_sub_expired', _new_lang) if subscribe < now_msk() else t('profile_sub_left', _new_lang, days=(subscribe - now_msk()).days)
+			prem = t('profile_prem_yes', _new_lang) if premium == 1 else t('profile_prem_no', _new_lang)
 			free_reports = await db.get_free_reports(uid)
 			ref_count = await db.get_referral_count(uid)
 			is_hidden = await db.get_is_hidden(uid)
-			hide_btn_text = "👁 Скрыть себя ✅" if is_hidden else "👁 Скрыть себя ❌"
+			hide_btn_text = t('profile_hide_on', _new_lang) if is_hidden else t('profile_hide_off', _new_lang)
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
 			_profile_markup.add(
-				types.InlineKeyboardButton("📋 История жалоб", callback_data='profile_history'),
-				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
+				types.InlineKeyboardButton(t('profile_history_btn', _new_lang), callback_data='profile_history'),
+				types.InlineKeyboardButton(t('profile_lang_btn', _new_lang), callback_data='lang_change'),
 				types.InlineKeyboardButton(hide_btn_text, callback_data='profile_toggle_hidden'),
-				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+				keyboards.get_back_btn(_new_lang),
 			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
+					caption=f"{t('profile_caption', _new_lang)}\n\n{t('profile_name', _new_lang, name=fullname)}\n{t('profile_id', _new_lang, uid=uid)}\n{t('profile_username', _new_lang, username=username)}\n{t('profile_premium', _new_lang, prem=prem)}\n{t('profile_free_reports', _new_lang, count=free_reports)}\n{t('profile_refs', _new_lang, count=ref_count)}\n\n{t('profile_sub_status', _new_lang, sub_text=sub_text)}",
 					parse_mode="Markdown", reply_markup=_profile_markup)
 			except Exception:
 				pass
@@ -2478,13 +2480,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		if d in METHODS_REQUIRING_CONFIRM:
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"⚠️ *Перед следующим шагом прочтите мануал\!*\n\n"
-					"📄 *Ознакомьтесь с правилами использования*\n\n"
-					"❌ *За непрочтение \/ неправильные жалобы вам могут обнулить подписку*"
-				),
+				caption=t('manual_warn', _user_lang),
 				parse_mode="MarkdownV2",
-				reply_markup=keyboards.manual_confirm_step1(d)
+				reply_markup=keyboards.manual_confirm_step1(d, _user_lang)
 			)
 			return
 
@@ -2493,12 +2491,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			method = d[len('manual_step2_'):]
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"📄 *Вы действительно прочитали мануал?*\n\n"
-					"*Нажмите кнопку ниже только если прочитали*"
-				),
+				caption=t('manual_confirm2', _user_lang),
 				parse_mode="Markdown",
-				reply_markup=keyboards.manual_confirm_step2(method)
+				reply_markup=keyboards.manual_confirm_step2(method, _user_lang)
 			)
 			return
 
@@ -2507,103 +2502,103 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			d = d[len('manual_confirm_'):]  # подменяем d на реальный метод
 
 		if d == "web_method":
-			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен премиум\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid in last_used_web and uid not in admins and uid not in no_kd and (now_msk() - last_used_web[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_web[uid])
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
-			await call.message.answer("✉️ *Введите текст:*", parse_mode="Markdown", reply_markup=back_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=back_markup); return
+			await call.message.answer(t('web_enter_text', _user_lang), parse_mode="Markdown", reply_markup=back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTextFSM.text.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d == "mail_method":
-			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid in last_used_mail and uid not in admins and uid not in no_kd and (now_msk() - last_used_mail[uid]) < timedelta(minutes=300):
 				rem = timedelta(minutes=300) - (now_msk() - last_used_mail[uid])
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
-			await call.message.answer("📌 *Введите тему:*", parse_mode="Markdown", reply_markup=back_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_min', _user_lang, m=rem.seconds//60), parse_mode="Markdown", reply_markup=back_markup); return
+			await call.message.answer(t('mail_enter_topic', _user_lang), parse_mode="Markdown", reply_markup=back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitMailTopicFSM.topic.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d == "botnet_method":
 			free_reports = await db.get_free_reports(uid)
 			if sub_expired() and free_reports == 0:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати или получи бесплатный репорт\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay_or_free', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid in last_used_botnet and uid not in admins and uid not in no_kd and (now_msk() - last_used_botnet[uid]) < timedelta(minutes=5):
 				rem = timedelta(minutes=5) - (now_msk() - last_used_botnet[uid])
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
-			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown", reply_markup=back_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=back_markup); return
+			await bot_instance.send_message(call.message.chat.id, t('botnet_enter_link', _user_lang), parse_mode="Markdown", reply_markup=back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d == "prem_botnet_method":
-			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен премиум\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid in last_used_botnet2 and uid not in admins and uid not in no_kd and (now_msk() - last_used_botnet2[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_botnet2[uid])
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин*', parse_mode="Markdown", reply_markup=back_markup); return
-			await bot_instance.send_message(call.message.chat.id, '*Ссылка на сообщение:*\n`https://t.me/username/123`', parse_mode="Markdown", reply_markup=back_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_min', _user_lang, m=rem.seconds//60), parse_mode="Markdown", reply_markup=back_markup); return
+			await bot_instance.send_message(call.message.chat.id, t('botnet_enter_link', _user_lang), parse_mode="Markdown", reply_markup=back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkPREMFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		# ─── Бот-метод ────────────────────────────────────────────────────────
 		elif d == "bot_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid not in admins and sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(hours=1):
 				rem = timedelta(hours=1) - (now_msk() - last_used_bot_snos[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup)
+					caption=t('err_wait_hm', _user_lang, h=h, m=m), parse_mode="Markdown", reply_markup=back_markup)
 				return
 			if uid not in admins and uid not in no_kd and uid in last_used_bot_snos_fast and (now_msk() - last_used_bot_snos_fast[uid]) < timedelta(minutes=5):
 				rem = timedelta(minutes=5) - (now_msk() - last_used_bot_snos_fast[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {rem.seconds // 60}м {rem.seconds % 60}с*', parse_mode="Markdown", reply_markup=back_markup)
+					caption=t('err_wait_ms', _user_lang, m=rem.seconds // 60, s=rem.seconds % 60), parse_mode="Markdown", reply_markup=back_markup)
 				return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(bot_reason='personal', _bot_token=_instance_token)
 			await bot_instance.send_message(
 				call.message.chat.id,
-				"🤖 *Бот-метод*\n\n*└─ Введите @username бота:*\n`@username_bot`\n\n*⚠️ Username должен оканчиваться на* `bot`",
+				t('bot_method_prompt', _user_lang),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 
 		# ─── Канал-метод ──────────────────────────────────────────────────────
 		elif d == "channel_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			free_reports_ch = await db.get_free_reports(uid)
 			if sub_expired() and free_reports_ch == 0:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати или получи бесплатный репорт\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay_or_free', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption="📢 *Канал-метод*\n\n*└─ Выберите причину жалобы:*",
-				parse_mode="Markdown", reply_markup=keyboards.channel_reason_markup
+				caption=t('channel_method_caption', _user_lang),
+				parse_mode="Markdown", reply_markup=keyboards.get_channel_reason_markup(_user_lang)
 			)
 
 		elif d in ("ch_reason_personal", "ch_reason_spam", "ch_reason_adult", "ch_reason_children", "ch_reason_violence", "ch_reason_other"):
 			reason_map = {
-				"ch_reason_personal": ("personal", "🔐 Персональные данные"),
-				"ch_reason_spam":     ("spam",     "📢 Спам / Мошенничество"),
-				"ch_reason_adult":    ("adult",    "🔞 18+ Контент"),
-				"ch_reason_children": ("children", "👶 Детский контент"),
-				"ch_reason_violence": ("violence", "💥 Насилие / Экстремизм"),
-				"ch_reason_other":    ("other",    "📝 Прочее"),
+				"ch_reason_personal": ("personal", t('ch_reason_personal', _user_lang)),
+				"ch_reason_spam":     ("spam",     t('ch_reason_spam', _user_lang)),
+				"ch_reason_adult":    ("adult",    t('ch_reason_adult', _user_lang)),
+				"ch_reason_children": ("children", t('ch_reason_children', _user_lang)),
+				"ch_reason_violence": ("violence", t('ch_reason_violence', _user_lang)),
+				"ch_reason_other":    ("other",    t('ch_reason_other', _user_lang)),
 			}
 			reason_key, reason_label = reason_map[d]
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitChannelFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(ch_reason=reason_key, _bot_token=_instance_token)
 			await bot_instance.send_message(
 				call.message.chat.id,
-				f"📢 *Причина: {reason_label}*\n\n*Введите @username канала или ссылку:*\n`@channel` или `https://t.me/channel`",
+				t('channel_enter_link', _user_lang, reason=reason_label),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 
@@ -2612,7 +2607,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			manual_markup = types.InlineKeyboardMarkup(row_width=1)
 			manual_markup.add(
 				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
-				keyboards.back
+				keyboards.get_back_btn(_user_lang)
 			)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
@@ -2630,46 +2625,36 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		# ─── AU Report ────────────────────────────────────────────────────────
 		elif d == "aureport_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_aureport and (now_msk() - last_used_aureport[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_aureport[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
+					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitAuReportFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"🇦🇺 *AU Report*\n\n"
-					"*└─ Введите @username или ссылку на цель:*\n\n"
-					"`@username` или `https://t.me/username`"
-				),
+				caption=t('aureport_prompt', _user_lang),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 
 		# ─── TIDA ─────────────────────────────────────────────────────────────
 		elif d == "tida_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_tida and (now_msk() - last_used_tida[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_tida[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
+					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"🟣 *TIDA*\n\n"
-					"*└─ Отправьте ссылку на цель:*\n\n"
-					"`https://t.me/username`\n"
-					"`https://t.me/channel/123`\n"
-					"`@username`"
-				),
+				caption=t('tida_prompt', _user_lang),
 				parse_mode="Markdown",
 				reply_markup=back_markup
 			)
