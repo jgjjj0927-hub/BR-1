@@ -1459,13 +1459,36 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'lang_change':
 			_lang_markup = types.InlineKeyboardMarkup(row_width=2)
 			_lang_markup.add(
-				types.InlineKeyboardButton("🇷🇺 Русский", callback_data='lang_select_ru'),
-				types.InlineKeyboardButton("🇬🇧 English", callback_data='lang_select_en'),
+				types.InlineKeyboardButton("🇷🇺 Русский", callback_data='profile_lang_ru'),
+				types.InlineKeyboardButton("🇬🇧 English", callback_data='profile_lang_en'),
 			)
 			_lang_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='profile'))
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="🌐 *Выберите язык | Choose language*",
 				parse_mode="Markdown", reply_markup=_lang_markup)
+		elif d in ('profile_lang_ru', 'profile_lang_en'):
+			_new_lang = 'ru' if d == 'profile_lang_ru' else 'en'
+			await db.set_lang(uid, _new_lang)
+			await call.answer("🇷🇺 Русский выбран" if _new_lang == 'ru' else "🇬🇧 English selected", show_alert=False)
+			sub_text = "Истекла" if subscribe < now_msk() else f"осталось {(subscribe - now_msk()).days} дней"
+			prem = "Да" if premium == 1 else "Нет"
+			free_reports = await db.get_free_reports(uid)
+			ref_count = await db.get_referral_count(uid)
+			is_hidden = await db.get_is_hidden(uid)
+			hide_btn_text = "👁 Скрыть себя ✅" if is_hidden else "👁 Скрыть себя ❌"
+			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
+			_profile_markup.add(
+				types.InlineKeyboardButton("📋 История жалоб", callback_data='profile_history'),
+				types.InlineKeyboardButton("🌐 Сменить язык", callback_data='lang_change'),
+				types.InlineKeyboardButton(hide_btn_text, callback_data='profile_toggle_hidden'),
+				types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
+			)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f"*Профиль*\n\n▪️ *Имя: {fullname}*\n▪️ *ID: {uid}*\n▪️ *@{username}*\n▪️ *Премиум: {prem}*\n▪️ *Бесплатных репортов: {free_reports}*\n▪️ *Рефералов: {ref_count}*\n\n⏳ *{sub_text}*",
+					parse_mode="Markdown", reply_markup=_profile_markup)
+			except Exception:
+				pass
 		elif d == "back":
 			# Если сообщение с caption (фото) — редактируем caption
 			# Если обычное текстовое — удаляем и отправляем меню заново
