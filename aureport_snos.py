@@ -82,7 +82,18 @@ async def _create_client(session_path: str, proxy=None):
         api_hash = config.AUREPORT_API_HASH
         client = TelegramClient(session_path, api_id, api_hash, proxy=proxy,
                                 system_version='4.16.30-vxCUSTOM')
-        await asyncio.wait_for(client.connect(), timeout=10)
+        connected = False
+        for _a in range(3):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=12)
+                connected = True
+                break
+            except (asyncio.TimeoutError, OSError):
+                if _a == 2:
+                    return None
+                await asyncio.sleep(1)
+        if not connected:
+            return None
         if not await client.is_user_authorized():
             await client.disconnect()
             return None

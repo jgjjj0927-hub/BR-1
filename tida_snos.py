@@ -150,7 +150,14 @@ async def analyze_tida_link(link: str) -> dict:
         session_path = _os.path.join(session_folder, random.choice(sessions))
         client = TelegramClient(session_path, int(config.TIDA_API_ID), config.TIDA_API_HASH,
                                 system_version="4.16.30-vxCUSTOM")
-        await asyncio.wait_for(client.connect(), timeout=8)
+        for _a in range(3):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=12)
+                break
+            except (asyncio.TimeoutError, OSError):
+                if _a == 2:
+                    return result
+                await asyncio.sleep(1)
         if not await client.is_user_authorized():
             await client.disconnect()
             return result
@@ -211,7 +218,14 @@ async def fetch_tida_message_text(link: str) -> str:
         session_path = _os.path.join(session_folder, random.choice(sessions))
         client = TelegramClient(session_path, int(config.TIDA_API_ID), config.TIDA_API_HASH,
                                 system_version="4.16.30-vxCUSTOM")
-        await asyncio.wait_for(client.connect(), timeout=10)
+        for _a in range(3):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=12)
+                break
+            except (asyncio.TimeoutError, OSError):
+                if _a == 2:
+                    return ""
+                await asyncio.sleep(1)
         if not await client.is_user_authorized():
             await client.disconnect()
             return ""
@@ -301,18 +315,24 @@ async def _create_client(session_path: str, proxy=None):
         api_hash = config.TIDA_API_HASH
         client = TelegramClient(session_path, api_id, api_hash, proxy=proxy,
                                 system_version='4.16.30-vxCUSTOM')
+        connected = False
         for db_attempt in range(3):
             try:
                 await asyncio.wait_for(client.connect(), timeout=15)
+                connected = True
                 break
-            except asyncio.TimeoutError:
-                logger.warning(f"[TIDA] Таймаут подключения {session_path}")
-                return None
+            except (asyncio.TimeoutError, OSError):
+                if db_attempt == 2:
+                    logger.warning(f"[TIDA] Таймаут подключения {session_path}")
+                    return None
+                await asyncio.sleep(1)
             except Exception as e:
                 if "database is locked" in str(e) and db_attempt < 2:
                     await asyncio.sleep(random.uniform(1, 2))
                 else:
                     raise
+        if not connected:
+            return None
         if not await client.is_user_authorized():
             await client.disconnect()
             return None

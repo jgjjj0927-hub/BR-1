@@ -199,18 +199,24 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
         logger.warning(f"[BOT-SNOS] [{session_name}] failed to open session: {e}")
         return 0
     try:
+        connected = False
         for db_attempt in range(3):
             try:
-                await asyncio.wait_for(client.connect(), timeout=10)
+                await asyncio.wait_for(client.connect(), timeout=12)
+                connected = True
                 break
-            except asyncio.TimeoutError:
-                logger.warning(f"[BOT-SNOS] [{session_name}] timeout")
-                return 0
+            except (asyncio.TimeoutError, OSError):
+                if db_attempt == 2:
+                    logger.warning(f"[BOT-SNOS] [{session_name}] ОШИБКА СОЕДИНЕНИЯ")
+                    return 0
+                await asyncio.sleep(1)
             except Exception as e:
                 if "database is locked" in str(e) and db_attempt < 2:
                     await asyncio.sleep(random.uniform(1, 2))
                 else:
                     raise
+        if not connected:
+            return 0
 
         if not await client.is_user_authorized():
             logger.warning(f"[BOT-SNOS] [{session_name}] not authorized")

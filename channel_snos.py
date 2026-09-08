@@ -11,6 +11,7 @@ from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 from telethon.tl.functions.account import ReportPeerRequest
 from telethon.tl.functions.messages import ReportRequest
+from telethon.tl.functions.contacts import ResolveUsernameRequest
 from telethon.tl.types import (
     InputReportReasonSpam,
     InputReportReasonChildAbuse,
@@ -20,6 +21,8 @@ from telethon.tl.types import (
     InputReportReasonViolence,
     InputReportReasonCopyright,
     InputReportReasonGeoIrrelevant,
+    InputPeerUser,
+    InputPeerChannel,
 )
 import config
 from config import bot_logs
@@ -148,6 +151,34 @@ def format_log_line(session, target, status):
     return f"[{now}] {session}.session -> {target} - [{status}]"
 
 
+def _archive_invalid_session(session_name: str, folder: str = "sessions"):
+    try:
+        invalid_dir = "invalid_sessions"
+        os.makedirs(invalid_dir, exist_ok=True)
+        for ext in (".session", ".session-journal"):
+            src = os.path.join(folder, session_name + ext)
+            if os.path.exists(src):
+                os.rename(src, os.path.join(invalid_dir, session_name + ext))
+        print(f"[CH-SNOS] Сессия {session_name} → invalid_sessions/", flush=True)
+    except Exception as e:
+        print(f"[CH-SNOS] Ошибка архивации {session_name}: {e}", flush=True)
+
+
+async def _resolve_peer(client, username: str, peer_ref: list):
+    """Резолвит peer через ResolveUsernameRequest, поддерживает каналы и юзеров."""
+    uname = username.lstrip("@")
+    resolved = await client(ResolveUsernameRequest(uname))
+    if resolved.chats:
+        ch = resolved.chats[0]
+        peer_ref[0] = ch.id
+        return InputPeerChannel(ch.id, ch.access_hash)
+    if resolved.users:
+        u = resolved.users[0]
+        peer_ref[0] = u.id
+        return InputPeerUser(u.id, u.access_hash)
+    raise ValueError(f"Не найдено: {username}")
+
+
 async def _report_one_channel_session(session, channel_username, reason_key, message_id=None, peer_ref=None):
     """Отправляет жалобу на канал от одной сессии."""
     random_api = random.choice(API)
@@ -186,17 +217,18 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
 
         if not await client.is_user_authorized():
             print(f"[CH-SNOS] [{session}] ❌ НЕВАЛИД", flush=True)
+            _archive_invalid_session(session)
             return "НЕВАЛИД"
 
         try:
-            peer = await client.get_entity(channel_username)
             if peer_ref[0] is None:
-                peer_ref[0] = peer.id
-        except Exception as e:
-            if peer_ref[0] is not None and "No user has" in str(e):
-                peer = await client.get_entity(peer_ref[0])
+                peer = await _resolve_peer(client, channel_username, peer_ref)
             else:
-                raise
+                peer = await client.get_entity(peer_ref[0])
+        except Exception as e:
+            print(f"[CH-SNOS] [{session}] ❌ Entity error: {e}", flush=True)
+            await client.disconnect()
+            return f"ОШИБКА: {str(e)[:40]}"
         print(f"[CH-SNOS] [{session}] ✅ Подключён к {channel_username}", flush=True)
 
         # Fallback причина

@@ -74,7 +74,18 @@ async def find_inline_button(bot_username: str) -> tuple[int | None, bytes | Non
             system_version='4.16.30-vxCUSTOM'
         )
         try:
-            await asyncio.wait_for(client.connect(), timeout=8)
+            connected = False
+            for _a in range(3):
+                try:
+                    await asyncio.wait_for(client.connect(), timeout=12)
+                    connected = True
+                    break
+                except (asyncio.TimeoutError, OSError):
+                    if _a == 2:
+                        break
+                    await asyncio.sleep(1)
+            if not connected:
+                continue
             if not await client.is_user_authorized():
                 await client.disconnect()
                 continue
@@ -126,7 +137,19 @@ async def _spam_callback_session(session: str, bot_username: str, msg_id: int, b
     errors = 0
     use_callback = False  # флаг — переключились на callback
     try:
-        await asyncio.wait_for(client.connect(), timeout=8)
+        connected = False
+        for _a in range(3):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=12)
+                connected = True
+                break
+            except (asyncio.TimeoutError, OSError):
+                if _a == 2:
+                    print(f"[STRESS] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ", flush=True)
+                    return 0
+                await asyncio.sleep(1)
+        if not connected:
+            return 0
         if not await client.is_user_authorized():
             print(f"[STRESS] [{session}] ❌ НЕВАЛИД", flush=True)
             return 0
