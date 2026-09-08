@@ -96,20 +96,25 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
         print(f"[BOTNET] [{session}] ❌ Ошибка открытия сессии: {e}", flush=True)
         return "ОШИБКА СЕССИИ", None
     try:
-        # Fix 1: timeout 10s; Fix 3: retry on "database is locked"
+        connected = False
         for db_attempt in range(3):
             try:
-                await asyncio.wait_for(client.connect(), timeout=10)
+                await asyncio.wait_for(client.connect(), timeout=12)
+                connected = True
                 break
-            except asyncio.TimeoutError:
-                print(f"[BOTNET] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)", flush=True)
-                return "ОШИБКА СОЕДИНЕНИЯ", None
+            except (asyncio.TimeoutError, OSError):
+                if db_attempt == 2:
+                    print(f"[BOTNET] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)", flush=True)
+                    return "ОШИБКА СОЕДИНЕНИЯ", None
+                await asyncio.sleep(1)
             except Exception as e:
                 if "database is locked" in str(e) and db_attempt < 2:
                     print(f"[BOTNET] [{session}] 🔒 database is locked, retry {db_attempt + 1}...", flush=True)
                     await asyncio.sleep(random.uniform(1, 2))
                 else:
                     raise
+        if not connected:
+            return "ОШИБКА СОЕДИНЕНИЯ", None
 
         if not await client.is_user_authorized():
             print(f"[BOTNET] [{session}] ❌ НЕВАЛИД (не авторизован)", flush=True)

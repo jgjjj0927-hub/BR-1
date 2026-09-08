@@ -14,6 +14,8 @@ import logging
 from telethon import TelegramClient
 from telethon.tl.functions.messages import ReportRequest
 from telethon.errors import FloodWaitError, UsernameNotOccupiedError, UsernameInvalidError
+from telethon.tl.functions.contacts import ResolveUsernameRequest
+from telethon.tl.types import InputPeerUser
 from aiogram import types
 import config
 from config import bot_logs
@@ -67,6 +69,22 @@ def format_log_line(session, target, status):
     return f'[{now}] {os.path.basename(session)}.session -> {target} - [{status}]'
 
 
+def _archive_invalid_session(session_path: str):
+    """Перемещает невалидную сессию в папку invalid_sessions/"""
+    try:
+        invalid_dir = 'invalid_sessions'
+        os.makedirs(invalid_dir, exist_ok=True)
+        basename = os.path.basename(session_path)
+        for ext in ('.session', '.session-journal'):
+            src = session_path + ext
+            if os.path.exists(src):
+                dst = os.path.join(invalid_dir, basename + ext)
+                os.rename(src, dst)
+        print(f'[PROFILE] Сессия {basename} перемещена в invalid_sessions/', flush=True)
+    except Exception as e:
+        print(f'[PROFILE] Ошибка архивации сессии: {e}', flush=True)
+
+
 async def _find_option(client, peer, keyword_ru: str, keyword_en: str, prev_option: bytes = b'') -> bytes | None:
     """
     Делает шаг ReportRequest с prev_option и ищет в результате
@@ -109,8 +127,13 @@ async def _scout_options(target_username: str) -> tuple[bytes | None, bytes | No
             await client.disconnect()
             return None, None
 
-        entity = await client.get_entity(target_username)
-        peer = await client.get_input_entity(entity)
+        uname = target_username.lstrip('@')
+        resolved = await client(ResolveUsernameRequest(uname))
+        if not resolved.users:
+            await client.disconnect()
+            return None, None
+        u = resolved.users[0]
+        peer = InputPeerUser(u.id, u.access_hash)
 
         # Шаг 1: ищем "Другое" / "Other"
         other_opt = await _find_option(client, peer, 'другое', 'other', b'')
@@ -149,18 +172,34 @@ async def _report_session(session_path: str, target_username: str,
     client = TelegramClient(session_path, int(api_id), api_hash,
                             system_version='4.16.30-vxCUSTOM')
     try:
-        try:
-            await asyncio.wait_for(client.connect(), timeout=8)
-        except asyncio.TimeoutError:
-            return 'TIMEOUT'
+        # Retry connect up to 2 times
+        connected = False
+        for _attempt in range(2):
+            try:
+                await asyncio.wait_for(client.connect(), timeout=12)
+                connected = True
+                break
+            except (asyncio.TimeoutError, OSError, ConnectionError):
+                if _attempt == 1:
+                    return 'ОШИБКА СОЕДИНЕНИЯ'
+                await asyncio.sleep(1)
+        if not connected:
+            return 'ОШИБКА СОЕДИНЕНИЯ'
 
         if not await client.is_user_authorized():
             await client.disconnect()
+            _archive_invalid_session(session_path)
             return 'НЕВАЛИД'
 
+        # Resolve entity via ResolveUsernameRequest to always get access_hash
         try:
-            entity = await client.get_entity(target_username)
-            peer = await client.get_input_entity(entity)
+            uname = target_username.lstrip('@')
+            resolved = await client(ResolveUsernameRequest(uname))
+            if not resolved.users:
+                await client.disconnect()
+                return 'НЕ НАЙДЕН'
+            u = resolved.users[0]
+            peer = InputPeerUser(u.id, u.access_hash)
         except (UsernameNotOccupiedError, UsernameInvalidError):
             await client.disconnect()
             return 'НЕ НАЙДЕН'

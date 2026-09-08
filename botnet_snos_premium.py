@@ -1090,18 +1090,24 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
         system_version='4.16.30-vxCUSTOM'
     )
     try:
+        connected = False
         for db_attempt in range(3):
             try:
-                await asyncio.wait_for(client.connect(), timeout=10)
+                await asyncio.wait_for(client.connect(), timeout=12)
+                connected = True
                 break
-            except asyncio.TimeoutError:
-                print(f"[PREM] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)", flush=True)
-                return "ОШИБКА СОЕДИНЕНИЯ", None
+            except (asyncio.TimeoutError, OSError):
+                if db_attempt == 2:
+                    print(f"[PREM] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ (timeout)", flush=True)
+                    return "ОШИБКА СОЕДИНЕНИЯ", None
+                await asyncio.sleep(1)
             except Exception as e:
                 if "database is locked" in str(e) and db_attempt < 2:
                     await asyncio.sleep(random.uniform(1, 2))
                 else:
                     raise
+        if not connected:
+            return "ОШИБКА СОЕДИНЕНИЯ", None
 
         if not await client.is_user_authorized():
             print(f"[PREM] [{session}] ❌ НЕВАЛИД (не авторизован)", flush=True)

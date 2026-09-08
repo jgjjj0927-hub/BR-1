@@ -161,18 +161,28 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
         system_version='4.16.30-vxCUSTOM'
     )
     try:
+        connected = False
         for db_attempt in range(3):
             try:
-                await asyncio.wait_for(client.connect(), timeout=10)
+                await asyncio.wait_for(client.connect(), timeout=12)
+                connected = True
                 break
             except asyncio.TimeoutError:
-                print(f"[CH-SNOS] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ", flush=True)
-                return "ОШИБКА СОЕДИНЕНИЯ"
+                if db_attempt == 2:
+                    print(f"[CH-SNOS] [{session}] ❌ ОШИБКА СОЕДИНЕНИЯ", flush=True)
+                    return "ОШИБКА СОЕДИНЕНИЯ"
+                await asyncio.sleep(1)
+            except OSError:
+                if db_attempt == 2:
+                    return "ОШИБКА СОЕДИНЕНИЯ"
+                await asyncio.sleep(1)
             except Exception as e:
                 if "database is locked" in str(e) and db_attempt < 2:
                     await asyncio.sleep(random.uniform(1, 2))
                 else:
                     raise
+        if not connected:
+            return "ОШИБКА СОЕДИНЕНИЯ"
 
         if not await client.is_user_authorized():
             print(f"[CH-SNOS] [{session}] ❌ НЕВАЛИД", flush=True)
