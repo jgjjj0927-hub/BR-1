@@ -170,12 +170,14 @@ async def _resolve_peer(client, username: str, peer_ref: list):
     resolved = await client(ResolveUsernameRequest(uname))
     if resolved.chats:
         ch = resolved.chats[0]
-        peer_ref[0] = ch.id
-        return InputPeerChannel(ch.id, ch.access_hash)
+        input_peer = InputPeerChannel(ch.id, ch.access_hash)
+        peer_ref[0] = input_peer
+        return input_peer
     if resolved.users:
         u = resolved.users[0]
-        peer_ref[0] = u.id
-        return InputPeerUser(u.id, u.access_hash)
+        input_peer = InputPeerUser(u.id, u.access_hash)
+        peer_ref[0] = input_peer
+        return input_peer
     raise ValueError(f"Не найдено: {username}")
 
 
@@ -224,7 +226,7 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
             if peer_ref[0] is None:
                 peer = await _resolve_peer(client, channel_username, peer_ref)
             else:
-                peer = await client.get_entity(peer_ref[0])
+                peer = peer_ref[0]
         except Exception as e:
             print(f"[CH-SNOS] [{session}] ❌ Entity error: {e}", flush=True)
             await client.disconnect()
