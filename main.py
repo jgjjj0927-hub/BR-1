@@ -1290,6 +1290,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		premium = int(user_data['premium'])
 		username = call.from_user.username or "None"
 		fullname = call.from_user.first_name
+		_user_lang = await db.get_lang(uid)
 
 		d = call.data
 
@@ -1494,7 +1495,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			# Если обычное текстовое — удаляем и отправляем меню заново
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+					caption=t('menu_caption', _user_lang),
 					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 			except Exception:
 				try:
@@ -1502,7 +1503,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				except Exception:
 					pass
 				await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
-					caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+					caption=t('menu_caption', _user_lang),
 					parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 			# Сбрасываем FSM состояние если есть
 			try:
@@ -1595,7 +1596,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "go_to_main_menu":
 			await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
 			await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
-				caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*', parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
+				caption=t('menu_caption', _user_lang), parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins))
 
 		# ─── Мониторинг ────────────────────────────────────────────────────────
 		elif d == 'media':
