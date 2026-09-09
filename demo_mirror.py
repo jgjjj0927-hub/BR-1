@@ -100,6 +100,12 @@ def _make_fake_fn(method_label: str, uid_idx: int | None = None):
 
 # ─── 5. Monkey-patch: set_bot-функции и исполнительные функции в main ─────────
 
+# Подписка в демо — всегда ок
+async def _fake_check_subscription(uid: int) -> bool:
+    return True
+
+_main.check_subscription = _fake_check_subscription
+
 # set_bot — все перенаправляют Bot-инстанс в наш _ctx
 for _attr in (
     "botnet_set_bot", "botnet_set_bot2",
