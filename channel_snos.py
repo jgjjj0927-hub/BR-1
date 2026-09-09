@@ -181,13 +181,11 @@ async def _resolve_peer(client, username: str, peer_ref: list):
     raise ValueError(f"Не найдено: {username}")
 
 
-async def _report_one_channel_session(session, channel_username, reason_key, message_id=None, peer_ref=None):
+async def _report_one_channel_session(session, channel_username, reason_key, message_id=None):
     """Отправляет жалобу на канал от одной сессии."""
     random_api = random.choice(API)
     api_id, api_hash = random_api.split(":", 1)
     reason_main, _ = CHANNEL_REASONS[reason_key]
-    if peer_ref is None:
-        peer_ref = [None]
 
     client = TelegramClient(
         f"./sessions/{session}", int(api_id), api_hash,
@@ -223,10 +221,7 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
             return "НЕВАЛИД"
 
         try:
-            if peer_ref[0] is None:
-                peer = await _resolve_peer(client, channel_username, peer_ref)
-            else:
-                peer = peer_ref[0]
+            peer = await _resolve_peer(client, channel_username, [None])
         except Exception as e:
             print(f"[CH-SNOS] [{session}] ❌ Entity error: {e}", flush=True)
             await client.disconnect()
@@ -355,11 +350,10 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
     print(f"{'='*50}", flush=True)
 
     BATCH_SIZE = 8
-    peer_ref = [None]
     results = []
     for i in range(0, len(_sessions), BATCH_SIZE):
         batch = _sessions[i:i + BATCH_SIZE]
-        batch_tasks = [_report_one_channel_session(s, channel_username, reason_key, message_id, peer_ref) for s in batch]
+        batch_tasks = [_report_one_channel_session(s, channel_username, reason_key, message_id) for s in batch]
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
         results.extend(zip(batch, batch_results))
         if i + BATCH_SIZE < len(_sessions):
