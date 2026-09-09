@@ -98,6 +98,13 @@ async def init_db():
                 hour_window_start TIMESTAMPTZ DEFAULT '1999-01-01 00:00:00+00'
             )
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS manual_confirmed_methods (
+                user_id BIGINT NOT NULL,
+                method  TEXT    NOT NULL,
+                PRIMARY KEY (user_id, method)
+            )
+        """)
         # Фикс NULL значений для старых пользователей
         await conn.execute("UPDATE users SET premium = 0 WHERE premium IS NULL")
         await conn.execute("UPDATE users SET free_reports = 0 WHERE free_reports IS NULL")
@@ -649,6 +656,31 @@ async def set_manual_confirmed(user_id: int):
     async with pool.acquire() as conn:
         try:
             await conn.execute("UPDATE users SET manual_confirmed = 1 WHERE user_id = $1", user_id)
+        except Exception:
+            pass
+
+
+async def is_method_manual_confirmed(user_id: int, method: str) -> bool:
+    """Проверяет подтвердил ли пользователь мануал для конкретного метода."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow(
+                "SELECT 1 FROM manual_confirmed_methods WHERE user_id=$1 AND method=$2",
+                user_id, method)
+            return row is not None
+        except Exception:
+            return False
+
+
+async def set_method_manual_confirmed(user_id: int, method: str):
+    """Помечает что пользователь прочитал мануал для конкретного метода."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute(
+                "INSERT INTO manual_confirmed_methods (user_id, method) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                user_id, method)
         except Exception:
             pass
 

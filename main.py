@@ -2478,13 +2478,15 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		# ─── Шаг 1: показываем предупреждение при нажатии на метод ──────────
 		if d in METHODS_REQUIRING_CONFIRM:
-			await bot_instance.edit_message_caption(
-				call.message.chat.id, call.message.message_id,
-				caption=t('manual_warn', _user_lang),
-				parse_mode="MarkdownV2",
-				reply_markup=keyboards.manual_confirm_step1(d, _user_lang)
-			)
-			return
+			already_confirmed = await db.is_method_manual_confirmed(uid, d)
+			if not already_confirmed:
+				await bot_instance.edit_message_caption(
+					call.message.chat.id, call.message.message_id,
+					caption=t('manual_warn', _user_lang),
+					parse_mode="MarkdownV2",
+					reply_markup=keyboards.manual_confirm_step1(d, _user_lang)
+				)
+				return
 
 		# ─── Шаг 2: "Ознакомлен" → второй экран ─────────────────────────────
 		if d.startswith('manual_step2_'):
@@ -2500,6 +2502,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		# ─── Шаг 3: "100% прочитал" → запускаем метод ────────────────────────
 		if d.startswith('manual_confirm_'):
 			d = d[len('manual_confirm_'):]  # подменяем d на реальный метод
+			await db.set_method_manual_confirmed(uid, d)
 
 		if d == "web_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
