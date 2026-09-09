@@ -2057,7 +2057,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					f"*За каждые 10 рефералов — 1 день подписки*\n"
 					f"*Также вы получаете 10% от покупки подписки вашим рефералом*"
 				),
-				parse_mode="Markdown", reply_markup=keyboards.referral_markup
+				parse_mode="Markdown", reply_markup=keyboards.get_referral_markup(_user_lang)
 			)
 
 		elif d == 'exchange_refs':
@@ -2087,7 +2087,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 							f"📎 *Ваша ссылка:*\n`https://t.me/{bot_uname}?start=ref_{uid}`\n\n"
 							f"*✅ Успешно обменяно 10 рефералов на 1 день подписки!*"
 						),
-						parse_mode="Markdown", reply_markup=keyboards.referral_markup
+						parse_mode="Markdown", reply_markup=keyboards.get_referral_markup(_user_lang)
 					)
 					await bot.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
 

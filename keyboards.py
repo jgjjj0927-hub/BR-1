@@ -44,6 +44,10 @@ def get_panel_back_btn(lang: str = 'ru') -> types.InlineKeyboardButton:
     return types.InlineKeyboardButton(t('btn_back', lang), callback_data='functions')
 
 
+def get_bonuses_back_btn(lang: str = 'ru') -> types.InlineKeyboardButton:
+    return types.InlineKeyboardButton(t('btn_back', lang), callback_data='bonuses_menu')
+
+
 def get_panel_back_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=2)
     m.add(get_panel_back_btn(lang))
@@ -363,7 +367,16 @@ def get_case_menu_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     m.add(
         types.InlineKeyboardButton(t('btn_case_buy', lang), callback_data='case_buy'),
         types.InlineKeyboardButton(t('btn_case_open', lang), callback_data='case_open'),
-        get_back_btn(lang),
+        get_bonuses_back_btn(lang),
+    )
+    return m
+
+
+def get_referral_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton("🔄 Обменять 10 рефералов → 1 день", callback_data='exchange_refs'),
+        get_bonuses_back_btn(lang),
     )
     return m
 
@@ -476,7 +489,7 @@ def get_wheel_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=1)
     m.add(
         types.InlineKeyboardButton(t('btn_spin', lang), callback_data='spin_wheel'),
-        get_back_btn(lang),
+        get_bonuses_back_btn(lang),
     )
     return m
 
