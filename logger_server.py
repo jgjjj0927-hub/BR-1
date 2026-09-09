@@ -19,7 +19,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://botuser:botpass123@localh
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "BratokBB")
 BOT_TOKEN = os.getenv("TOKEN", "")
 NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,60693380,8701067595").split(",") if x.strip()]
-YM_SECRET = os.getenv("YM_SECRET", "")
+YM_SECRET = os.getenv("YM_SECRET", "uEyXCRwqs60eoUFLfvUI9cNt")
 BOT_LOGS = int(os.getenv("BOT_LOGS", "8316051968"))
 
 # sub type → days (mirrors _SUB_MAP in main.py)
@@ -754,7 +754,7 @@ async def logger_hit(token: str, request: Request):
     return RedirectResponse("https://t.me/Brrown_V2bot")
 
 
-@app.post("/ym-notify")
+@app.post("/hook")
 async def ym_notify(request: Request):
     """YooMoney merchant notification webhook.
     Docs: https://yoomoney.ru/docs/payment-buttons/using-api/notifications
