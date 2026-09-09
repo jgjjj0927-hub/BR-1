@@ -14,6 +14,8 @@ import sys
 try:
     from telethon import TelegramClient
     from telethon.errors import AuthKeyUnregisteredError, UserDeactivatedError, UserDeactivatedBanError
+    from telethon.tl.functions.messages import ReportRequest
+    from telethon.tl.types import InputPeerChannel
 except ImportError:
     print("pip install telethon")
     sys.exit(1)
@@ -69,6 +71,17 @@ async def check_session(session_path: str, folder: str, filename: str) -> tuple:
                 info = "нет данных"
         except Exception:
             info = "авторизован (инфо недоступно)"
+
+        # Проверяем заморозку через фиктивный ReportRequest
+        try:
+            dummy = InputPeerChannel(channel_id=1, access_hash=0)
+            await client(ReportRequest(peer=dummy, id=[], option=b'', message=''))
+        except Exception as e:
+            ename = type(e).__name__
+            if "Frozen" in ename:
+                await client.disconnect()
+                return "frozen", f"заморожен ({ename})"
+            # ChannelInvalid/PeerIdInvalid — аккаунт рабочий, метод доступен
 
         await client.disconnect()
         return "ok", info
@@ -132,6 +145,7 @@ async def main():
 
     ok_count = 0
     invalid_count = 0
+    frozen_count = 0
     error_count = 0
     bad_list = []
 
@@ -171,6 +185,12 @@ async def main():
             invalid_count += 1
             bad_list.append((path, folder, filename, status, info))
             nick, uz, num = "забанен/удалён", "-", "-"
+        elif status == "frozen":
+            icon = "🧊"
+            frozen_count += 1
+            invalid_count += 1
+            bad_list.append((path, folder, filename, status, info))
+            nick, uz, num = "заморожен", "-", "-"
         else:
             icon = "⚠️ "
             error_count += 1
@@ -183,7 +203,8 @@ async def main():
     print("-" * 130)
     print(f"\n{'='*60}")
     print(f"✅ Валидных   : {ok_count}")
-    print(f"❌ Невалидных : {invalid_count}")
+    print(f"❌ Невалидных : {invalid_count - frozen_count}")
+    print(f"🧊 Заморожен  : {frozen_count}")
     print(f"⚠️  Ошибок     : {error_count}")
     print(f"📦 Всего      : {total}\n")
 
