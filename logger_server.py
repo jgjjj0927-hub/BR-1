@@ -96,6 +96,13 @@ async def init_site_tables(conn):
     except Exception:
         pass
     await conn.execute("""
+        CREATE TABLE IF NOT EXISTS pay_links (
+            token VARCHAR(64) PRIMARY KEY,
+            url TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await conn.execute("""
         CREATE TABLE IF NOT EXISTS logger_hits (
             id SERIAL PRIMARY KEY,
             token VARCHAR(32) NOT NULL,
@@ -624,9 +631,7 @@ async def delete_promo(pid: int):
 # -- Existing: IP logger
 
 
-# ─── Pay-link registry (in-memory, ephemeral) ────────────────────────────────
-_pay_links: dict[str, str] = {}  # token → ym_url
-
+# ─── Pay-link registry (persistent in DB) ────────────────────────────────────
 
 class PayIn(BaseModel):
     url: str
@@ -636,17 +641,22 @@ class PayIn(BaseModel):
 async def register_pay(body: PayIn):
     import secrets
     token = secrets.token_urlsafe(12)
-    _pay_links[token] = body.url
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO pay_links (token, url) VALUES ($1, $2) ON CONFLICT (token) DO UPDATE SET url=$2",
+            token, body.url
+        )
     return {"token": token}
 
 
 @app.get("/pay/{token}")
 async def pay_redirect(token: str):
     from fastapi.responses import RedirectResponse
-    url = _pay_links.get(token)
-    if not url:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT url FROM pay_links WHERE token=$1", token)
+    if not row:
         raise HTTPException(status_code=404, detail="link expired")
-    return RedirectResponse(url)
+    return RedirectResponse(row["url"])
 
 
 @app.get("/create/{owner_id}")
