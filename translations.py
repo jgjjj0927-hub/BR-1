@@ -25,7 +25,7 @@ _T = {
         'lang_en': '🇬🇧 English',
 
         # ─── Кнопки главного меню ─────────────────────────────────────────────
-        'btn_profile': '📕 Профиль',
+        'btn_profile': '👤 Профиль',
         'btn_info': '❓ Информация',
         'btn_shop': '🛍 Магазин',
         'btn_panel': '🔥 Открыть панель',
@@ -222,7 +222,7 @@ _T = {
         'lang_en': '🇬🇧 English',
 
         # ─── Main menu buttons ────────────────────────────────────────────────
-        'btn_profile': '📕 Profile',
+        'btn_profile': '👤 Profile',
         'btn_info': '❓ Information',
         'btn_shop': '🛍 Shop',
         'btn_panel': '🔥 Open Panel',
