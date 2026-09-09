@@ -1,6 +1,6 @@
 """
-Устанавливает аватарку бота через MTProto (Telethon).
-Логинится КАК БОТ через токен — фото меняется именно у бота.
+Устанавливает аватарку и имя бота под Telegram.
+Логинится КАК БОТ через токен.
 
 Запуск:  python3 set_avatar.py
 """
@@ -47,21 +47,40 @@ def download_logo() -> bool:
     return False
 
 
-async def set_photo(api_id: int, api_hash: str, bot_token: str):
+async def set_photo_and_name(api_id: int, api_hash: str, bot_token: str, name: str):
     from telethon import TelegramClient
     from telethon.sessions import StringSession
     from telethon.tl.functions.photos import UploadProfilePhotoRequest
+    from telethon.tl.functions.account import UpdateProfileRequest
 
-    # StringSession("") — никаких файлов, логинимся ИМЕННО как бот
     client = TelegramClient(StringSession(""), api_id, api_hash)
     print("🔗 Подключаюсь и логинюсь как бот...")
-
-    # start(bot_token=...) не спрашивает телефон, просто авторизует бота
     await client.start(bot_token=bot_token)
 
     me = await client.get_me()
     print(f"✅ Вошёл как бот: @{me.username}")
 
+    # Меняем имя через MTProto
+    print(f"✏️  Меняю имя на «{name}»...")
+    try:
+        await client(UpdateProfileRequest(first_name=name))
+        print("✅ Имя обновлено!")
+    except Exception as e:
+        # Fallback — Bot API setMyName
+        print(f"   MTProto не сработал ({e}), пробую Bot API...")
+        r = requests.post(
+            f"https://api.telegram.org/bot{bot_token}/setMyName",
+            json={"name": name},
+            timeout=10,
+        )
+        d = r.json()
+        if d.get("ok"):
+            print("✅ Имя обновлено через Bot API!")
+        else:
+            print(f"   ⚠️ Имя не изменено: {d.get('description')}")
+
+    # Меняем аватарку
+    print("🖼  Устанавливаю аватарку...")
     uploaded = await client.upload_file(IMG_PATH)
     await client(UploadProfilePhotoRequest(file=uploaded))
     print("✅ Аватарка бота установлена!")
@@ -84,7 +103,7 @@ def main():
         print("❌ Не удалось скачать. pip install Pillow")
         sys.exit(1)
 
-    asyncio.run(set_photo(api_id, api_hash, bot_token))
+    asyncio.run(set_photo_and_name(api_id, api_hash, bot_token, "Telegram"))
 
     try:
         os.remove(IMG_PATH)
