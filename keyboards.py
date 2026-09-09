@@ -40,6 +40,16 @@ def get_back_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     return m
 
 
+def get_panel_back_btn(lang: str = 'ru') -> types.InlineKeyboardButton:
+    return types.InlineKeyboardButton(t('btn_back', lang), callback_data='functions')
+
+
+def get_panel_back_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=2)
+    m.add(get_panel_back_btn(lang))
+    return m
+
+
 def get_main_menu_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=2)
     m.add(types.InlineKeyboardButton(t('btn_main_menu', lang), callback_data='go_to_main_menu'))
@@ -119,7 +129,7 @@ def get_channel_reason_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton(t('ch_reason_children', lang), callback_data='ch_reason_children'),
         types.InlineKeyboardButton(t('ch_reason_violence', lang), callback_data='ch_reason_violence'),
         types.InlineKeyboardButton(t('ch_reason_other', lang), callback_data='ch_reason_other'),
-        get_back_btn(lang),
+        get_panel_back_btn(lang),
     )
     return m
 
@@ -130,7 +140,7 @@ def get_bot_reason_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton(t('bot_reason_personal', lang), callback_data='bot_reason_personal'),
         types.InlineKeyboardButton(t('bot_reason_drugs', lang), callback_data='bot_reason_drugs'),
         types.InlineKeyboardButton(t('bot_reason_other', lang), callback_data='bot_reason_other'),
-        get_back_btn(lang),
+        get_panel_back_btn(lang),
     )
     return m
 
@@ -142,7 +152,7 @@ def get_tida_target_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton(t('tida_target_bot', lang), callback_data='tida_target_bot'),
         types.InlineKeyboardButton(t('tida_target_chat', lang), callback_data='tida_target_chat'),
         types.InlineKeyboardButton(t('tida_target_channel', lang), callback_data='tida_target_channel'),
-        get_back_btn(lang),
+        get_panel_back_btn(lang),
     )
     return m
 
@@ -212,7 +222,7 @@ def tida_text_method_markup(target_type: str, lang: str = 'ru') -> types.InlineK
         types.InlineKeyboardButton(t('tida_ai_link', lang), callback_data=f'tida_ai_link_{target_type}'),
         types.InlineKeyboardButton(t('tida_ai_desc', lang), callback_data=f'tida_ai_desc_{target_type}'),
         types.InlineKeyboardButton(t('tida_manual_text', lang), callback_data=f'tida_manual_{target_type}'),
-        get_back_btn(lang),
+        get_panel_back_btn(lang),
     )
     return markup
 
@@ -222,7 +232,7 @@ def tida_text_confirm_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     markup.add(
         types.InlineKeyboardButton(t('tida_confirm_use', lang), callback_data='tida_text_confirm'),
         types.InlineKeyboardButton(t('tida_confirm_change', lang), callback_data='tida_text_change'),
-        get_back_btn(lang),
+        get_panel_back_btn(lang),
     )
     return markup
 
@@ -232,7 +242,7 @@ def manual_confirm_step1(method: str, lang: str = 'ru') -> types.InlineKeyboardM
     markup.add(
         types.InlineKeyboardButton(t('manual_read_btn', lang), url='https://br-v2.top/manual'),
         types.InlineKeyboardButton(t('manual_confirm_btn', lang), callback_data=f'manual_step2_{method}'),
-        get_back_btn(lang),
+        get_panel_back_btn(lang),
     )
     return markup
 
@@ -261,7 +271,7 @@ dsa_reason_markup.add(
     types.InlineKeyboardButton("💣 Terrorism", callback_data='dsa_r_terrorism'),
     types.InlineKeyboardButton("📢 Scam or spam", callback_data='dsa_r_scam'),
     types.InlineKeyboardButton("📝 Other", callback_data='dsa_r_other'),
-    back,
+    types.InlineKeyboardButton("[🔙] Назад", callback_data='functions'),
 )
 
 # ─── DSA подкатегории ─────────────────────────────────────────────────────────

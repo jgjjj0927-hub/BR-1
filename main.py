@@ -1292,6 +1292,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		fullname = call.from_user.first_name
 		_user_lang = await db.get_lang(uid)
 		back_markup = keyboards.get_back_markup(_user_lang)
+		panel_back_markup = keyboards.get_panel_back_markup(_user_lang)
 		main_menu = keyboards.get_main_menu_markup(_user_lang)
 		functions = keyboards.get_functions(_user_lang)
 
@@ -2505,82 +2506,82 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await db.set_method_manual_confirmed(uid, d)
 
 		if d == "web_method":
-			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid in last_used_web and uid not in admins and uid not in no_kd and (now_msk() - last_used_web[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_web[uid])
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=back_markup); return
-			await call.message.answer(t('web_enter_text', _user_lang), parse_mode="Markdown", reply_markup=back_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=panel_back_markup); return
+			await call.message.answer(t('web_enter_text', _user_lang), parse_mode="Markdown", reply_markup=panel_back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTextFSM.text.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d == "mail_method":
-			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid in last_used_mail and uid not in admins and uid not in no_kd and (now_msk() - last_used_mail[uid]) < timedelta(minutes=300):
 				rem = timedelta(minutes=300) - (now_msk() - last_used_mail[uid])
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_min', _user_lang, m=rem.seconds//60), parse_mode="Markdown", reply_markup=back_markup); return
-			await call.message.answer(t('mail_enter_topic', _user_lang), parse_mode="Markdown", reply_markup=back_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_min', _user_lang, m=rem.seconds//60), parse_mode="Markdown", reply_markup=panel_back_markup); return
+			await call.message.answer(t('mail_enter_topic', _user_lang), parse_mode="Markdown", reply_markup=panel_back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitMailTopicFSM.topic.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d == "botnet_method":
 			free_reports = await db.get_free_reports(uid)
 			if sub_expired() and free_reports == 0:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay_or_free', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay_or_free', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid in last_used_botnet and uid not in admins and uid not in no_kd and (now_msk() - last_used_botnet[uid]) < timedelta(minutes=5):
 				rem = timedelta(minutes=5) - (now_msk() - last_used_botnet[uid])
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=back_markup); return
-			await bot_instance.send_message(call.message.chat.id, t('botnet_enter_link', _user_lang), parse_mode="Markdown", reply_markup=back_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=panel_back_markup); return
+			await bot_instance.send_message(call.message.chat.id, t('botnet_enter_link', _user_lang), parse_mode="Markdown", reply_markup=panel_back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		elif d == "prem_botnet_method":
-			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
-			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid in last_used_botnet2 and uid not in admins and uid not in no_kd and (now_msk() - last_used_botnet2[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_botnet2[uid])
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_min', _user_lang, m=rem.seconds//60), parse_mode="Markdown", reply_markup=back_markup); return
-			await bot_instance.send_message(call.message.chat.id, t('botnet_enter_link', _user_lang), parse_mode="Markdown", reply_markup=back_markup)
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_min', _user_lang, m=rem.seconds//60), parse_mode="Markdown", reply_markup=panel_back_markup); return
+			await bot_instance.send_message(call.message.chat.id, t('botnet_enter_link', _user_lang), parse_mode="Markdown", reply_markup=panel_back_markup)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkPREMFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
 		# ─── Бот-метод ────────────────────────────────────────────────────────
 		elif d == "bot_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(hours=1):
 				rem = timedelta(hours=1) - (now_msk() - last_used_bot_snos[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=t('err_wait_hm', _user_lang, h=h, m=m), parse_mode="Markdown", reply_markup=back_markup)
+					caption=t('err_wait_hm', _user_lang, h=h, m=m), parse_mode="Markdown", reply_markup=panel_back_markup)
 				return
 			if uid not in admins and uid not in no_kd and uid in last_used_bot_snos_fast and (now_msk() - last_used_bot_snos_fast[uid]) < timedelta(minutes=5):
 				rem = timedelta(minutes=5) - (now_msk() - last_used_bot_snos_fast[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=t('err_wait_ms', _user_lang, m=rem.seconds // 60, s=rem.seconds % 60), parse_mode="Markdown", reply_markup=back_markup)
+					caption=t('err_wait_ms', _user_lang, m=rem.seconds // 60, s=rem.seconds % 60), parse_mode="Markdown", reply_markup=panel_back_markup)
 				return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBotLinkFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(bot_reason='personal', _bot_token=_instance_token)
 			await bot_instance.send_message(
 				call.message.chat.id,
 				t('bot_method_prompt', _user_lang),
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
 		# ─── Канал-метод ──────────────────────────────────────────────────────
 		elif d == "channel_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			free_reports_ch = await db.get_free_reports(uid)
 			if sub_expired() and free_reports_ch == 0:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay_or_free', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay_or_free', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=t('channel_method_caption', _user_lang),
@@ -2602,7 +2603,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(
 				call.message.chat.id,
 				t('channel_enter_link', _user_lang, reason=reason_label),
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
 		# ─── Ручной метод ─────────────────────────────────────────────────────
@@ -2628,38 +2629,38 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		# ─── AU Report ────────────────────────────────────────────────────────
 		elif d == "aureport_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_aureport and (now_msk() - last_used_aureport[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_aureport[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=back_markup); return
+					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitAuReportFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=t('aureport_prompt', _user_lang),
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
 		# ─── TIDA ─────────────────────────────────────────────────────────────
 		elif d == "tida_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_tida and (now_msk() - last_used_tida[uid]) < timedelta(minutes=30):
 				rem = timedelta(minutes=30) - (now_msk() - last_used_tida[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=back_markup); return
+					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=t('tida_prompt', _user_lang),
 				parse_mode="Markdown",
-				reply_markup=back_markup
+				reply_markup=panel_back_markup
 			)
 
 		elif d.startswith("tida_target_"):
@@ -2702,7 +2703,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.text.state)
 			await bot_instance.send_message(uid,
 				'✏️ *Введите новый текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
-				parse_mode="Markdown", reply_markup=back_markup)
+				parse_mode="Markdown", reply_markup=panel_back_markup)
 
 		elif d == "tida_choose_ai_desc":
 			await call.answer()
@@ -2713,14 +2714,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.ai_desc.state)
 			await bot_instance.send_message(uid,
 				f"📝 *{target_label}* — опишите нарушение:\n_(ИИ создаст текст жалобы на основе вашего описания)_",
-				parse_mode="Markdown", reply_markup=back_markup)
+				parse_mode="Markdown", reply_markup=panel_back_markup)
 
 		elif d == "tida_choose_manual":
 			await call.answer()
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.text.state)
 			await bot_instance.send_message(uid,
 				'✏️ *Введите текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
-				parse_mode="Markdown", reply_markup=back_markup)
+				parse_mode="Markdown", reply_markup=panel_back_markup)
 
 		elif d.startswith("tida_ai_link_") or d.startswith("tida_ai_desc_") or d.startswith("tida_manual_"):
 			# Старые кнопки — перенаправляем
@@ -2734,27 +2735,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.text.state)
 				await bot_instance.send_message(uid,
 					'✏️ *Введите текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
-					parse_mode="Markdown", reply_markup=back_markup)
+					parse_mode="Markdown", reply_markup=panel_back_markup)
 			else:
 				target_names = {"account": "👤 Аккаунт", "bot": "🤖 Бот", "chat": "💬 Чат", "channel": "📢 Канал"}
 				target_label = target_names.get(target_type, target_type)
 				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.ai_desc.state)
 				await bot_instance.send_message(uid,
 					f"📝 *{target_label}* — опишите нарушение:\n_(ИИ создаст текст жалобы на основе вашего описания)_",
-					parse_mode="Markdown", reply_markup=back_markup)
+					parse_mode="Markdown", reply_markup=panel_back_markup)
 
 		# ─── DSA Report ───────────────────────────────────────────────────────
 		elif d == "dsa_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_dsa and (now_msk() - last_used_dsa[uid]) < timedelta(hours=1):
 				rem = timedelta(hours=1) - (now_msk() - last_used_dsa[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return
+					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDsaFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
@@ -2764,19 +2765,19 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 						"*└─ Введите ссылку на сообщение:*\n\n"
 						"`https://t.me/username/123`"
 				),
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
 		# ─── Telegraph снос ──────────────────────────────────────────────────────
 		elif d == "telegraph_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_telegraph and (now_msk() - last_used_telegraph[uid]) < timedelta(minutes=15):
 				rem = timedelta(minutes=15) - (now_msk() - last_used_telegraph[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=back_markup); return
+					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTelegraphFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
@@ -2786,7 +2787,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					"*└─ Введите ссылку на статью:*\n\n"
 					"`https://telegra.ph/...`"
 				),
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
 		# ─── Telegraph — подтверждение текста ────────────────────────────────────
@@ -2828,7 +2829,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(uid,
 				"✏️ *Введите свой текст письма:*\n\n"
 				"_Текст будет отправлен на все 3 адреса Telegram_",
-				parse_mode="Markdown", reply_markup=back_markup)
+				parse_mode="Markdown", reply_markup=panel_back_markup)
 
 		# ─── DSA причины ──────────────────────────────────────────────────────
 		elif d.startswith("dsa_r_") and await dp_instance.current_state(chat=uid, user=uid).get_state() == WaitDsaFSM.reason.state:
@@ -2881,7 +2882,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"— На английском языке\n"
 				"— До 250 символов\n"
 				"— Кратко опишите нарушение",
-				parse_mode="Markdown", reply_markup=back_markup)
+				parse_mode="Markdown", reply_markup=panel_back_markup)
 
 		# ─── [ТЕСТ] Profile Report ────────────────────────────────────────────────
 		elif d == "profile_method":
@@ -2890,7 +2891,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				return
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup)
+					caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup)
 				return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitProfileFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
@@ -2901,7 +2902,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					"*└─ Введите @username или ссылку:*\n\n"
 					"`@username` или `https://t\.me/username`"
 				),
-				parse_mode="MarkdownV2", reply_markup=back_markup
+				parse_mode="MarkdownV2", reply_markup=panel_back_markup
 			)
 
 		# ─── Trap-метод ──────────────────────────────────────────────────────────
@@ -2920,7 +2921,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption="🪤 *Trap-метод*\n\n*Запускаю создание бота...*",
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 			# Запускаем в фоне чтобы не блокировать
 			asyncio.ensure_future(_trap_create(uid, username, _instance_token))
@@ -2938,7 +2939,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(
 				uid,
 				"🎯 *Введи @username жертвы:*\n\n`@username`",
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
 		# ─── Trap — отмена ────────────────────────────────────────────────────────
@@ -2950,9 +2951,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		# ─── Логгер ───────────────────────────────────────────────────────────────
 		elif d == "logger_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			# Создаём ссылку через внутренний API логгера
 			try:
 				async with aiohttp.ClientSession() as _s:
@@ -2971,25 +2972,25 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 						f"*└─ Отправьте её жертве*\n"
 						f"*└─ Как только кто\\-то перейдёт — вам придёт уведомление*"
 					),
-					parse_mode="MarkdownV2", reply_markup=back_markup
+					parse_mode="MarkdownV2", reply_markup=panel_back_markup
 				)
 			except Exception as e:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=f">❌ *Ошибка логгера: сервер недоступен*",
-					parse_mode="MarkdownV2", reply_markup=back_markup)
+					parse_mode="MarkdownV2", reply_markup=panel_back_markup)
 
 		# ─── Блокировка карты ─────────────────────────────────────────────────
 		elif d == "bank_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if premium == 0:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен Premium\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен Premium\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_bank and (now_msk() - last_used_bank[uid]) < timedelta(hours=12):
 				rem = timedelta(hours=12) - (now_msk() - last_used_bank[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Кулдаун: {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return
+					caption=f'❌ *Кулдаун: {h}ч {m}м*', parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
@@ -3009,15 +3010,15 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				f"🏦 *{bank_names[bank_key]}*\n\n"
 				f"*└─ Введите номер телефона или карты цели:*\n\n"
 				f"`+79991234567` или `4276 1234 5678 9012`",
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
 		# ─── Спам кодами ─────────────────────────────────────────────────────
 		elif d == "code_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
@@ -3025,7 +3026,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					"*└─ Введите номер телефона цели:*\n\n"
 					"`+79991234567`"
 				),
-				parse_mode="Markdown", reply_markup=back_markup
+				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitCodeFSM.phone.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
@@ -3033,15 +3034,15 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		# ─── Стрессер ─────────────────────────────────────────────────────────
 		elif d == "stress_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			# КД 2 часа (кроме админов)
 			if uid not in admins and uid not in no_kd and uid in last_used_stress and (now_msk() - last_used_stress[uid]) < timedelta(hours=2):
 				rem = timedelta(hours=2) - (now_msk() - last_used_stress[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await bot_instance.send_message(
 				call.message.chat.id,
 				"⚡️ *Стрессер*\n\n*└─ Введите @username бота или ссылку:*\n`@username` или `https://t.me/botname`",
@@ -3551,7 +3552,7 @@ async def telegraph_step1(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid,
 			"❌ *Неверная ссылка!*\n\n"
 			"*Пример:* `https://telegra.ph/название`",
-			parse_mode="Markdown", reply_markup=back_markup)
+			parse_mode="Markdown", reply_markup=panel_back_markup)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
