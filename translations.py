@@ -27,7 +27,7 @@ _T = {
         # ─── Кнопки главного меню ─────────────────────────────────────────────
         'btn_profile': '📕 Профиль',
         'btn_info': '❓ Информация',
-        'btn_shop': '🛍 Цены',
+        'btn_shop': '🛍 Магазин',
         'btn_panel': '🔥 Открыть панель',
         'btn_promo': '🎁 Промокод',
         'btn_referral': '👥 Рефералы',
@@ -42,6 +42,18 @@ _T = {
         'btn_main_menu': '[🔙] Главное меню',
         'btn_admin': '⚙️ Админ панель',
         'btn_support': '🆘 Поддержка',
+        'btn_bonuses': '🎰 Бонусы',
+        'btn_settings': '⚙️ Настройки',
+        'bonuses_caption': '*🎰 Бонусы*',
+        'settings_caption': '*⚙️ Настройки*',
+        'mirrors_caption': (
+            '*🪞 Зеркала*\n\n'
+            '▪️ Создай зеркало-бота через @BotFather\n'
+            '▪️ При 2-м зеркале — *\+1 бесплатный репорт*\n'
+            '▪️ Зеркал можно создавать неограниченно'
+        ),
+        'btn_mirror_create_bonus': '✨ Создать зеркало \(\+бонус\)',
+        'btn_mirror_random': '🎲 5 случайных зеркал',
 
         # ─── Кнопки панели методов ────────────────────────────────────────────
         'btn_botnet': '🤖 Обычная Отправка',
@@ -212,7 +224,7 @@ _T = {
         # ─── Main menu buttons ────────────────────────────────────────────────
         'btn_profile': '📕 Profile',
         'btn_info': '❓ Information',
-        'btn_shop': '🛍 Prices',
+        'btn_shop': '🛍 Shop',
         'btn_panel': '🔥 Open Panel',
         'btn_promo': '🎁 Promo Code',
         'btn_referral': '👥 Referrals',
@@ -227,6 +239,18 @@ _T = {
         'btn_main_menu': '[🔙] Main Menu',
         'btn_admin': '⚙️ Admin Panel',
         'btn_support': '🆘 Support',
+        'btn_bonuses': '🎰 Bonuses',
+        'btn_settings': '⚙️ Settings',
+        'bonuses_caption': '*🎰 Bonuses*',
+        'settings_caption': '*⚙️ Settings*',
+        'mirrors_caption': (
+            '*🪞 Mirrors*\n\n'
+            '▪️ Create a mirror bot via @BotFather\n'
+            '▪️ At 2nd mirror — *\+1 free report*\n'
+            '▪️ No limit on mirrors'
+        ),
+        'btn_mirror_create_bonus': '✨ Create Mirror \(\+bonus\)',
+        'btn_mirror_random': '🎲 5 Random Mirrors',
 
         # ─── Panel method buttons ─────────────────────────────────────────────
         'btn_botnet': '🤖 Standard Send',

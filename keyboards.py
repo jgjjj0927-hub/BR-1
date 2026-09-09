@@ -64,26 +64,55 @@ def get_menu(is_admin: bool = False, lang: str = 'ru') -> types.InlineKeyboardMa
         types.InlineKeyboardButton(t('btn_profile', lang), callback_data='profile'),
     )
     m.add(
+        types.InlineKeyboardButton(t('btn_bonuses', lang), callback_data='bonuses_menu'),
+        types.InlineKeyboardButton(t('btn_media', lang), callback_data='media'),
+    )
+    m.add(
+        types.InlineKeyboardButton(t('btn_probiv', lang), callback_data='probiv'),
         types.InlineKeyboardButton(t('btn_shop', lang), callback_data='shop'),
+    )
+    m.add(types.InlineKeyboardButton(t('btn_settings', lang), callback_data='settings_menu'))
+    if is_admin:
+        m.add(types.InlineKeyboardButton(t('btn_admin', lang), callback_data='admin_panel'))
+    m.add(types.InlineKeyboardButton(t('btn_support', lang), url='https://t.me/BR_V2_support'))
+    return m
+
+
+def get_bonuses_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=2)
+    m.add(types.InlineKeyboardButton(t('btn_wheel', lang), callback_data='wheel'))
+    m.add(
+        types.InlineKeyboardButton(t('btn_cases', lang), callback_data='case_menu'),
         types.InlineKeyboardButton(t('btn_promo', lang), callback_data='promo'),
     )
     m.add(
         types.InlineKeyboardButton(t('btn_referral', lang), callback_data='referral'),
-        types.InlineKeyboardButton(t('btn_wheel', lang), callback_data='wheel'),
+        types.InlineKeyboardButton(t('btn_mirrors', lang), callback_data='mirrors_menu'),
     )
+    m.add(get_back_btn(lang))
+    return m
+
+
+def get_settings_markup(lang: str = 'ru', is_hidden: bool = False) -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    hide_text = t('profile_hide_on', lang) if is_hidden else t('profile_hide_off', lang)
     m.add(
-        types.InlineKeyboardButton(t('btn_mirrors', lang), callback_data='public_mirrors'),
-        types.InlineKeyboardButton(t('btn_free', lang), callback_data='free_menu'),
-    )
-    m.add(
-        types.InlineKeyboardButton(t('btn_cases', lang), callback_data='case_menu'),
+        types.InlineKeyboardButton(t('profile_lang_btn', lang), callback_data='lang_change'),
+        types.InlineKeyboardButton(hide_text, callback_data='profile_toggle_hidden'),
+        types.InlineKeyboardButton(t('profile_history_btn', lang), callback_data='profile_history'),
         types.InlineKeyboardButton(t('btn_monitor', lang), callback_data='monitor_menu'),
+        get_back_btn(lang),
     )
-    m.add(types.InlineKeyboardButton(t('btn_media', lang), callback_data='media'))
-    m.add(types.InlineKeyboardButton(t('btn_probiv', lang), callback_data='probiv'))
-    if is_admin:
-        m.add(types.InlineKeyboardButton(t('btn_admin', lang), callback_data='admin_panel'))
-    m.add(types.InlineKeyboardButton(t('btn_support', lang), url='https://t.me/BR_V2_support'))
+    return m
+
+
+def get_mirrors_menu_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton(t('btn_mirror_create_bonus', lang), callback_data='mirror_create'),
+        types.InlineKeyboardButton(t('btn_mirror_random', lang), callback_data='mirror_list'),
+        types.InlineKeyboardButton(t('btn_back', lang), callback_data='bonuses_menu'),
+    )
     return m
 
 

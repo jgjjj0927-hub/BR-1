@@ -1337,15 +1337,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			prem = t('profile_prem_yes', _user_lang) if premium == 1 else t('profile_prem_no', _user_lang)
 			free_reports = await db.get_free_reports(uid)
 			ref_count = await db.get_referral_count(uid)
-			is_hidden = await db.get_is_hidden(uid)
-			hide_btn_text = t('profile_hide_on', _user_lang) if is_hidden else t('profile_hide_off', _user_lang)
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
-			_profile_markup.add(
-				types.InlineKeyboardButton(t('profile_history_btn', _user_lang), callback_data='profile_history'),
-				types.InlineKeyboardButton(t('profile_lang_btn', _user_lang), callback_data='lang_change'),
-				types.InlineKeyboardButton(hide_btn_text, callback_data='profile_toggle_hidden'),
-				keyboards.get_back_btn(_user_lang),
-			)
+			_profile_markup.add(keyboards.get_back_btn(_user_lang))
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=f"{t('profile_caption', _user_lang)}\n\n{t('profile_name', _user_lang, name=fullname)}\n{t('profile_id', _user_lang, uid=uid)}\n{t('profile_username', _user_lang, username=username)}\n{t('profile_premium', _user_lang, prem=prem)}\n{t('profile_free_reports', _user_lang, count=free_reports)}\n{t('profile_refs', _user_lang, count=ref_count)}\n\n{t('profile_sub_status', _user_lang, sub_text=sub_text)}",
 				parse_mode="Markdown", reply_markup=_profile_markup)
@@ -1423,7 +1416,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				_nav_btns.append(types.InlineKeyboardButton("Ещё →", callback_data=f'profile_history_p_{_hist_offset + _PAGE_SIZE}'))
 			if _nav_btns:
 				_hist_markup.add(*_nav_btns)
-			_hist_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='profile'))
+			_hist_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='settings_menu'))
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_htxt, reply_markup=_hist_markup)
 			except Exception:
@@ -1432,22 +1425,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'profile_toggle_hidden':
 			new_hidden = await db.toggle_hidden(uid)
 			await call.answer("✅ Скрыт в логах" if new_hidden else "❌ Виден в логах", show_alert=False)
-			sub_text = t('profile_sub_expired', _user_lang) if subscribe < now_msk() else t('profile_sub_left', _user_lang, days=(subscribe - now_msk()).days)
-			prem = t('profile_prem_yes', _user_lang) if premium == 1 else t('profile_prem_no', _user_lang)
-			free_reports = await db.get_free_reports(uid)
-			ref_count = await db.get_referral_count(uid)
-			hide_btn_text = t('profile_hide_on', _user_lang) if new_hidden else t('profile_hide_off', _user_lang)
-			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
-			_profile_markup.add(
-				types.InlineKeyboardButton(t('profile_history_btn', _user_lang), callback_data='profile_history'),
-				types.InlineKeyboardButton(t('profile_lang_btn', _user_lang), callback_data='lang_change'),
-				types.InlineKeyboardButton(hide_btn_text, callback_data='profile_toggle_hidden'),
-				keyboards.get_back_btn(_user_lang),
-			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f"{t('profile_caption', _user_lang)}\n\n{t('profile_name', _user_lang, name=fullname)}\n{t('profile_id', _user_lang, uid=uid)}\n{t('profile_username', _user_lang, username=username)}\n{t('profile_premium', _user_lang, prem=prem)}\n{t('profile_free_reports', _user_lang, count=free_reports)}\n{t('profile_refs', _user_lang, count=ref_count)}\n\n{t('profile_sub_status', _user_lang, sub_text=sub_text)}",
-					parse_mode="Markdown", reply_markup=_profile_markup)
+					caption=t('settings_caption', _user_lang), parse_mode="Markdown",
+					reply_markup=keyboards.get_settings_markup(_user_lang, new_hidden))
 			except Exception:
 				pass
 		elif d == 'hidden_notice_ok':
@@ -1471,7 +1452,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				types.InlineKeyboardButton("🇷🇺 Русский", callback_data='profile_lang_ru'),
 				types.InlineKeyboardButton("🇬🇧 English", callback_data='profile_lang_en'),
 			)
-			_lang_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='profile'))
+			_lang_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='settings_menu'))
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="🌐 *Выберите язык | Choose language*",
 				parse_mode="Markdown", reply_markup=_lang_markup)
@@ -1479,23 +1460,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_new_lang = 'ru' if d == 'profile_lang_ru' else 'en'
 			await db.set_lang(uid, _new_lang)
 			await call.answer("🇷🇺 Русский выбран" if _new_lang == 'ru' else "🇬🇧 English selected", show_alert=False)
-			sub_text = t('profile_sub_expired', _new_lang) if subscribe < now_msk() else t('profile_sub_left', _new_lang, days=(subscribe - now_msk()).days)
-			prem = t('profile_prem_yes', _new_lang) if premium == 1 else t('profile_prem_no', _new_lang)
-			free_reports = await db.get_free_reports(uid)
-			ref_count = await db.get_referral_count(uid)
 			is_hidden = await db.get_is_hidden(uid)
-			hide_btn_text = t('profile_hide_on', _new_lang) if is_hidden else t('profile_hide_off', _new_lang)
-			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
-			_profile_markup.add(
-				types.InlineKeyboardButton(t('profile_history_btn', _new_lang), callback_data='profile_history'),
-				types.InlineKeyboardButton(t('profile_lang_btn', _new_lang), callback_data='lang_change'),
-				types.InlineKeyboardButton(hide_btn_text, callback_data='profile_toggle_hidden'),
-				keyboards.get_back_btn(_new_lang),
-			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f"{t('profile_caption', _new_lang)}\n\n{t('profile_name', _new_lang, name=fullname)}\n{t('profile_id', _new_lang, uid=uid)}\n{t('profile_username', _new_lang, username=username)}\n{t('profile_premium', _new_lang, prem=prem)}\n{t('profile_free_reports', _new_lang, count=free_reports)}\n{t('profile_refs', _new_lang, count=ref_count)}\n\n{t('profile_sub_status', _new_lang, sub_text=sub_text)}",
-					parse_mode="Markdown", reply_markup=_profile_markup)
+					caption=t('settings_caption', _new_lang), parse_mode="Markdown",
+					reply_markup=keyboards.get_settings_markup(_new_lang, is_hidden))
 			except Exception:
 				pass
 		elif d == "back":
@@ -1532,16 +1501,39 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				channel_invite = config.bot_channel_link
 			dyn_info_markup = types.InlineKeyboardMarkup(row_width=2)
 			dyn_info_markup.add(
-				types.InlineKeyboardButton("мв Канал (1 мин)", url=channel_invite),
+				types.InlineKeyboardButton("📺 Канал (1 мин)", url=channel_invite),
 				types.InlineKeyboardButton("📄 Мануал", url='https://br-v2.top/manual'),
+			)
+			dyn_info_markup.add(
+				types.InlineKeyboardButton("🌐 Сайт", url='https://br-v2.top'),
+				types.InlineKeyboardButton("❓ FAQ", url='https://br-v2.top/faq'),
 			)
 			dyn_info_markup.add(
 				types.InlineKeyboardButton("👑 Владелец", url='https://t.me/TariSmit'),
 				types.InlineKeyboardButton("🆘 Поддержка", url='https://t.me/BR_V2_support'),
 			)
-			dyn_info_markup.add(keyboards.back)
+			dyn_info_markup.add(keyboards.get_back_btn(_user_lang))
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=">*Информация*", parse_mode="MarkdownV2", reply_markup=dyn_info_markup)
+
+		elif d == 'bonuses_menu':
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+				caption=t('bonuses_caption', _user_lang), parse_mode="Markdown",
+				reply_markup=keyboards.get_bonuses_markup(_user_lang))
+
+		elif d == 'settings_menu':
+			is_hidden = await db.get_is_hidden(uid)
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+				caption=t('settings_caption', _user_lang), parse_mode="Markdown",
+				reply_markup=keyboards.get_settings_markup(_user_lang, is_hidden))
+
+		elif d == 'mirrors_menu':
+			mirror_count = await db.count_user_mirrors(uid)
+			bonus_given = await db.get_mirror_bonus_given(uid)
+			bonus_status = "✅ Получен" if bonus_given else (f"🔒 Нужно {2 - mirror_count} зеркала" if mirror_count < 2 else "⬆️ Доступен — создай зеркало")
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+				caption=t('mirrors_caption', _user_lang) + f"\n\n▪️ *Зеркал создано: {mirror_count}*\n▪️ *Бонус: {bonus_status}*",
+				parse_mode="MarkdownV2", reply_markup=keyboards.get_mirrors_menu_markup(_user_lang))
 		elif d == "shop":
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="⚙️ *Ассортимент*\n\n>*└─ 1 день \- 1$ / 100₽*\n>*└─ 3 дня \- 2$ / 175₽*\n>*└─ 7 дней \- 4$ / 350₽*\n>*└─ 30 дней \- 8$ / 700₽*\n>*└─ Навсегда \- 6$ / 500₽ \[\-70%\]*\n\n>*👑 Премиум: 5$ / 400₽ \[\-50%\]*",
@@ -2099,26 +2091,15 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					)
 					await bot.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
 
-		# ─── Бесплатно / Зеркала ──────────────────────────────────────────────
+		# ─── Бесплатно / Зеркала (старый alias, редирект в mirrors_menu) ────────
 		elif d == 'free_menu':
 			mirror_count = await db.count_user_mirrors(uid)
-			free_reports = await db.get_free_reports(uid)
 			bonus_given = await db.get_mirror_bonus_given(uid)
-			bonus_status = "✅ Получен" if bonus_given else f"{'🔒 Нужно 2 зеркала' if mirror_count < 2 else '⬆️ Доступен — создай зеркало!'}"
+			bonus_status = "✅ Получен" if bonus_given else (f"🔒 Нужно {2 - mirror_count} зеркала" if mirror_count < 2 else "⬆️ Доступен — создай зеркало")
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					f"🆓 *Бесплатные репорты*\n\n"
-					f"▪️ *Бесплатных репортов: {free_reports}*\n"
-					f"▪️ *Зеркал создано: {mirror_count}*\n"
-					f"▪️ *Бонус за зеркала: {bonus_status}*\n\n"
-					f"🪞 *Как получить бонус:*\n"
-					f"*└─ Создай бота через @BotFather*\n"
-					f"*└─ Скинь нам токен*\n"
-					f"*└─ При 2-м зеркале — +1 репорт (1 раз)*\n\n"
-					f"*Зеркал можно создавать неограниченно*"
-				),
-				parse_mode="Markdown", reply_markup=keyboards.get_free_menu_markup(_user_lang)
+				caption=t('mirrors_caption', _user_lang) + f"\n\n▪️ *Зеркал создано: {mirror_count}*\n▪️ *Бонус: {bonus_status}*",
+				parse_mode="MarkdownV2", reply_markup=keyboards.get_mirrors_menu_markup(_user_lang)
 			)
 
 		elif d == 'mirror_create':
@@ -2154,7 +2135,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			refresh_markup = types.InlineKeyboardMarkup(row_width=1)
 			refresh_markup.add(
 				types.InlineKeyboardButton("🔄 Обновить", callback_data='mirror_list'),
-				keyboards.back
+				types.InlineKeyboardButton("[🔙] Назад", callback_data='bonuses_menu'),
 			)
 			await bot_instance.send_message(
 				call.message.chat.id,
