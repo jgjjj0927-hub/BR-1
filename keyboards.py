@@ -4,7 +4,7 @@ from translations import t
 
 
 # ─── Статичные кнопки (EN, не переводятся) ───────────────────────────────────
-profile = types.InlineKeyboardButton("📕 Профиль", callback_data='profile')
+profile = types.InlineKeyboardButton("👤 Профиль", callback_data='profile')
 information = types.InlineKeyboardButton("❓ Информация", callback_data='information')
 shop = types.InlineKeyboardButton("🛍 Цены", callback_data='shop')
 snoser = types.InlineKeyboardButton("🔥 Открыть панель", callback_data='functions')
