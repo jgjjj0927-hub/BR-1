@@ -1320,13 +1320,19 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		if d == 'functions':
 			# Админам показываем расширенное меню с profile_method
-			if uid in admins:
+			_fn_caption = t('panel_caption_admin', _user_lang) if uid in admins else t('panel_caption', _user_lang)
+			_fn_markup  = keyboards.get_admin_functions_markup(_user_lang) if uid in admins else functions
+			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=t('panel_caption_admin', _user_lang), parse_mode="MarkdownV2",
-					reply_markup=keyboards.get_admin_functions_markup(_user_lang))
-			else:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=t('panel_caption', _user_lang), parse_mode="MarkdownV2", reply_markup=functions)
+					caption=_fn_caption, parse_mode="MarkdownV2", reply_markup=_fn_markup)
+			except Exception:
+				# Текстовое сообщение — удаляем и отправляем фото с панелью
+				try:
+					await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+				except Exception:
+					pass
+				await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
+					caption=_fn_caption, parse_mode="MarkdownV2", reply_markup=_fn_markup)
 		elif d == 'profile':
 			sub_text = t('profile_sub_expired', _user_lang) if subscribe < now_msk() else t('profile_sub_left', _user_lang, days=(subscribe - now_msk()).days)
 			prem = t('profile_prem_yes', _user_lang) if premium == 1 else t('profile_prem_no', _user_lang)
