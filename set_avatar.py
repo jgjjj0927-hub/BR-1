@@ -98,12 +98,14 @@ def main():
     if not bot_token:
         print("❌ Токен пустой."); sys.exit(1)
 
+    name = " ".join(sys.argv[1:]).strip() if len(sys.argv) > 1 else "Telegram"
+
     print("\n📥 Скачиваю логотип Telegram...")
     if not download_logo():
         print("❌ Не удалось скачать. pip install Pillow")
         sys.exit(1)
 
-    asyncio.run(set_photo_and_name(api_id, api_hash, bot_token, "Telegram"))
+    asyncio.run(set_photo_and_name(api_id, api_hash, bot_token, name))
 
     try:
         os.remove(IMG_PATH)
