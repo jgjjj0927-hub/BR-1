@@ -137,17 +137,24 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
         if target_ref[0] is None:
             msg = await client.get_messages(chat, ids=message_id)
             if msg.from_id is not None:
-                # Сообщение опубликовано от имени канала в группе — юзера нет
                 if isinstance(msg.from_id, PeerChannel):
-                    print(f"[BOTNET] [{session}] ⚠️ NOT_FOUND — сообщение от канала, используй Channel-метод", flush=True)
-                    return "NOT_FOUND", None
-                user_entity = await client.get_entity(msg.from_id)
-                target_ref[0] = msg.from_id.user_id if isinstance(msg.from_id, PeerUser) else "?"
-                target_ref[1] = user_entity.username or "Нет username"
-                print(f"[BOTNET] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, @{target_ref[1]}", flush=True)
-                if target_ref[0] in whitelist:
-                    print(f"[BOTNET] [{session}] 🍕 WHITELIST — таргет в белом списке", flush=True)
-                    return "WHITELIST", None
+                    # Пост от имени канала внутри группы — репортим само сообщение, юзер не нужен
+                    chan_id = msg.from_id.channel_id
+                    target_ref[0] = f"channel:{chan_id}"
+                    target_ref[1] = f"channel_{chan_id}"
+                    print(f"[BOTNET] [{session}] ℹ️ Пост от канала {chan_id} в группе — жалуемся на сообщение", flush=True)
+                    # whitelist не применяем к каналам
+                elif isinstance(msg.from_id, PeerUser):
+                    user_entity = await client.get_entity(msg.from_id)
+                    target_ref[0] = msg.from_id.user_id
+                    target_ref[1] = user_entity.username or "Нет username"
+                    print(f"[BOTNET] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, @{target_ref[1]}", flush=True)
+                    if target_ref[0] in whitelist:
+                        print(f"[BOTNET] [{session}] 🍕 WHITELIST — таргет в белом списке", flush=True)
+                        return "WHITELIST", None
+                else:
+                    target_ref[0] = "?"
+                    target_ref[1] = "unknown"
             else:
                 print(f"[BOTNET] [{session}] ⚠️ NO_ID — не удалось получить from_id сообщения", flush=True)
                 return "NO_ID", None
