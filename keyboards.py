@@ -383,7 +383,7 @@ def get_referral_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
 case_buy_markup = types.InlineKeyboardMarkup(row_width=1)
 case_buy_markup.add(
     types.InlineKeyboardButton("💲 USDT (CryptoPay)", callback_data='case_buy_usdt'),
-    types.InlineKeyboardButton("🇷🇺 СБП / ЮMoney (200₽)", callback_data='case_buy_sbp'),
+    types.InlineKeyboardButton("🇷🇺 СБП (200₽)", callback_data='case_buy_sbp'),
     types.InlineKeyboardButton("[🔙] Назад", callback_data='case_menu'),
 )
 
@@ -411,8 +411,8 @@ free_menu_markup = get_free_menu_markup('ru')
 # (kept for compat, use get_free_menu_markup(lang) for language-aware version)
 
 pay_method = types.InlineKeyboardMarkup(row_width=1)
-yoomoney = types.InlineKeyboardButton("🇷🇺 ЮMoney (Юмани)", callback_data='yoomoney')
-pay_method.add(yoomoney, back)
+sbp_btn = types.InlineKeyboardButton("🇷🇺 СБП", callback_data='yoomoney')
+pay_method.add(sbp_btn, back)
 
 info_markup = types.InlineKeyboardMarkup(row_width=1)
 manual = types.InlineKeyboardButton("📖 Мануал", url='https://br-v2.top/manual')

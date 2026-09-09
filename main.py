@@ -2326,7 +2326,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					"📦 *Покупка кейса — 2$ / 200₽*\n\n"
 					"*Выберите способ оплаты:*\n\n"
 					"💲 *USDT* — через CryptoPay\n"
-					"🇷🇺 *СБП / ЮMoney* — автоматически через YooMoney"
+					"🇷🇺 *СБП* — автоматически"
 				),
 				parse_mode="Markdown", reply_markup=keyboards.case_buy_markup
 			)
@@ -2354,7 +2354,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				call.message.chat.id, call.message.message_id,
 				caption=(
 					"📦 *Покупка кейса*\n\n"
-					"*Цена: 200₽ (СБП / ЮMoney)*\n"
+					"*Цена: 200₽ (СБП)*\n"
 					"*└─ После оплаты нажмите «Оплатил»*\n"
 					"*└─ Кейс будет выдан в течение 15 минут*"
 				),
