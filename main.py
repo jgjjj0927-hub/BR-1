@@ -708,6 +708,25 @@ async def sbp_paid_callback(callback_query: types.CallbackQuery):
 	except Exception as e:
 		print(f"sbp_paid_callback: {e}")
 
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('case_sbp_paid_'), state='*')
+async def case_sbp_paid_callback(callback_query: types.CallbackQuery):
+	try:
+		await bot.answer_callback_query(callback_query.id)
+		uid = callback_query.from_user.id
+		username = callback_query.from_user.username or "None"
+		await bot.send_message(
+			uid,
+			"✅ *Кейс будет выдан в течение 15 минут после подтверждения оплаты\\.*",
+			parse_mode="MarkdownV2"
+		)
+		await bot.send_message(
+			bot_logs,
+			f"🛒 `{uid}` (@{username}) заявил оплату кейса через СБП — проверить и выдать!",
+			parse_mode="Markdown"
+		)
+	except Exception as e:
+		print(f"case_sbp_paid_callback: {e}")
+
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_ton_'), state='*')
 async def pay_ton_callback(callback_query: types.CallbackQuery):
 	try:
@@ -2163,7 +2182,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			refresh_markup = types.InlineKeyboardMarkup(row_width=1)
 			refresh_markup.add(
 				types.InlineKeyboardButton("🔄 Обновить", callback_data='public_mirrors'),
-				keyboards.back
+				types.InlineKeyboardButton("[🔙] Назад", callback_data='bonuses_menu'),
 			)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
@@ -2307,9 +2326,39 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					"📦 *Покупка кейса — 2$ / 200₽*\n\n"
 					"*Выберите способ оплаты:*\n\n"
 					"💲 *USDT* — через CryptoPay\n"
-					"🇷🇺 *Рубли* — напишите админу, он выдаст кейс вручную"
+					"🇷🇺 *СБП / ЮMoney* — автоматически через YooMoney"
 				),
 				parse_mode="Markdown", reply_markup=keyboards.case_buy_markup
+			)
+
+		elif d == 'case_buy_sbp':
+			import urllib.parse as _urlparse
+			label = f"case_{uid}"
+			targets = _urlparse.quote("Кейс BR V2", safe='')
+			ym_url = (
+				f"https://yoomoney.ru/quickpay/confirm.xml"
+				f"?receiver={_YM_WALLET}"
+				f"&quickpay-form=shop"
+				f"&targets={targets}"
+				f"&sum=200"
+				f"&label={label}"
+			)
+			short_url = await _create_pay_link(ym_url)
+			sbp_case_markup = types.InlineKeyboardMarkup(row_width=1)
+			sbp_case_markup.add(
+				types.InlineKeyboardButton("💳 Оплатить 200₽", url=short_url),
+				types.InlineKeyboardButton("✅ Оплатил", callback_data=f'case_sbp_paid_{uid}'),
+				types.InlineKeyboardButton("[🔙] Назад", callback_data='case_buy'),
+			)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"📦 *Покупка кейса*\n\n"
+					"*Цена: 200₽ (СБП / ЮMoney)*\n"
+					"*└─ После оплаты нажмите «Оплатил»*\n"
+					"*└─ Кейс будет выдан в течение 15 минут*"
+				),
+				parse_mode="Markdown", reply_markup=sbp_case_markup
 			)
 
 		elif d == 'case_buy_usdt':

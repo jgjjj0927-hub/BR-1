@@ -114,7 +114,7 @@ def get_mirrors_menu_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=1)
     m.add(
         types.InlineKeyboardButton(t('btn_mirror_create_bonus', lang), callback_data='mirror_create'),
-        types.InlineKeyboardButton(t('btn_mirror_random', lang), callback_data='mirror_list'),
+        types.InlineKeyboardButton(t('btn_mirror_random', lang), callback_data='public_mirrors'),
         types.InlineKeyboardButton(t('btn_back', lang), callback_data='bonuses_menu'),
     )
     return m
@@ -383,7 +383,7 @@ def get_referral_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
 case_buy_markup = types.InlineKeyboardMarkup(row_width=1)
 case_buy_markup.add(
     types.InlineKeyboardButton("💲 USDT (CryptoPay)", callback_data='case_buy_usdt'),
-    types.InlineKeyboardButton("🇷🇺 Рубли (написать админу)", url='https://t.me/BR_V2_support'),
+    types.InlineKeyboardButton("🇷🇺 СБП / ЮMoney (200₽)", callback_data='case_buy_sbp'),
     types.InlineKeyboardButton("[🔙] Назад", callback_data='case_menu'),
 )
 

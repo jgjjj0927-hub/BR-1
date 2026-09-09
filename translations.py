@@ -52,7 +52,7 @@ _T = {
             '▪️ При 2\-м зеркале — *\+1 бесплатный репорт*\n'
             '▪️ Зеркал можно создавать неограниченно'
         ),
-        'btn_mirror_create_bonus': '✨ Создать зеркало \(\+бонус\)',
+        'btn_mirror_create_bonus': '✨ Создать зеркало (+бонус)',
         'btn_mirror_random': '🎲 5 случайных зеркал',
 
         # ─── Кнопки панели методов ────────────────────────────────────────────
@@ -249,7 +249,7 @@ _T = {
             '▪️ At 2nd mirror — *\+1 free report*\n'
             '▪️ No limit on mirrors'
         ),
-        'btn_mirror_create_bonus': '✨ Create Mirror \(\+bonus\)',
+        'btn_mirror_create_bonus': '✨ Create Mirror (+bonus)',
         'btn_mirror_random': '🎲 5 Random Mirrors',
 
         # ─── Panel method buttons ─────────────────────────────────────────────
