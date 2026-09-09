@@ -245,41 +245,52 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
         sent = 0
         for attempt in range(2):
             try:
-                msg_ids = [message_id] if message_id else []
-                # 3-шаговый флоу
-                try:
-                    print(f"[CH-SNOS] [{session}] 📤 Шаг 1: запрашиваем категории...", flush=True)
-                    r1 = await client(ReportRequest(peer=peer, id=msg_ids, option=b'', message=''))
-                    if hasattr(r1, 'options') and r1.options:
-                        cat = random.choice(r1.options).option
-                    else:
-                        cat = fallback_reason
-                    r2 = await client(ReportRequest(peer=peer, id=msg_ids, option=cat, message=''))
-                    if hasattr(r2, 'options') and r2.options:
-                        sub = random.choice(r2.options).option
-                        await client(ReportRequest(peer=peer, id=msg_ids, option=sub, message=random_reason_text))
-                    else:
-                        await client(ReportRequest(peer=peer, id=msg_ids, option=cat, message=random_reason_text))
-                    print(f"[CH-SNOS] [{session}] ✅ 3-шаг завершён", flush=True)
-                except Exception as e3:
-                    # Fallback — старый метод
-                    print(f"[CH-SNOS] [{session}] ⚠️ 3-шаг ошибка ({str(e3)[:40]}), fallback...", flush=True)
-                    if message_id:
+                if message_id:
+                    # Репорт конкретного сообщения — 3-шаговый флоу
+                    try:
+                        print(f"[CH-SNOS] [{session}] 📤 Шаг 1: запрашиваем категории (msg #{message_id})...", flush=True)
+                        r1 = await client(ReportRequest(peer=peer, id=[message_id], option=b'', message=''))
+                        if hasattr(r1, 'options') and r1.options:
+                            cat = random.choice(r1.options).option
+                        else:
+                            cat = fallback_reason
+                        r2 = await client(ReportRequest(peer=peer, id=[message_id], option=cat, message=''))
+                        if hasattr(r2, 'options') and r2.options:
+                            sub = random.choice(r2.options).option
+                            await client(ReportRequest(peer=peer, id=[message_id], option=sub, message=random_reason_text))
+                        else:
+                            await client(ReportRequest(peer=peer, id=[message_id], option=cat, message=random_reason_text))
+                        print(f"[CH-SNOS] [{session}] ✅ 3-шаг завершён", flush=True)
+                    except Exception as e3:
+                        # Fallback для message_id — без reason= (не поддерживается новым API)
+                        print(f"[CH-SNOS] [{session}] ⚠️ 3-шаг ошибка ({str(e3)[:40]}), fallback msg...", flush=True)
                         await client(ReportRequest(
                             peer=peer, id=[message_id],
-                            reason=reason_main, message=random_reason_text
+                            option=fallback_reason, message=random_reason_text
                         ))
-                    else:
+                else:
+                    # Репорт канала целиком — ReportPeerRequest (надёжнее для channel-level)
+                    print(f"[CH-SNOS] [{session}] 📤 ReportPeerRequest (канал целиком)...", flush=True)
+                    try:
                         await client(ReportPeerRequest(
                             peer=peer, reason=reason_main, message=random_reason_text
                         ))
+                        print(f"[CH-SNOS] [{session}] ✅ ReportPeerRequest завершён", flush=True)
+                    except Exception as e_peer:
+                        # Fallback через 3-шаг с пустым id
+                        print(f"[CH-SNOS] [{session}] ⚠️ ReportPeer ошибка ({str(e_peer)[:40]}), 3-шаг fallback...", flush=True)
+                        r1 = await client(ReportRequest(peer=peer, id=[], option=b'', message=''))
+                        cat = random.choice(r1.options).option if (hasattr(r1, 'options') and r1.options) else fallback_reason
+                        r2 = await client(ReportRequest(peer=peer, id=[], option=cat, message=''))
+                        sub = random.choice(r2.options).option if (hasattr(r2, 'options') and r2.options) else cat
+                        await client(ReportRequest(peer=peer, id=[], option=sub, message=random_reason_text))
                 sent += 1
                 await asyncio.sleep(random.uniform(0.5, 1.2))
             except FloodWaitError as e:
                 print(f"[CH-SNOS] [{session}] 🌊 FLOOD {e.seconds}с", flush=True)
                 return f"FLOOD {e.seconds}s"
             except Exception as e:
-                print(f"[CH-SNOS] [{session}] ⚠️ Репорт {attempt+1} ошибка: {str(e)[:60]}", flush=True)
+                print(f"[CH-SNOS] [{session}] ⚠️ Репорт {attempt+1} ошибка: {str(e)[:80]}", flush=True)
                 break
 
         if sent > 0:

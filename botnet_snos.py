@@ -290,7 +290,11 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
             return
         elif status == "NOT_FOUND":
             print(f"[BOTNET] ❌ Не могу получить ID — NOT_FOUND", flush=True)
-            await bot.send_message(user, "❌ *Не могу получить ID этого пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
+            await bot.send_message(user,
+                "❌ *Не могу найти автора сообщения!*\n"
+                "*└─ Возможно, пост опубликован от имени канала*\n"
+                "*└─ Для сноса канала используй Channel-метод*",
+                parse_mode="Markdown", reply_markup=keyboards.main_menu)
             return
         elif status == "ДОСТАВЛЕНО":
             valid += 1
