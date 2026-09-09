@@ -3,7 +3,7 @@ import random
 import asyncio
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
-from telethon.tl.types import PeerUser
+from telethon.tl.types import PeerUser, PeerChannel
 from telethon.tl.functions.messages import ReportRequest
 from aiogram import Bot, types
 import config
@@ -137,6 +137,10 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
         if target_ref[0] is None:
             msg = await client.get_messages(chat, ids=message_id)
             if msg.from_id is not None:
+                # Сообщение опубликовано от имени канала в группе — юзера нет
+                if isinstance(msg.from_id, PeerChannel):
+                    print(f"[BOTNET] [{session}] ⚠️ NOT_FOUND — сообщение от канала, используй Channel-метод", flush=True)
+                    return "NOT_FOUND", None
                 user_entity = await client.get_entity(msg.from_id)
                 target_ref[0] = msg.from_id.user_id if isinstance(msg.from_id, PeerUser) else "?"
                 target_ref[1] = user_entity.username or "Нет username"
