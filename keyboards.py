@@ -138,18 +138,13 @@ def get_functions(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=2)
     m.add(types.InlineKeyboardButton(t('btn_botnet', lang), callback_data='botnet_method'))
     m.add(
-        types.InlineKeyboardButton("✉️ Mail", callback_data='mail_method'),
         types.InlineKeyboardButton(t('btn_bot_method', lang), callback_data='bot_method'),
+        types.InlineKeyboardButton(t('btn_channel_method', lang), callback_data='channel_method'),
     )
-    m.add(types.InlineKeyboardButton(t('btn_channel_method', lang), callback_data='channel_method'))
     m.add(types.InlineKeyboardButton(t('btn_manual_method', lang), callback_data='manual_method'))
     m.add(
         types.InlineKeyboardButton("🇦🇺 AU Report", callback_data='aureport_method'),
         types.InlineKeyboardButton("🟣 TIDA", callback_data='tida_method'),
-    )
-    m.add(
-        types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'),
-        types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method'),
     )
     m.add(
         types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method'),
@@ -165,8 +160,13 @@ def get_premium_functions(lang: str = 'ru', is_admin: bool = False) -> types.Inl
     m.add(types.InlineKeyboardButton(t('btn_prem_botnet', lang), callback_data='prem_botnet_method'))
     m.add(
         types.InlineKeyboardButton("🌐 Web", callback_data='web_method'),
-        types.InlineKeyboardButton(t('btn_bank_method', lang), callback_data='bank_method'),
+        types.InlineKeyboardButton("✉️ Mail", callback_data='mail_method'),
     )
+    m.add(
+        types.InlineKeyboardButton(t('btn_bank_method', lang), callback_data='bank_method'),
+        types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'),
+    )
+    m.add(types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method'))
     if is_admin:
         m.add(types.InlineKeyboardButton("👤 Profile Report", callback_data='profile_method'))
         m.add(

@@ -2574,6 +2574,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d == "mail_method":
 			if sub_expired(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if premium == 0: await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if bot_off(): await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid in last_used_mail and uid not in admins and uid not in no_kd and (now_msk() - last_used_mail[uid]) < timedelta(minutes=300):
 				rem = timedelta(minutes=300) - (now_msk() - last_used_mail[uid])
@@ -2806,6 +2807,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if premium == 0:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_dsa and (now_msk() - last_used_dsa[uid]) < timedelta(hours=1):
 				rem = timedelta(hours=1) - (now_msk() - last_used_dsa[uid])
 				h = rem.seconds // 3600
@@ -2830,6 +2833,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if premium == 0:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_telegraph and (now_msk() - last_used_telegraph[uid]) < timedelta(minutes=15):
 				rem = timedelta(minutes=15) - (now_msk() - last_used_telegraph[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
