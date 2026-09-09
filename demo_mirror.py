@@ -159,7 +159,7 @@ async def run_demo() -> None:
             "Укажи токен: DEMO_TOKEN=<токен> python demo_mirror.py"
         )
 
-    await db.init()
+    await db.init_db()
 
     # Регистрируем демо-зеркало в БД если ещё нет
     if not await db.token_exists(DEMO_TOKEN):
