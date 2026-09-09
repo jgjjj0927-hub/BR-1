@@ -619,6 +619,31 @@ async def delete_promo(pid: int):
 # -- Existing: IP logger
 
 
+# ─── Pay-link registry (in-memory, ephemeral) ────────────────────────────────
+_pay_links: dict[str, str] = {}  # token → ym_url
+
+
+class PayIn(BaseModel):
+    url: str
+
+
+@app.post("/register_pay")
+async def register_pay(body: PayIn):
+    import secrets
+    token = secrets.token_urlsafe(12)
+    _pay_links[token] = body.url
+    return {"token": token}
+
+
+@app.get("/pay/{token}")
+async def pay_redirect(token: str):
+    from fastapi.responses import RedirectResponse
+    url = _pay_links.get(token)
+    if not url:
+        raise HTTPException(status_code=404, detail="link expired")
+    return RedirectResponse(url)
+
+
 @app.get("/create/{owner_id}")
 async def create_link(owner_id: str, request: Request):
     import secrets

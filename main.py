@@ -650,7 +650,7 @@ async def _create_pay_link(ym_url: str) -> str:
 		import aiohttp as _aiohttp
 		async with _aiohttp.ClientSession() as _s:
 			async with _s.post(
-				'http://127.0.0.1:8081/register_pay',
+				'http://127.0.0.1:8080/register_pay',
 				json={'url': ym_url},
 				timeout=_aiohttp.ClientTimeout(total=5)
 			) as resp:
