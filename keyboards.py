@@ -123,24 +123,30 @@ def get_mirrors_menu_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
 menu = get_menu(is_admin=False)
 
 
+def get_panel_select_markup(lang: str = 'ru', is_admin: bool = False) -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=2)
+    m.add(
+        types.InlineKeyboardButton('🔓 Обычный', callback_data='panel_regular'),
+        types.InlineKeyboardButton('👑 Премиум', callback_data='panel_premium'),
+    )
+    m.add(get_back_btn(lang))
+    return m
+
+
 def get_functions(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    """Обычный раздел — методы без premium."""
     m = types.InlineKeyboardMarkup(row_width=2)
     m.add(types.InlineKeyboardButton(t('btn_botnet', lang), callback_data='botnet_method'))
     m.add(
-        types.InlineKeyboardButton("🌐 Web", callback_data='web_method'),
         types.InlineKeyboardButton("✉️ Mail", callback_data='mail_method'),
-    )
-    m.add(types.InlineKeyboardButton(t('btn_prem_botnet', lang), callback_data='prem_botnet_method'))
-    m.add(
         types.InlineKeyboardButton(t('btn_bot_method', lang), callback_data='bot_method'),
-        types.InlineKeyboardButton(t('btn_channel_method', lang), callback_data='channel_method'),
     )
+    m.add(types.InlineKeyboardButton(t('btn_channel_method', lang), callback_data='channel_method'))
     m.add(types.InlineKeyboardButton(t('btn_manual_method', lang), callback_data='manual_method'))
     m.add(
         types.InlineKeyboardButton("🇦🇺 AU Report", callback_data='aureport_method'),
         types.InlineKeyboardButton("🟣 TIDA", callback_data='tida_method'),
     )
-    m.add(types.InlineKeyboardButton(t('btn_bank_method', lang), callback_data='bank_method'))
     m.add(
         types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'),
         types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method'),
@@ -149,7 +155,25 @@ def get_functions(lang: str = 'ru') -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method'),
         types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method'),
     )
-    m.add(get_back_btn(lang))
+    m.add(types.InlineKeyboardButton(t('btn_back', lang), callback_data='functions'))
+    return m
+
+
+def get_premium_functions(lang: str = 'ru', is_admin: bool = False) -> types.InlineKeyboardMarkup:
+    """Премиум раздел — методы требующие premium + admin-only методы."""
+    m = types.InlineKeyboardMarkup(row_width=2)
+    m.add(types.InlineKeyboardButton(t('btn_prem_botnet', lang), callback_data='prem_botnet_method'))
+    m.add(
+        types.InlineKeyboardButton("🌐 Web", callback_data='web_method'),
+        types.InlineKeyboardButton(t('btn_bank_method', lang), callback_data='bank_method'),
+    )
+    if is_admin:
+        m.add(types.InlineKeyboardButton("👤 Profile Report", callback_data='profile_method'))
+        m.add(
+            types.InlineKeyboardButton("🪤 Trap-метод", callback_data='trap_method'),
+            types.InlineKeyboardButton("💀 Снос сессий", callback_data='session_method'),
+        )
+    m.add(types.InlineKeyboardButton(t('btn_back', lang), callback_data='functions'))
     return m
 
 
@@ -201,36 +225,7 @@ def get_free_menu_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
 
 
 def get_admin_functions_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(types.InlineKeyboardButton(t('btn_botnet', lang), callback_data='botnet_method'))
-    markup.add(
-        types.InlineKeyboardButton("🌐 Web", callback_data='web_method'),
-        types.InlineKeyboardButton("✉️ Mail", callback_data='mail_method'),
-    )
-    markup.add(types.InlineKeyboardButton(t('btn_prem_botnet', lang), callback_data='prem_botnet_method'))
-    markup.add(
-        types.InlineKeyboardButton(t('btn_bot_method', lang), callback_data='bot_method'),
-        types.InlineKeyboardButton(t('btn_channel_method', lang), callback_data='channel_method'),
-    )
-    markup.add(types.InlineKeyboardButton(t('btn_manual_method', lang), callback_data='manual_method'))
-    markup.add(
-        types.InlineKeyboardButton("🇦🇺 AU Report", callback_data='aureport_method'),
-        types.InlineKeyboardButton("🟣 TIDA", callback_data='tida_method'),
-    )
-    markup.add(types.InlineKeyboardButton(t('btn_bank_method', lang), callback_data='bank_method'))
-    markup.add(
-        types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'),
-        types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method'),
-    )
-    markup.add(types.InlineKeyboardButton("👤 [ТЕСТ] Profile Report", callback_data='profile_method'))
-    markup.add(
-        types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method'),
-        types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method'),
-    )
-    markup.add(types.InlineKeyboardButton("🪤 Trap-метод", callback_data='trap_method'))
-    markup.add(types.InlineKeyboardButton("💀 Снос сессий", callback_data='session_method'))
-    markup.add(get_back_btn(lang))
-    return markup
+    return get_panel_select_markup(lang, is_admin=True)
 
 
 def monitor_add_markup(target: str, can_add: bool, lang: str = 'ru') -> types.InlineKeyboardMarkup:

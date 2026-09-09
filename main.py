@@ -1338,15 +1338,36 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			return
 
 		if d == 'functions':
-			# Админам показываем расширенное меню с profile_method
 			_fn_caption = t('panel_caption_admin', _user_lang) if uid in admins else t('panel_caption', _user_lang)
-			_fn_markup  = keyboards.get_admin_functions_markup(_user_lang) if uid in admins else functions
+			_fn_markup = keyboards.get_panel_select_markup(_user_lang, is_admin=(uid in admins))
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=_fn_caption, parse_mode="MarkdownV2", reply_markup=_fn_markup)
 			except Exception:
-				# Текстовое сообщение (промпт метода) — просто удаляем,
-				# оригинальное фото с панелью уже видно в чате
+				try:
+					await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+				except Exception:
+					pass
+
+		elif d == 'panel_regular':
+			_fn_caption = t('panel_caption', _user_lang)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=_fn_caption, parse_mode="MarkdownV2",
+					reply_markup=keyboards.get_functions(_user_lang))
+			except Exception:
+				try:
+					await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+				except Exception:
+					pass
+
+		elif d == 'panel_premium':
+			_fn_caption = t('panel_caption_admin', _user_lang) if uid in admins else '>👑 *Премиум методы*'
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=_fn_caption, parse_mode="MarkdownV2",
+					reply_markup=keyboards.get_premium_functions(_user_lang, is_admin=(uid in admins)))
+			except Exception:
 				try:
 					await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
 				except Exception:
