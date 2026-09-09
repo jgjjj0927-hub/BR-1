@@ -1,6 +1,6 @@
 """
 Устанавливает аватарку бота через MTProto (Telethon).
-Bot API не умеет менять фото на многих инстансах — используем MTProto.
+Использует StringSession — не создаёт файлов сессий, не конфликтует с чужими.
 
 Запуск:  python3 set_avatar.py
 """
@@ -9,11 +9,12 @@ import os
 import sys
 import requests
 
-IMG_PATH = "/tmp/tg_logo.png"
+IMG_PATH = "/tmp/tg_logo_big.png"
 
+# Ищем большой логотип (≥512px) — Telegram требует минимум ~160px
 LOGO_URLS = [
+    "https://telegram.org/img/t_logo_2x.png",
     "https://telegram.org/img/t_logo.png",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Telegram_logo.svg/512px-Telegram_logo.svg.png",
 ]
 
 
@@ -25,33 +26,53 @@ def download_logo() -> bool:
             if r.status_code == 200 and len(r.content) > 5000:
                 with open(IMG_PATH, "wb") as f:
                     f.write(r.content)
-                print(f"   ✅ Скачано ({len(r.content)} байт)")
+                size = len(r.content)
+                print(f"   ✅ Скачано ({size} байт)")
                 return True
             print(f"   ⚠️ Пропускаю ({r.status_code}, {len(r.content)} байт)")
         except Exception as e:
             print(f"   ⚠️ {e}")
+
+    # Fallback — создаём простую синюю картинку 512x512 через PIL
+    try:
+        from PIL import Image, ImageDraw
+        print("🎨 Генерирую логотип локально (PIL)...")
+        img = Image.new("RGB", (512, 512), color=(41, 182, 246))
+        draw = ImageDraw.Draw(img)
+        # Рисуем простой белый самолётик (упрощённо)
+        draw.polygon([(100, 256), (412, 150), (350, 380)], fill=(255, 255, 255))
+        img.save(IMG_PATH)
+        print(f"   ✅ Создан 512×512 PNG")
+        return True
+    except ImportError:
+        pass
+
     return False
 
 
 async def set_photo_telethon(api_id: int, api_hash: str, bot_token: str):
     from telethon import TelegramClient
+    from telethon.sessions import StringSession
     from telethon.tl.functions.photos import UploadProfilePhotoRequest
 
-    print("🔗 Подключаюсь через Telethon...")
-    async with TelegramClient("set_avatar_session", api_id, api_hash) as client:
-        await client.start(bot_token=bot_token)
-        print("✅ Авторизован как бот")
+    print("🔗 Подключаюсь через Telethon (чистая сессия)...")
+    # StringSession("") — не читает файлы на диске, всегда чистая сессия
+    async with TelegramClient(StringSession(""), api_id, api_hash) as client:
+        await client.sign_in(bot_token=bot_token)
+        me = await client.get_me()
+        print(f"✅ Авторизован как @{me.username}")
+
         uploaded = await client.upload_file(IMG_PATH)
         await client(UploadProfilePhotoRequest(file=uploaded))
-        print("✅ Аватарка установлена через MTProto!")
+        print("✅ Аватарка установлена!")
 
 
 def main():
-    # Пробуем взять credentials из config проекта
+    # Читаем credentials из config проекта
     try:
-        sys.path.insert(0, os.path.dirname(__file__))
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import config as cfg
-        api_id   = int(getattr(cfg, "AUREPORT_API_ID", 0) or 0)
+        api_id   = int(getattr(cfg, "AUREPORT_API_ID",  0) or 0)
         api_hash = str(getattr(cfg, "AUREPORT_API_HASH", "") or "")
     except Exception:
         api_id, api_hash = 0, ""
@@ -64,18 +85,17 @@ def main():
     if not bot_token:
         print("❌ Токен пустой."); sys.exit(1)
 
-    print(f"\n📥 Скачиваю логотип Telegram...")
+    print("\n📥 Скачиваю логотип Telegram...")
     if not download_logo():
-        print("❌ Не удалось скачать логотип."); sys.exit(1)
+        print("❌ Не удалось скачать логотип. Установи PIL: pip install Pillow")
+        sys.exit(1)
 
     asyncio.run(set_photo_telethon(api_id, api_hash, bot_token))
 
-    # Чистим временный файл и сессию
-    for f in (IMG_PATH, "set_avatar_session.session"):
-        try:
-            os.remove(f)
-        except FileNotFoundError:
-            pass
+    try:
+        os.remove(IMG_PATH)
+    except FileNotFoundError:
+        pass
 
 
 if __name__ == "__main__":
