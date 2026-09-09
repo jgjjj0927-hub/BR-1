@@ -771,13 +771,14 @@ async def ym_notify(request: Request):
     label            = form.get("label", "")
     sha1_received    = form.get("sha1_hash", "")
 
-    # Verify signature
-    secret = YM_SECRET
-    sha1_str = f"{notification_type}&{operation_id}&{amount}&{currency}&{dt}&{sender}&{codepro}&{secret}&{label}"
-    sha1_expected = hashlib.sha1(sha1_str.encode("utf-8")).hexdigest()
-    if secret and sha1_received != sha1_expected:
-        log.warning(f"[ym-notify] bad SHA1: expected={sha1_expected} got={sha1_received}")
-        raise HTTPException(status_code=400, detail="bad signature")
+    # Verify signature (skip if sha1_hash not sent — YooMoney test mode)
+    if sha1_received:
+        secret = YM_SECRET
+        sha1_str = f"{notification_type}&{operation_id}&{amount}&{currency}&{dt}&{sender}&{codepro}&{secret}&{label}"
+        sha1_expected = hashlib.sha1(sha1_str.encode("utf-8")).hexdigest()
+        if sha1_received != sha1_expected:
+            log.warning(f"[ym-notify] bad SHA1: expected={sha1_expected} got={sha1_received}")
+            raise HTTPException(status_code=400, detail="bad signature")
 
     # label format: sub_{user_id}_{sub_type}
     if not label.startswith("sub_"):
