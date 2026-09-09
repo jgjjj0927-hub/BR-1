@@ -1,6 +1,6 @@
 """
-Устанавливает аватарку бота через MTProto.
-Использует уже авторизованную сессию из trap_session/trap.
+Устанавливает аватарку бота через MTProto (Telethon).
+Логинится КАК БОТ через токен — фото меняется именно у бота.
 
 Запуск:  python3 set_avatar.py
 """
@@ -9,8 +9,7 @@ import os
 import sys
 import requests
 
-IMG_PATH     = "/tmp/tg_logo_big.png"
-SESSION_PATH = "trap_session/trap"
+IMG_PATH = "/tmp/tg_logo_big.png"
 
 LOGO_URLS = [
     "https://telegram.org/img/t_logo_2x.png",
@@ -35,7 +34,7 @@ def download_logo() -> bool:
     # Fallback — генерируем 512×512 через Pillow
     try:
         from PIL import Image, ImageDraw
-        print("🎨 Генерирую логотип локально (PIL)...")
+        print("🎨 Генерирую логотип (PIL)...")
         img = Image.new("RGB", (512, 512), color=(41, 182, 246))
         draw = ImageDraw.Draw(img)
         draw.polygon([(100, 256), (412, 150), (350, 380)], fill=(255, 255, 255))
@@ -50,21 +49,24 @@ def download_logo() -> bool:
 
 async def set_photo(api_id: int, api_hash: str, bot_token: str):
     from telethon import TelegramClient
+    from telethon.sessions import StringSession
     from telethon.tl.functions.photos import UploadProfilePhotoRequest
 
-    print(f"🔗 Подключаюсь через сессию: {SESSION_PATH}")
-    async with TelegramClient(SESSION_PATH, api_id, api_hash) as client:
-        # Сессия уже авторизована — если нет, логинимся как бот
-        if not await client.is_user_authorized():
-            print("⚠️  Сессия не авторизована, логинюсь по токену бота...")
-            await client.sign_in(bot_token=bot_token)
+    # StringSession("") — никаких файлов, логинимся ИМЕННО как бот
+    client = TelegramClient(StringSession(""), api_id, api_hash)
+    print("🔗 Подключаюсь и логинюсь как бот...")
 
-        me = await client.get_me()
-        print(f"✅ Используем аккаунт: {me.first_name} (@{me.username})")
+    # start(bot_token=...) не спрашивает телефон, просто авторизует бота
+    await client.start(bot_token=bot_token)
 
-        uploaded = await client.upload_file(IMG_PATH)
-        await client(UploadProfilePhotoRequest(file=uploaded))
-        print("✅ Аватарка установлена!")
+    me = await client.get_me()
+    print(f"✅ Вошёл как бот: @{me.username}")
+
+    uploaded = await client.upload_file(IMG_PATH)
+    await client(UploadProfilePhotoRequest(file=uploaded))
+    print("✅ Аватарка бота установлена!")
+
+    await client.disconnect()
 
 
 def main():
@@ -79,7 +81,7 @@ def main():
 
     print("\n📥 Скачиваю логотип Telegram...")
     if not download_logo():
-        print("❌ Не удалось скачать. Установи PIL: pip install Pillow")
+        print("❌ Не удалось скачать. pip install Pillow")
         sys.exit(1)
 
     asyncio.run(set_photo(api_id, api_hash, bot_token))
