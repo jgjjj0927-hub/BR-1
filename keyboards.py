@@ -1,6 +1,20 @@
 from aiogram import types
 import config
+import json as _json
 from translations import t
+
+
+def styled(markup: types.InlineKeyboardMarkup, style_map: dict) -> str:
+    """Bot API 9.4: возвращает JSON-строку клавиатуры с полем style на кнопках.
+    style_map = {'callback_data': 'primary'|'success'|'danger'}
+    """
+    d = markup.to_python()
+    for row in d.get('inline_keyboard', []):
+        for btn in row:
+            s = style_map.get(btn.get('callback_data', ''))
+            if s:
+                btn['style'] = s
+    return _json.dumps(d)
 
 
 # ─── Статичные кнопки (EN, не переводятся) ───────────────────────────────────
@@ -79,7 +93,7 @@ def get_menu(is_admin: bool = False, lang: str = 'ru') -> types.InlineKeyboardMa
     if is_admin:
         m.add(types.InlineKeyboardButton(t('btn_admin', lang), callback_data='admin_panel'))
     m.add(types.InlineKeyboardButton(t('btn_support', lang), url='https://t.me/BR_V2_support'))
-    return m
+    return styled(m, {'functions': 'primary'})
 
 
 def get_bonuses_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
