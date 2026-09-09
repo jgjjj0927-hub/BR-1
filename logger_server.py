@@ -2,8 +2,9 @@ import os
 import json
 import asyncio
 import asyncpg
+import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from typing import Optional, AsyncGenerator
 
@@ -18,6 +19,18 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://botuser:botpass123@localh
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "BratokBB")
 BOT_TOKEN = os.getenv("TOKEN", "")
 NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,60693380,8701067595").split(",") if x.strip()]
+YM_SECRET = os.getenv("YM_SECRET", "")
+BOT_LOGS = int(os.getenv("BOT_LOGS", "8316051968"))
+
+# sub type → days (mirrors _SUB_MAP in main.py)
+_YM_SUB_DAYS = {
+    "1": 1,
+    "3": 3,
+    "7": 7,
+    "30": 30,
+    "forever": 999,
+    "premupgrade": 0,  # premium flag, not days
+}
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -739,6 +752,91 @@ async def logger_hit(token: str, request: Request):
         log.warning(f"logger notify failed: {e}")
 
     return RedirectResponse("https://t.me/Brrown_V2bot")
+
+
+@app.post("/ym-notify")
+async def ym_notify(request: Request):
+    """YooMoney merchant notification webhook.
+    Docs: https://yoomoney.ru/docs/payment-buttons/using-api/notifications
+    SHA1 = notification_type&operation_id&amount&currency&datetime&sender&codepro&secret&label
+    """
+    form = await request.form()
+    notification_type = form.get("notification_type", "")
+    operation_id     = form.get("operation_id", "")
+    amount           = form.get("amount", "")
+    currency         = form.get("currency", "")
+    dt               = form.get("datetime", "")
+    sender           = form.get("sender", "")
+    codepro          = form.get("codepro", "")
+    label            = form.get("label", "")
+    sha1_received    = form.get("sha1_hash", "")
+
+    # Verify signature
+    secret = YM_SECRET
+    sha1_str = f"{notification_type}&{operation_id}&{amount}&{currency}&{dt}&{sender}&{codepro}&{secret}&{label}"
+    sha1_expected = hashlib.sha1(sha1_str.encode("utf-8")).hexdigest()
+    if secret and sha1_received != sha1_expected:
+        log.warning(f"[ym-notify] bad SHA1: expected={sha1_expected} got={sha1_received}")
+        raise HTTPException(status_code=400, detail="bad signature")
+
+    # label format: sub_{user_id}_{sub_type}
+    if not label.startswith("sub_"):
+        return {"ok": True}
+
+    parts = label.split("_", 2)
+    if len(parts) != 3:
+        return {"ok": True}
+
+    _, uid_str, st = parts
+    try:
+        uid = int(uid_str)
+    except ValueError:
+        return {"ok": True}
+
+    if st not in _YM_SUB_DAYS:
+        log.warning(f"[ym-notify] unknown sub type: {st}")
+        return {"ok": True}
+
+    sub_days = _YM_SUB_DAYS[st]
+
+    async with pool.acquire() as conn:
+        if st == "premupgrade":
+            await conn.execute("UPDATE users SET premium=1 WHERE user_id=$1", uid)
+            msg_text = "✅ *Ваш Premium активирован\\!*"
+            log_text = f"💳 *Premium* `{uid}` через СБП/YM"
+        else:
+            current = await conn.fetchval("SELECT subscribe FROM users WHERE user_id=$1", uid)
+            now = datetime.now()
+            if current and current > now:
+                new_date = current + timedelta(days=sub_days)
+            else:
+                new_date = now + timedelta(days=sub_days)
+            await conn.execute(
+                "UPDATE users SET subscribe=$1, sub_expiry_notified=FALSE WHERE user_id=$2",
+                new_date, uid
+            )
+            new_date_str = new_date.strftime("%Y-%m-%d %H:%M:%S")
+            msg_text = f"✅ *Подписка активирована\\!*\n*└─ Действует до: `{new_date_str}`*"
+            log_text = f"💳 *Оплата СБП/YM* `{uid}` *до* `{new_date_str}`"
+
+    tok = BOT_TOKEN
+    try:
+        async with aiohttp.ClientSession() as s:
+            await s.post(
+                f"https://api.telegram.org/bot{tok}/sendMessage",
+                json={"chat_id": uid, "text": msg_text, "parse_mode": "MarkdownV2"},
+                timeout=aiohttp.ClientTimeout(total=5)
+            )
+            await s.post(
+                f"https://api.telegram.org/bot{tok}/sendMessage",
+                json={"chat_id": BOT_LOGS, "text": log_text, "parse_mode": "Markdown"},
+                timeout=aiohttp.ClientTimeout(total=5)
+            )
+    except Exception as e:
+        log.warning(f"[ym-notify] tg notify failed: {e}")
+
+    log.info(f"[ym-notify] granted sub={st} days={sub_days} uid={uid} op={operation_id}")
+    return {"ok": True}
 
 
 if __name__ == "__main__":
