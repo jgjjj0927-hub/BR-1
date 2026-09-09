@@ -1326,13 +1326,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=_fn_caption, parse_mode="MarkdownV2", reply_markup=_fn_markup)
 			except Exception:
-				# Текстовое сообщение — удаляем и отправляем фото с панелью
+				# Текстовое сообщение (промпт метода) — просто удаляем,
+				# оригинальное фото с панелью уже видно в чате
 				try:
 					await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
 				except Exception:
 					pass
-				await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
-					caption=_fn_caption, parse_mode="MarkdownV2", reply_markup=_fn_markup)
 		elif d == 'profile':
 			sub_text = t('profile_sub_expired', _user_lang) if subscribe < now_msk() else t('profile_sub_left', _user_lang, days=(subscribe - now_msk()).days)
 			prem = t('profile_prem_yes', _user_lang) if premium == 1 else t('profile_prem_no', _user_lang)
