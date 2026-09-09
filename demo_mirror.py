@@ -100,11 +100,19 @@ def _make_fake_fn(method_label: str, uid_idx: int | None = None):
 
 # ─── 5. Monkey-patch: set_bot-функции и исполнительные функции в main ─────────
 
-# Подписка в демо — всегда ок
+# Подписка в демо — полностью убрана
 async def _fake_check_subscription(uid: int) -> bool:
     return True
 
+async def _fake_send_subscribe_required(uid: int, bot) -> None:
+    import keyboards
+    await bot.send_photo(
+        uid, photo=open('material/menu.png', 'rb'),
+        caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
+        parse_mode="MarkdownV2", reply_markup=keyboards.menu)
+
 _main.check_subscription = _fake_check_subscription
+_main.send_subscribe_required = _fake_send_subscribe_required
 
 # set_bot — все перенаправляют Bot-инстанс в наш _ctx
 for _attr in (
