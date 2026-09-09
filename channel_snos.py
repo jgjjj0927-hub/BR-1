@@ -243,6 +243,7 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
         random_reason_text = random.choice(combined_texts)[:200]
 
         sent = 0
+        last_err = ""
         for attempt in range(2):
             try:
                 if message_id:
@@ -290,6 +291,7 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
                 print(f"[CH-SNOS] [{session}] 🌊 FLOOD {e.seconds}с", flush=True)
                 return f"FLOOD {e.seconds}s"
             except Exception as e:
+                last_err = type(e).__name__
                 print(f"[CH-SNOS] [{session}] ⚠️ Репорт {attempt+1} ошибка: {str(e)[:80]}", flush=True)
                 break
 
@@ -297,8 +299,9 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
             print(f"[CH-SNOS] [{session}] ✅ ДОСТАВЛЕНО ({sent}/2)", flush=True)
             return "ДОСТАВЛЕНО"
         else:
-            print(f"[CH-SNOS] [{session}] ⚠️ ОТКЛОНЕНО", flush=True)
-            return "ОТКЛОНЕНО"
+            label = f"ОТКЛОНЕНО [{last_err}]" if last_err else "ОТКЛОНЕНО"
+            print(f"[CH-SNOS] [{session}] ⚠️ {label}", flush=True)
+            return label
 
     except FloodWaitError as e:
         print(f"[CH-SNOS] [{session}] 🌊 FLOOD {e.seconds}с", flush=True)
