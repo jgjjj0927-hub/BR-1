@@ -643,6 +643,48 @@ async def delete_promo(pid: int):
     return {"ok": True}
 
 
+# ─── Admin: user lookup ──────────────────────────────────────────────────────
+
+@app.get("/api/admin/user/{uid}", dependencies=[Depends(require_admin)])
+async def admin_user_lookup(uid: int):
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", uid)
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+        reports = await conn.fetch(
+            "SELECT target_url, method, success_count, created_at FROM attack_log WHERE user_id=$1 ORDER BY created_at DESC LIMIT 3",
+            uid
+        )
+        invoices_count = await conn.fetchval("SELECT COUNT(*) FROM paid_invoices WHERE user_id=$1", uid)
+        referrer = await conn.fetchrow("SELECT username FROM users WHERE user_id=$1", user["referrer_id"]) if user["referrer_id"] else None
+    return {
+        "user_id": user["user_id"],
+        "username": user["username"] or "",
+        "subscribe": user["subscribe"].isoformat() if user["subscribe"] else None,
+        "premium": user["premium"] or 0,
+        "verified": user["verified"] or 0,
+        "free_reports": user["free_reports"] or 0,
+        "referral_count": user["referral_count"] or 0,
+        "referrer_id": user["referrer_id"],
+        "referrer_username": referrer["username"] if referrer else None,
+        "lang": user["lang"] or "ru",
+        "is_hidden": bool(user.get("is_hidden", True)),
+        "manual_confirmed": user.get("manual_confirmed") or 0,
+        "wheel_last_spin": user["wheel_last_spin"].isoformat() if user["wheel_last_spin"] else None,
+        "wheel_prize": user.get("wheel_prize") or "",
+        "invoices_count": invoices_count or 0,
+        "last_reports": [
+            {
+                "target_url": r["target_url"],
+                "method": r["method"],
+                "success_count": r["success_count"],
+                "created_at": r["created_at"].isoformat(),
+            }
+            for r in reports
+        ],
+    }
+
+
 # -- Existing: IP logger
 
 
