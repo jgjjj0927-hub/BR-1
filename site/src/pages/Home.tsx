@@ -226,7 +226,7 @@ export default function Home() {
         </div>
         <div className="feat-grid">
           {t.feat.map(([icon, title, desc], i) => (
-            <div className={`feat-card reveal reveal-d${Math.min(i+1,7)}`} key={title}>
+            <div className={`feat-card feat-card-anim feat-anim-d${Math.min(i+1,7)}`} key={title}>
               <div className="feat-icon"><FeatureIcon name={icon} /></div>
               <h3>{title}</h3>
               <p>{desc}</p>
