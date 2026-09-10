@@ -716,6 +716,16 @@ async def pay_go(token: str):
     return RedirectResponse(url=row["url"], status_code=302)
 
 
+@app.get("/api/go/{token}")
+async def pay_go_api(token: str):
+    from fastapi.responses import RedirectResponse
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT url FROM pay_links WHERE token=$1", token)
+    if not row:
+        raise HTTPException(status_code=404, detail="link expired")
+    return RedirectResponse(url=row["url"], status_code=302)
+
+
 @app.get("/pay/{token}")
 async def pay_redirect(token: str):
     from fastapi.responses import HTMLResponse
@@ -728,7 +738,7 @@ async def pay_redirect(token: str):
     params = dict(_up.parse_qsl(_up.urlparse(ym_url).query))
     amount = params.get("sum", "—")
     targets = _up.unquote(params.get("targets", "Подписка BR V2"))
-    go_url = f"/go/{token}"
+    go_url = f"/api/go/{token}"
     html = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
