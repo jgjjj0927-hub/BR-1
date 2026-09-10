@@ -140,6 +140,8 @@ export default function Home() {
         </div>
         <div className="hero-visual">
           <div className="glow-orb" />
+          <div className="orbit-ring orbit-ring-1"><span className="orbit-dot" /></div>
+          <div className="orbit-ring orbit-ring-2"><span className="orbit-dot orbit-dot-2" /></div>
           <div className="logo-frame logo-img-frame">
             <img src="/logo.png" alt="Brown V2" width="220" height="220" style={{ borderRadius: '50%', display: 'block' }} />
           </div>
@@ -154,6 +156,30 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Marquee */}
+      <div className="marquee-strip">
+        <div className="marquee-track">
+          {[
+            ['⚡', lang === 'ru' ? '17 методов' : '17 methods'],
+            ['🔒', lang === 'ru' ? 'Прозрачные условия' : 'Clear terms'],
+            ['🪞', lang === 'ru' ? 'Активные зеркала' : 'Active mirrors'],
+            ['🤖', lang === 'ru' ? 'ИИ-методы TIDA и DSA' : 'AI methods TIDA & DSA'],
+            ['🔔', lang === 'ru' ? 'Мониторинг цели' : 'Target monitoring'],
+            ['🎁', lang === 'ru' ? 'Бесплатные репорты' : 'Free reports'],
+            ['🔍', lang === 'ru' ? 'Пробив по базам' : 'Database lookup'],
+            ['⚡', lang === 'ru' ? '17 методов' : '17 methods'],
+            ['🔒', lang === 'ru' ? 'Прозрачные условия' : 'Clear terms'],
+            ['🪞', lang === 'ru' ? 'Активные зеркала' : 'Active mirrors'],
+            ['🤖', lang === 'ru' ? 'ИИ-методы TIDA и DSA' : 'AI methods TIDA & DSA'],
+            ['🔔', lang === 'ru' ? 'Мониторинг цели' : 'Target monitoring'],
+            ['🎁', lang === 'ru' ? 'Бесплатные репорты' : 'Free reports'],
+            ['🔍', lang === 'ru' ? 'Пробив по базам' : 'Database lookup'],
+          ].map(([icon, label], i) => (
+            <span key={i}>{icon} {label}</span>
+          ))}
+        </div>
+      </div>
 
       {/* Features */}
       <section className="section container">
