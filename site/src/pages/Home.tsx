@@ -89,21 +89,30 @@ export default function Home() {
     api.reviews().then(setReviews).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, [mirrors, reviews]);
+
   return (
     <div className="home">
       {/* Hero */}
       <section className="hero container">
         <div className="hero-body">
-          <div className="eyebrow">
+          <div className="eyebrow reveal visible">
             <span className="dot" />
             {t.badge}
           </div>
-          <h1>
+          <h1 className="reveal visible" style={{ transitionDelay: '0.05s' }}>
             {t.h1a}<br />
             <span className="accent-text">{t.h1b}</span>
           </h1>
-          <p className="hero-sub">{t.sub}</p>
-          <div className="hero-btns">
+          <p className="hero-sub reveal visible" style={{ transitionDelay: '0.12s' }}>{t.sub}</p>
+          <div className="hero-btns reveal visible" style={{ transitionDelay: '0.18s' }}>
             <a href={BOT} target="_blank" rel="noreferrer" className="btn-primary">
               {t.open}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -112,7 +121,7 @@ export default function Home() {
               {t.howto}
             </Link>
           </div>
-          <div className="hero-stats">
+          <div className="hero-stats reveal visible" style={{ transitionDelay: '0.25s' }}>
             <div className="hstat">
               <strong>{userCount !== null ? userCount.toLocaleString() : '—'}</strong>
               <span>{t.users}</span>
@@ -136,25 +145,25 @@ export default function Home() {
           </div>
           <div className="float-chip top">
             <span className="pulse-dot" />
-            <span>Brown V2</span>
+            <span>Brown V2 — Онлайн</span>
           </div>
           <div className="float-chip bot">
-            <span>👥</span>
+            <span style={{ fontSize: '1rem' }}>👥</span>
             <strong>{userCount !== null ? userCount.toLocaleString() : '...'}</strong>
-            <span>{t.users}</span>
+            <span style={{ color: 'var(--text2)', fontWeight: 400 }}>{t.users}</span>
           </div>
         </div>
       </section>
 
       {/* Features */}
       <section className="section container">
-        <div className="sec-head">
+        <div className="sec-head reveal">
           <div className="sec-label">Brown V2</div>
           <h2>{t.featTitle}</h2>
         </div>
         <div className="feat-grid">
-          {t.feat.map(([icon, title, desc]) => (
-            <div className="feat-card" key={title}>
+          {t.feat.map(([icon, title, desc], i) => (
+            <div className={`feat-card reveal reveal-d${Math.min(i + 1, 7)}`} key={title}>
               <div className="feat-icon"><FeatureIcon name={icon} /></div>
               <h3>{title}</h3>
               <p>{desc}</p>
@@ -166,7 +175,7 @@ export default function Home() {
       {/* Mirrors */}
       <section className="section mirrors-sec">
         <div className="container">
-          <div className="sec-head">
+          <div className="sec-head reveal">
             <div className="sec-label">🪞</div>
             <h2>{t.mirrors}</h2>
             <p>{t.mirrorsSub}</p>
@@ -175,8 +184,8 @@ export default function Home() {
             <p className="empty-note">{t.noMirrors}</p>
           ) : (
             <div className="mirror-list">
-              {mirrors.map(m => (
-                <a key={m.id} href={m.url} target="_blank" rel="noreferrer" className={`mirror-row ${m.status}`}>
+              {mirrors.map((m, i) => (
+                <a key={m.id} href={m.url} target="_blank" rel="noreferrer" className={`mirror-row ${m.status} reveal reveal-d${Math.min(i + 1, 7)}`}>
                   <span className={`m-dot ${m.status}`} />
                   <div className="m-info">
                     <strong>{m.name}</strong>
@@ -195,7 +204,7 @@ export default function Home() {
 
       {/* Reviews */}
       <section className="section container">
-        <div className="sec-head">
+        <div className="sec-head reveal">
           <div className="sec-label">💬</div>
           <h2>{t.reviewsTitle}</h2>
           <p>{t.reviewsSub}</p>
@@ -204,8 +213,8 @@ export default function Home() {
           <p className="empty-note">{t.noReviews}</p>
         ) : (
           <div className="reviews-grid">
-            {reviews.map(r => (
-              <div key={r.id} className="review-card">
+            {reviews.map((r, i) => (
+              <div key={r.id} className={`review-card reveal reveal-d${Math.min(i + 1, 7)}`}>
                 <div className="rev-author">
                   <div className="rev-avatar">
                     {r.avatar ? <img src={r.avatar} alt={r.author} /> : r.author.charAt(0).toUpperCase()}
@@ -222,7 +231,7 @@ export default function Home() {
 
       {/* CTA */}
       <section className="cta-banner container">
-        <div className="cta-inner">
+        <div className="cta-inner reveal">
           <h2>{t.ctaTitle}</h2>
           <p>{t.ctaSub}</p>
           <div className="cta-btns">
