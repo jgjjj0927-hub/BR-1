@@ -855,7 +855,10 @@ async def welcome(message: types.Message, state: FSMContext):
 			print(f"[CAPTCHA] Ошибка генерации: {e}", flush=True)
 			await bot.send_message(uid, t('captcha_error'), parse_mode="Markdown")
 		return
-	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+	try:
+		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+	except Exception:
+		pass
 	# Проверяем подписку перед показом меню
 	lang = 'ru'
 	try:
