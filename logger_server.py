@@ -671,7 +671,6 @@ async def pay_redirect(token: str):
     if not row:
         raise HTTPException(status_code=404, detail="link expired")
     ym_url = row["url"]
-    # Parse sum and targets from YooMoney URL
     params = dict(_up.parse_qsl(_up.urlparse(ym_url).query))
     amount = params.get("sum", "—")
     targets = _up.unquote(params.get("targets", "Подписка BR V2"))
@@ -680,36 +679,80 @@ async def pay_redirect(token: str):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Оплата — BR V2</title>
+<title>BR V2 · Оплата</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
 <style>
-  *{{box-sizing:border-box;margin:0;padding:0}}
-  body{{background:#0d0d0d;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}}
-  .card{{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:32px 28px;max-width:400px;width:100%;text-align:center}}
-  .logo{{font-size:28px;font-weight:700;letter-spacing:-0.5px;margin-bottom:8px;color:#fff}}
-  .logo span{{color:#7c6fff}}
-  .subtitle{{color:#666;font-size:14px;margin-bottom:28px}}
-  .divider{{border:none;border-top:1px solid #2a2a2a;margin:20px 0}}
-  .label{{color:#888;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}}
-  .value{{font-size:18px;font-weight:600;margin-bottom:20px}}
-  .amount{{font-size:36px;font-weight:700;color:#7c6fff;margin-bottom:4px}}
-  .amount-sub{{color:#555;font-size:13px;margin-bottom:28px}}
-  .btn{{display:block;background:#7c6fff;color:#fff;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:16px;font-weight:600;transition:background .15s;margin-bottom:12px}}
-  .btn:hover{{background:#6a5ee0}}
-  .note{{color:#555;font-size:12px;line-height:1.5}}
+:root{{--bg:#07070f;--card:#0f0f1e;--card-b:#18182e;--accent:#6d4ff0;--accent-hi:#9b7fff;--accent-gl:rgba(109,79,240,.18);--text:#f0eeff;--sub:#8888aa;--mute:#3a3a55;--green:#34d399;--border:rgba(109,79,240,.22)}}
+@media(prefers-color-scheme:light){{:root:not([data-theme="dark"]){{--bg:#f4f3ff;--card:#fff;--card-b:#f0eefc;--accent:#5b3fd4;--accent-hi:#7c5fe8;--accent-gl:rgba(91,63,212,.10);--text:#0e0c1f;--sub:#6660a0;--mute:#d0cef0;--green:#059669;--border:rgba(91,63,212,.18)}}}}
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;position:relative;overflow-x:hidden}}
+body::before{{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-50%);width:700px;height:700px;background:radial-gradient(ellipse at center,rgba(109,79,240,.13) 0%,transparent 68%);pointer-events:none}}
+.wrap{{width:100%;max-width:420px;position:relative;z-index:1}}
+.card{{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:36px 32px 28px;box-shadow:0 0 0 1px rgba(255,255,255,.03) inset,0 32px 64px -24px rgba(0,0,0,.55);position:relative;overflow:hidden}}
+.card::before{{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(155,127,255,.45),transparent)}}
+.header{{display:flex;align-items:center;gap:10px;margin-bottom:28px}}
+.logo-icon{{width:36px;height:36px;background:var(--accent-gl);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}}
+.logo-icon svg{{width:18px;height:18px}}
+.logo-text{{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-.3px;color:var(--text);line-height:1}}
+.logo-text span{{color:var(--accent-hi)}}
+.badge-secure{{margin-left:auto;display:flex;align-items:center;gap:5px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.18);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--green);letter-spacing:.4px;text-transform:uppercase}}
+.badge-secure svg{{width:10px;height:10px}}
+.divider{{border:none;border-top:1px solid var(--mute);margin:0 0 24px;opacity:.5}}
+.product{{background:var(--card-b);border:1px solid var(--mute);border-radius:12px;padding:16px;display:flex;align-items:center;gap:12px;margin-bottom:24px}}
+.product-icon{{width:40px;height:40px;background:var(--accent-gl);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}}
+.product-name{{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--text);line-height:1.2;text-wrap:balance}}
+.product-meta{{font-size:12px;color:var(--sub);margin-top:2px}}
+.amount-row{{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}}
+.amount-label{{font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.8px;text-transform:uppercase}}
+.amount-value{{font-family:'Syne',sans-serif;font-size:38px;font-weight:800;color:var(--text);letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}}
+.amount-value sup{{font-size:20px;font-weight:700;vertical-align:super;color:var(--accent-hi)}}
+.amount-note{{font-size:12px;color:var(--sub);margin-bottom:24px;margin-top:4px}}
+.btn-wrap{{position:relative;margin-bottom:20px}}
+.btn-pulse{{position:absolute;inset:-4px;border-radius:16px;background:var(--accent);opacity:0;animation:pulse 2.4s ease-in-out infinite}}
+@keyframes pulse{{0%{{opacity:0;transform:scale(1)}}50%{{opacity:.15;transform:scale(1.02)}}100%{{opacity:0;transform:scale(1)}}}}
+.btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:linear-gradient(135deg,var(--accent) 0%,#5538d0 100%);color:#fff;text-decoration:none;padding:15px 24px;border-radius:13px;font-family:'Syne',sans-serif;font-size:16px;font-weight:700;letter-spacing:.2px;position:relative;transition:filter .15s,transform .12s;box-shadow:0 8px 24px -8px rgba(109,79,240,.55)}}
+.btn:hover{{filter:brightness(1.08);transform:translateY(-1px)}}
+.btn:active{{transform:translateY(0);filter:brightness(.96)}}
+.btn svg{{width:18px;height:18px;flex-shrink:0}}
+.trust{{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}}
+.trust-item{{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--sub);font-weight:500}}
+.trust-item svg{{width:12px;height:12px;opacity:.7}}
+.trust-sep{{width:3px;height:3px;border-radius:50%;background:var(--mute)}}
+@media(prefers-reduced-motion:reduce){{.btn-pulse{{animation:none}}.btn{{transition:none}}}}
+@media(max-width:400px){{.card{{padding:28px 20px 22px}}.amount-value{{font-size:32px}}}}
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="logo">BR<span> V2</span></div>
-  <div class="subtitle">Оплата подписки</div>
+<div class="wrap"><div class="card">
+  <div class="header">
+    <div class="logo-icon"><svg viewBox="0 0 20 20" fill="none"><path d="M10 2L3 5v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V5l-7-3z" stroke="#9b7fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 10l2 2 4-4" stroke="#9b7fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="logo-text">BR<span> V2</span></div>
+    <div class="badge-secure"><svg viewBox="0 0 12 12" fill="currentColor"><path d="M6 1L1.5 3v3.5c0 2.6 1.9 5 4.5 5.5C8.6 11.5 10.5 9.1 10.5 6.5V3L6 1z"/></svg>Secure</div>
+  </div>
   <hr class="divider">
-  <div class="label">Что покупаете</div>
-  <div class="value">{targets}</div>
-  <div class="amount">{amount} ₽</div>
-  <div class="amount-sub">через СБП · ЮMoney</div>
-  <a class="btn" href="{ym_url}">💳 Перейти к оплате</a>
-  <div class="note">После оплаты подписка активируется автоматически.<br>Обычно в течение 1–2 минут.</div>
-</div>
+  <div class="product">
+    <div class="product-icon">⚡</div>
+    <div>
+      <div class="product-name">{targets}</div>
+      <div class="product-meta">Доступ ко всем функциям бота</div>
+    </div>
+  </div>
+  <div class="amount-row"><div class="amount-label">К оплате</div></div>
+  <div class="amount-value"><sup>₽</sup>{amount}</div>
+  <div class="amount-note">Через СБП · ЮMoney · Мгновенное зачисление</div>
+  <div class="btn-wrap">
+    <div class="btn-pulse"></div>
+    <a class="btn" href="{ym_url}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>Перейти к оплате</a>
+  </div>
+  <div class="trust">
+    <div class="trust-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1L1.5 3v3.5c0 2.6 1.9 5 4.5 5.5C8.6 11.5 10.5 9.1 10.5 6.5V3L6 1z"/></svg>Защищено</div>
+    <div class="trust-sep"></div>
+    <div class="trust-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="5"/><path d="M6 3.5v2.8l1.5 1.5"/></svg>Авто-выдача 1–2 мин</div>
+    <div class="trust-sep"></div>
+    <div class="trust-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 9l3-3 2.5 2.5L10 5l2 2"/></svg>ЮMoney</div>
+  </div>
+</div></div>
 </body>
 </html>"""
     return HTMLResponse(html)
