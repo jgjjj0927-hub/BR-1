@@ -393,7 +393,7 @@ export default function Manual() {
   return (
     <div className="page-inner container">
       <div className="page-head">
-        <div className="sec-label">📖</div>
+        <div className="sec-label">МАНУАЛ</div>
         <h1>{lang === 'ru' ? 'Мануал — Brown V2' : 'Manual — Brown V2'}</h1>
         <p>{lang === 'ru' ? 'Подробное описание всех методов бота' : 'Detailed description of all bot methods'}</p>
       </div>
