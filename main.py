@@ -379,6 +379,9 @@ class AdminRemoveReportsFSM(StatesGroup):
 class DeleteUserFSM(StatesGroup):
 	user_id = State()
 
+class CheckUserFSM(StatesGroup):
+	query = State()
+
 class CreatePromoFSM(StatesGroup):
 	promo_type = State()
 	code = State()
@@ -513,8 +516,7 @@ async def admin(message):
 				"*/addwl ID* - добавить в вайтлист\n"
 				"*/addtargetwl @username* - добавить цель в WL\n"
 				"*/rmtargetwl @username* - убрать цель из WL\n"
-				"*/listtargetwl* - список целей WL\n"
-				"*/user ID* - профиль пользователя"
+				"*/listtargetwl* - список целей WL"
 			)
 			await bot.send_message(message.chat.id, text, reply_markup=keyboards.admin_markup, parse_mode="Markdown")
 		except Exception as e:
@@ -578,85 +580,6 @@ async def listtargetwl(message: types.Message):
 	for p in patterns:
 		lines.append(f"• `@{p}`")
 	await message.answer("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
-
-@dp.message_handler(commands=['user'])
-async def cmd_user_lookup(message: types.Message):
-	if message.from_user.id not in admins:
-		return
-	parts = message.text.split()
-	if len(parts) != 2 or not parts[1].lstrip('-').isdigit():
-		await message.answer("❗️ */user ID*\n*Пример: /user 123456789*", parse_mode="Markdown")
-		return
-	uid = int(parts[1])
-	user = await db.get_user(uid)
-	if not user:
-		await message.answer(f"❌ *Пользователь `{uid}` не найден*", parse_mode="Markdown")
-		return
-
-	now = datetime.now()
-	sub_dt = user.get("subscribe")
-	if sub_dt and sub_dt.year > 2000 and sub_dt > now:
-		sub_str = f"✅ до `{sub_dt.strftime('%d.%m.%Y %H:%M')}`"
-	elif sub_dt and sub_dt.year > 2000:
-		sub_str = f"❌ истекла `{sub_dt.strftime('%d.%m.%Y %H:%M')}`"
-	else:
-		sub_str = "❌ нет"
-
-	premium = user.get("premium") or 0
-	verified = user.get("verified") or 0
-	free_reports = user.get("free_reports") or 0
-	referral_count = user.get("referral_count") or 0
-	referrer_id = user.get("referrer_id")
-	username = user.get("username") or ""
-	lang = user.get("lang") or "ru"
-	manual = user.get("manual_confirmed") or 0
-
-	badges = []
-	if premium: badges.append("⭐ Premium")
-	if verified: badges.append("✅ Верифицирован")
-	if manual: badges.append("🤝 Ручное")
-
-	uname_str = f"@{username} " if username else ""
-	badges_str = "  •  ".join(badges) if badges else "—"
-
-	text = (
-		f"👤 *Пользователь {uname_str}*`{uid}`\n\n"
-		f"*├─ Статусы:* {badges_str}\n"
-		f"*├─ Подписка:* {sub_str}\n"
-		f"*├─ Язык:* `{lang.upper()}`\n"
-		f"*├─ Бесплат. репортов:* `{free_reports}`\n"
-		f"*├─ Рефералов:* `{referral_count}`\n"
-	)
-	if referrer_id:
-		referrer = await db.get_user(referrer_id)
-		ref_uname = referrer.get("username") if referrer else None
-		ref_str = f"@{ref_uname} `{referrer_id}`" if ref_uname else f"`{referrer_id}`"
-		text += f"*├─ Пригласил:* {ref_str}\n"
-
-	# Количество оплат
-	try:
-		pool = await db.get_pool()
-		async with pool.acquire() as conn:
-			invoices = await conn.fetchval("SELECT COUNT(*) FROM paid_invoices WHERE user_id=$1", uid)
-			reports = await conn.fetch(
-				"SELECT target_url, method, success_count, created_at FROM attack_log WHERE user_id=$1 ORDER BY created_at DESC LIMIT 3",
-				uid
-			)
-		text += f"*└─ Оплат:* `{invoices or 0}`\n"
-	except Exception:
-		reports = []
-		text += f"*└─ Оплат:* нет данных\n"
-
-	if reports:
-		text += "\n📋 *Последние репорты:*\n"
-		for r in reports:
-			dt_str = r["created_at"].strftime("%d.%m %H:%M")
-			text += f"*•* `{r['method']}` → `{r['target_url'][:40]}` ✅`{r['success_count']}` _{dt_str}_\n"
-	else:
-		text += "\n📋 *Репортов нет*"
-
-	await message.answer(text, parse_mode="Markdown")
-
 
 # ─── Подписки / оплата ────────────────────────────────────────────────────────
 
@@ -2055,6 +1978,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await _log_admin_action(uid, username, "Нажал «Удалить из БД»")
 			await bot_instance.send_message(call.message.chat.id, '🗑 *Удаление из базы*\n*└─Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(DeleteUserFSM.user_id.state)
+
+		elif d == 'admin_check_user' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Проверить пользователя»")
+			await bot_instance.send_message(call.message.chat.id, '🔍 *Проверить пользователя*\n*└─ Введите ID или @username:*', parse_mode="Markdown")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(CheckUserFSM.query.state)
 
 		elif d == 'promo_type_normal' and uid in admins:
 			state_proxy = dp_instance.current_state(chat=uid, user=uid)
@@ -4472,6 +4400,82 @@ async def admin_unblock_user(message: types.Message, state: FSMContext):
 		await bot.send_message(bot_logs, f"✅ *Разблокирован* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
+
+@dp.message_handler(state=CheckUserFSM.query)
+async def admin_check_user_fsm(message: types.Message, state: FSMContext):
+	await state.finish()
+	raw = message.text.strip()
+	uid_target = await db.resolve_user(raw)
+	if not uid_target:
+		await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown")
+		return
+	user = await db.get_user(uid_target)
+	if not user:
+		await message.answer(f"❌ Пользователь `{uid_target}` не найден в БД.", parse_mode="Markdown")
+		return
+
+	now = datetime.now()
+	sub_dt = user.get("subscribe")
+	if sub_dt and sub_dt.year > 2000 and sub_dt > now:
+		sub_str = f"✅ до `{sub_dt.strftime('%d.%m.%Y %H:%M')}`"
+	elif sub_dt and sub_dt.year > 2000:
+		sub_str = f"❌ истекла `{sub_dt.strftime('%d.%m.%Y %H:%M')}`"
+	else:
+		sub_str = "❌ нет"
+
+	premium = user.get("premium") or 0
+	verified = user.get("verified") or 0
+	free_reports = user.get("free_reports") or 0
+	referral_count = user.get("referral_count") or 0
+	referrer_id = user.get("referrer_id")
+	username_str = user.get("username") or ""
+	lang = user.get("lang") or "ru"
+	manual = user.get("manual_confirmed") or 0
+
+	badges = []
+	if premium: badges.append("⭐ Premium")
+	if verified: badges.append("✅ Верифицирован")
+	if manual: badges.append("🤝 Ручное")
+	badges_str = "  •  ".join(badges) if badges else "—"
+
+	uname_str = f"@{username_str} " if username_str else ""
+	text = (
+		f"👤 *Пользователь {uname_str}*`{uid_target}`\n\n"
+		f"*├─ Статусы:* {badges_str}\n"
+		f"*├─ Подписка:* {sub_str}\n"
+		f"*├─ Язык:* `{lang.upper()}`\n"
+		f"*├─ Бесплат. репортов:* `{free_reports}`\n"
+		f"*├─ Рефералов:* `{referral_count}`\n"
+	)
+	if referrer_id:
+		referrer = await db.get_user(referrer_id)
+		ref_uname = referrer.get("username") if referrer else None
+		ref_str = f"@{ref_uname} `{referrer_id}`" if ref_uname else f"`{referrer_id}`"
+		text += f"*├─ Пригласил:* {ref_str}\n"
+
+	try:
+		pool = await db.get_pool()
+		async with pool.acquire() as conn:
+			invoices = await conn.fetchval("SELECT COUNT(*) FROM paid_invoices WHERE user_id=$1", uid_target)
+			reports = await conn.fetch(
+				"SELECT target_url, method, success_count, created_at FROM attack_log WHERE user_id=$1 ORDER BY created_at DESC LIMIT 3",
+				uid_target
+			)
+		text += f"*└─ Оплат:* `{invoices or 0}`\n"
+	except Exception:
+		reports = []
+		text += f"*└─ Оплат:* нет данных\n"
+
+	if reports:
+		text += "\n📋 *Последние репорты:*\n"
+		for r in reports:
+			dt_str = r["created_at"].strftime("%d.%m %H:%M")
+			text += f"*•* `{r['method']}` → `{r['target_url'][:40]}` ✅`{r['success_count']}` _{dt_str}_\n"
+	else:
+		text += "\n📋 *Репортов нет*"
+
+	await message.answer(text, parse_mode="Markdown")
+
 
 @dp.message_handler(state=DeleteUserFSM.user_id)
 async def admin_delete_user(message: types.Message, state: FSMContext):

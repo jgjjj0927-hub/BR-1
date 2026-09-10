@@ -461,6 +461,8 @@ admin_markup.add(mirrors_list_btn)
 admin_markup.add(add_reports_btn, remove_reports_btn)
 admin_markup.add(create_promo_btn)
 admin_markup.add(add_case_btn)
+check_user_btn = types.InlineKeyboardButton("[🔍] Проверить пользователя", callback_data='admin_check_user')
+admin_markup.add(check_user_btn)
 maintenance_btn = types.InlineKeyboardButton("🔧 Включить тех. работы", callback_data='toggle_maintenance')
 admin_markup.add(maintenance_btn)
 
