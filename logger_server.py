@@ -854,7 +854,7 @@ def _ym_verify_sign(form_data: dict, secret: str) -> bool:
     expected = hmac.new(secret.encode("utf-8"), sign_str.encode("utf-8"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, received_sign):
         log.warning(f"[ym-sign-debug] computed={expected} received={received_sign}")
-        log.warning(f"[ym-sign-debug] string={sign_str}")
+        log.warning(f"[ym-sign-debug] string={sign_str[:300]}")
         return False
     return True
 
