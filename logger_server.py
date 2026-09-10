@@ -664,12 +664,55 @@ async def register_pay(body: PayIn):
 
 @app.get("/pay/{token}")
 async def pay_redirect(token: str):
-    from fastapi.responses import RedirectResponse
+    from fastapi.responses import HTMLResponse
+    import urllib.parse as _up
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT url FROM pay_links WHERE token=$1", token)
     if not row:
         raise HTTPException(status_code=404, detail="link expired")
-    return RedirectResponse(row["url"])
+    ym_url = row["url"]
+    # Parse sum and targets from YooMoney URL
+    params = dict(_up.parse_qsl(_up.urlparse(ym_url).query))
+    amount = params.get("sum", "—")
+    targets = _up.unquote(params.get("targets", "Подписка BR V2"))
+    html = f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Оплата — BR V2</title>
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{background:#0d0d0d;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}}
+  .card{{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:32px 28px;max-width:400px;width:100%;text-align:center}}
+  .logo{{font-size:28px;font-weight:700;letter-spacing:-0.5px;margin-bottom:8px;color:#fff}}
+  .logo span{{color:#7c6fff}}
+  .subtitle{{color:#666;font-size:14px;margin-bottom:28px}}
+  .divider{{border:none;border-top:1px solid #2a2a2a;margin:20px 0}}
+  .label{{color:#888;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}}
+  .value{{font-size:18px;font-weight:600;margin-bottom:20px}}
+  .amount{{font-size:36px;font-weight:700;color:#7c6fff;margin-bottom:4px}}
+  .amount-sub{{color:#555;font-size:13px;margin-bottom:28px}}
+  .btn{{display:block;background:#7c6fff;color:#fff;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:16px;font-weight:600;transition:background .15s;margin-bottom:12px}}
+  .btn:hover{{background:#6a5ee0}}
+  .note{{color:#555;font-size:12px;line-height:1.5}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">BR<span> V2</span></div>
+  <div class="subtitle">Оплата подписки</div>
+  <hr class="divider">
+  <div class="label">Что покупаете</div>
+  <div class="value">{targets}</div>
+  <div class="amount">{amount} ₽</div>
+  <div class="amount-sub">через СБП · ЮMoney</div>
+  <a class="btn" href="{ym_url}">💳 Перейти к оплате</a>
+  <div class="note">После оплаты подписка активируется автоматически.<br>Обычно в течение 1–2 минут.</div>
+</div>
+</body>
+</html>"""
+    return HTMLResponse(html)
 
 
 @app.get("/create/{owner_id}")
