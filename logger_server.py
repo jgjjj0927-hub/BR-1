@@ -3,6 +3,8 @@ import json
 import asyncio
 import asyncpg
 import hashlib
+import hmac
+from urllib.parse import quote
 import logging
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
@@ -840,31 +842,67 @@ async def logger_hit(token: str, request: Request):
     return RedirectResponse("https://t.me/Brrown_V2bot")
 
 
+def _ym_verify_sign(form_data: dict, secret: str) -> bool:
+    """Verify YooMoney HMAC-SHA256 sign (new method, replaces sha1_hash)."""
+    received_sign = form_data.get("sign", "")
+    if not received_sign:
+        return False
+    params = {k: v for k, v in form_data.items() if k != "sign"}
+    sorted_pairs = sorted(params.items())
+    encoded_pairs = [f"{k}={quote(str(v), safe='')}" for k, v in sorted_pairs]
+    sign_str = "&".join(encoded_pairs)
+    expected = hmac.new(secret.encode("utf-8"), sign_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, received_sign)
+
+
+def _ym_verify_sha1(form_data: dict, secret: str) -> bool:
+    """Verify legacy YooMoney SHA1 (deprecated, removed May 2026)."""
+    sha1_received = form_data.get("sha1_hash", "")
+    if not sha1_received:
+        return False
+    sha1_str = (
+        f"{form_data.get('notification_type','')}&"
+        f"{form_data.get('operation_id','')}&"
+        f"{form_data.get('amount','')}&"
+        f"{form_data.get('currency','')}&"
+        f"{form_data.get('datetime','')}&"
+        f"{form_data.get('sender','')}&"
+        f"{form_data.get('codepro','')}&"
+        f"{secret}&"
+        f"{form_data.get('label','')}"
+    )
+    expected = hashlib.sha1(sha1_str.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(expected, sha1_received)
+
+
 @app.post("/hook")
 async def ym_notify(request: Request):
-    """YooMoney merchant notification webhook.
-    Docs: https://yoomoney.ru/docs/payment-buttons/using-api/notifications
-    SHA1 = notification_type&operation_id&amount&currency&datetime&sender&codepro&secret&label
-    """
+    """YooMoney HTTP notification webhook."""
     form = await request.form()
-    notification_type = form.get("notification_type", "")
-    operation_id     = form.get("operation_id", "")
-    amount           = form.get("amount", "")
-    currency         = form.get("currency", "")
-    dt               = form.get("datetime", "")
-    sender           = form.get("sender", "")
-    codepro          = form.get("codepro", "")
-    label            = form.get("label", "")
-    sha1_received    = form.get("sha1_hash", "")
+    form_data = dict(form)
 
-    # Verify signature (skip if sha1_hash not sent — YooMoney test mode)
-    if sha1_received:
-        secret = YM_SECRET
-        sha1_str = f"{notification_type}&{operation_id}&{amount}&{currency}&{dt}&{sender}&{codepro}&{secret}&{label}"
-        sha1_expected = hashlib.sha1(sha1_str.encode("utf-8")).hexdigest()
-        if sha1_received != sha1_expected:
-            log.warning(f"[ym-notify] bad SHA1: expected={sha1_expected} got={sha1_received}")
+    notification_type = form_data.get("notification_type", "")
+    operation_id     = form_data.get("operation_id", "")
+    amount           = form_data.get("amount", "")
+    label            = form_data.get("label", "")
+    test_notification = form_data.get("test_notification", "false")
+
+    # Skip signature check for test notifications
+    if test_notification != "true":
+        sign_ok  = _ym_verify_sign(form_data, YM_SECRET)
+        sha1_ok  = _ym_verify_sha1(form_data, YM_SECRET)
+        has_sign = bool(form_data.get("sign", ""))
+        has_sha1 = bool(form_data.get("sha1_hash", ""))
+
+        if has_sign and not sign_ok:
+            log.warning(f"[ym-notify] bad HMAC-SHA256 sign op={operation_id}")
             raise HTTPException(status_code=400, detail="bad signature")
+        if not has_sign and has_sha1 and not sha1_ok:
+            log.warning(f"[ym-notify] bad SHA1 op={operation_id}")
+            raise HTTPException(status_code=400, detail="bad signature")
+        if not has_sign and not has_sha1:
+            log.warning(f"[ym-notify] no signature at all op={operation_id}")
+            raise HTTPException(status_code=400, detail="missing signature")
 
     # label format: sub_{user_id}_{sub_type}
     if not label.startswith("sub_"):
@@ -907,20 +945,23 @@ async def ym_notify(request: Request):
             log_text = f"💳 *Оплата СБП/YM* `{uid}` *до* `{new_date_str}`"
 
     tok = BOT_TOKEN
-    try:
-        async with aiohttp.ClientSession() as s:
+    async with aiohttp.ClientSession() as s:
+        try:
             await s.post(
                 f"https://api.telegram.org/bot{tok}/sendMessage",
                 json={"chat_id": uid, "text": msg_text, "parse_mode": "MarkdownV2"},
                 timeout=aiohttp.ClientTimeout(total=5)
             )
+        except Exception as e:
+            log.warning(f"[ym-notify] user notify failed uid={uid}: {e}")
+        try:
             await s.post(
                 f"https://api.telegram.org/bot{tok}/sendMessage",
                 json={"chat_id": BOT_LOGS, "text": log_text, "parse_mode": "Markdown"},
                 timeout=aiohttp.ClientTimeout(total=5)
             )
-    except Exception as e:
-        log.warning(f"[ym-notify] tg notify failed: {e}")
+        except Exception as e:
+            log.warning(f"[ym-notify] bot_logs notify failed: {e}")
 
     log.info(f"[ym-notify] granted sub={st} days={sub_days} uid={uid} op={operation_id}")
     return {"ok": True}
