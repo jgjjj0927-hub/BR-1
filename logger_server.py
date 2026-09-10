@@ -1058,10 +1058,13 @@ async def ym_notify(request: Request):
     sub_days = _YM_SUB_DAYS[st]
 
     async with pool.acquire() as conn:
+        is_hidden = await conn.fetchval("SELECT is_hidden FROM users WHERE user_id=$1", uid)
+        log_uid = "скрыт" if is_hidden else str(uid)
+
         if st == "premupgrade":
             await conn.execute("UPDATE users SET premium=1 WHERE user_id=$1", uid)
             msg_text = "✅ *Ваш Premium активирован\\!*"
-            log_text = f"💳 *Premium* `{uid}` через СБП/YM"
+            log_text = f"💳 *Premium* `{log_uid}` через СБП/YM · `{amount} ₽`"
         else:
             current = await conn.fetchval("SELECT subscribe FROM users WHERE user_id=$1", uid)
             now = datetime.now()
@@ -1075,7 +1078,7 @@ async def ym_notify(request: Request):
             )
             new_date_str = new_date.strftime("%Y-%m-%d %H:%M:%S")
             msg_text = f"✅ *Подписка активирована\\!*\n*└─ Действует до: `{new_date_str}`*"
-            log_text = f"💳 *Оплата СБП/YM* `{uid}` *до* `{new_date_str}`"
+            log_text = f"💳 *Оплата СБП/YM* `{log_uid}` · `{amount} ₽` · *до* `{new_date_str}`"
 
     tok = BOT_TOKEN
     async with aiohttp.ClientSession() as s:
