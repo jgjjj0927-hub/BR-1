@@ -1315,9 +1315,12 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
 
     try:
         await bot.send_document(user, types.InputFile(log_path), caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+    except Exception as e:
+        print(f"[BOTNET-PREM] Ошибка отправки пользователю: {e}")
+    try:
         await main_bot.send_document(bot_logs, types.InputFile(log_path), caption=caption_log, parse_mode="Markdown")
     except Exception as e:
-        print(f"Ошибка при отправке логов: {e}")
+        print(f"[BOTNET-PREM] Ошибка отправки в логи: {e}")
 
     try:
         os.remove(log_path)

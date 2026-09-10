@@ -375,12 +375,15 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
             caption=caption_user, parse_mode="Markdown",
             reply_markup=keyboards.main_menu
         )
+    except Exception as e:
+        logger.error(f"[BOT-SNOS] user send error: {e}")
+    try:
         await main_bot.send_document(
             bot_logs, aiogram_types.InputFile(log_path),
             caption=caption_log, parse_mode="Markdown"
         )
     except Exception as e:
-        logger.error(f"[BOT-SNOS] send error: {e}")
+        logger.error(f"[BOT-SNOS] logs send error: {e}")
 
     try:
         os.remove(log_path)

@@ -431,10 +431,13 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
     try:
         await bot.send_document(user, aiogram_types.InputFile(log_path),
             caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+    except Exception as e:
+        print(f"[CH-SNOS] Ошибка отправки пользователю: {e}", flush=True)
+    try:
         await main_bot.send_document(bot_logs, aiogram_types.InputFile(log_path),
             caption=caption_log, parse_mode="Markdown")
     except Exception as e:
-        print(f"[CH-SNOS] Ошибка отправки лога: {e}", flush=True)
+        print(f"[CH-SNOS] Ошибка отправки в логи: {e}", flush=True)
 
     try:
         os.remove(log_path)
