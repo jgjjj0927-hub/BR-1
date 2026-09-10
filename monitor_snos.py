@@ -350,6 +350,7 @@ async def _check_one(monitor: dict):
             _release_session(session_path, monitor_id)
 
         if result["status"] == "error":
+            # Ошибка сети/сессии — не считаем за страйк, игнорируем
             return
 
         new_alive = result["alive"]
@@ -358,11 +359,18 @@ async def _check_one(monitor: dict):
         await db.update_monitor_check(monitor_id, new_status)
 
         if new_status == "dead" and not monitor.get("notified"):
-            await db.mark_monitor_notified(monitor_id)
-            await _notify_user(user_id, target, result["reason"], result["status"])
-            await db.deactivate_monitor(monitor_id)
-        elif new_status == "alive" and not monitor.get("notify_silent"):
-            await _notify_user_alive(user_id, target, monitor_id)
+            strikes = await db.increment_monitor_dead_strikes(monitor_id)
+            if strikes >= 2:
+                # Два подряд dead — теперь уведомляем
+                await db.mark_monitor_notified(monitor_id)
+                await _notify_user(user_id, target, result["reason"], result["status"])
+                await db.deactivate_monitor(monitor_id)
+            else:
+                logger.info(f"[MONITOR] {target} — dead strike {strikes}/2, ждём подтверждения")
+        elif new_status == "alive":
+            await db.reset_monitor_dead_strikes(monitor_id)
+            if not monitor.get("notify_silent"):
+                await _notify_user_alive(user_id, target, monitor_id)
 
 
 async def _notify_user_alive(user_id: int, target: str, monitor_id: int):

@@ -885,9 +885,12 @@ async def init_monitors_table():
                 last_check TIMESTAMP DEFAULT NOW()
             )
         """)
-        # Добавляем колонку если её нет (для существующих БД)
+        # Добавляем колонки если их нет (для существующих БД)
         await conn.execute("""
             ALTER TABLE monitors ADD COLUMN IF NOT EXISTS notify_silent BOOLEAN DEFAULT FALSE
+        """)
+        await conn.execute("""
+            ALTER TABLE monitors ADD COLUMN IF NOT EXISTS dead_strikes INT DEFAULT 0
         """)
 
 
@@ -963,6 +966,27 @@ async def update_monitor_check(monitor_id: int, new_status: str):
         await conn.execute(
             "UPDATE monitors SET status = $1, last_check = NOW() WHERE id = $2",
             new_status, monitor_id
+        )
+
+
+async def increment_monitor_dead_strikes(monitor_id: int) -> int:
+    """Увеличивает счётчик подряд-dead. Возвращает новое значение."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE monitors SET dead_strikes = dead_strikes + 1 WHERE id = $1 RETURNING dead_strikes",
+            monitor_id
+        )
+        return row["dead_strikes"] if row else 1
+
+
+async def reset_monitor_dead_strikes(monitor_id: int):
+    """Сбрасывает счётчик dead_strikes при живой цели."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE monitors SET dead_strikes = 0 WHERE id = $1",
+            monitor_id
         )
 
 
