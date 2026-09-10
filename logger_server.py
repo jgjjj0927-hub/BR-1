@@ -822,7 +822,7 @@ body::before{{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-
     </div>
     <div class="price-label">К оплате</div>
     <div class="price-val"><sup>₽</sup>{amount}</div>
-    <div class="price-note">СБП · ЮMoney · Мгновенное зачисление</div>
+    <div class="price-note">СБП · Мгновенное зачисление</div>
     <div class="btn-wrap">
       <div class="btn-glow"></div>
       <a class="btn" href="{go_url}">
@@ -834,8 +834,6 @@ body::before{{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-
       <div class="ti"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1L1.5 3v3.5c0 2.6 1.9 5 4.5 5.5C8.6 11.5 10.5 9.1 10.5 6.5V3L6 1z"/></svg>Защищено</div>
       <div class="ts"></div>
       <div class="ti"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="5"/><path d="M6 3.5v2.8l1.5 1.5"/></svg>Авто-выдача 1–2 мин</div>
-      <div class="ts"></div>
-      <div class="ti"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 9l3-3 2.5 2.5L10 5l2 2"/></svg>ЮMoney</div>
     </div>
   </div>
 
