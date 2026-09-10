@@ -706,6 +706,16 @@ async def register_pay(body: PayIn):
     return {"token": token}
 
 
+@app.get("/go/{token}")
+async def pay_go(token: str):
+    from fastapi.responses import RedirectResponse
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT url FROM pay_links WHERE token=$1", token)
+    if not row:
+        raise HTTPException(status_code=404, detail="link expired")
+    return RedirectResponse(url=row["url"], status_code=302)
+
+
 @app.get("/pay/{token}")
 async def pay_redirect(token: str):
     from fastapi.responses import HTMLResponse
@@ -718,6 +728,7 @@ async def pay_redirect(token: str):
     params = dict(_up.parse_qsl(_up.urlparse(ym_url).query))
     amount = params.get("sum", "—")
     targets = _up.unquote(params.get("targets", "Подписка BR V2"))
+    go_url = f"/go/{token}"
     html = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -727,76 +738,155 @@ async def pay_redirect(token: str):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
 <style>
-:root{{--bg:#07070f;--card:#0f0f1e;--card-b:#18182e;--accent:#6d4ff0;--accent-hi:#9b7fff;--accent-gl:rgba(109,79,240,.18);--text:#f0eeff;--sub:#8888aa;--mute:#3a3a55;--green:#34d399;--border:rgba(109,79,240,.22)}}
-@media(prefers-color-scheme:light){{:root:not([data-theme="dark"]){{--bg:#f4f3ff;--card:#fff;--card-b:#f0eefc;--accent:#5b3fd4;--accent-hi:#7c5fe8;--accent-gl:rgba(91,63,212,.10);--text:#0e0c1f;--sub:#6660a0;--mute:#d0cef0;--green:#059669;--border:rgba(91,63,212,.18)}}}}
+:root{{--bg:#07070f;--card:#0f0f1c;--card-b:#13132a;--accent:#6d4ff0;--accent-hi:#9b7fff;--accent-gl:rgba(109,79,240,.15);--text:#eeeaff;--sub:#7878a0;--mute:#252540;--green:#34d399;--border:rgba(109,79,240,.20);--border-s:rgba(255,255,255,.04)}}
 *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;position:relative;overflow-x:hidden}}
-body::before{{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-50%);width:700px;height:700px;background:radial-gradient(ellipse at center,rgba(109,79,240,.13) 0%,transparent 68%);pointer-events:none}}
-.wrap{{width:100%;max-width:420px;position:relative;z-index:1}}
-.card{{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:36px 32px 28px;box-shadow:0 0 0 1px rgba(255,255,255,.03) inset,0 32px 64px -24px rgba(0,0,0,.55);position:relative;overflow:hidden}}
-.card::before{{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(155,127,255,.45),transparent)}}
-.header{{display:flex;align-items:center;gap:10px;margin-bottom:28px}}
-.logo-icon{{width:36px;height:36px;background:var(--accent-gl);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}}
-.logo-icon svg{{width:18px;height:18px}}
-.logo-text{{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-.3px;color:var(--text);line-height:1}}
-.logo-text span{{color:var(--accent-hi)}}
-.badge-secure{{margin-left:auto;display:flex;align-items:center;gap:5px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.18);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--green);letter-spacing:.4px;text-transform:uppercase}}
-.badge-secure svg{{width:10px;height:10px}}
-.divider{{border:none;border-top:1px solid var(--mute);margin:0 0 24px;opacity:.5}}
-.product{{background:var(--card-b);border:1px solid var(--mute);border-radius:12px;padding:16px;display:flex;align-items:center;gap:12px;margin-bottom:24px}}
-.product-icon{{width:40px;height:40px;background:var(--accent-gl);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}}
-.product-name{{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--text);line-height:1.2;text-wrap:balance}}
-.product-meta{{font-size:12px;color:var(--sub);margin-top:2px}}
-.amount-row{{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}}
-.amount-label{{font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.8px;text-transform:uppercase}}
-.amount-value{{font-family:'Syne',sans-serif;font-size:38px;font-weight:800;color:var(--text);letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}}
-.amount-value sup{{font-size:20px;font-weight:700;vertical-align:super;color:var(--accent-hi)}}
-.amount-note{{font-size:12px;color:var(--sub);margin-bottom:24px;margin-top:4px}}
-.btn-wrap{{position:relative;margin-bottom:20px}}
-.btn-pulse{{position:absolute;inset:-4px;border-radius:16px;background:var(--accent);opacity:0;animation:pulse 2.4s ease-in-out infinite}}
-@keyframes pulse{{0%{{opacity:0;transform:scale(1)}}50%{{opacity:.15;transform:scale(1.02)}}100%{{opacity:0;transform:scale(1)}}}}
-.btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:linear-gradient(135deg,var(--accent) 0%,#5538d0 100%);color:#fff;text-decoration:none;padding:15px 24px;border-radius:13px;font-family:'Syne',sans-serif;font-size:16px;font-weight:700;letter-spacing:.2px;position:relative;transition:filter .15s,transform .12s;box-shadow:0 8px 24px -8px rgba(109,79,240,.55)}}
-.btn:hover{{filter:brightness(1.08);transform:translateY(-1px)}}
-.btn:active{{transform:translateY(0);filter:brightness(.96)}}
+body{{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 16px;overflow-x:hidden;position:relative}}
+body::before{{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50%);width:900px;height:900px;background:radial-gradient(ellipse at center,rgba(109,79,240,.11) 0%,transparent 65%);pointer-events:none;z-index:0}}
+.scene{{width:100%;max-width:900px;display:grid;grid-template-columns:1fr 1fr;gap:20px;position:relative;z-index:1}}
+/* ── LEFT CARD ────────────────────────────── */
+.pay-card{{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:36px 32px 30px;box-shadow:0 0 0 1px var(--border-s) inset,0 40px 80px -30px rgba(0,0,0,.7);position:relative;overflow:hidden;display:flex;flex-direction:column}}
+.pay-card::before{{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(155,127,255,.5),transparent)}}
+.hd{{display:flex;align-items:center;gap:10px;margin-bottom:30px}}
+.logo-box{{width:38px;height:38px;background:var(--accent-gl);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}}
+.logo-box svg{{width:20px;height:20px}}
+.logo-name{{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;letter-spacing:-.4px}}
+.logo-name span{{color:var(--accent-hi)}}
+.badge-ok{{margin-left:auto;display:flex;align-items:center;gap:5px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);border-radius:20px;padding:4px 11px;font-size:11px;font-weight:600;color:var(--green);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}}
+.badge-ok::before{{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}}
+.divider{{border:none;border-top:1px solid var(--mute);margin:0 0 26px;opacity:.6}}
+.product-box{{background:var(--card-b);border:1px solid var(--mute);border-radius:14px;padding:16px 18px;display:flex;align-items:center;gap:14px;margin-bottom:26px}}
+.prod-icon{{width:44px;height:44px;background:var(--accent-gl);border:1px solid var(--border);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px}}
+.prod-name{{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;line-height:1.25}}
+.prod-sub{{font-size:12px;color:var(--sub);margin-top:3px}}
+.price-label{{font-size:11px;font-weight:600;color:var(--sub);letter-spacing:.9px;text-transform:uppercase;margin-bottom:4px}}
+.price-val{{font-family:'Syne',sans-serif;font-size:44px;font-weight:800;letter-spacing:-1.5px;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}}
+.price-val sup{{font-size:22px;font-weight:700;vertical-align:super;color:var(--accent-hi);margin-right:2px}}
+.price-note{{font-size:12px;color:var(--sub);margin-top:6px;margin-bottom:28px}}
+.btn-wrap{{position:relative;margin-bottom:22px}}
+.btn-glow{{position:absolute;inset:-5px;border-radius:18px;background:var(--accent);opacity:0;animation:glow 2.6s ease-in-out infinite;pointer-events:none}}
+@keyframes glow{{0%,100%{{opacity:0;transform:scale(1)}}50%{{opacity:.18;transform:scale(1.025)}}}}
+.btn{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:linear-gradient(135deg,#7c5fff 0%,#5538d0 100%);color:#fff;text-decoration:none;padding:16px 24px;border-radius:14px;font-family:'Syne',sans-serif;font-size:16px;font-weight:700;letter-spacing:.2px;position:relative;transition:filter .15s,transform .12s;box-shadow:0 10px 28px -8px rgba(109,79,240,.6)}}
+.btn:hover{{filter:brightness(1.1);transform:translateY(-2px)}}
+.btn:active{{transform:translateY(0);filter:brightness(.95)}}
 .btn svg{{width:18px;height:18px;flex-shrink:0}}
-.trust{{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}}
-.trust-item{{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--sub);font-weight:500}}
-.trust-item svg{{width:12px;height:12px;opacity:.7}}
-.trust-sep{{width:3px;height:3px;border-radius:50%;background:var(--mute)}}
-@media(prefers-reduced-motion:reduce){{.btn-pulse{{animation:none}}.btn{{transition:none}}}}
-@media(max-width:400px){{.card{{padding:28px 20px 22px}}.amount-value{{font-size:32px}}}}
+.trust-row{{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:auto}}
+.ti{{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--sub);font-weight:500}}
+.ti svg{{width:12px;height:12px;opacity:.65}}
+.ts{{width:3px;height:3px;border-radius:50%;background:var(--mute)}}
+/* ── RIGHT PANEL ──────────────────────────── */
+.info-panel{{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:32px 28px;box-shadow:0 0 0 1px var(--border-s) inset,0 40px 80px -30px rgba(0,0,0,.7);position:relative;overflow:hidden;display:flex;flex-direction:column;gap:26px}}
+.info-panel::before{{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(155,127,255,.4),transparent)}}
+.panel-title{{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;letter-spacing:-.3px;color:var(--text);margin-bottom:2px}}
+.panel-sub{{font-size:12px;color:var(--sub)}}
+.feat-list{{display:flex;flex-direction:column;gap:12px}}
+.feat{{display:flex;align-items:flex-start;gap:12px}}
+.feat-icon{{width:34px;height:34px;border-radius:9px;background:var(--accent-gl);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}}
+.feat-text{{flex:1;padding-top:2px}}
+.feat-name{{font-size:13px;font-weight:600;color:var(--text);line-height:1.2}}
+.feat-desc{{font-size:11px;color:var(--sub);margin-top:2px;line-height:1.4}}
+.divider-sm{{border:none;border-top:1px solid var(--mute);opacity:.5}}
+.guarantee-list{{display:flex;flex-direction:column;gap:10px}}
+.guar{{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--sub)}}
+.guar-dot{{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;box-shadow:0 0 8px rgba(52,211,153,.5)}}
+.guar strong{{color:var(--text);font-weight:600}}
+.panel-footer{{font-size:11px;color:var(--sub);line-height:1.5;border-top:1px solid var(--mute);padding-top:16px;margin-top:auto}}
+/* ── RESPONSIVE ───────────────────────────── */
+@media(max-width:680px){{
+  .scene{{grid-template-columns:1fr}}
+  .info-panel{{order:-1}}
+  .price-val{{font-size:38px}}
+}}
+@media(max-width:400px){{
+  .pay-card,.info-panel{{padding:24px 18px 20px}}
+}}
+@media(prefers-reduced-motion:reduce){{.btn-glow{{animation:none}}.btn{{transition:none}}}}
 </style>
 </head>
 <body>
-<div class="wrap"><div class="card">
-  <div class="header">
-    <div class="logo-icon"><svg viewBox="0 0 20 20" fill="none"><path d="M10 2L3 5v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V5l-7-3z" stroke="#9b7fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 10l2 2 4-4" stroke="#9b7fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-    <div class="logo-text">BR<span> V2</span></div>
-    <div class="badge-secure"><svg viewBox="0 0 12 12" fill="currentColor"><path d="M6 1L1.5 3v3.5c0 2.6 1.9 5 4.5 5.5C8.6 11.5 10.5 9.1 10.5 6.5V3L6 1z"/></svg>Secure</div>
-  </div>
-  <hr class="divider">
-  <div class="product">
-    <div class="product-icon">⚡</div>
-    <div>
-      <div class="product-name">{targets}</div>
-      <div class="product-meta">Доступ ко всем функциям бота</div>
+<div class="scene">
+
+  <!-- LEFT: payment card -->
+  <div class="pay-card">
+    <div class="hd">
+      <div class="logo-box"><svg viewBox="0 0 20 20" fill="none"><path d="M10 2L3 5v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V5l-7-3z" stroke="#9b7fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 10l2 2 4-4" stroke="#9b7fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="logo-name">BR<span> V2</span></div>
+      <div class="badge-ok">Secure</div>
+    </div>
+    <hr class="divider">
+    <div class="product-box">
+      <div class="prod-icon">⚡</div>
+      <div>
+        <div class="prod-name">{targets}</div>
+        <div class="prod-sub">Полный доступ ко всем функциям</div>
+      </div>
+    </div>
+    <div class="price-label">К оплате</div>
+    <div class="price-val"><sup>₽</sup>{amount}</div>
+    <div class="price-note">СБП · ЮMoney · Мгновенное зачисление</div>
+    <div class="btn-wrap">
+      <div class="btn-glow"></div>
+      <a class="btn" href="{go_url}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>
+        Перейти к оплате
+      </a>
+    </div>
+    <div class="trust-row">
+      <div class="ti"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1L1.5 3v3.5c0 2.6 1.9 5 4.5 5.5C8.6 11.5 10.5 9.1 10.5 6.5V3L6 1z"/></svg>Защищено</div>
+      <div class="ts"></div>
+      <div class="ti"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="5"/><path d="M6 3.5v2.8l1.5 1.5"/></svg>Авто-выдача 1–2 мин</div>
+      <div class="ts"></div>
+      <div class="ti"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 9l3-3 2.5 2.5L10 5l2 2"/></svg>ЮMoney</div>
     </div>
   </div>
-  <div class="amount-row"><div class="amount-label">К оплате</div></div>
-  <div class="amount-value"><sup>₽</sup>{amount}</div>
-  <div class="amount-note">Через СБП · ЮMoney · Мгновенное зачисление</div>
-  <div class="btn-wrap">
-    <div class="btn-pulse"></div>
-    <a class="btn" href="{ym_url}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>Перейти к оплате</a>
+
+  <!-- RIGHT: info panel -->
+  <div class="info-panel">
+    <div>
+      <div class="panel-title">Что входит в подписку</div>
+      <div class="panel-sub">Полный доступ на 30 дней</div>
+    </div>
+    <div class="feat-list">
+      <div class="feat">
+        <div class="feat-icon">🛡️</div>
+        <div class="feat-text">
+          <div class="feat-name">Снос аккаунтов</div>
+          <div class="feat-desc">Все методы без ограничений — SMS, email, репорт-флуд, channel abuse</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">👁️</div>
+        <div class="feat-text">
+          <div class="feat-name">Мониторинг целей</div>
+          <div class="feat-desc">Уведомления в реальном времени — бот сообщит как только аккаунт будет снесён</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">⚙️</div>
+        <div class="feat-text">
+          <div class="feat-name">Расширенные инструменты</div>
+          <div class="feat-desc">Проверка сессий, канальный снос, массовые репорты через сеть</div>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">📊</div>
+        <div class="feat-text">
+          <div class="feat-name">Статистика и история</div>
+          <div class="feat-desc">Полный лог всех атак, метрики успеха, история сессий</div>
+        </div>
+      </div>
+    </div>
+    <div class="divider-sm"></div>
+    <div class="guarantee-list">
+      <div class="guar"><div class="guar-dot"></div><div><strong>Мгновенная выдача</strong> — подписка активируется автоматически после оплаты</div></div>
+      <div class="guar"><div class="guar-dot"></div><div><strong>Безопасный платёж</strong> — оплата через официальный шлюз ЮMoney / СБП</div></div>
+      <div class="guar"><div class="guar-dot"></div><div><strong>Поддержка 24/7</strong> — пишите в бот по любым вопросам</div></div>
+    </div>
+    <div class="panel-footer">
+      Нажимая «Перейти к оплате», вы соглашаетесь с условиями использования сервиса. Ссылка на оплату одноразовая и действительна в течение ограниченного времени.
+    </div>
   </div>
-  <div class="trust">
-    <div class="trust-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1L1.5 3v3.5c0 2.6 1.9 5 4.5 5.5C8.6 11.5 10.5 9.1 10.5 6.5V3L6 1z"/></svg>Защищено</div>
-    <div class="trust-sep"></div>
-    <div class="trust-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="5"/><path d="M6 3.5v2.8l1.5 1.5"/></svg>Авто-выдача 1–2 мин</div>
-    <div class="trust-sep"></div>
-    <div class="trust-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 9l3-3 2.5 2.5L10 5l2 2"/></svg>ЮMoney</div>
-  </div>
-</div></div>
+
+</div>
 </body>
 </html>"""
     return HTMLResponse(html)
