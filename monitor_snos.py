@@ -355,7 +355,8 @@ async def _check_one(monitor: dict):
             await db.mark_monitor_notified(monitor_id)
             await _notify_user(user_id, target, result["reason"], result["status"])
             await db.deactivate_monitor(monitor_id)
-        elif new_status == "alive" and not monitor.get("notify_silent"):
+        # "Цель жива" — только если статус изменился с dead на alive (восстановление)
+        elif new_status == "alive" and prev_status == "dead" and not monitor.get("notify_silent"):
             await _notify_user_alive(user_id, target, monitor_id)
 
 
