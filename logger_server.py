@@ -1075,7 +1075,7 @@ async def ym_notify(request: Request):
             )
             new_date_str = new_date.strftime("%Y-%m-%d %H:%M:%S")
             msg_text = f"✅ *Подписка активирована\\!*\n*└─ Действует до: `{new_date_str}`*"
-            log_text = f"💳 *Оплата СБП/YM* `{uid}` *до* `{new_date_str}`"
+            log_text = f"💳 *Оплата СБП/YM* `{uid}` · `{amount} ₽` · *до* `{new_date_str}`"
         await conn.execute(
             "INSERT INTO paid_invoices (invoice_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
             operation_id, uid
