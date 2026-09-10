@@ -207,8 +207,9 @@ async def check_target(target: str, session_path: str) -> dict:
                 await client.disconnect()
                 return {"alive": False, "reason": "Аккаунт удалён / заморожен", "status": "dead"}
             except ChannelPrivateError:
+                # Канал приватный или у сессии нет доступа — не значит что удалён
                 await client.disconnect()
-                return {"alive": False, "reason": "Канал/чат стал приватным или удалён", "status": "dead"}
+                return {"alive": True, "reason": "", "status": "error"}
             except RPCError as e:
                 err = str(e).lower()
                 if "deactivated" in err or "deleted" in err or "banned" in err:
@@ -245,9 +246,14 @@ async def check_target(target: str, session_path: str) -> dict:
                     if msg is None:
                         await client.disconnect()
                         return {"alive": False, "reason": "Сообщение удалено", "status": "msg_deleted"}
-                except Exception:
+                except FloodWaitError as e:
                     await client.disconnect()
-                    return {"alive": False, "reason": "Не удалось получить сообщение", "status": "msg_deleted"}
+                    logger.warning(f"[MONITOR] FloodWait {e.seconds}s при получении сообщения {target}")
+                    return {"alive": True, "reason": "", "status": "error"}
+                except Exception as e:
+                    await client.disconnect()
+                    logger.warning(f"[MONITOR] Ошибка get_messages {target}: {e}")
+                    return {"alive": True, "reason": "", "status": "error"}
                 await client.disconnect()
                 return {"alive": True, "reason": "", "status": "alive"}
 
