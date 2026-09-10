@@ -425,9 +425,12 @@ async def _notify_user(user_id: int, target: str, reason: str, status: str):
     # Лог
     try:
         if _bot_logs:
+            import db as _db_mod
+            _is_hid = await _db_mod.get_is_hidden(user_id)
+            _log_uid = "скрыт" if _is_hid else str(user_id)
             await _bot.send_message(
                 _bot_logs,
-                f"🔍 *Монитор:* `{user_id}` — цель `{target}` снесена",
+                f"🔍 *Монитор:* `{_log_uid}` — цель `{target}` снесена",
                 parse_mode="Markdown"
             )
     except Exception:
@@ -531,9 +534,12 @@ async def _notify_telegraph(user_id: int, url: str):
 
     try:
         if _bot_logs:
+            import db as _db_mod
+            _is_hid = await _db_mod.get_is_hidden(user_id)
+            _log_uid = "скрыт" if _is_hid else str(user_id)
             await _bot.send_message(
                 _bot_logs,
-                f"📄 *Telegraph удалена:* {url}\n👤 {user_id}",
+                f"📄 *Telegraph удалена:* {url}\n👤 {_log_uid}",
                 parse_mode="Markdown",
                 disable_web_page_preview=True
             )
