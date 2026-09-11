@@ -164,7 +164,7 @@ async def _send_one_code(phone: str, proxy_url: str | None, attempt: int, used_u
     ua = random.choice(available)
     used_uas.add(ua)
 
-    proxy_label = proxy_url[:35] if proxy_url else "direct"
+    proxy_label = ":".join(proxy_url.split(":")[:2]) if proxy_url else "direct"
 
     # Парсим прокси для telethon
     telethon_proxy = None
@@ -295,7 +295,7 @@ async def main_code_snos(phone: str, user_id: int, username: str):
         "-" * 42,
     ]
     for i, (proxy, status) in enumerate(results, 1):
-        p_label = proxy[:40] if proxy else "direct"
+        p_label = ":".join(proxy.split(":")[:2]) if proxy else "direct"
         if status == "OK":
             log_lines.append(f"[{now_msk().strftime('%H:%M:%S')}] #{i:02d} {p_label} → ✅ OK")
         elif status.startswith("FLOOD"):
