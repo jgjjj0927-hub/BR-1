@@ -452,12 +452,18 @@ async def _run_mirror(token: str):
         _mirror_bots[token] = mirror_bot
         try:
             print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}... (попытка {attempt+1})", flush=True)
-            # getUpdates с timeout=0 принудительно завершает старую long-poll сессию на сервере Telegram
-            try:
-                await mirror_bot.get_updates(offset=-1, timeout=0, limit=1)
-            except Exception:
-                pass
-            await asyncio.sleep(2)
+            # Ждём пока старая long-poll сессия умрёт: повторяем getUpdates(timeout=0)
+            # пока не получим чистый ответ — только тогда слот свободен
+            for kick in range(8):
+                try:
+                    await mirror_bot.get_updates(offset=-1, timeout=0, limit=1)
+                    break  # успех — слот свободен
+                except TerminatedByOtherGetUpdates:
+                    print(f"[MIRROR] ⏳ Слот занят {token[:20]}, жду 5с... ({kick+1}/8)", flush=True)
+                    await asyncio.sleep(5)
+                except Exception:
+                    break
+            await asyncio.sleep(1)
             await dp.start_polling()
             break  # нормальное завершение — выходим из цикла
         except Unauthorized:
