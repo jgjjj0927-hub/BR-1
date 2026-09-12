@@ -440,7 +440,7 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
     if tida_peer_ref is None:
         tida_peer_ref = [None]
 
-    MAX_PROXY_RETRIES = len(all_proxies) if all_proxies else 1
+    MAX_PROXY_RETRIES = min(2, len(all_proxies)) if all_proxies else 1
     used_proxies = set()
     current_proxy = proxy
 
