@@ -452,10 +452,12 @@ async def _run_mirror(token: str):
         _mirror_bots[token] = mirror_bot
         try:
             print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}... (попытка {attempt+1})", flush=True)
-            # Сбрасываем webhook и ждём пока Telegram закроет старое long-poll соединение (до 35с)
-            await mirror_bot.delete_webhook(drop_pending_updates=True)
-            wait = 35 if attempt == 0 else 10
-            await asyncio.sleep(wait)
+            # getUpdates с timeout=0 принудительно завершает старую long-poll сессию на сервере Telegram
+            try:
+                await mirror_bot.get_updates(offset=-1, timeout=0, limit=1)
+            except Exception:
+                pass
+            await asyncio.sleep(2)
             await dp.start_polling()
             break  # нормальное завершение — выходим из цикла
         except Unauthorized:
