@@ -74,6 +74,24 @@ class TGEngine:
             await self._client.start(bot_token=self._token)
         self._run(_())
 
+    def get_dialogs(self, limit=200) -> list:
+        async def _():
+            dialogs = await self._client.get_dialogs(limit=limit)
+            out = []
+            for d in dialogs:
+                e = d.entity
+                title = (getattr(e, 'title', None)
+                         or getattr(e, 'first_name', None)
+                         or str(d.id))
+                if getattr(e, 'last_name', None):
+                    title = title + ' ' + e.last_name
+                out.append({"id": d.id, "title": title.strip()})
+            return out
+        try:
+            return self._run(_(), timeout=60)
+        except Exception:
+            return []
+
     def get_chat_info(self, chat_id: int) -> dict:
         async def _():
             e = await self._client.get_entity(chat_id)
@@ -269,10 +287,12 @@ class App(tk.Tk):
 
         self._cfg      = self._load_cfg()
         self._engine   = None
-        self._channels = self._cfg.get("channels", [])  # [{id, title}]
-        self._active   = None   # current channel id (int)
-        self._bubbles  = {}     # {channel_id: {msg_id: Bubble}}
-        self._ch_btns  = {}     # {channel_id: frame}
+        self._channels = []             # [{id, title}] — loaded from dialogs
+        self._active   = None           # current channel id (int)
+        self._bubbles  = {}             # {channel_id: {msg_id: Bubble}}
+        self._ch_btns  = {}             # {channel_id: frame}
+        self._msgs_frames  = {}         # {channel_id: tk.Frame} — cached per channel
+        self._loaded_cids  = set()      # set of cids where history already loaded
 
         self._build()
 
@@ -289,7 +309,6 @@ class App(tk.Tk):
             return {}
 
     def _save_cfg(self):
-        self._cfg["channels"] = self._channels
         open(CONFIG_FILE, "w").write(json.dumps(self._cfg, ensure_ascii=False))
 
     # ── Engine ────────────────────────────────────────────────────────────────
@@ -302,11 +321,12 @@ class App(tk.Tk):
         def _do():
             try:
                 self._engine = TGEngine(token)
-                self.after(0, lambda: self._v_sub.set("онлайн"))
+                self.after(0, lambda: self._v_sub.set("загрузка чатов…"))
+                dialogs = self._engine.get_dialogs(limit=200)
+                self._channels = dialogs
                 self.after(0, self._refresh_sidebar)
-                if self._channels:
-                    self.after(0, lambda: self._select_channel(
-                        self._channels[0]["id"]))
+                self.after(0, lambda: self._v_sub.set(
+                    f"{len(dialogs)} чатов"))
             except Exception as e:
                 self.after(0, lambda: self._v_sub.set("ошибка"))
                 self.after(0, lambda: messagebox.showerror("Ошибка", str(e)))
@@ -327,25 +347,62 @@ class App(tk.Tk):
         sb.pack_propagate(False)
         self._sidebar = sb
 
-        # Header
         hdr = tk.Frame(sb, bg=BG_HEADER, height=56)
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
-        tk.Label(hdr, text="Каналы", font=F_BOLD,
+        tk.Label(hdr, text="Чаты", font=F_BOLD,
                  fg=TEXT_MAIN, bg=BG_HEADER).pack(side="left", padx=14, pady=16)
 
-        # Scrollable list
-        self._ch_list = tk.Frame(sb, bg=BG_SIDEBAR)
-        self._ch_list.pack(fill="both", expand=True)
+        # Scrollable channel list
+        wrap = tk.Frame(sb, bg=BG_SIDEBAR)
+        wrap.pack(fill="both", expand=True)
+
+        self._sb_canvas = tk.Canvas(wrap, bg=BG_SIDEBAR,
+                                    highlightthickness=0, bd=0)
+        sb_scroll = tk.Scrollbar(wrap, orient="vertical",
+                                 command=self._sb_canvas.yview,
+                                 bg=BG_SIDEBAR, troughcolor=BG_SIDEBAR)
+        self._sb_canvas.configure(yscrollcommand=sb_scroll.set)
+        sb_scroll.pack(side="right", fill="y")
+        self._sb_canvas.pack(side="left", fill="both", expand=True)
+
+        self._ch_list = tk.Frame(self._sb_canvas, bg=BG_SIDEBAR)
+        self._sb_win = self._sb_canvas.create_window(
+            (0, 0), window=self._ch_list, anchor="nw")
+
+        self._ch_list.bind("<Configure>", lambda e: self._sb_canvas.configure(
+            scrollregion=self._sb_canvas.bbox("all")))
+        self._sb_canvas.bind("<Configure>",
+            lambda e: self._sb_canvas.itemconfig(self._sb_win, width=e.width))
+        self._sb_canvas.bind_all("<MouseWheel>", self._on_sidebar_scroll)
 
         # Add button
         add_btn = tk.Frame(sb, bg=BG_SIDEBAR, pady=8)
         add_btn.pack(fill="x", side="bottom")
-        tk.Button(add_btn, text="＋  Добавить канал",
+        tk.Button(add_btn, text="＋  Добавить вручную",
                   font=F_MAIN, fg=ACCENT, bg=BG_SIDEBAR,
                   activebackground=BG_ACTIVE, activeforeground=ACCENT,
                   bd=0, cursor="hand2",
                   command=self._add_channel).pack(fill="x", padx=10, pady=4)
+        tk.Button(add_btn, text="↻  Обновить список",
+                  font=F_MAIN, fg=TEXT_DIM, bg=BG_SIDEBAR,
+                  activebackground=BG_ACTIVE, activeforeground=TEXT_MAIN,
+                  bd=0, cursor="hand2",
+                  command=self._reload_dialogs).pack(fill="x", padx=10, pady=2)
+
+    def _on_sidebar_scroll(self, e):
+        widget = e.widget
+        # only scroll sidebar when mouse is over it
+        try:
+            x, y = widget.winfo_rootx(), widget.winfo_rooty()
+            sb_x = self._sb_canvas.winfo_rootx()
+            sb_w = self._sb_canvas.winfo_width()
+            if sb_x <= e.x_root <= sb_x + sb_w:
+                self._sb_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+                return
+        except Exception:
+            pass
+        self._canvas.yview_scroll(int(-1*(e.delta/120)), "units")
 
     def _build_header(self, parent):
         hdr = tk.Frame(parent, bg=BG_HEADER, height=56)
@@ -356,11 +413,11 @@ class App(tk.Tk):
                        highlightthickness=0)
         av.pack(side="left", padx=(14,0), pady=9)
         av.create_oval(1,1,37,37, fill=ACCENT, outline="")
-        av.create_text(19,19, text="📢", font=("Segoe UI",15))
+        av.create_text(19,19, text="💬", font=("Segoe UI",15))
 
         info = tk.Frame(hdr, bg=BG_HEADER)
         info.pack(side="left", padx=10, fill="y", pady=8)
-        self._v_title = tk.StringVar(value="Выбери канал")
+        self._v_title = tk.StringVar(value="Выбери чат")
         tk.Label(info, textvariable=self._v_title, font=F_BOLD,
                  fg=TEXT_MAIN, bg=BG_HEADER).pack(anchor="w")
         self._v_sub = tk.StringVar(value="")
@@ -376,33 +433,30 @@ class App(tk.Tk):
     def _build_chat(self, parent):
         wrap = tk.Frame(parent, bg=BG_MAIN)
         wrap.pack(fill="both", expand=True)
+        self._chat_wrap = wrap
 
         self._canvas = tk.Canvas(wrap, bg=BG_MAIN,
                                  highlightthickness=0, bd=0)
-        sb = tk.Scrollbar(wrap, orient="vertical",
-                          command=self._canvas.yview,
-                          bg=BG_MAIN, troughcolor=BG_MAIN)
-        self._canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
+        chat_sb = tk.Scrollbar(wrap, orient="vertical",
+                               command=self._canvas.yview,
+                               bg=BG_MAIN, troughcolor=BG_MAIN)
+        self._canvas.configure(yscrollcommand=chat_sb.set)
+        chat_sb.pack(side="right", fill="y")
         self._canvas.pack(side="left", fill="both", expand=True)
 
-        self._msgs_frame = tk.Frame(self._canvas, bg=BG_MAIN)
+        # Placeholder frame shown before any chat selected
+        self._placeholder = tk.Frame(self._canvas, bg=BG_MAIN)
+        tk.Label(self._placeholder, text="Выбери чат слева",
+                 font=("Segoe UI",13), fg=TEXT_DIM, bg=BG_MAIN
+                 ).pack(expand=True, pady=80)
         self._cwin = self._canvas.create_window(
-            (0,0), window=self._msgs_frame, anchor="nw")
+            (0,0), window=self._placeholder, anchor="nw")
 
-        self._msgs_frame.bind("<Configure>",
+        self._placeholder.bind("<Configure>",
             lambda e: self._canvas.configure(
                 scrollregion=self._canvas.bbox("all")))
         self._canvas.bind("<Configure>",
             lambda e: self._canvas.itemconfig(self._cwin, width=e.width))
-        self._canvas.bind_all("<MouseWheel>",
-            lambda e: self._canvas.yview_scroll(
-                int(-1*(e.delta/120)), "units"))
-
-        self._empty = tk.Label(self._msgs_frame,
-                               text="Выбери канал слева",
-                               font=("Segoe UI",13), fg=TEXT_DIM, bg=BG_MAIN)
-        self._empty.pack(expand=True, pady=80)
 
         tk.Frame(parent, bg=BORDER, height=1).pack(fill="x")
 
@@ -445,9 +499,24 @@ class App(tk.Tk):
         for w in self._ch_list.winfo_children():
             w.destroy()
         self._ch_btns.clear()
-
         for ch in self._channels:
             self._add_ch_row(ch)
+
+    def _reload_dialogs(self):
+        if not self._engine:
+            return
+        self._v_sub.set("обновление…")
+        def _do():
+            dialogs = self._engine.get_dialogs(limit=200)
+            # merge: keep existing, add new
+            existing_ids = {c["id"] for c in self._channels}
+            for d in dialogs:
+                if d["id"] not in existing_ids:
+                    self._channels.append(d)
+                    self.after(0, lambda ch=d: self._add_ch_row(ch))
+            self.after(0, lambda: self._v_sub.set(
+                f"{len(self._channels)} чатов"))
+        threading.Thread(target=_do, daemon=True).start()
 
     def _add_ch_row(self, ch: dict):
         cid   = ch["id"]
@@ -470,13 +539,6 @@ class App(tk.Tk):
         tk.Label(info, text=str(cid), font=F_SMALL, fg=TEXT_DIM,
                  bg=BG_SIDEBAR, anchor="w").pack(anchor="w")
 
-        # Remove button
-        rm = tk.Button(row, text="✕", font=F_SMALL, fg=TEXT_DIM,
-                       bg=BG_SIDEBAR, activebackground=BG_ACTIVE,
-                       bd=0, cursor="hand2",
-                       command=lambda c=cid: self._remove_channel(c))
-        rm.pack(side="right", padx=6)
-
         for w in (row, av, info):
             w.bind("<Button-1>", lambda e, c=cid: self._select_channel(c))
 
@@ -497,8 +559,8 @@ class App(tk.Tk):
 
     def _add_channel(self):
         cid_str = simpledialog.askstring(
-            "Добавить канал",
-            "Введи Chat ID канала (например: -1001234567890):",
+            "Добавить чат",
+            "Введи Chat ID (например: -1001234567890 или ID пользователя):",
             parent=self)
         if not cid_str:
             return
@@ -515,25 +577,10 @@ class App(tk.Tk):
                    {"title": str(cid), "members": None}
             ch = {"id": cid, "title": info["title"]}
             self._channels.append(ch)
-            self._save_cfg()
             self.after(0, lambda: self._add_ch_row(ch))
             self.after(0, lambda: self._select_channel(cid))
 
         threading.Thread(target=_do, daemon=True).start()
-
-    def _remove_channel(self, cid: int):
-        if not messagebox.askyesno("Удалить", "Убрать канал из списка?",
-                                   parent=self):
-            return
-        self._channels = [c for c in self._channels if c["id"] != cid]
-        self._save_cfg()
-        if cid in self._ch_btns:
-            self._ch_btns[cid].destroy()
-            del self._ch_btns[cid]
-        if self._active == cid:
-            self._active = None
-            self._v_title.set("Выбери канал")
-            self._clear_chat()
 
     def _select_channel(self, cid: int):
         self._active = cid
@@ -541,39 +588,55 @@ class App(tk.Tk):
         ch = next((c for c in self._channels if c["id"] == cid), None)
         title = ch["title"] if ch else str(cid)
         self._v_title.set(title)
-        self._v_sub.set("загрузка истории…")
-        self._clear_chat()
-        self._bubbles.setdefault(cid, {})
 
-        if not self._engine:
-            self._v_sub.set("нет подключения"); return
+        # Get or create cached frame for this channel
+        if cid not in self._msgs_frames:
+            frame = tk.Frame(self._canvas, bg=BG_MAIN)
+            frame.bind("<Configure>",
+                lambda e: self._canvas.configure(
+                    scrollregion=self._canvas.bbox("all")))
+            self._msgs_frames[cid] = frame
+            self._bubbles[cid] = {}
 
-        def _do():
-            msgs = self._engine.get_history(cid, limit=200)
-            self.after(0, lambda: self._v_sub.set(
-                f"{len(msgs)} сообщений"))
-            for m in msgs:
-                self.after(0, lambda mm=m: self._render_bubble(cid, mm))
-            self.after(200, lambda: self._canvas.yview_moveto(1.0))
+        # Switch canvas to show this channel's frame
+        self._canvas.itemconfig(self._cwin, window=self._msgs_frames[cid])
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
 
-        threading.Thread(target=_do, daemon=True).start()
+        # Load history only if not yet loaded
+        if cid not in self._loaded_cids:
+            self._loaded_cids.add(cid)
+            self._v_sub.set("загрузка истории…")
+            if not self._engine:
+                self._v_sub.set("нет подключения"); return
 
-    def _clear_chat(self):
-        for w in self._msgs_frame.winfo_children():
-            w.destroy()
-        self._empty = None
+            def _do():
+                msgs = self._engine.get_history(cid, limit=200)
+                self.after(0, lambda: self._v_sub.set(f"{len(msgs)} сообщений"))
+                for m in msgs:
+                    self.after(0, lambda mm=m, c=cid: self._render_bubble(c, mm))
+                self.after(300, lambda: self._canvas.yview_moveto(1.0))
+
+            threading.Thread(target=_do, daemon=True).start()
+        else:
+            count = len(self._bubbles.get(cid, {}))
+            self._v_sub.set(f"{count} сообщений")
+            self.after(100, lambda: self._canvas.yview_moveto(1.0))
 
     # ── Chat ──────────────────────────────────────────────────────────────────
     def _render_bubble(self, cid: int, msg: dict):
-        if cid != self._active:
-            return
         if msg["id"] in self._bubbles.get(cid, {}):
             return
+        frame = self._msgs_frames.get(cid)
+        if frame is None:
+            return
 
-        b = Bubble(self._msgs_frame, msg,
+        b = Bubble(frame, msg,
                    on_edit=self._edit_msg, on_delete=self._delete_msg)
         b.pack(fill="x")
         self._bubbles.setdefault(cid, {})[msg["id"]] = b
+
+        if cid == self._active:
+            self._canvas.configure(scrollregion=self._canvas.bbox("all"))
 
     def _scroll_bottom(self):
         self.after(60, lambda: self._canvas.yview_moveto(1.0))
@@ -705,6 +768,11 @@ class App(tk.Tk):
         self._cfg["token"] = token
         self._save_cfg()
         self._engine = None
+        self._channels = []
+        self._msgs_frames = {}
+        self._loaded_cids = set()
+        self._bubbles = {}
+        self._ch_btns = {}
         self._init_engine(token)
 
 
