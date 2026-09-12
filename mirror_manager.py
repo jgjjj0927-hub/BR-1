@@ -445,6 +445,19 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     return mirror_bot, dp
 
 
+async def _poll_loop(mirror_bot, dp):
+    """Ручной polling loop — даёт полный контроль над исключениями.
+    dp.start_polling() имеет внутренний retry который глотает TerminatedByOtherGetUpdates,
+    поэтому используем свой цикл чтобы исключение доходило до вызывающего кода."""
+    offset = 0
+    while True:
+        updates = await mirror_bot.get_updates(offset=offset, timeout=20, limit=100)
+        for update in updates:
+            asyncio.ensure_future(dp.process_update(update))
+        if updates:
+            offset = max(u.update_id + 1 for u in updates)
+
+
 async def _run_mirror(token: str):
     max_retries = 5
     for attempt in range(max_retries):
@@ -452,27 +465,29 @@ async def _run_mirror(token: str):
         _mirror_bots[token] = mirror_bot
         try:
             print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}... (попытка {attempt+1})", flush=True)
-            # Ждём пока старая long-poll сессия умрёт: повторяем getUpdates(timeout=0)
-            # пока не получим чистый ответ — только тогда слот свободен
+            # Ждём пока старая long-poll сессия умрёт — повторяем getUpdates(timeout=0)
+            # пока не получим чистый ответ (только тогда слот свободен)
             for kick in range(8):
                 try:
                     await mirror_bot.get_updates(offset=-1, timeout=0, limit=1)
-                    break  # успех — слот свободен
+                    break
                 except TerminatedByOtherGetUpdates:
                     print(f"[MIRROR] ⏳ Слот занят {token[:20]}, жду 5с... ({kick+1}/8)", flush=True)
                     await asyncio.sleep(5)
                 except Exception:
                     break
             await asyncio.sleep(1)
-            await dp.start_polling()
-            break  # нормальное завершение — выходим из цикла
+            await _poll_loop(mirror_bot, dp)
+            break  # нормальный выход из цикла (polling остановлен снаружи)
         except Unauthorized:
             print(f"[MIRROR] 🚫 Токен невалидный, удаляем: {token[:20]}", flush=True)
             await db.remove_mirror_by_token(token)
             break
         except TerminatedByOtherGetUpdates:
             backoff = min(35 * (attempt + 1), 120)
-            print(f"[MIRROR] ⚠️ Конфликт для {token[:20]}, ждём {backoff}с перед повтором...", flush=True)
+            print(f"[MIRROR] ⚠️ Конфликт {token[:20]}, повтор через {backoff}с...", flush=True)
+        except asyncio.CancelledError:
+            break
         except Exception as e:
             print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
             break
@@ -489,7 +504,7 @@ async def _run_mirror(token: str):
                 pass
             _mirror_bots.pop(token, None)
         if attempt < max_retries - 1:
-            await asyncio.sleep(backoff if 'backoff' in dir() else 10)
+            await asyncio.sleep(backoff)
     _running_mirrors.pop(token, None)
     print(f"[MIRROR] 🔴 Зеркало {token[:20]} остановлено", flush=True)
 
