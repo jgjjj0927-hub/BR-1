@@ -261,9 +261,34 @@ def _get_sessions():
     return [os.path.join(TIDA_DIR, f.replace(".session", "")) for f in files]
 
 
-def _get_proxy():
-    """Возвращает прокси для TIDA из env или proxies.txt."""
-    # Приоритет 1: env переменные
+def _parse_proxy_str(line: str):
+    """Парсит строку прокси в tuple для Telethon. Возвращает tuple или None."""
+    try:
+        line = line.strip()
+        if not line or line.startswith("http://"):
+            return None
+        line = line.replace("socks5://", "").replace("socks4://", "")
+        if "@" in line:
+            auth, hostport = line.rsplit("@", 1)
+            u, p = auth.split(":", 1)
+            h, pt = hostport.rsplit(":", 1)
+            return (socks.SOCKS5, h, int(pt), True, u, p)
+        else:
+            parts = line.split(":")
+            if len(parts) == 4:
+                h, pt, u, p = parts
+                return (socks.SOCKS5, h, int(pt), True, u, p)
+            elif len(parts) == 2:
+                h, pt = parts
+                return (socks.SOCKS5, h, int(pt))
+    except Exception:
+        pass
+    return None
+
+
+def _get_all_proxies() -> list:
+    """Возвращает список всех прокси для TIDA."""
+    # Приоритет 1: env переменные (один прокси)
     host = os.environ.get("TIDA_PROXY_HOST", "")
     port = os.environ.get("TIDA_PROXY_PORT", "")
     user = os.environ.get("TIDA_PROXY_USER", "")
@@ -271,42 +296,31 @@ def _get_proxy():
 
     if host and port:
         if user and password:
-            return (socks.SOCKS5, host, int(port), True, user, password)
-        return (socks.SOCKS5, host, int(port))
+            return [(socks.SOCKS5, host, int(port), True, user, password)]
+        return [(socks.SOCKS5, host, int(port))]
 
-    # Приоритет 2: proxies.txt
+    # Приоритет 2: proxies.txt / proxy_input.txt
     for fname in ["proxies.txt", "proxy_input.txt"]:
         if os.path.exists(fname):
             with open(fname, "r") as f:
+                result = []
                 for line in f:
-                    line = line.strip()
-                    if not line or ":" not in line:
-                        continue
-                    if line.startswith("http://"):
-                        continue  # HTTP не поддерживается Telethon
-                    try:
-                        line = line.replace("socks5://", "").replace("socks4://", "")
-                        if "@" in line:
-                            auth, hostport = line.split("@")
-                            u, p = auth.split(":")
-                            h, pt = hostport.split(":")
-                        else:
-                            parts = line.split(":")
-                            if len(parts) == 4:
-                                h, pt, u, p = parts
-                            elif len(parts) == 2:
-                                h, pt = parts[0], parts[1]
-                                u, p = None, None
-                            else:
-                                continue
-                        if u and p:
-                            return (socks.SOCKS5, h, int(pt), True, u, p)
-                        return (socks.SOCKS5, h, int(pt))
-                    except Exception:
-                        continue
-            break  # нашли файл — дальше не ищем
+                    p = _parse_proxy_str(line)
+                    if p:
+                        result.append(p)
+            if result:
+                return result
+            break
 
-    return None
+    return []
+
+
+def _get_proxy():
+    """Возвращает один прокси (обратная совместимость)."""
+    proxies = _get_all_proxies()
+    return proxies[0] if proxies else None
+
+
 
 
 async def _create_client(session_path: str, proxy=None):
@@ -354,25 +368,27 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
         text = event.message.message.strip().lower()
         markup = event.message.reply_markup
 
-        if "please enter a t.me" in text and step == 0:
+        logger.info(f"[TIDA] [{session_name}] [{report_num}] 📨 TIDABOT: step={step} | text={text[:120]!r}")
+
+        if ("please enter a t.me" in text or "enter the link" in text or "enter a link" in text or "t.me link" in text) and step == 0:
             await asyncio.sleep(0.3)
             await client.send_message(bot_entity, target)
             step = 1
             logger.info(f"[TIDA] [{session_name}] [{report_num}] Ссылка отправлена")
 
-        elif "select the reason" in text and step == 1:
+        elif ("select the reason" in text or "choose the reason" in text or "reason for" in text or "select a reason" in text) and step == 1:
             await asyncio.sleep(0.3)
             await client.send_message(bot_entity, "Non-consensual intimate image sharing")
             step = 2
             logger.info(f"[TIDA] [{session_name}] [{report_num}] Причина отправлена")
 
-        elif "why the content is illegal" in text and step == 2:
+        elif ("why the content is illegal" in text or "describe" in text or "explain" in text or "provide details" in text or "additional information" in text) and step == 2:
             await asyncio.sleep(0.3)
             await client.send_message(bot_entity, custom_text)
             step = 3
             logger.info(f"[TIDA] [{session_name}] [{report_num}] Описание отправлено")
 
-        elif "documentation" in text and step == 3:
+        elif ("documentation" in text or "evidence" in text or "attach" in text or "upload" in text or "skip" in text) and step == 3:
             await asyncio.sleep(0.3)
             await client.send_message(bot_entity, "Proceed without documentation")
             step = 4
@@ -463,8 +479,8 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
         target = f"t.me/{target}"
     target = target.replace("https://", "")
 
-    proxy = _get_proxy()
-    if not proxy:
+    all_proxies = _get_all_proxies()
+    if not all_proxies:
         await bot.send_message(user,
             "⚠️ *TIDA работает без прокси — это может не сработать.*\n*Рекомендуется добавить SOCKS5 прокси.*",
             parse_mode="Markdown")
@@ -472,10 +488,16 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     successful = 0
     total = len(sessions)
 
-    logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {'есть' if proxy else 'нет'}")
+    logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(all_proxies)}")
 
     tida_peer_ref = [None]
-    results = await asyncio.gather(*[_single_session_flow(s, target, custom_text, proxy, tida_peer_ref) for s in sessions], return_exceptions=True)
+    # Каждая сессия получает свой прокси по кругу (или None если прокси нет)
+    results = await asyncio.gather(*[
+        _single_session_flow(s, target, custom_text,
+                             all_proxies[i % len(all_proxies)] if all_proxies else None,
+                             tida_peer_ref)
+        for i, s in enumerate(sessions)
+    ], return_exceptions=True)
     successful = sum(1 for r in results if r is True)
 
     logger.info(f"[TIDA] 🏁 Итог: {successful}/{total}")
