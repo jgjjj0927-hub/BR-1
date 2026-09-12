@@ -107,7 +107,11 @@ class TGEngine:
 
     def get_history(self, chat_id: int, limit=200) -> list:
         async def _():
-            msgs = await self._client.get_messages(chat_id, limit=limit)
+            try:
+                entity = await self._client.get_entity(chat_id)
+            except Exception:
+                entity = chat_id
+            msgs = await self._client.get_messages(entity, limit=limit)
             out = []
             for m in reversed(msgs):
                 text = m.text or ("🖼 Фото" if m.photo else
@@ -119,7 +123,8 @@ class TGEngine:
             return out
         try:
             return self._run(_(), timeout=60)
-        except Exception:
+        except Exception as e:
+            print(f"[get_history] {chat_id}: {e}")
             return []
 
     def send_text(self, chat_id: int, text: str) -> dict:
@@ -368,15 +373,8 @@ class App(tk.Tk):
         wrap.pack(fill="both", expand=True)
 
         self._sb_canvas = tk.Canvas(wrap, bg=BG_SIDEBAR,
-                                    highlightthickness=0, bd=0,
-                                    width=218)
-        sb_scroll = tk.Scrollbar(wrap, orient="vertical",
-                                 command=self._sb_canvas.yview,
-                                 bg=BG_SIDEBAR, troughcolor=BG_SIDEBAR,
-                                 width=4)
-        self._sb_canvas.configure(yscrollcommand=sb_scroll.set)
-        self._sb_canvas.pack(side="left", fill="both", expand=True)
-        sb_scroll.pack(side="right", fill="y")
+                                    highlightthickness=0, bd=0)
+        self._sb_canvas.pack(fill="both", expand=True)
 
         self._ch_list = tk.Frame(self._sb_canvas, bg=BG_SIDEBAR)
         self._sb_win = self._sb_canvas.create_window(
