@@ -156,8 +156,10 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
                     target_ref[0] = "?"
                     target_ref[1] = "unknown"
             else:
-                print(f"[BOTNET] [{session}] ⚠️ NO_ID — не удалось получить from_id сообщения", flush=True)
-                return "NO_ID", None
+                # Анонимный пост канала — from_id=None, репортим само сообщение
+                target_ref[0] = f"channel:{chat.id}"
+                target_ref[1] = getattr(chat, 'username', None) or str(chat.id)
+                print(f"[BOTNET] [{session}] ℹ️ from_id=None — анонимный пост канала {chat.id}, жалуемся на сообщение", flush=True)
 
         # Получаем список причин от сервера динамически (3-шаговый флоу)
         try:
