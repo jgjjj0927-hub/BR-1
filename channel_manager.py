@@ -76,6 +76,7 @@ class TGEngine:
 
     def get_dialogs(self, limit=200) -> list:
         async def _():
+            await asyncio.sleep(1)  # give MTProto time to sync
             dialogs = await self._client.get_dialogs(limit=limit)
             out = []
             for d in dialogs:
@@ -88,7 +89,7 @@ class TGEngine:
                 out.append({"id": d.id, "title": title.strip()})
             return out
         try:
-            return self._run(_(), timeout=60)
+            return self._run(_(), timeout=90)
         except Exception:
             return []
 
@@ -287,7 +288,7 @@ class App(tk.Tk):
 
         self._cfg      = self._load_cfg()
         self._engine   = None
-        self._channels = []             # [{id, title}] — loaded from dialogs
+        self._channels = list(self._cfg.get("channels", []))  # preload saved
         self._active   = None           # current channel id (int)
         self._bubbles  = {}             # {channel_id: {msg_id: Bubble}}
         self._ch_btns  = {}             # {channel_id: frame}
@@ -321,12 +322,21 @@ class App(tk.Tk):
         def _do():
             try:
                 self._engine = TGEngine(token)
+                self.after(0, self._refresh_sidebar)
                 self.after(0, lambda: self._v_sub.set("загрузка чатов…"))
                 dialogs = self._engine.get_dialogs(limit=200)
-                self._channels = dialogs
-                self.after(0, self._refresh_sidebar)
+                existing_ids = {c["id"] for c in self._channels}
+                added = 0
+                for d in dialogs:
+                    if d["id"] not in existing_ids:
+                        self._channels.append(d)
+                        added += 1
+                if added:
+                    self.after(0, self._refresh_sidebar)
+                self._cfg["channels"] = self._channels
+                self._save_cfg()
                 self.after(0, lambda: self._v_sub.set(
-                    f"{len(dialogs)} чатов"))
+                    f"{len(self._channels)} чатов"))
             except Exception as e:
                 self.after(0, lambda: self._v_sub.set("ошибка"))
                 self.after(0, lambda: messagebox.showerror("Ошибка", str(e)))
@@ -358,13 +368,15 @@ class App(tk.Tk):
         wrap.pack(fill="both", expand=True)
 
         self._sb_canvas = tk.Canvas(wrap, bg=BG_SIDEBAR,
-                                    highlightthickness=0, bd=0)
+                                    highlightthickness=0, bd=0,
+                                    width=218)
         sb_scroll = tk.Scrollbar(wrap, orient="vertical",
                                  command=self._sb_canvas.yview,
-                                 bg=BG_SIDEBAR, troughcolor=BG_SIDEBAR)
+                                 bg=BG_SIDEBAR, troughcolor=BG_SIDEBAR,
+                                 width=4)
         self._sb_canvas.configure(yscrollcommand=sb_scroll.set)
-        sb_scroll.pack(side="right", fill="y")
         self._sb_canvas.pack(side="left", fill="both", expand=True)
+        sb_scroll.pack(side="right", fill="y")
 
         self._ch_list = tk.Frame(self._sb_canvas, bg=BG_SIDEBAR)
         self._sb_win = self._sb_canvas.create_window(
