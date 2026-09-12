@@ -414,6 +414,10 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
             done.set()
             logger.info(f"[TIDA] [{session_name}] [{report_num}] ✅ Успешно!")
 
+        elif "create_report_failed" in text or "failed" in text:
+            logger.warning(f"[TIDA] [{session_name}] [{report_num}] ❌ CREATE_REPORT_FAILED — нужен другой прокси")
+            done.set()
+
         elif "invalid" in text or "not found" in text:
             logger.warning(f"[TIDA] [{session_name}] [{report_num}] ❌ Ошибка от бота")
             done.set()
@@ -430,37 +434,68 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
     return success
 
 
-async def _single_session_flow(session_path: str, target: str, custom_text: str, proxy=None, tida_peer_ref=None) -> bool:
+async def _single_session_flow(session_path: str, target: str, custom_text: str,
+                                proxy=None, tida_peer_ref=None, all_proxies=None) -> bool:
     session_name = os.path.basename(session_path)
     if tida_peer_ref is None:
         tida_peer_ref = [None]
-    client = await _create_client(session_path, proxy)
-    if not client:
-        return False
 
-    try:
+    MAX_PROXY_RETRIES = len(all_proxies) if all_proxies else 1
+    used_proxies = set()
+    current_proxy = proxy
+
+    for attempt in range(MAX_PROXY_RETRIES):
+        client = await _create_client(session_path, current_proxy)
+        if not client:
+            # Попробуй другой прокси
+            if all_proxies:
+                remaining = [p for i, p in enumerate(all_proxies) if i not in used_proxies]
+                if remaining:
+                    current_proxy = random.choice(remaining)
+                    used_proxies.add(all_proxies.index(current_proxy))
+            continue
+
         try:
-            bot_entity = await client.get_entity("TIDABOT")
-            if tida_peer_ref[0] is None:
-                tida_peer_ref[0] = bot_entity.id
+            try:
+                bot_entity = await client.get_entity("TIDABOT")
+                if tida_peer_ref[0] is None:
+                    tida_peer_ref[0] = bot_entity.id
+            except Exception as e:
+                if tida_peer_ref[0] is not None and "No user has" in str(e):
+                    bot_entity = await client.get_entity(tida_peer_ref[0])
+                else:
+                    logger.error(f"[TIDA] [{session_name}] Не найден TIDABOT: {e}")
+                    await client.disconnect()
+                    return False
+
+            logger.info(f"[TIDA] [{session_name}] Попытка {attempt + 1}/{MAX_PROXY_RETRIES} | прокси: {current_proxy[1] if current_proxy else 'нет'}")
+            success = await _send_one_report(client, bot_entity, target, custom_text, attempt + 1)
+
+            if success:
+                return True
+
+            # CREATE_REPORT_FAILED — меняем прокси и пробуем снова
+            if all_proxies and attempt + 1 < MAX_PROXY_RETRIES:
+                proxy_list = list(range(len(all_proxies)))
+                remaining = [i for i in proxy_list if i not in used_proxies]
+                if remaining:
+                    idx = random.choice(remaining)
+                    used_proxies.add(idx)
+                    current_proxy = all_proxies[idx]
+                    logger.info(f"[TIDA] [{session_name}] Меняем прокси → {current_proxy[1]}")
+                else:
+                    logger.warning(f"[TIDA] [{session_name}] Все прокси исчерпаны")
+                    return False
+
         except Exception as e:
-            if tida_peer_ref[0] is not None and "No user has" in str(e):
-                bot_entity = await client.get_entity(tida_peer_ref[0])
-            else:
-                logger.error(f"[TIDA] [{session_name}] Не найден TIDABOT: {e}")
-                return False
-        logger.info(f"[TIDA] [{session_name}] Бот найден")
+            logger.error(f"[TIDA] [{session_name}] Ошибка: {e}")
+        finally:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
 
-        success = await _send_one_report(client, bot_entity, target, custom_text, 1)
-        return success
-    except Exception as e:
-        logger.error(f"[TIDA] [{session_name}] Ошибка: {e}")
-        return False
-    finally:
-        try:
-            await client.disconnect()
-        except Exception:
-            pass
+    return False
 
 
 async def main_tida(target_link: str, custom_text: str, user: int, username: str, _log_user=None):
@@ -491,12 +526,13 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(all_proxies)}")
 
     tida_peer_ref = [None]
-    # Каждая сессия получает свой прокси по кругу (или None если прокси нет)
+    # Каждая сессия стартует с рандомного прокси, при FAILED меняет до успеха
     results = await asyncio.gather(*[
         _single_session_flow(s, target, custom_text,
-                             all_proxies[i % len(all_proxies)] if all_proxies else None,
-                             tida_peer_ref)
-        for i, s in enumerate(sessions)
+                             random.choice(all_proxies) if all_proxies else None,
+                             tida_peer_ref,
+                             all_proxies if all_proxies else None)
+        for s in sessions
     ], return_exceptions=True)
     successful = sum(1 for r in results if r is True)
 
