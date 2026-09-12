@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """
 Telegram Channel Manager — управляй каналом как в настоящем Telegram.
-Зависимости: только стандартная библиотека Python 3.8+
+pip install Pillow   (для вставки фото из буфера обмена)
 """
 import tkinter as tk
 from tkinter import messagebox, filedialog
-import json, threading, time, urllib.request, os, uuid
+import json, threading, time, urllib.request, os, uuid, tempfile
 from datetime import datetime
+
+try:
+    from PIL import ImageGrab
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
 
 # ── Palette (Telegram Dark) ──────────────────────────────────────────────────
 BG_MAIN   = "#17212B"
@@ -27,6 +33,7 @@ F_TIME  = ("Segoe UI", 8)
 
 _HERE        = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE  = os.path.join(_HERE, "tg_manager_config.json")
+CACHE_FILE   = os.path.join(_HERE, "tg_manager_cache.json")
 
 
 # ── Telegram Bot API wrapper ──────────────────────────────────────────────────
@@ -271,7 +278,8 @@ class App(tk.Tk):
 
         self._cfg: dict        = self._load_cfg()
         self._api: TelegramAPI = None
-        self._bubbles: dict    = {}   # msg_id → Bubble
+        self._bubbles: dict    = {}        # msg_id → Bubble
+        self._bubbles_data: list = []      # list of msg dicts for cache
 
         self._build()
 
@@ -289,6 +297,23 @@ class App(tk.Tk):
 
     def _save_cfg(self):
         open(CONFIG_FILE, "w").write(json.dumps(self._cfg, ensure_ascii=False))
+
+    def _load_cache(self) -> list:
+        key = self._cfg.get("chat_id", "")
+        try:
+            data = json.loads(open(CACHE_FILE).read())
+            return data.get(key, [])
+        except:
+            return []
+
+    def _save_cache(self):
+        key = self._cfg.get("chat_id", "")
+        try:
+            data = json.loads(open(CACHE_FILE).read()) if os.path.exists(CACHE_FILE) else {}
+        except:
+            data = {}
+        data[key] = list(self._bubbles_data)
+        open(CACHE_FILE, "w").write(json.dumps(data, ensure_ascii=False))
 
     # ── UI Construction ───────────────────────────────────────────────────────
     def _build(self):
@@ -379,6 +404,8 @@ class App(tk.Tk):
             lambda e: (self._inp.tag_add("sel", "1.0", "end"), "break")[1])
         self._inp.bind("<Control-A>",
             lambda e: (self._inp.tag_add("sel", "1.0", "end"), "break")[1])
+        self._inp.bind("<Control-v>", self._on_paste)
+        self._inp.bind("<Control-V>", self._on_paste)
 
         tk.Button(inp, text="📎", font=("Segoe UI", 15),
                   fg=TEXT_DIM, bg=BG_INPUT,
@@ -419,6 +446,24 @@ class App(tk.Tk):
 
     def _on_enter(self, _):
         self._send()
+        return "break"
+
+    def _on_paste(self, event):
+        if not HAS_PIL:
+            return  # обычная вставка текста
+        try:
+            img = ImageGrab.grabclipboard()
+        except:
+            return
+        if img is None:
+            return  # в буфере текст — обычная вставка
+        # В буфере изображение — отправляем его
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        img.save(tmp.name, "PNG")
+        tmp.close()
+        caption = self._get_text()
+        self._clear_inp()
+        self._send_photo_file(tmp.name, caption)
         return "break"
 
     def _pick_photo(self):
@@ -466,7 +511,7 @@ class App(tk.Tk):
 
         threading.Thread(target=_do, daemon=True).start()
 
-    def _add_bubble(self, msg: dict):
+    def _add_bubble(self, msg: dict, from_cache=False):
         if msg["id"] in self._bubbles:
             return
         if self._empty:
@@ -477,6 +522,9 @@ class App(tk.Tk):
                    on_edit=self._edit_msg, on_delete=self._delete_msg)
         b.pack(fill="x")
         self._bubbles[msg["id"]] = b
+        if not from_cache:
+            self._bubbles_data.append(msg)
+            self._save_cache()
         self.after(60, lambda: self._canvas.yview_moveto(1.0))
 
     def _edit_msg(self, msg: dict, bubble: Bubble):
@@ -514,6 +562,10 @@ class App(tk.Tk):
     # ── Connection & polling ──────────────────────────────────────────────────
     def _connect(self):
         self._api = TelegramAPI(self._cfg["token"], self._cfg["chat_id"])
+        # Load cached history first
+        for msg in self._load_cache():
+            self._bubbles_data.append(msg)
+            self._add_bubble(msg, from_cache=True)
         threading.Thread(target=self._fetch_info, daemon=True).start()
         threading.Thread(target=self._poll,       daemon=True).start()
 
