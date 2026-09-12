@@ -3294,12 +3294,7 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		except Exception:
 			pass
 	except ValueError:
-		await _bot.send_message(uid,
-			'*⭕️ Неверная ссылка!*\n\n'
-			'*Ботнет требует ссылку на конкретное сообщение:*\n'
-			'`https://t.me/channel/123`\n\n'
-			'*Для сноса канала/аккаунта используй TIDA*',
-			parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+		await _bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
 		print(f"[PREM] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
