@@ -446,39 +446,44 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
 
 
 async def _run_mirror(token: str):
-    mirror_bot, dp = _build_mirror_dispatcher(token)
-    _mirror_bots[token] = mirror_bot
-    try:
-        print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}...", flush=True)
-        # Сначала закрываем все предыдущие соединения — сбрасываем webhook и старые сессии
-        await mirror_bot.delete_webhook(drop_pending_updates=True)
-        await asyncio.sleep(3)  # ждём 3с чтобы Telegram завершил старые polling соединения
-        await dp.start_polling()
-    except Unauthorized:
-        print(f"[MIRROR] 🚫 Токен невалидный, удаляем: {token[:20]}", flush=True)
-        await db.remove_mirror_by_token(token)
-    except TerminatedByOtherGetUpdates:
-        print(f"[MIRROR] ⚠️ Конфликт для {token[:20]}, повторная попытка через 5с...", flush=True)
-        _running_mirrors.pop(token, None)
-        await asyncio.sleep(5)
-        await start_mirror(token)
-        return
-    except Exception as e:
-        print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
-    finally:
+    max_retries = 5
+    for attempt in range(max_retries):
+        mirror_bot, dp = _build_mirror_dispatcher(token)
+        _mirror_bots[token] = mirror_bot
         try:
-            await dp.storage.close()
-            await dp.storage.wait_closed()
-        except Exception:
-            pass
-        try:
-            session = await mirror_bot.get_session()
-            await session.close()
-        except Exception:
-            pass
-        _running_mirrors.pop(token, None)
-        _mirror_bots.pop(token, None)
-        print(f"[MIRROR] 🔴 Зеркало {token[:20]} остановлено", flush=True)
+            print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}... (попытка {attempt+1})", flush=True)
+            # Сбрасываем webhook и ждём пока Telegram закроет старое long-poll соединение (до 35с)
+            await mirror_bot.delete_webhook(drop_pending_updates=True)
+            wait = 35 if attempt == 0 else 10
+            await asyncio.sleep(wait)
+            await dp.start_polling()
+            break  # нормальное завершение — выходим из цикла
+        except Unauthorized:
+            print(f"[MIRROR] 🚫 Токен невалидный, удаляем: {token[:20]}", flush=True)
+            await db.remove_mirror_by_token(token)
+            break
+        except TerminatedByOtherGetUpdates:
+            backoff = min(35 * (attempt + 1), 120)
+            print(f"[MIRROR] ⚠️ Конфликт для {token[:20]}, ждём {backoff}с перед повтором...", flush=True)
+        except Exception as e:
+            print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
+            break
+        finally:
+            try:
+                await dp.storage.close()
+                await dp.storage.wait_closed()
+            except Exception:
+                pass
+            try:
+                session = await mirror_bot.get_session()
+                await session.close()
+            except Exception:
+                pass
+            _mirror_bots.pop(token, None)
+        if attempt < max_retries - 1:
+            await asyncio.sleep(backoff if 'backoff' in dir() else 10)
+    _running_mirrors.pop(token, None)
+    print(f"[MIRROR] 🔴 Зеркало {token[:20]} остановлено", flush=True)
 
 
 async def start_mirror(token: str):
