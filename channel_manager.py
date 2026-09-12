@@ -69,7 +69,8 @@ class TGEngine:
     def _connect(self):
         async def _():
             self._client = TelegramClient(SESSION_F, API_ID, API_HASH,
-                                          loop=self._loop)
+                                          loop=self._loop,
+                                          receive_updates=False)
             await self._client.start(bot_token=self._token)
         self._run(_())
 
