@@ -348,6 +348,10 @@ class App(tk.Tk):
         self._inp.bind("<Return>",     self._on_enter)
         self._inp.bind("<Shift-Return>", lambda e: None)
         self._inp.bind("<KeyRelease>", self._auto_h)
+        self._inp.bind("<Control-a>",
+            lambda e: (self._inp.tag_add("sel", "1.0", "end"), "break")[1])
+        self._inp.bind("<Control-A>",
+            lambda e: (self._inp.tag_add("sel", "1.0", "end"), "break")[1])
 
         tk.Button(inp, text="➤", font=("Segoe UI", 20),
                   fg=ACCENT, bg=BG_INPUT,
