@@ -120,10 +120,12 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
             print(f"[BOTNET] [{session}] ❌ НЕВАЛИД (не авторизован)", flush=True)
             return "НЕВАЛИД", None
 
-        # Fix 2: резолвим канал один раз, остальные используют числовой ID
+        # Резолвим username только один раз; остальные сессии берут числовой ID из peer_ref
         try:
-            chat = await client.get_entity(chat_username)
-            if peer_ref[0] is None:
+            if peer_ref[0] is not None:
+                chat = await client.get_entity(peer_ref[0])
+            else:
+                chat = await client.get_entity(chat_username)
                 peer_ref[0] = chat.id
         except Exception as e:
             if peer_ref[0] is not None and "No user has" in str(e):
@@ -131,7 +133,7 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
                 chat = await client.get_entity(peer_ref[0])
             else:
                 raise
-        print(f"[BOTNET] [{session}] ✅ Подключён, чат получен: {chat_username}", flush=True)
+        print(f"[BOTNET] [{session}] ✅ Подключён, чат получен: {peer_ref[0]}", flush=True)
 
         # Получаем TARGET только один раз (первая сессия, которая успела)
         if target_ref[0] is None:
