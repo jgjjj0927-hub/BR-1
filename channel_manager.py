@@ -4,8 +4,8 @@ Telegram Channel Manager — управляй каналом как в наст�
 Зависимости: только стандартная библиотека Python 3.8+
 """
 import tkinter as tk
-from tkinter import messagebox
-import json, threading, time, urllib.request, os
+from tkinter import messagebox, filedialog
+import json, threading, time, urllib.request, os, uuid
 from datetime import datetime
 
 # ── Palette (Telegram Dark) ──────────────────────────────────────────────────
@@ -62,6 +62,33 @@ class TelegramAPI:
     def delete(self, msg_id: int):
         return self._call("deleteMessage",
                           {"chat_id": self.chat_id, "message_id": msg_id})
+
+    def send_photo(self, file_path: str, caption: str = "") -> dict:
+        boundary = uuid.uuid4().hex
+        with open(file_path, "rb") as f:
+            file_data = f.read()
+        filename = os.path.basename(file_path)
+
+        def part(name, value, extra=""):
+            return (f'--{boundary}\r\nContent-Disposition: form-data; '
+                    f'name="{name}"{extra}\r\n\r\n').encode() + \
+                   (value if isinstance(value, bytes) else value.encode()) + b"\r\n"
+
+        body = (part("chat_id", self.chat_id) +
+                part("caption", caption) +
+                part("photo", file_data,
+                     f'; filename="{filename}"\r\nContent-Type: image/jpeg') +
+                f"--{boundary}--\r\n".encode())
+
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{self.token}/sendPhoto",
+            data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.loads(r.read())
+        except Exception as e:
+            return {"ok": False, "description": str(e)}
 
     def poll(self) -> list:
         res = self._call("getUpdates", {
@@ -353,6 +380,12 @@ class App(tk.Tk):
         self._inp.bind("<Control-A>",
             lambda e: (self._inp.tag_add("sel", "1.0", "end"), "break")[1])
 
+        tk.Button(inp, text="📎", font=("Segoe UI", 15),
+                  fg=TEXT_DIM, bg=BG_INPUT,
+                  activebackground=BG_INPUT, activeforeground=TEXT_MAIN,
+                  bd=0, cursor="hand2",
+                  command=self._pick_photo).pack(side="right", padx=(0, 4))
+
         tk.Button(inp, text="➤", font=("Segoe UI", 20),
                   fg=ACCENT, bg=BG_INPUT,
                   activebackground=BG_INPUT, activeforeground=TEXT_MAIN,
@@ -387,6 +420,31 @@ class App(tk.Tk):
     def _on_enter(self, _):
         self._send()
         return "break"
+
+    def _pick_photo(self):
+        path = filedialog.askopenfilename(
+            title="Выбери фото",
+            filetypes=[("Изображения", "*.jpg *.jpeg *.png *.webp *.gif"),
+                       ("Все файлы", "*.*")])
+        if not path:
+            return
+        caption = self._get_text()
+        self._clear_inp()
+        self._send_photo_file(path, caption)
+
+    def _send_photo_file(self, path: str, caption: str = ""):
+        def _do():
+            res = self._api.send_photo(path, caption)
+            if res.get("ok"):
+                m = res["result"]
+                data = {"id": m["message_id"],
+                        "text": f"🖼 {caption}" if caption else "🖼 Фото",
+                        "date": m["date"]}
+                self.after(0, lambda: self._add_bubble(data))
+            else:
+                self.after(0, lambda: messagebox.showerror(
+                    "Ошибка", res.get("description", "?")))
+        threading.Thread(target=_do, daemon=True).start()
 
     # ── Messaging ─────────────────────────────────────────────────────────────
     def _send(self):
