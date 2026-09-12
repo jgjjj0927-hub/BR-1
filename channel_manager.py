@@ -5,7 +5,7 @@ pip install telethon Pillow
 """
 import tkinter as tk
 from tkinter import messagebox, filedialog, simpledialog
-import json, threading, time, os, uuid, tempfile
+import json, threading, os, tempfile
 from datetime import datetime
 
 try:
@@ -17,7 +17,8 @@ except ImportError:
 try:
     import asyncio
     from telethon import TelegramClient
-    from telethon.errors import FloodWaitError
+    from telethon.errors import (FloodWaitError, SessionPasswordNeededError,
+                                 PhoneCodeInvalidError)
     HAS_TELETHON = True
 except ImportError:
     HAS_TELETHON = False
@@ -42,41 +43,65 @@ F_TIME  = ("Segoe UI", 8)
 
 _HERE       = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(_HERE, "tg_manager_config.json")
-SESSION_F   = os.path.join(_HERE, "tg_bot_session")
+SESSION_DIR = os.path.join(_HERE, "sessions")
 
 API_ID   = 24565698
 API_HASH = "5a084b434f8505ace703485b9da85040"
 
 
-# ── Telethon engine (runs in background thread) ───────────────────────────────
+# ── Telethon engine (user account) ───────────────────────────────────────────
 class TGEngine:
-    def __init__(self, bot_token: str):
-        self._token = bot_token
+    def __init__(self):
+        os.makedirs(SESSION_DIR, exist_ok=True)
         self._loop   = asyncio.new_event_loop()
         self._client = None
+        self._phone  = None
         t = threading.Thread(target=self._run_loop, daemon=True)
         t.start()
-        self._connect()
 
     def _run_loop(self):
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
 
-    def _run(self, coro, timeout=30):
+    def _run(self, coro, timeout=60):
         fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return fut.result(timeout=timeout)
 
-    def _connect(self):
+    def _session_path(self, phone: str) -> str:
+        safe = phone.replace("+", "").replace(" ", "")
+        return os.path.join(SESSION_DIR, safe)
+
+    def connect(self, phone: str):
+        self._phone = phone
+
         async def _():
-            self._client = TelegramClient(SESSION_F, API_ID, API_HASH,
-                                          loop=self._loop,
-                                          receive_updates=False)
-            await self._client.start(bot_token=self._token)
+            self._client = TelegramClient(
+                self._session_path(phone), API_ID, API_HASH,
+                system_version='4.16.30-vxCUSTOM')
+            await self._client.connect()
+            return await self._client.is_user_authorized()
+
+        return self._run(_())
+
+    def send_code(self, phone: str):
+        async def _():
+            result = await self._client.send_code_request(phone)
+            return result.phone_code_hash
+        return self._run(_())
+
+    def sign_in(self, phone: str, code: str, phone_code_hash: str):
+        async def _():
+            await self._client.sign_in(phone, code,
+                                       phone_code_hash=phone_code_hash)
+        self._run(_())
+
+    def sign_in_2fa(self, password: str):
+        async def _():
+            await self._client.sign_in(password=password)
         self._run(_())
 
     def get_dialogs(self, limit=200) -> list:
         async def _():
-            await asyncio.sleep(1)  # give MTProto time to sync
             dialogs = await self._client.get_dialogs(limit=limit)
             out = []
             for d in dialogs:
@@ -90,20 +115,19 @@ class TGEngine:
             return out
         try:
             return self._run(_(), timeout=90)
-        except Exception:
+        except Exception as e:
+            print(f"[get_dialogs] {e}")
             return []
 
     def get_chat_info(self, chat_id: int) -> dict:
         async def _():
             e = await self._client.get_entity(chat_id)
-            return {
-                "title":   getattr(e, "title",              str(chat_id)),
-                "members": getattr(e, "participants_count", None)
-            }
+            return {"title": getattr(e, "title", None)
+                    or getattr(e, "first_name", str(chat_id))}
         try:
             return self._run(_())
         except Exception:
-            return {"title": str(chat_id), "members": None}
+            return {"title": str(chat_id)}
 
     def get_history(self, chat_id: int, limit=200) -> list:
         async def _():
@@ -155,10 +179,10 @@ class TGEngine:
 class Bubble(tk.Frame):
     def __init__(self, parent, msg: dict, on_edit, on_delete):
         super().__init__(parent, bg=BG_MAIN)
-        self.msg     = msg
-        self._oe     = on_edit
-        self._od     = on_delete
-        self._tv     = tk.StringVar(value=msg["text"])
+        self.msg = msg
+        self._oe = on_edit
+        self._od = on_delete
+        self._tv = tk.StringVar(value=msg["text"])
         self._build()
 
     def _build(self):
@@ -175,8 +199,7 @@ class Bubble(tk.Frame):
         lbl.pack(anchor="w")
 
         ts = datetime.fromtimestamp(self.msg["date"]).strftime("%H:%M")
-        tk.Label(bub, text=ts, font=F_TIME, fg=TEXT_DIM,
-                 bg=BG_MY).pack(anchor="e")
+        tk.Label(bub, text=ts, font=F_TIME, fg=TEXT_DIM, bg=BG_MY).pack(anchor="e")
 
         menu = tk.Menu(self, tearoff=0, bg="#1C2B3A", fg=TEXT_MAIN,
                        activebackground=ACCENT, activeforeground="white",
@@ -189,10 +212,8 @@ class Bubble(tk.Frame):
         menu.add_command(label="📋   Копировать", command=self._copy)
 
         for w in (row, bub, lbl):
-            w.bind("<Button-3>",
-                   lambda e, m=menu: m.tk_popup(e.x_root, e.y_root))
-            w.bind("<Double-Button-1>",
-                   lambda e: self._oe(self.msg, self))
+            w.bind("<Button-3>", lambda e, m=menu: m.tk_popup(e.x_root, e.y_root))
+            w.bind("<Double-Button-1>", lambda e: self._oe(self.msg, self))
 
     def set_text(self, t: str):
         self.msg["text"] = t
@@ -203,7 +224,147 @@ class Bubble(tk.Frame):
         self.clipboard_append(self.msg["text"])
 
 
-# ── Dialogs ───────────────────────────────────────────────────────────────────
+# ── Auth Dialog ───────────────────────────────────────────────────────────────
+class AuthDialog(tk.Toplevel):
+    """Multi-step login: phone → code → (2FA password)"""
+
+    def __init__(self, parent, engine: TGEngine, on_done):
+        super().__init__(parent)
+        self._engine  = engine
+        self._on_done = on_done
+        self._phone   = ""
+        self._hash    = ""
+        self.title("Вход в Telegram")
+        self.configure(bg=BG_MAIN)
+        self.geometry("420x260")
+        self.resizable(False, False)
+        self.grab_set()
+        self.transient(parent)
+        self._show_phone()
+
+    def _clear(self):
+        for w in self.winfo_children():
+            w.destroy()
+
+    def _label(self, text, **kw):
+        tk.Label(self, text=text, font=F_MAIN, fg=TEXT_DIM,
+                 bg=BG_MAIN, **kw).pack(anchor="w", padx=24, pady=(4, 2))
+
+    def _entry(self, show=""):
+        e = tk.Entry(self, font=F_MAIN, fg=TEXT_MAIN, bg=BG_FIELD,
+                     insertbackground=TEXT_MAIN, relief="flat", bd=0, show=show)
+        e.pack(fill="x", padx=24, ipady=8)
+        return e
+
+    def _btn(self, text, cmd):
+        tk.Button(self, text=text, font=F_MAIN, fg="white", bg=ACCENT,
+                  activebackground="#3A7BD5", bd=0, pady=8, cursor="hand2",
+                  command=cmd).pack(fill="x", padx=24, pady=(16, 4))
+
+    # Step 1 — phone
+    def _show_phone(self):
+        self._clear()
+        tk.Label(self, text="🔐  Вход в Telegram", font=F_BOLD,
+                 fg=TEXT_MAIN, bg=BG_MAIN).pack(pady=(20, 12))
+        self._label("Номер телефона (с +):")
+        self._e = self._entry()
+        self._e.focus_set()
+        self._btn("Далее →", self._do_phone)
+        self.bind("<Return>", lambda _: self._do_phone())
+
+    def _do_phone(self):
+        phone = self._e.get().strip()
+        if not phone:
+            return
+        self._phone = phone
+        self._set_status("отправка кода…")
+
+        def _do():
+            try:
+                authorized = self._engine.connect(phone)
+                if authorized:
+                    self.after(0, self._finish)
+                    return
+                h = self._engine.send_code(phone)
+                self._hash = h
+                self.after(0, self._show_code)
+            except Exception as ex:
+                self.after(0, lambda: self._set_status(f"Ошибка: {ex}"))
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    # Step 2 — code
+    def _show_code(self):
+        self._clear()
+        tk.Label(self, text="📱  Код подтверждения", font=F_BOLD,
+                 fg=TEXT_MAIN, bg=BG_MAIN).pack(pady=(20, 12))
+        self._label(f"Код отправлен на {self._phone}:")
+        self._e = self._entry()
+        self._e.focus_set()
+        self._btn("Войти →", self._do_code)
+        self.bind("<Return>", lambda _: self._do_code())
+
+    def _do_code(self):
+        code = self._e.get().strip()
+        if not code:
+            return
+        self._set_status("проверка…")
+
+        def _do():
+            try:
+                self._engine.sign_in(self._phone, code, self._hash)
+                self.after(0, self._finish)
+            except SessionPasswordNeededError:
+                self.after(0, self._show_2fa)
+            except PhoneCodeInvalidError:
+                self.after(0, lambda: self._set_status("Неверный код"))
+            except Exception as ex:
+                self.after(0, lambda: self._set_status(f"Ошибка: {ex}"))
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    # Step 3 — 2FA
+    def _show_2fa(self):
+        self._clear()
+        tk.Label(self, text="🔑  Двухфакторная защита", font=F_BOLD,
+                 fg=TEXT_MAIN, bg=BG_MAIN).pack(pady=(20, 12))
+        self._label("Пароль 2FA:")
+        self._e = self._entry(show="•")
+        self._e.focus_set()
+        self._btn("Войти →", self._do_2fa)
+        self.bind("<Return>", lambda _: self._do_2fa())
+
+    def _do_2fa(self):
+        pw = self._e.get().strip()
+        if not pw:
+            return
+        self._set_status("проверка…")
+
+        def _do():
+            try:
+                self._engine.sign_in_2fa(pw)
+                self.after(0, self._finish)
+            except Exception as ex:
+                self.after(0, lambda: self._set_status(f"Ошибка: {ex}"))
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _set_status(self, text: str):
+        # find or create status label
+        for w in self.winfo_children():
+            if getattr(w, "_is_status", False):
+                w.config(text=text)
+                return
+        lbl = tk.Label(self, text=text, font=F_SMALL, fg=TEXT_DIM, bg=BG_MAIN)
+        lbl._is_status = True
+        lbl.pack(pady=4)
+
+    def _finish(self):
+        self.destroy()
+        self._on_done(self._phone)
+
+
+# ── Edit Dialog ───────────────────────────────────────────────────────────────
 class EditDialog(tk.Toplevel):
     def __init__(self, parent, text: str):
         super().__init__(parent)
@@ -215,7 +376,7 @@ class EditDialog(tk.Toplevel):
         self.grab_set(); self.transient(parent)
 
         tk.Label(self, text="Новый текст:", font=F_MAIN,
-                 fg=TEXT_DIM, bg=BG_MAIN).pack(anchor="w", padx=18, pady=(16,4))
+                 fg=TEXT_DIM, bg=BG_MAIN).pack(anchor="w", padx=18, pady=(16, 4))
         self._t = tk.Text(self, height=4, font=F_MAIN, fg=TEXT_MAIN,
                           bg=BG_FIELD, insertbackground=TEXT_MAIN,
                           relief="flat", bd=0, padx=10, pady=8)
@@ -238,50 +399,6 @@ class EditDialog(tk.Toplevel):
         self.destroy()
 
 
-class SettingsDialog(tk.Toplevel):
-    def __init__(self, parent, cfg: dict, on_save):
-        super().__init__(parent)
-        self._cb = on_save
-        self.title("Настройки")
-        self.configure(bg=BG_MAIN)
-        self.geometry("480x240")
-        self.resizable(False, False)
-        self.grab_set(); self.transient(parent)
-
-        tk.Label(self, text="⚙   Подключение",
-                 font=F_BOLD, fg=TEXT_MAIN, bg=BG_MAIN
-                 ).pack(pady=(20,14))
-
-        self._tok = self._row("Bot Token:", cfg.get("token",""))
-        tk.Label(self, text="Токен бота (@BotFather)",
-                 font=F_SMALL, fg=TEXT_DIM, bg=BG_MAIN).pack(pady=2)
-
-        bf = tk.Frame(self, bg=BG_MAIN)
-        bf.pack(fill="x", padx=22, pady=20)
-        tk.Button(bf, text="  Сохранить  ", font=F_MAIN, fg="white",
-                  bg=ACCENT, activebackground="#3A7BD5", bd=0, pady=8,
-                  cursor="hand2", command=self._save).pack(side="right")
-        self.wait_window()
-
-    def _row(self, label, val=""):
-        f = tk.Frame(self, bg=BG_MAIN)
-        f.pack(fill="x", padx=22, pady=5)
-        tk.Label(f, text=label, font=F_MAIN, fg=TEXT_DIM,
-                 bg=BG_MAIN, width=12, anchor="w").pack(side="left")
-        e = tk.Entry(f, font=F_MAIN, fg=TEXT_MAIN, bg=BG_FIELD,
-                     insertbackground=TEXT_MAIN, relief="flat", bd=0)
-        e.pack(side="left", fill="x", expand=True, ipady=7, padx=(8,0))
-        if val: e.insert(0, val)
-        return e
-
-    def _save(self):
-        t = self._tok.get().strip()
-        if not t:
-            messagebox.showwarning("Внимание", "Введи токен бота!", parent=self)
-            return
-        self.destroy(); self._cb(t)
-
-
 # ── Main App ──────────────────────────────────────────────────────────────────
 class App(tk.Tk):
     def __init__(self):
@@ -291,61 +408,65 @@ class App(tk.Tk):
         self.minsize(600, 450)
         self.configure(bg=BG_MAIN)
 
-        self._cfg      = self._load_cfg()
-        self._engine   = None
-        self._channels = list(self._cfg.get("channels", []))  # preload saved
-        self._active   = None           # current channel id (int)
-        self._bubbles  = {}             # {channel_id: {msg_id: Bubble}}
-        self._ch_btns  = {}             # {channel_id: frame}
-        self._msgs_frames  = {}         # {channel_id: tk.Frame} — cached per channel
-        self._loaded_cids  = set()      # set of cids where history already loaded
+        self._cfg          = self._load_cfg()
+        self._engine       = TGEngine() if HAS_TELETHON else None
+        self._channels     = list(self._cfg.get("channels", []))
+        self._active       = None
+        self._bubbles      = {}
+        self._ch_btns      = {}
+        self._msgs_frames  = {}
+        self._loaded_cids  = set()
 
         self._build()
 
-        if self._cfg.get("token"):
-            self._init_engine(self._cfg["token"])
+        phone = self._cfg.get("phone")
+        if phone:
+            self._auto_connect(phone)
         else:
-            self.after(100, self._open_settings)
+            self.after(200, self._open_auth)
 
     # ── Config ────────────────────────────────────────────────────────────────
     def _load_cfg(self):
         try:
             return json.loads(open(CONFIG_FILE).read())
-        except:
+        except Exception:
             return {}
 
     def _save_cfg(self):
         open(CONFIG_FILE, "w").write(json.dumps(self._cfg, ensure_ascii=False))
 
-    # ── Engine ────────────────────────────────────────────────────────────────
-    def _init_engine(self, token: str):
-        if not HAS_TELETHON:
-            messagebox.showerror("Telethon не установлен",
-                                 "pip install telethon")
-            return
+    # ── Connect ───────────────────────────────────────────────────────────────
+    def _auto_connect(self, phone: str):
         self._v_sub.set("подключение…")
+
         def _do():
             try:
-                self._engine = TGEngine(token)
-                self.after(0, self._refresh_sidebar)
+                authorized = self._engine.connect(phone)
+                if not authorized:
+                    self.after(0, self._open_auth)
+                    return
                 self.after(0, lambda: self._v_sub.set("загрузка чатов…"))
-                dialogs = self._engine.get_dialogs(limit=200)
-                existing_ids = {c["id"] for c in self._channels}
-                added = 0
+                self.after(0, self._refresh_sidebar)
+                dialogs = self._engine.get_dialogs(limit=300)
+                existing = {c["id"] for c in self._channels}
                 for d in dialogs:
-                    if d["id"] not in existing_ids:
+                    if d["id"] not in existing:
                         self._channels.append(d)
-                        added += 1
-                if added:
-                    self.after(0, self._refresh_sidebar)
                 self._cfg["channels"] = self._channels
                 self._save_cfg()
+                self.after(0, self._refresh_sidebar)
                 self.after(0, lambda: self._v_sub.set(
                     f"{len(self._channels)} чатов"))
             except Exception as e:
                 self.after(0, lambda: self._v_sub.set("ошибка"))
                 self.after(0, lambda: messagebox.showerror("Ошибка", str(e)))
+
         threading.Thread(target=_do, daemon=True).start()
+
+    def _on_auth_done(self, phone: str):
+        self._cfg["phone"] = phone
+        self._save_cfg()
+        self._auto_connect(phone)
 
     # ── UI ────────────────────────────────────────────────────────────────────
     def _build(self):
@@ -360,7 +481,6 @@ class App(tk.Tk):
         sb = tk.Frame(self, bg=BG_SIDEBAR, width=220)
         sb.pack(side="left", fill="y")
         sb.pack_propagate(False)
-        self._sidebar = sb
 
         hdr = tk.Frame(sb, bg=BG_HEADER, height=56)
         hdr.pack(fill="x")
@@ -368,50 +488,29 @@ class App(tk.Tk):
         tk.Label(hdr, text="Чаты", font=F_BOLD,
                  fg=TEXT_MAIN, bg=BG_HEADER).pack(side="left", padx=14, pady=16)
 
-        # Scrollable channel list
-        wrap = tk.Frame(sb, bg=BG_SIDEBAR)
-        wrap.pack(fill="both", expand=True)
+        self._ch_list = tk.Frame(sb, bg=BG_SIDEBAR)
+        self._ch_list.pack(fill="both", expand=True)
+        self._ch_list.bind_all("<MouseWheel>", self._on_scroll)
 
-        self._sb_canvas = tk.Canvas(wrap, bg=BG_SIDEBAR,
-                                    highlightthickness=0, bd=0)
-        self._sb_canvas.pack(fill="both", expand=True)
-
-        self._ch_list = tk.Frame(self._sb_canvas, bg=BG_SIDEBAR)
-        self._sb_win = self._sb_canvas.create_window(
-            (0, 0), window=self._ch_list, anchor="nw")
-
-        self._ch_list.bind("<Configure>", lambda e: self._sb_canvas.configure(
-            scrollregion=self._sb_canvas.bbox("all")))
-        self._sb_canvas.bind("<Configure>",
-            lambda e: self._sb_canvas.itemconfig(self._sb_win, width=e.width))
-        self._sb_canvas.bind_all("<MouseWheel>", self._on_sidebar_scroll)
-
-        # Add button
-        add_btn = tk.Frame(sb, bg=BG_SIDEBAR, pady=8)
-        add_btn.pack(fill="x", side="bottom")
-        tk.Button(add_btn, text="＋  Добавить вручную",
+        btm = tk.Frame(sb, bg=BG_SIDEBAR, pady=6)
+        btm.pack(fill="x", side="bottom")
+        tk.Button(btm, text="＋  Добавить вручную",
                   font=F_MAIN, fg=ACCENT, bg=BG_SIDEBAR,
                   activebackground=BG_ACTIVE, activeforeground=ACCENT,
                   bd=0, cursor="hand2",
-                  command=self._add_channel).pack(fill="x", padx=10, pady=4)
-        tk.Button(add_btn, text="↻  Обновить список",
+                  command=self._add_channel).pack(fill="x", padx=10, pady=2)
+        tk.Button(btm, text="↻  Обновить список",
                   font=F_MAIN, fg=TEXT_DIM, bg=BG_SIDEBAR,
                   activebackground=BG_ACTIVE, activeforeground=TEXT_MAIN,
                   bd=0, cursor="hand2",
                   command=self._reload_dialogs).pack(fill="x", padx=10, pady=2)
+        tk.Button(btm, text="⚙  Сменить аккаунт",
+                  font=F_SMALL, fg=TEXT_DIM, bg=BG_SIDEBAR,
+                  activebackground=BG_ACTIVE,
+                  bd=0, cursor="hand2",
+                  command=self._open_auth).pack(fill="x", padx=10, pady=2)
 
-    def _on_sidebar_scroll(self, e):
-        widget = e.widget
-        # only scroll sidebar when mouse is over it
-        try:
-            x, y = widget.winfo_rootx(), widget.winfo_rooty()
-            sb_x = self._sb_canvas.winfo_rootx()
-            sb_w = self._sb_canvas.winfo_width()
-            if sb_x <= e.x_root <= sb_x + sb_w:
-                self._sb_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
-                return
-        except Exception:
-            pass
+    def _on_scroll(self, e):
         self._canvas.yview_scroll(int(-1*(e.delta/120)), "units")
 
     def _build_header(self, parent):
@@ -434,16 +533,9 @@ class App(tk.Tk):
         tk.Label(info, textvariable=self._v_sub, font=F_SMALL,
                  fg=TEXT_DIM, bg=BG_HEADER).pack(anchor="w")
 
-        tk.Button(hdr, text="⚙", font=("Segoe UI",17),
-                  fg=TEXT_DIM, bg=BG_HEADER,
-                  activebackground=BG_HEADER, activeforeground=ACCENT,
-                  bd=0, cursor="hand2",
-                  command=self._open_settings).pack(side="right", padx=16)
-
     def _build_chat(self, parent):
         wrap = tk.Frame(parent, bg=BG_MAIN)
         wrap.pack(fill="both", expand=True)
-        self._chat_wrap = wrap
 
         self._canvas = tk.Canvas(wrap, bg=BG_MAIN,
                                  highlightthickness=0, bd=0)
@@ -454,7 +546,6 @@ class App(tk.Tk):
         chat_sb.pack(side="right", fill="y")
         self._canvas.pack(side="left", fill="both", expand=True)
 
-        # Placeholder frame shown before any chat selected
         self._placeholder = tk.Frame(self._canvas, bg=BG_MAIN)
         tk.Label(self._placeholder, text="Выбери чат слева",
                  font=("Segoe UI",13), fg=TEXT_DIM, bg=BG_MAIN
@@ -516,16 +607,21 @@ class App(tk.Tk):
         if not self._engine:
             return
         self._v_sub.set("обновление…")
+
         def _do():
-            dialogs = self._engine.get_dialogs(limit=200)
-            # merge: keep existing, add new
-            existing_ids = {c["id"] for c in self._channels}
+            dialogs = self._engine.get_dialogs(limit=300)
+            existing = {c["id"] for c in self._channels}
+            added = 0
             for d in dialogs:
-                if d["id"] not in existing_ids:
+                if d["id"] not in existing:
                     self._channels.append(d)
+                    added += 1
                     self.after(0, lambda ch=d: self._add_ch_row(ch))
+            self._cfg["channels"] = self._channels
+            self._save_cfg()
             self.after(0, lambda: self._v_sub.set(
                 f"{len(self._channels)} чатов"))
+
         threading.Thread(target=_do, daemon=True).start()
 
     def _add_ch_row(self, ch: dict):
@@ -570,13 +666,13 @@ class App(tk.Tk):
     def _add_channel(self):
         cid_str = simpledialog.askstring(
             "Добавить чат",
-            "Введи Chat ID (например: -1001234567890 или ID пользователя):",
+            "Введи Chat ID:",
             parent=self)
         if not cid_str:
             return
         try:
             cid = int(cid_str.strip())
-        except:
+        except Exception:
             messagebox.showerror("Ошибка", "Неверный Chat ID"); return
 
         if any(c["id"] == cid for c in self._channels):
@@ -584,9 +680,11 @@ class App(tk.Tk):
 
         def _do():
             info = self._engine.get_chat_info(cid) if self._engine else \
-                   {"title": str(cid), "members": None}
+                   {"title": str(cid)}
             ch = {"id": cid, "title": info["title"]}
             self._channels.append(ch)
+            self._cfg["channels"] = self._channels
+            self._save_cfg()
             self.after(0, lambda: self._add_ch_row(ch))
             self.after(0, lambda: self._select_channel(cid))
 
@@ -596,10 +694,8 @@ class App(tk.Tk):
         self._active = cid
         self._highlight_active()
         ch = next((c for c in self._channels if c["id"] == cid), None)
-        title = ch["title"] if ch else str(cid)
-        self._v_title.set(title)
+        self._v_title.set(ch["title"] if ch else str(cid))
 
-        # Get or create cached frame for this channel
         if cid not in self._msgs_frames:
             frame = tk.Frame(self._canvas, bg=BG_MAIN)
             frame.bind("<Configure>",
@@ -608,11 +704,9 @@ class App(tk.Tk):
             self._msgs_frames[cid] = frame
             self._bubbles[cid] = {}
 
-        # Switch canvas to show this channel's frame
         self._canvas.itemconfig(self._cwin, window=self._msgs_frames[cid])
         self._canvas.configure(scrollregion=self._canvas.bbox("all"))
 
-        # Load history only if not yet loaded
         if cid not in self._loaded_cids:
             self._loaded_cids.add(cid)
             self._v_sub.set("загрузка истории…")
@@ -639,12 +733,9 @@ class App(tk.Tk):
         frame = self._msgs_frames.get(cid)
         if frame is None:
             return
-
-        b = Bubble(frame, msg,
-                   on_edit=self._edit_msg, on_delete=self._delete_msg)
+        b = Bubble(frame, msg, on_edit=self._edit_msg, on_delete=self._delete_msg)
         b.pack(fill="x")
         self._bubbles.setdefault(cid, {})[msg["id"]] = b
-
         if cid == self._active:
             self._canvas.configure(scrollregion=self._canvas.bbox("all"))
 
@@ -684,7 +775,7 @@ class App(tk.Tk):
             return
         try:
             img = ImageGrab.grabclipboard()
-        except:
+        except Exception:
             return
         if img is None:
             return
@@ -755,8 +846,7 @@ class App(tk.Tk):
         threading.Thread(target=_do, daemon=True).start()
 
     def _delete_msg(self, msg: dict, bubble: Bubble):
-        if not messagebox.askyesno("Удалить", "Удалить сообщение?",
-                                   parent=self):
+        if not messagebox.askyesno("Удалить", "Удалить сообщение?", parent=self):
             return
         cid = self._active
 
@@ -770,20 +860,12 @@ class App(tk.Tk):
 
         threading.Thread(target=_do, daemon=True).start()
 
-    # ── Settings ──────────────────────────────────────────────────────────────
-    def _open_settings(self):
-        SettingsDialog(self, self._cfg, self._on_settings_saved)
-
-    def _on_settings_saved(self, token: str):
-        self._cfg["token"] = token
-        self._save_cfg()
-        self._engine = None
-        self._channels = []
-        self._msgs_frames = {}
-        self._loaded_cids = set()
-        self._bubbles = {}
-        self._ch_btns = {}
-        self._init_engine(token)
+    # ── Auth ──────────────────────────────────────────────────────────────────
+    def _open_auth(self):
+        if not HAS_TELETHON:
+            messagebox.showerror("Ошибка", "pip install telethon")
+            return
+        AuthDialog(self, self._engine, self._on_auth_done)
 
 
 if __name__ == "__main__":
