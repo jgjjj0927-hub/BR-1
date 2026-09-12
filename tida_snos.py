@@ -506,13 +506,23 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
             parse_mode="Markdown", reply_markup=keyboards.main_menu)
         return
 
-    # Нормализуем target
+    # Нормализуем target → всегда t.me/username[/msg_id]
     target = target_link.strip()
+    # Убираем любые протоколы
+    target = target.replace("https://", "").replace("http://", "")
+    # Убираем @ в начале
     if target.startswith("@"):
-        target = f"t.me/{target[1:]}"
-    elif not target.startswith("t.me/") and not target.startswith("https://t.me/"):
+        target = target[1:]
+    # Убираем www.
+    target = target.replace("www.", "")
+    # Если уже начинается с t.me/ — ок, иначе добавляем
+    if not target.startswith("t.me/"):
         target = f"t.me/{target}"
-    target = target.replace("https://", "")
+    # Защита от t.me/ без юзернейма
+    parts = target.split("/")
+    if len(parts) < 2 or not parts[1]:
+        await bot.send_message(user, "❌ *Неверная ссылка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
+        return
 
     all_proxies = _get_all_proxies()
     if not all_proxies:
