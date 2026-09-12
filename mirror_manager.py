@@ -512,6 +512,9 @@ async def _run_mirror(token: str):
 async def start_mirror(token: str):
     if token in _running_mirrors:
         return
+    if token == os.environ.get("TOKEN", ""):
+        print(f"[MIRROR] ⛔ Попытка запустить главный токен как зеркало — пропускаем", flush=True)
+        return
     task = asyncio.ensure_future(_run_mirror(token))
     _running_mirrors[token] = task
     await asyncio.sleep(0.1)
@@ -519,6 +522,10 @@ async def start_mirror(token: str):
 
 async def start_all_mirrors():
     tokens = await db.get_all_mirror_tokens()
+    # Исключаем главный токен бота — если он случайно попал в БД зеркал,
+    # его kick-loop будет убивать polling основного бота
+    main_token = os.environ.get("TOKEN", "")
+    tokens = [t for t in tokens if t != main_token]
     print(f"[MIRROR] Загружаем {len(tokens)} зеркал из БД...", flush=True)
 
     async def check_token(token: str) -> tuple:
