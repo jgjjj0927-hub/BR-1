@@ -4729,6 +4729,14 @@ async def on_startup(dp):
 	except Exception as e:
 		print(f"Webhook delete error: {e}", flush=True)
 	try:
+		await bot.get_updates(offset=-1, timeout=0, allowed_updates=[
+			'message', 'edited_message', 'callback_query', 'inline_query',
+			'chosen_inline_result', 'channel_post', 'edited_channel_post'
+		])
+		print("allowed_updates сброшены.", flush=True)
+	except Exception:
+		pass
+	try:
 		print(f"DATABASE_URL = {os.environ.get('DATABASE_URL', 'НЕ УСТАНОВЛЕНА')[:50]}")
 		await db.init_db()
 		await db.init_cases_table()
