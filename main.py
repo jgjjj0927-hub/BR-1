@@ -2819,18 +2819,23 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await call.answer()
 			fsm_data = await dp_instance.current_state(user=uid).get_data()
 			target_type = fsm_data.get('tida_target', 'channel')
-			target_names = {"account": "👤 Аккаунт", "bot": "🤖 Бот", "chat": "💬 Чат", "channel": "📢 Канал"}
-			target_label = target_names.get(target_type, target_type)
+			_tida_names = {
+				"account": t('tida_target_account', _user_lang),
+				"bot": t('tida_target_bot', _user_lang),
+				"chat": t('tida_target_chat', _user_lang),
+				"channel": t('tida_target_channel', _user_lang),
+			}
+			target_label = _tida_names.get(target_type, target_type)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.ai_desc.state)
 			await bot_instance.send_message(uid,
-				f"📝 *{target_label}* — опишите нарушение:\n_(ИИ создаст текст жалобы на основе вашего описания)_",
+				t('tida_describe_violation', _user_lang, target=target_label),
 				parse_mode="Markdown", reply_markup=panel_back_markup)
 
 		elif d == "tida_choose_manual":
 			await call.answer()
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.text.state)
 			await bot_instance.send_message(uid,
-				'✏️ *Введите текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
+				t('tida_enter_text', _user_lang),
 				parse_mode="Markdown", reply_markup=panel_back_markup)
 
 		elif d.startswith("tida_ai_link_") or d.startswith("tida_ai_desc_") or d.startswith("tida_manual_"):
@@ -2844,22 +2849,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if d.startswith("tida_manual_"):
 				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.text.state)
 				await bot_instance.send_message(uid,
-					'✏️ *Введите текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
+					t('tida_enter_text', _user_lang),
 					parse_mode="Markdown", reply_markup=panel_back_markup)
 			else:
-				target_names = {"account": "👤 Аккаунт", "bot": "🤖 Бот", "chat": "💬 Чат", "channel": "📢 Канал"}
-				target_label = target_names.get(target_type, target_type)
+				_tida_names2 = {
+					"account": t('tida_target_account', _user_lang),
+					"bot": t('tida_target_bot', _user_lang),
+					"chat": t('tida_target_chat', _user_lang),
+					"channel": t('tida_target_channel', _user_lang),
+				}
+				target_label = _tida_names2.get(target_type, target_type)
 				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.ai_desc.state)
 				await bot_instance.send_message(uid,
-					f"📝 *{target_label}* — опишите нарушение:\n_(ИИ создаст текст жалобы на основе вашего описания)_",
+					t('tida_describe_violation', _user_lang, target=target_label),
 					parse_mode="Markdown", reply_markup=panel_back_markup)
 
 		# ─── DSA Report ───────────────────────────────────────────────────────
 		elif d == "dsa_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if premium == 0:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_dsa and (now_msk() - last_used_dsa[uid]) < timedelta(hours=1):
@@ -2867,31 +2877,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=panel_back_markup); return
+					caption=t('err_wait_hm', _user_lang, h=h, m=m), parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDsaFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"🇪🇺 *DSA Report*\n\n"
-						"*└─ Введите ссылку на сообщение:*\n\n"
-						"`https://t.me/username/123`"
-				),
+				caption=t('dsa_link_prompt', _user_lang),
 				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
 		# ─── Telegraph снос ──────────────────────────────────────────────────────
 		elif d == "telegraph_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if premium == 0:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_telegraph and (now_msk() - last_used_telegraph[uid]) < timedelta(minutes=15):
 				rem = timedelta(minutes=15) - (now_msk() - last_used_telegraph[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=panel_back_markup); return
+					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTelegraphFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.edit_message_caption(
@@ -3068,13 +3074,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			# Проверяем есть ли активная trap-сессия
 			trap_data = _trap_sessions.get(uid)
 			if not trap_data:
-				await bot_instance.send_message(uid, "❌ *Сессия истекла. Начни заново.*", parse_mode="Markdown", reply_markup=main_menu)
+				await bot_instance.send_message(uid, t('trap_session_expired', _user_lang), parse_mode="Markdown", reply_markup=main_menu)
 				return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTrapFSM.victim.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 			await bot_instance.send_message(
 				uid,
-				"🎯 *Введи @username жертвы:*\n\n`@username`",
+				t('trap_enter_victim', _user_lang),
 				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
@@ -3082,14 +3088,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "trap_cancel":
 			await call.answer()
 			_trap_sessions.pop(uid, None)
-			await bot_instance.send_message(uid, "❌ *Trap-метод отменён.*", parse_mode="Markdown", reply_markup=main_menu)
+			await bot_instance.send_message(uid, t('trap_cancelled', _user_lang), parse_mode="Markdown", reply_markup=main_menu)
 
 		# ─── Логгер ───────────────────────────────────────────────────────────────
 		elif d == "logger_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			# Создаём ссылку через внутренний API логгера
 			try:
 				async with aiohttp.ClientSession() as _s:
@@ -3120,19 +3126,16 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if premium == 0:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужен Premium\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_bank and (now_msk() - last_used_bank[uid]) < timedelta(hours=12):
 				rem = timedelta(hours=12) - (now_msk() - last_used_bank[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'❌ *Кулдаун: {h}ч {m}м*', parse_mode="Markdown", reply_markup=panel_back_markup); return
+					caption=t('err_wait_hm', _user_lang, h=h, m=m), parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"🏦 *Блокировка карты по 115-ФЗ*\n\n"
-					"*└─ Выберите банк:*"
-				),
+				caption=t('bank_select_caption', _user_lang),
 				parse_mode="Markdown", reply_markup=keyboards.bank_select_markup
 			)
 
@@ -3140,28 +3143,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			bank_key = d.replace("bank_", "")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitBankFSM.card.state)
 			await dp_instance.current_state(user=uid).update_data(bank_key=bank_key, _bot_token=_instance_token)
-			bank_names = {"tbank": "Т-Банк", "alfa": "Альфа-Банк", "sber": "Сбер Банк", "ozon": "Озон Банк"}
+			bank_names = {
+				"tbank": t('bank_tbank', _user_lang),
+				"alfa": t('bank_alfa', _user_lang),
+				"sber": t('bank_sber', _user_lang),
+				"ozon": t('bank_ozon', _user_lang),
+			}
 			await bot_instance.send_message(
 				call.message.chat.id,
-				f"🏦 *{bank_names[bank_key]}*\n\n"
-				f"*└─ Введите номер телефона или карты цели:*\n\n"
-				f"`+79991234567` или `4276 1234 5678 9012`",
+				t('bank_enter_card', _user_lang, bank=bank_names[bank_key]),
 				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
 		# ─── Спам кодами ─────────────────────────────────────────────────────
 		elif d == "code_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Нужна подписка\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"📱 *Спам кодами*\n\n"
-					"*└─ Введите номер телефона цели:*\n\n"
-					"`+79991234567`"
-				),
+				caption=t('code_method_caption', _user_lang),
 				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitCodeFSM.phone.state)
@@ -3170,15 +3172,15 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		# ─── Стрессер ─────────────────────────────────────────────────────────
 		elif d == "stress_method":
 			if bot_off():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			# КД 2 часа (кроме админов)
 			if uid not in admins and uid not in no_kd and uid in last_used_stress and (now_msk() - last_used_stress[uid]) < timedelta(hours=2):
 				rem = timedelta(hours=2) - (now_msk() - last_used_stress[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=panel_back_markup); return
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_hm', _user_lang, h=h, m=m), parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await bot_instance.send_message(
 				call.message.chat.id,
 				"⚡️ *Стрессер*\n\n*└─ Введите @username бота или ссылку:*\n`@username` или `https://t.me/botname`",

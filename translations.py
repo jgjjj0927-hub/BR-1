@@ -86,6 +86,9 @@ _T = {
         'tida_manual_text': '✏️ Написать свой текст',
         'tida_confirm_use': '✅ Использовать этот текст',
         'tida_confirm_change': '✏️ Изменить текст',
+        'tida_enter_text': '✏️ *Введите текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
+        'tida_describe_violation': '📝 *{target}* — опишите нарушение:\n_(ИИ создаст текст жалобы на основе вашего описания)_',
+        'dsa_link_prompt': '🇪🇺 *DSA Report*\n\n*└─ Введите ссылку на сообщение:*\n\n`https://t.me/username/123`',
 
         # ─── Бесплатно ────────────────────────────────────────────────────────
         'free_create_mirror': '🪞 Создать зеркало',
@@ -290,6 +293,14 @@ _T = {
         'session_method_invalid': '❌ *Неверный username!*',
         'trap_cancelled': '❌ *Trap-метод отменён.*',
         'trap_session_expired': '❌ *Сессия истекла. Начни заново.*',
+        'trap_enter_victim': '🎯 *Введи @username жертвы:*\n\n`@username`',
+        'bank_select_caption': '🏦 *Блокировка карты по 115-ФЗ*\n\n*└─ Выберите банк:*',
+        'bank_tbank': 'Т-Банк',
+        'bank_alfa': 'Альфа-Банк',
+        'bank_sber': 'Сбер Банк',
+        'bank_ozon': 'Озон Банк',
+        'bank_enter_card': '🏦 *{bank}*\n\n*└─ Введите номер телефона или карты цели:*\n\n`+79991234567` или `4276 1234 5678 9012`',
+        'code_method_caption': '📱 *Спам кодами*\n\n*└─ Введите номер телефона цели:*\n\n`+79991234567`',
 
         # ─── Зеркала ──────────────────────────────────────────────────────────
         'mirror_token_cancel': '❌ *Ввод токена отменён.*',
@@ -418,6 +429,9 @@ _T = {
         'tida_manual_text': '✏️ Write Your Own Text',
         'tida_confirm_use': '✅ Use This Text',
         'tida_confirm_change': '✏️ Change Text',
+        'tida_enter_text': '✏️ *Enter complaint text:*\n_(in English)_\n\n[📋 Text Templates](https://t.me/+zTWywoULseYzMWU0)',
+        'tida_describe_violation': '📝 *{target}* — describe the violation:\n_(AI will create the complaint text based on your description)_',
+        'dsa_link_prompt': '🇪🇺 *DSA Report*\n\n*└─ Enter the message link:*\n\n`https://t.me/username/123`',
 
         # ─── Free menu ────────────────────────────────────────────────────────
         'free_create_mirror': '🪞 Create Mirror',
@@ -622,6 +636,14 @@ _T = {
         'session_method_invalid': '❌ *Invalid username!*',
         'trap_cancelled': '❌ *Trap method cancelled.*',
         'trap_session_expired': '❌ *Session expired. Start over.*',
+        'trap_enter_victim': '🎯 *Enter victim\'s @username:*\n\n`@username`',
+        'bank_select_caption': '🏦 *Card Block under 115-FZ*\n\n*└─ Select a bank:*',
+        'bank_tbank': 'T-Bank',
+        'bank_alfa': 'Alfa Bank',
+        'bank_sber': 'Sber Bank',
+        'bank_ozon': 'Ozon Bank',
+        'bank_enter_card': '🏦 *{bank}*\n\n*└─ Enter target\'s phone number or card number:*\n\n`+79991234567` or `4276 1234 5678 9012`',
+        'code_method_caption': '📱 *Code Spam*\n\n*└─ Enter target\'s phone number:*\n\n`+79991234567`',
 
         # ─── Mirrors ─────────────────────────────────────────────────────────
         'mirror_token_cancel': '❌ *Token input cancelled.*',
