@@ -13,7 +13,7 @@ from telethon import TelegramClient, events
 from telethon.tl.types import KeyboardButtonCallback
 import config
 from config import bot_logs
-from utils import now_msk
+from utils import now_msk, ProgressBar
 from aiogram import Bot, types
 import keyboards
 
@@ -224,11 +224,19 @@ async def main_aureport(target_link: str, user: int, username: str):
 
     logger.info(f"[AUREPORT] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(proxies)}")
 
+    pb = ProgressBar(bot, user, total=total, title="🔍 *AU Report*")
+    await pb.start()
+    done_ref = [0]
+
     async def _run(i, session_path):
         proxy = _parse_proxy(proxies[i % len(proxies)]) if proxies else None
-        return await _single_session_flow(session_path, target, proxy)
+        result = await _single_session_flow(session_path, target, proxy)
+        done_ref[0] += 1
+        await pb.update(done_ref[0])
+        return result
 
     results = await asyncio.gather(*[_run(i, s) for i, s in enumerate(sessions)], return_exceptions=True)
+    await pb.finish()
     successful = sum(1 for r in results if r is True)
 
     logger.info(f"[AUREPORT] 🏁 Итог: {successful}/{total}")

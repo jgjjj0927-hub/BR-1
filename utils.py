@@ -4,6 +4,7 @@ Brown V2 | utils.py
 """
 from datetime import datetime
 import pytz
+import time as _time
 
 _MSK = pytz.timezone("Europe/Moscow")
 
@@ -11,3 +12,79 @@ _MSK = pytz.timezone("Europe/Moscow")
 def now_msk() -> datetime:
     """Возвращает текущее время в московском часовом поясе (UTC+3)."""
     return datetime.now(_MSK).replace(tzinfo=None)
+
+
+# ─── Прогресс-бар ─────────────────────────────────────────────────────────────
+
+_BAR_LEN = 15
+
+
+def _pbar_str(pct: int) -> str:
+    filled = round(_BAR_LEN * pct / 100)
+    return "🟩" * filled + "⬜" * (_BAR_LEN - filled)
+
+
+class ProgressBar:
+    """
+    Живой прогресс-бар в Telegram.
+
+    Использование:
+        pb = ProgressBar(bot, user_id, total=len(sessions), title="🕸 Ботнет")
+        await pb.start()
+        # в цикле:
+        await pb.update(done=i+1)
+        # в конце:
+        await pb.finish()   # удаляет прогресс-сообщение (итог шлёт сам метод)
+    """
+
+    def __init__(self, bot, user_id: int, total: int, title: str = ""):
+        self._bot = bot
+        self._uid = user_id
+        self._total = total
+        self._title = title
+        self._msg_id: int | None = None
+        self._start = _time.monotonic()
+
+    def _text(self, done: int) -> str:
+        pct = round(done / self._total * 100) if self._total else 100
+        bar = _pbar_str(pct)
+        eta = self._eta(done)
+        eta_str = f" — {eta}" if eta else ""
+        header = f"{self._title}\n" if self._title else ""
+        return f"{header}{bar} *{pct}%*{eta_str}\n`{done}/{self._total}` сессий"
+
+    def _eta(self, done: int) -> str:
+        if done == 0:
+            return ""
+        elapsed = _time.monotonic() - self._start
+        remaining = int(elapsed / done * (self._total - done))
+        if remaining <= 0:
+            return ""
+        if remaining < 60:
+            return f"~{remaining} сек"
+        return f"~{remaining // 60} мин {remaining % 60} сек"
+
+    async def start(self):
+        try:
+            msg = await self._bot.send_message(
+                self._uid, self._text(0), parse_mode="Markdown")
+            self._msg_id = msg.message_id
+        except Exception:
+            pass
+
+    async def update(self, done: int):
+        if not self._msg_id:
+            return
+        try:
+            await self._bot.edit_message_text(
+                self._uid, self._msg_id, self._text(done), parse_mode="Markdown")
+        except Exception:
+            pass
+
+    async def finish(self):
+        if not self._msg_id:
+            return
+        try:
+            await self._bot.delete_message(self._uid, self._msg_id)
+        except Exception:
+            pass

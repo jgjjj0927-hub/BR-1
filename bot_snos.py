@@ -12,7 +12,7 @@ from telethon.errors import FloodWaitError
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk
+from utils import now_msk, ProgressBar
 
 logger = logging.getLogger(__name__)
 
@@ -308,6 +308,9 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
     # Пачки по 8 — чтобы не было database is locked и массовых таймаутов
     BATCH_SIZE = 8
     results = []
+    pb = ProgressBar(bot, user, total=total, title="🤖 *Бот-метод*")
+    await pb.start()
+    done_count = 0
     for i in range(0, total, BATCH_SIZE):
         batch = sessions[i:i + BATCH_SIZE]
         batch_results = await asyncio.gather(
@@ -317,8 +320,11 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
         )
         for r in batch_results:
             results.append(0 if isinstance(r, Exception) else r)
+        done_count += len(batch)
+        await pb.update(done_count)
         if i + BATCH_SIZE < total:
             await asyncio.sleep(2)
+    await pb.finish()
     successful = sum(results)
 
     logger.info(f"[BOT-SNOS] done: {successful}/{total}")

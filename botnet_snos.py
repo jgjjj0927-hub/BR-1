@@ -9,7 +9,7 @@ from aiogram import Bot, types
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk
+from utils import now_msk, ProgressBar
 from report_texts import GENERAL_TEXTS as reasons_texts
 
 reasons = [
@@ -261,15 +261,21 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
     # Запускаем сессии пачками по 8 с задержкой 3-5 сек между пачками
     BATCH_SIZE = 8
     results = []
+    pb = ProgressBar(bot, user, total=len(_sessions), title="🕸 *Ботнет*")
+    await pb.start()
+    done_count = 0
     for i in range(0, len(_sessions), BATCH_SIZE):
         batch = _sessions[i:i + BATCH_SIZE]
         batch_tasks = [_report_one_session(s, chat_username, message_id, message_url, whitelist, target_ref, peer_ref) for s in batch]
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
         results.extend(zip(batch, batch_results))
+        done_count += len(batch)
+        await pb.update(done_count)
         if i + BATCH_SIZE < len(_sessions):
             delay = random.uniform(3, 5)
             print(f"[BOTNET] ⏳ Пачка {i//BATCH_SIZE + 1} завершена, ждём {delay:.1f}с перед следующей...", flush=True)
             await asyncio.sleep(delay)
+    await pb.finish()
 
     valid, ne_valid, flood = 0, 0, 0
     log_lines = [

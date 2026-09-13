@@ -27,7 +27,7 @@ from telethon.tl.types import (
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk
+from utils import now_msk, ProgressBar
 from aiogram import types as aiogram_types
 from report_texts import GENERAL_TEXTS
 
@@ -351,15 +351,21 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
 
     BATCH_SIZE = 8
     results = []
+    pb = ProgressBar(bot, user, total=len(_sessions), title="📢 *Канал-метод*")
+    await pb.start()
+    done_count = 0
     for i in range(0, len(_sessions), BATCH_SIZE):
         batch = _sessions[i:i + BATCH_SIZE]
         batch_tasks = [_report_one_channel_session(s, channel_username, reason_key, message_id) for s in batch]
         batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
         results.extend(zip(batch, batch_results))
+        done_count += len(batch)
+        await pb.update(done_count)
         if i + BATCH_SIZE < len(_sessions):
             delay = random.uniform(3, 5)
             print(f"[CH-SNOS] ⏳ Пачка {i//BATCH_SIZE + 1} завершена, ждём {delay:.1f}с...", flush=True)
             await asyncio.sleep(delay)
+    await pb.finish()
 
     valid, ne_valid, flood = 0, 0, 0
     log_lines = [

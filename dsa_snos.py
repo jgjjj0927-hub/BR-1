@@ -17,7 +17,7 @@ from playwright.async_api import async_playwright, Page
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk
+from utils import now_msk, ProgressBar
 
 logger = logging.getLogger(__name__)
 
@@ -470,14 +470,18 @@ async def main_dsa_snos(target_link: str, user: int, username: str,
     successful = 0
     failed = 0
 
+    pb = ProgressBar(_send_bot, user, total=count, title="🇪🇺 *DSA Report*")
+    await pb.start()
     for i in range(count):
         result = await _run_single_report(target, reason_radio, sub_reason_radio, complaint_text)
         if result:
             successful += 1
         else:
             failed += 1
+        await pb.update(i + 1)
         if i + 1 < count:
             await asyncio.sleep(random.uniform(3, 6))
+    await pb.finish()
 
     now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
     target_escaped = target.replace('_', '\\_')

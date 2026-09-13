@@ -17,7 +17,7 @@ import config
 from config import bot_logs
 from aiogram import Bot, types
 import keyboards
-from utils import now_msk
+from utils import now_msk, ProgressBar
 
 logger = logging.getLogger(__name__)
 
@@ -536,14 +536,22 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(all_proxies)}")
 
     tida_peer_ref = [None]
-    # Каждая сессия стартует с рандомного прокси, при FAILED меняет до успеха
-    results = await asyncio.gather(*[
-        _single_session_flow(s, target, custom_text,
-                             random.choice(all_proxies) if all_proxies else None,
-                             tida_peer_ref,
-                             all_proxies if all_proxies else None)
-        for s in sessions
-    ], return_exceptions=True)
+    pb = ProgressBar(bot, user, total=total, title="🎵 *TIDA*")
+    await pb.start()
+    done_ref = [0]
+
+    async def _tracked(s):
+        result = await _single_session_flow(
+            s, target, custom_text,
+            random.choice(all_proxies) if all_proxies else None,
+            tida_peer_ref,
+            all_proxies if all_proxies else None)
+        done_ref[0] += 1
+        await pb.update(done_ref[0])
+        return result
+
+    results = await asyncio.gather(*[_tracked(s) for s in sessions], return_exceptions=True)
+    await pb.finish()
     successful = sum(1 for r in results if r is True)
 
     logger.info(f"[TIDA] 🏁 Итог: {successful}/{total}")
