@@ -388,6 +388,10 @@ class DeleteUserFSM(StatesGroup):
 class CheckUserFSM(StatesGroup):
 	query = State()
 
+class AdminSendMsgFSM(StatesGroup):
+	target = State()
+	text   = State()
+
 class CreatePromoFSM(StatesGroup):
 	promo_type = State()
 	code = State()
@@ -1989,6 +1993,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await _log_admin_action(uid, username, "Нажал «Проверить пользователя»")
 			await bot_instance.send_message(call.message.chat.id, '🔍 *Проверить пользователя*\n*└─ Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(CheckUserFSM.query.state)
+
+		elif d == 'admin_send_msg' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Отправить сообщение»")
+			await bot_instance.send_message(call.message.chat.id, '✉️ *Отправить сообщение пользователю*\n*└─ Введите ID или @username:*', parse_mode="Markdown")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminSendMsgFSM.target.state)
 
 		elif d == 'promo_type_normal' and uid in admins:
 			state_proxy = dp_instance.current_state(chat=uid, user=uid)
@@ -4510,6 +4519,34 @@ async def admin_check_user_fsm(message: types.Message, state: FSMContext):
 
 	await message.answer(text, parse_mode="Markdown")
 
+
+@dp.message_handler(state=AdminSendMsgFSM.target)
+async def admin_send_msg_target(message: types.Message, state: FSMContext):
+	raw = message.text.strip()
+	uid_target = await db.resolve_user(raw)
+	if not uid_target:
+		await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown")
+		await state.finish()
+		return
+	await state.update_data(send_target=uid_target)
+	await message.answer(f"✉️ *Цель:* `{uid_target}`\n*└─ Введите текст сообщения:*", parse_mode="Markdown")
+	await state.set_state(AdminSendMsgFSM.text.state)
+
+@dp.message_handler(state=AdminSendMsgFSM.text)
+async def admin_send_msg_text(message: types.Message, state: FSMContext):
+	data = await state.get_data()
+	uid_target = data.get("send_target")
+	text = message.text.strip()
+	await state.finish()
+	try:
+		await bot.send_message(uid_target, text)
+		await message.answer(f"✅ *Сообщение отправлено* `{uid_target}`", parse_mode="Markdown")
+		await bot.send_message(bot_logs,
+			f"✉️ *Личное сообщение*\n👤 *От админа:* `{message.from_user.id}` (@{message.from_user.username or 'None'})\n"
+			f"🎯 *Кому:* `{uid_target}`\n📝 *Текст:* {text[:300]}",
+			parse_mode="Markdown")
+	except Exception as e:
+		await message.answer(f"❌ Не удалось отправить: `{e}`", parse_mode="Markdown")
 
 @dp.message_handler(state=DeleteUserFSM.user_id)
 async def admin_delete_user(message: types.Message, state: FSMContext):
