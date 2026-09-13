@@ -297,24 +297,27 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
 
         if status == "WHITELIST":
             print(f"[BOTNET] ⛔ Таргет в вайтлисте, прерываем", flush=True)
-            await bot.send_message(user, "🍕 *Какая-то ошибка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
-            try:
-                await bot.send_message(target_ref[0], f"🍕 *Попытка жалобы на* [сообщение]({message_url}) *от ID {user}!*", parse_mode="Markdown", disable_web_page_preview=True)
-            except:
-                pass
-            return
+            if not silent:
+                await bot.send_message(user, "🍕 *Какая-то ошибка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
+                try:
+                    await bot.send_message(target_ref[0], f"🍕 *Попытка жалобы на* [сообщение]({message_url}) *от ID {user}!*", parse_mode="Markdown", disable_web_page_preview=True)
+                except:
+                    pass
+            return (0, len(_sessions))
         elif status == "NO_ID":
             print(f"[BOTNET] ⚠️ Не удалось получить ID пользователя", flush=True)
-            await bot.send_message(user, "🍕 *Не удалось получить ID пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
-            return
+            if not silent:
+                await bot.send_message(user, "🍕 *Не удалось получить ID пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
+            return (0, len(_sessions))
         elif status == "NOT_FOUND":
             print(f"[BOTNET] ❌ Не могу получить ID — NOT_FOUND", flush=True)
-            await bot.send_message(user,
-                "❌ *Не могу найти автора сообщения!*\n"
-                "*└─ Возможно, пост опубликован от имени канала*\n"
-                "*└─ Для сноса канала используй Channel-метод*",
-                parse_mode="Markdown", reply_markup=keyboards.main_menu)
-            return
+            if not silent:
+                await bot.send_message(user,
+                    "❌ *Не могу найти автора сообщения!*\n"
+                    "*└─ Возможно, пост опубликован от имени канала*\n"
+                    "*└─ Для сноса канала используй Channel-метод*",
+                    parse_mode="Markdown", reply_markup=keyboards.main_menu)
+            return (0, len(_sessions))
         elif status == "ДОСТАВЛЕНО":
             valid += 1
             log_lines.append(format_log_line(session, message_url, "ДОСТАВЛЕНО"))

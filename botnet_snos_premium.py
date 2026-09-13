@@ -1253,12 +1253,13 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
 
         if status == "WHITELIST":
             print(f"[PREM] ⛔ Таргет в вайтлисте, прерываем", flush=True)
-            await bot.send_message(user, "🍕 *Какая-то ошибка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
-            try:
-                await bot.send_message(target_ref[0], f"⚠️ *Попытка жалобы на* [сообщение]({message_url}) *от ID {user}!*", parse_mode="Markdown", disable_web_page_preview=True)
-            except:
-                pass
-            return
+            if not silent:
+                await bot.send_message(user, "🍕 *Какая-то ошибка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
+                try:
+                    await bot.send_message(target_ref[0], f"⚠️ *Попытка жалобы на* [сообщение]({message_url}) *от ID {user}!*", parse_mode="Markdown", disable_web_page_preview=True)
+                except:
+                    pass
+            return (0, len(_sessions))
         elif status in ("NO_ID", "NOT_FOUND"):
             ne_valid += 1
             log_lines.append(format_log_line(session, message_url, status))
