@@ -45,6 +45,7 @@ class ProgressBar:
         self._msg_id: int | None = None
         self._start = _time.monotonic()
         self._last_edit: float = 0.0
+        self._last_pct: int = -1
 
     def _text(self, done: int) -> str:
         pct = round(done / self._total * 100) if self._total else 100
@@ -65,28 +66,27 @@ class ProgressBar:
             return f"~{remaining} сек"
         return f"~{remaining // 60} мин {remaining % 60} сек"
 
-    _MIN_INTERVAL = 2.5  # минимум секунд между правками
-
     async def start(self):
         try:
             msg = await self._bot.send_message(
                 self._uid, self._text(0), parse_mode="Markdown")
             self._msg_id = msg.message_id
-            self._last_edit = _time.monotonic()
+            self._last_pct = 0
         except Exception:
-            self._last_edit = _time.monotonic()
+            pass
 
     async def update(self, done: int):
         if not self._msg_id:
             return
-        now = _time.monotonic()
-        # Всегда обновляем на 100%, иначе ждём интервал
-        if done < self._total and now - self._last_edit < self._MIN_INTERVAL:
+        pct = round(done / self._total * 100) if self._total else 100
+        # Обновляем только на каждые 10% или на 100%
+        milestone = (pct // 10) * 10
+        if milestone <= self._last_pct and done < self._total:
             return
         try:
             await self._bot.edit_message_text(
                 self._uid, self._msg_id, self._text(done), parse_mode="Markdown")
-            self._last_edit = now
+            self._last_pct = milestone
         except Exception:
             pass
 
