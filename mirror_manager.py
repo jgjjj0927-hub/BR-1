@@ -29,7 +29,7 @@ _mirror_bots: dict[str, Bot] = {}  # token → Bot instance
 # Предотвращает коллизии когда один uid открыл несколько зеркал
 _mirror_captcha_codes: dict[str, dict[int, str]] = {}
 
-MIRROR_LIMIT = 100  # максимум активных зеркал одновременно
+MIRROR_LIMIT = 20  # максимум активных зеркал одновременно
 
 
 class MirrorCaptchaFSM(StatesGroup):
