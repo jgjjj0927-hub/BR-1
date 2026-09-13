@@ -145,6 +145,7 @@ async def _send_with_monitor_offer(bot_instance, uid: int, caption: str, target:
 
 async def _offer_monitor(bot_instance, uid: int, target: str, premium: int, subscribe):
     """Отправляет отдельное предложение мониторинга после результатов."""
+    _lang = await db.get_lang(uid)
     try:
         active_count = await db.get_user_active_monitors_count(uid)
         limit = 5 if premium else 3
@@ -155,7 +156,7 @@ async def _offer_monitor(bot_instance, uid: int, target: str, premium: int, subs
         markup = keyboards.monitor_add_markup(target, can_add)
         await bot_instance.send_message(
             uid,
-            "🔍 *Хотите мониторить эту цель?*\n_Вы получите уведомление если цель будет снесена_",
+            t('monitor_offer_caption', _lang),
             parse_mode="Markdown",
             reply_markup=markup
         )
@@ -166,12 +167,12 @@ async def _offer_monitor(bot_instance, uid: int, target: str, premium: int, subs
         if is_hidden:
             _hide_markup = types.InlineKeyboardMarkup(row_width=2)
             _hide_markup.add(
-                types.InlineKeyboardButton("Понял", callback_data='hidden_notice_ok'),
-                types.InlineKeyboardButton("Раскрыть", callback_data='reveal_self'),
+                types.InlineKeyboardButton(t('hidden_notice_ok_btn', _lang), callback_data='hidden_notice_ok'),
+                types.InlineKeyboardButton(t('hidden_notice_reveal_btn', _lang), callback_data='reveal_self'),
             )
             await bot_instance.send_message(
                 uid,
-                "👁 *Внимание, вы скрыты в логах.*\n_Ваши отправки будут анонимными в логах._",
+                t('hidden_notice_msg', _lang),
                 parse_mode="Markdown",
                 reply_markup=_hide_markup
             )
@@ -853,7 +854,8 @@ async def welcome(message: types.Message, state: FSMContext):
 		return
 	if check_rate_limit(message.from_user.id):
 		await block_user(message.from_user.id)
-		await message.reply("Превысили лимит запросов, заблокированы.")
+		_rl_lang = await db.get_lang(message.from_user.id)
+		await message.reply(t('rate_limit', _rl_lang))
 		return
 	uid = message.chat.id
 	is_new = not await db.user_exists(uid)
@@ -1312,7 +1314,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			return
 		if check_rate_limit(uid):
 			await block_user(uid)
-			await call.message.answer("Превысили лимит, заблокированы.")
+			_rl_lang2 = await db.get_lang(uid)
+			await call.message.answer(t('rate_limit', _rl_lang2))
 			return
 		if not await check_user_in_db(uid):
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
@@ -1492,9 +1495,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_hist_markup = types.InlineKeyboardMarkup(row_width=2)
 			_nav_btns = []
 			if _hist_offset > 0:
-				_nav_btns.append(types.InlineKeyboardButton("← Пред.", callback_data=f'profile_history_p_{max(0, _hist_offset - _PAGE_SIZE)}'))
+				_nav_btns.append(types.InlineKeyboardButton(t('btn_prev', _user_lang), callback_data=f'profile_history_p_{max(0, _hist_offset - _PAGE_SIZE)}'))
 			if _hist_offset + _PAGE_SIZE < _total:
-				_nav_btns.append(types.InlineKeyboardButton("Ещё →", callback_data=f'profile_history_p_{_hist_offset + _PAGE_SIZE}'))
+				_nav_btns.append(types.InlineKeyboardButton(t('btn_next', _user_lang), callback_data=f'profile_history_p_{_hist_offset + _PAGE_SIZE}'))
 			if _nav_btns:
 				_hist_markup.add(*_nav_btns)
 			_hist_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='settings_menu'))
@@ -1657,20 +1660,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="MarkdownV2", reply_markup=card_markup)
 		elif d == "preminfo":
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=(
-					"👑 *Премиум — стоит ли брать?*\n\n"
-					"Премиум — это дополнение к подписке\\. Покупается один раз, навсегда\\.\n\n"
-					"*Что открывается:*\n"
-					"├ 👑 *Премиальная отправка* — усиленный ботнет, больше аккаунтов, выше шанс сноса\n"
-					"├ 📧 *Mail\\-метод* — репорты через почты напрямую\n"
-					"├ 🌐 *Web\\-метод* — репорты через веб\n"
-					"├ 🔍 *Мониторинг ×5* — 5 целей одновременно вместо 3\n"
-					"├ ⏱ *Мониторинг 24ч* — срок 24 часа вместо 12\n"
-					"├ 🕵️ *Пробив* — поиск данных по Telegram\n"
-					"└ 🏦 *Блокировка карты* — жалобы в банки на мошенников\n\n"
-					"*Итог:* обычная подписка — базовые методы\\. Премиум — максимальная мощность\\.\n\n"
-					"💡 _Если цель сложная — без премиума шансы ниже_"
-				),
+				caption=t('preminfo_caption', _user_lang),
 				parse_mode="MarkdownV2", reply_markup=back_markup)
 		elif d == "close":
 			await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
@@ -1789,7 +1779,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d.startswith('media_ok_'):
 			if uid != MEDIA_ADMIN_ID:
-				await bot_instance.answer_callback_query(call.id, "Нет доступа", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('err_admin_only', _user_lang), show_alert=True)
 				return
 			sub_id = int(d.split('_')[2])
 			await state.update_data(media_sub_id=sub_id)
@@ -1802,7 +1792,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d.startswith('media_rej_'):
 			if uid != MEDIA_ADMIN_ID:
-				await bot_instance.answer_callback_query(call.id, "Нет доступа", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('err_admin_only', _user_lang), show_alert=True)
 				return
 			sub_id = int(d.split('_')[2])
 			await state.update_data(media_sub_id=sub_id)
@@ -2053,7 +2043,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			total_pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
 
 			if not users:
-				await bot_instance.answer_callback_query(call.id, "Больше пользователей нет", show_alert=False)
+				await bot_instance.answer_callback_query(call.id, t('no_more_users', _user_lang), show_alert=False)
 				return
 
 			lines = [f"👥 *Пользователи* (стр. {page+1}/{total_pages})\n"]
@@ -2071,9 +2061,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			nav = types.InlineKeyboardMarkup(row_width=2)
 			btns = []
 			if page > 0:
-				btns.append(types.InlineKeyboardButton("◀️ Назад", callback_data=f'users_list_{page-1}'))
+				btns.append(types.InlineKeyboardButton(t('btn_prev_admin', _user_lang), callback_data=f'users_list_{page-1}'))
 			if (page + 1) < total_pages:
-				btns.append(types.InlineKeyboardButton("Вперёд ▶️", callback_data=f'users_list_{page+1}'))
+				btns.append(types.InlineKeyboardButton(t('btn_next_admin', _user_lang), callback_data=f'users_list_{page+1}'))
 			if btns:
 				nav.row(*btns)
 			nav.add(types.InlineKeyboardButton("🔙 Закрыть", callback_data='close'))
@@ -2089,7 +2079,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			page_mirrors = all_mirrors[page * PAGE_SIZE:(page + 1) * PAGE_SIZE]
 
 			if not all_mirrors:
-				await bot_instance.answer_callback_query(call.id, "Зеркал нет.", show_alert=False)
+				await bot_instance.answer_callback_query(call.id, t('no_mirrors_admin', _user_lang), show_alert=False)
 				return
 
 			lines = [f"🪞 *Зеркала* (стр. {page+1}/{total_pages}, всего: {total})\n"]
@@ -2216,7 +2206,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'mirror_list':
 			mirrors = await db.get_user_mirrors(uid)
 			if not mirrors:
-				await bot_instance.answer_callback_query(call.id, "У вас нет зеркал.", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('no_mirrors_user', _user_lang), show_alert=True)
 				return
 			import random as _random
 			total_mirrors = len(mirrors)
@@ -2246,7 +2236,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			# Фильтруем — только те у которых токен сейчас активен
 			active_mirrors = [m for m in all_mirrors if m['token'] in running_tokens]
 			if not active_mirrors:
-				await bot_instance.answer_callback_query(call.id, "Зеркал пока нет.", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('no_mirrors_pub', _user_lang), show_alert=True)
 				return
 			shown = _random.sample(active_mirrors, min(5, len(active_mirrors)))
 			lines = ["🪞 *Зеркала Brown V2*\n\n*└─ 5 случайных рабочих зеркал:*\n"]
@@ -4876,8 +4866,9 @@ async def on_startup(dp):
 # -- Admin panel login notifications --
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith(("adm_ok_", "adm_blk_")))
 async def admin_login_action(call: types.CallbackQuery):
+    _adm_lang = await db.get_lang(call.from_user.id)
     if call.from_user.id not in admins:
-        await call.answer("Нет доступа", show_alert=True)
+        await call.answer(t('err_admin_only', _adm_lang), show_alert=True)
         return
     parts = call.data.split("_")
     action = parts[1]
@@ -4890,7 +4881,7 @@ async def admin_login_action(call: types.CallbackQuery):
             "SELECT ip, user_agent, geo FROM admin_logins WHERE id=$1", login_id
         )
         if not row:
-            await call.answer("Сессия не найдена", show_alert=True)
+            await call.answer(t('session_not_found', _adm_lang), show_alert=True)
             return
         if action == "ok":
             await conn.execute("UPDATE admin_logins SET status='confirmed' WHERE id=$1", login_id)
@@ -5079,7 +5070,8 @@ async def media_my_submissions(call: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('media_ok_'), state='*')
 async def media_admin_approve(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id != MEDIA_ADMIN_ID:
-        await call.answer("Нет доступа", show_alert=True)
+        _ma_lang = await db.get_lang(call.from_user.id)
+        await call.answer(t('err_admin_only', _ma_lang), show_alert=True)
         return
     sub_id = int(call.data.split('_')[2])
     await state.update_data(media_sub_id=sub_id)
@@ -5139,7 +5131,8 @@ async def media_admin_approve_comment(message: types.Message, state: FSMContext)
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('media_rej_'), state='*')
 async def media_admin_reject(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id != MEDIA_ADMIN_ID:
-        await call.answer("Нет доступа", show_alert=True)
+        _mr_lang = await db.get_lang(call.from_user.id)
+        await call.answer(t('err_admin_only', _mr_lang), show_alert=True)
         return
     sub_id = int(call.data.split('_')[2])
     await state.update_data(media_sub_id=sub_id)

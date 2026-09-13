@@ -173,6 +173,33 @@ _T = {
         # ─── Мониторинг ───────────────────────────────────────────────────────
         'monitor_btn_add': '🔍 Мониторить эту цель',
         'monitor_btn_limit': '🔍 Мониторинг — лимит достигнут',
+        'monitor_offer_caption': '🔍 *Хотите мониторить эту цель?*\n_Вы получите уведомление если цель будет снесена_',
+        'hidden_notice_msg': '👁 *Внимание, вы скрыты в логах.*\n_Ваши отправки будут анонимными в логах._',
+        'hidden_notice_ok_btn': 'Понял',
+        'hidden_notice_reveal_btn': 'Раскрыть',
+        'btn_prev': '← Пред.',
+        'btn_next': 'Ещё →',
+        'btn_prev_admin': '◀️ Назад',
+        'btn_next_admin': 'Вперёд ▶️',
+        'no_mirrors_user': 'У вас нет зеркал.',
+        'no_mirrors_pub': 'Зеркал пока нет.',
+        'no_mirrors_admin': 'Зеркал нет.',
+        'no_more_users': 'Больше пользователей нет',
+        'session_not_found': 'Сессия не найдена',
+        'preminfo_caption': (
+            '👑 *Премиум — стоит ли брать?*\n\n'
+            'Премиум — это дополнение к подписке\\. Покупается один раз, навсегда\\.\n\n'
+            '*Что открывается:*\n'
+            '├ 👑 *Премиальная отправка* — усиленный ботнет, больше аккаунтов, выше шанс сноса\n'
+            '├ 📧 *Mail\\-метод* — репорты через почты напрямую\n'
+            '├ 🌐 *Web\\-метод* — репорты через веб\n'
+            '├ 🔍 *Мониторинг ×5* — 5 целей одновременно вместо 3\n'
+            '├ ⏱ *Мониторинг 24ч* — срок 24 часа вместо 12\n'
+            '├ 🕵️ *Пробив* — поиск данных по Telegram\n'
+            '└ 🏦 *Блокировка карты* — жалобы в банки на мошенников\n\n'
+            '*Итог:* обычная подписка — базовые методы\\. Премиум — максимальная мощность\\.\n\n'
+            '💡 _Если цель сложная — без премиума шансы ниже_'
+        ),
 
         # ─── Telegraph ────────────────────────────────────────────────────────
         'telegraph_confirm_send': '✅ Отправить',
@@ -516,6 +543,33 @@ _T = {
         # ─── Monitoring ───────────────────────────────────────────────────────
         'monitor_btn_add': '🔍 Monitor this target',
         'monitor_btn_limit': '🔍 Monitoring — limit reached',
+        'monitor_offer_caption': '🔍 *Want to monitor this target?*\n_You\'ll get a notification if the target gets banned_',
+        'hidden_notice_msg': '👁 *Warning, you are hidden in logs.*\n_Your submissions will be anonymous in logs._',
+        'hidden_notice_ok_btn': 'Got it',
+        'hidden_notice_reveal_btn': 'Reveal',
+        'btn_prev': '← Prev',
+        'btn_next': 'More →',
+        'btn_prev_admin': '◀️ Back',
+        'btn_next_admin': 'Next ▶️',
+        'no_mirrors_user': 'You have no mirrors.',
+        'no_mirrors_pub': 'No mirrors yet.',
+        'no_mirrors_admin': 'No mirrors.',
+        'no_more_users': 'No more users',
+        'session_not_found': 'Session not found',
+        'preminfo_caption': (
+            '👑 *Premium — is it worth it?*\n\n'
+            'Premium is an add\\-on to your subscription\\. Purchased once, forever\\.\n\n'
+            '*What unlocks:*\n'
+            '├ 👑 *Premium sending* — enhanced botnet, more accounts, higher chance of ban\n'
+            '├ 📧 *Mail method* — reports via email directly\n'
+            '├ 🌐 *Web method* — reports via web\n'
+            '├ 🔍 *Monitoring ×5* — 5 targets at once instead of 3\n'
+            '├ ⏱ *Monitoring 24h* — duration 24 hours instead of 12\n'
+            '├ 🕵️ *Lookup* — search data by Telegram\n'
+            '└ 🏦 *Card block* — reports to banks on scammers\n\n'
+            '*Bottom line:* regular subscription — basic methods\\. Premium — maximum power\\.\n\n'
+            '💡 _If the target is tough — without premium, chances are lower_'
+        ),
 
         # ─── Telegraph ───────────────────────────────────────────────────────
         'telegraph_confirm_send': '✅ Send',
