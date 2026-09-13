@@ -284,18 +284,44 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
             ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username)),
         ]
 
+    import time as _time
+
     total = len(tasks_info)
-    results = {}  # label -> "✅" | "❌"
+    results = {}       # label -> "✅" | "❌"
+    start_ts = _time.monotonic()
+
+    BAR_LEN = 15
+
+    def _bar(pct: int) -> str:
+        filled = round(BAR_LEN * pct / 100)
+        return "🟩" * filled + "⬜" * (BAR_LEN - filled)
+
+    def _eta(done: int) -> str:
+        if done == 0:
+            return ""
+        elapsed = _time.monotonic() - start_ts
+        per_task = elapsed / done
+        remaining_sec = int(per_task * (total - done))
+        if remaining_sec < 60:
+            return f"~{remaining_sec} сек"
+        return f"~{remaining_sec // 60} мин {remaining_sec % 60} сек"
 
     def _status_text() -> str:
-        lines = [f"⚙️ *Универсальный метод* — `{norm}`\n"]
+        done = sum(1 for v in results.values() if v in ("✅", "❌"))
+        pct = round(done / total * 100) if total else 100
+        lines = [f"⚙️ *Универсальный метод*\n`{norm}`\n"]
+        if done < total:
+            eta = _eta(done)
+            eta_str = f" — {eta}" if eta else ""
+            lines.append(f"{_bar(pct)} *{pct}%*{eta_str}\n")
         for label, _ in tasks_info:
             mark = results.get(label, "⏳")
             lines.append(f"{mark} {label}")
-        done = sum(1 for v in results.values() if v == "✅")
+        ok = sum(1 for v in results.values() if v == "✅")
         fail = sum(1 for v in results.values() if v == "❌")
-        if len(results) == total:
-            lines.append(f"\n✅ *{done}/{total}* успешно, ❌ *{fail}* ошибок")
+        if done == total:
+            lines.append(f"\n{_bar(100)} *100%*")
+            lines.append(f"✅ *{ok}/{total}* успешно, ❌ *{fail}* ошибок")
         return "\n".join(lines)
 
     async def _update():
@@ -313,6 +339,9 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
             logger.warning(f"[UNIVERSAL] {label} error: {e}")
             results[label] = "❌"
         await _update()
+
+    # Начальное состояние
+    await _update()
 
     # Запуск параллельно
     await asyncio.gather(*[_run_one(label, factory) for label, factory in tasks_info])
