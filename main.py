@@ -5181,7 +5181,13 @@ async def universal_step_link(message: types.Message, state: FSMContext):
 		f"⚙️ *Универсальный метод* — `{parsed['normalized']}`\n\n⏳ Запускаю...",
 		parse_mode="Markdown")
 	set_bot_universal(_bot)
-	asyncio.create_task(run_universal(parsed, "", uid, username, status_msg.message_id, _bot))
+	cd_state = {
+		"user": uid, "admins": admins, "no_kd": no_kd,
+		"botnet": last_used_botnet, "botnet2": last_used_botnet2,
+		"bot_snos": last_used_bot_snos, "channel": last_used_channel,
+		"aureport": last_used_aureport, "tida": last_used_tida, "dsa": last_used_dsa,
+	}
+	asyncio.create_task(run_universal(parsed, "", uid, username, status_msg.message_id, _bot, cd_state=cd_state))
 
 
 # ─── Универсальный метод — ввод текста TIDA ──────────────────────────────────
@@ -5203,7 +5209,13 @@ async def universal_step_tida_text(message: types.Message, state: FSMContext):
 		f"⚙️ *Универсальный метод* — `{parsed.get('normalized', '')}`\n\n⏳ Запускаю...",
 		parse_mode="Markdown")
 	set_bot_universal(_bot)
-	asyncio.create_task(run_universal(parsed, tida_text, uid, username, status_msg.message_id, _bot))
+	cd_state = {
+		"user": uid, "admins": admins, "no_kd": no_kd,
+		"botnet": last_used_botnet, "botnet2": last_used_botnet2,
+		"bot_snos": last_used_bot_snos, "channel": last_used_channel,
+		"aureport": last_used_aureport, "tida": last_used_tida, "dsa": last_used_dsa,
+	}
+	asyncio.create_task(run_universal(parsed, tida_text, uid, username, status_msg.message_id, _bot, cd_state=cd_state))
 
 
 if __name__ == "__main__":

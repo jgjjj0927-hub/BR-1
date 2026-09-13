@@ -9,6 +9,7 @@ import os
 import random
 import asyncio
 import logging
+from datetime import timedelta
 from typing import Optional
 
 from telethon import TelegramClient
@@ -223,10 +224,14 @@ async def validate_link(parsed: dict) -> dict:
 # ─── Запуск всех методов ──────────────────────────────────────────────────────
 
 async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
-                        status_msg_id: int, bot_instance):
+                        status_msg_id: int, bot_instance, cd_state: dict = None):
     """
-    Запускает все подходящие методы параллельно.
+    Запускает все подходящие методы последовательно в рандомном порядке.
     Обновляет status_msg_id по ходу выполнения.
+    cd_state = {
+        "user": uid, "admins": [...], "no_kd": [...],
+        "botnet": last_used_botnet_dict, "botnet2": ..., ...
+    }
     """
     from botnet_snos import main as botnet_main, set_bot as botnet_set_bot
     from botnet_snos_premium import main2 as botnet_main2, set_bot2 as botnet_set_bot2
@@ -254,44 +259,74 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
     dsa_sub = "None"
     dsa_text = tida_text or "This account is involved in scam or spam activity."
 
-    # Определяем набор методов — lambdas чтобы корутины создавались лениво
-    tasks_info = []  # (label, factory)
+    # Длительности КД в минутах (совпадают с main.py)
+    CD_DURATIONS = {
+        "botnet": 5, "botnet2": 30, "bot_snos": 60,
+        "channel": 30, "aureport": 30, "tida": 30, "dsa": 60,
+    }
+
+    def _check_cd(cd_key: str):
+        """Возвращает timedelta остатка КД или None если КД нет."""
+        if not cd_state or not cd_key:
+            return None
+        uid = cd_state.get("user")
+        if uid in cd_state.get("admins", []) or uid in cd_state.get("no_kd", []):
+            return None
+        d = cd_state.get(cd_key)
+        if not isinstance(d, dict) or uid not in d:
+            return None
+        duration = timedelta(minutes=CD_DURATIONS.get(cd_key, 30))
+        elapsed = now_msk() - d[uid]
+        remaining = duration - elapsed
+        return remaining if remaining.total_seconds() > 0 else None
+
+    def _set_cd(cd_key: str):
+        """Ставит КД для текущего пользователя."""
+        if not cd_state or not cd_key:
+            return
+        uid = cd_state.get("user")
+        d = cd_state.get(cd_key)
+        if isinstance(d, dict) and uid:
+            d[uid] = now_msk()
+
+    # Определяем набор методов — 3-tuple: (label, factory, cd_key)
+    tasks_info = []
 
     if link_type == TYPE_MESSAGE:
         tasks_info = [
-            ("🕸 Ботнет",      lambda: botnet_main(uname, mid, user, username, norm, silent=True)),
-            ("👑 Ботнет Прем", lambda: botnet_main2(uname, mid, user, username, norm, silent=True)),
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True)),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True)),
-            ("📢 Канал",       lambda: main_channel_snos(uname, "spam", user, username, mid, silent=True)),
-            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True)),
+            ("🕸 Ботнет",      lambda: botnet_main(uname, mid, user, username, norm, silent=True),  "botnet"),
+            ("👑 Ботнет Прем", lambda: botnet_main2(uname, mid, user, username, norm, silent=True), "botnet2"),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True),             "aureport"),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True),       "tida"),
+            ("📢 Канал",       lambda: main_channel_snos(uname, "spam", user, username, mid, silent=True), "channel"),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True), "dsa"),
         ]
 
     elif link_type == TYPE_INVITE:
         tasks_info = [
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True)),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True)),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True), "aureport"),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True), "tida"),
         ]
 
     elif link_type == TYPE_BOT:
         tasks_info = [
-            ("🤖 Бот-метод",   lambda: main_bot_snos(f"@{uname}", "personal", user, username, norm, silent=True)),
-            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True)),
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True)),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True)),
+            ("🤖 Бот-метод",   lambda: main_bot_snos(f"@{uname}", "personal", user, username, norm, silent=True), "bot_snos"),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True), "dsa"),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True), "aureport"),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True), "tida"),
         ]
 
     elif link_type == TYPE_USER_CHANNEL:
         tasks_info = [
-            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True)),
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True)),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True)),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True), "dsa"),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True), "aureport"),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True), "tida"),
         ]
 
     import time as _time
 
     total = len(tasks_info)
-    results = {}        # label -> "✅" | "❌"
+    results = {}        # label -> "✅" | "❌" | "⏩ КД Xм"
     results_data = {}   # label -> (suc, tot)
     start_ts = _time.monotonic()
 
@@ -312,14 +347,14 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
         return f"~{remaining_sec // 60} мин {remaining_sec % 60} сек"
 
     def _status_text() -> str:
-        done = sum(1 for v in results.values() if v in ("✅", "❌"))
+        done = sum(1 for v in results.values() if v != "⏳")
         pct = round(done / total * 100) if total else 100
         lines = [f"⚙️ *Универсальный метод*\n`{norm}`\n"]
         if done < total:
             eta = _eta(done)
             eta_str = f" — {eta}" if eta else ""
             lines.append(f"{_bar(pct)} *{pct}%*{eta_str}\n")
-        for label, _ in tasks_info:
+        for label, _, _ in tasks_info:
             mark = results.get(label, "⏳")
             rd = results_data.get(label)
             stat = f" `{rd[0]}/{rd[1]}`" if rd else ""
@@ -338,12 +373,24 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
         except Exception:
             pass
 
-    async def _run_one(label: str, factory):
+    async def _run_one(label: str, factory, cd_key: str):
+        # Проверяем КД перед запуском
+        remaining = _check_cd(cd_key)
+        if remaining:
+            total_sec = int(remaining.total_seconds())
+            mins = total_sec // 60
+            secs = total_sec % 60
+            time_str = f"{mins}м {secs}с" if secs else f"{mins}м"
+            results[label] = f"❌ КД {time_str}"
+            await _update()
+            return
+
         try:
             ret = await factory()
             results[label] = "✅"
             if isinstance(ret, tuple) and len(ret) == 2:
                 results_data[label] = ret
+            _set_cd(cd_key)
         except Exception as e:
             logger.warning(f"[UNIVERSAL] {label} error: {e}")
             results[label] = "❌"
@@ -366,15 +413,15 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
 
         # Запуск последовательно в рандомном порядке
         shuffled = random.sample(tasks_info, len(tasks_info))
-        for label, factory in shuffled:
-            await _run_one(label, factory)
+        for label, factory, cd_key in shuffled:
+            await _run_one(label, factory, cd_key)
 
     # ─── Единый итоговый отчёт ────────────────────────────────────────────────
     now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
     norm_escaped = norm.replace('_', '\\_')
 
     lines_user = [f"🌐 *Универсальный метод завершён!*\n\n🎯 *Цель:* {norm_escaped}\n🕐 *Время:* {now_str}\n"]
-    for label, _ in tasks_info:
+    for label, _, _ in tasks_info:
         mark = results.get(label, "❌")
         rd = results_data.get(label)
         stat = f" `{rd[0]}/{rd[1]}`" if rd else ""
@@ -390,7 +437,7 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
         _log_uid, _log_uname = str(user), username
 
     lines_log = [f"🌐 *Универсальный метод*\n\n🎯 *Цель:* {norm_escaped}\n👤 *Пользователь:* {_log_uid} (@{_log_uname})\n🕐 *Время:* {now_str}\n"]
-    for label, _ in tasks_info:
+    for label, _, _ in tasks_info:
         mark = results.get(label, "❌")
         rd = results_data.get(label)
         stat = f" `{rd[0]}/{rd[1]}`" if rd else ""
