@@ -343,8 +343,9 @@ class App(tk.Tk):
                 self.after(0, lambda: self._v_sub.set(
                     f"{len(self._channels)} чатов"))
             except Exception as e:
+                err = str(e)
                 self.after(0, lambda: self._v_sub.set("ошибка"))
-                self.after(0, lambda: messagebox.showerror("Ошибка", str(e)))
+                self.after(0, lambda msg=err: messagebox.showerror("Ошибка", msg))
 
         threading.Thread(target=_do, daemon=True).start()
 
@@ -695,7 +696,7 @@ class App(tk.Tk):
                 self.after(0, lambda: self._render_bubble(cid, m))
                 self.after(0, self._scroll_bottom)
             except Exception as e:
-                self.after(0, lambda: messagebox.showerror("Ошибка", str(e)))
+                self.after(0, lambda msg=str(e): messagebox.showerror("Ошибка", msg))
 
         threading.Thread(target=_do, daemon=True).start()
 
@@ -723,7 +724,7 @@ class App(tk.Tk):
                 import traceback
                 print(f"[send_photo] cid={cid} path={path!r} err={e}", flush=True)
                 traceback.print_exc()
-                self.after(0, lambda: messagebox.showerror("Ошибка отправки фото", str(e)))
+                self.after(0, lambda msg=str(e): messagebox.showerror("Ошибка отправки фото", msg))
 
         threading.Thread(target=_do, daemon=True).start()
 
@@ -739,7 +740,7 @@ class App(tk.Tk):
                 self._engine.edit(cid, msg["id"], new)
                 self.after(0, lambda: bubble.set_text(new))
             except Exception as e:
-                self.after(0, lambda: messagebox.showerror("Ошибка", str(e)))
+                self.after(0, lambda msg=str(e): messagebox.showerror("Ошибка", msg))
 
         threading.Thread(target=_do, daemon=True).start()
 
@@ -754,7 +755,7 @@ class App(tk.Tk):
                 self._bubbles.get(cid, {}).pop(msg["id"], None)
                 self.after(0, bubble.destroy)
             except Exception as e:
-                self.after(0, lambda: messagebox.showerror("Ошибка", str(e)))
+                self.after(0, lambda msg=str(e): messagebox.showerror("Ошибка", msg))
 
         threading.Thread(target=_do, daemon=True).start()
 
