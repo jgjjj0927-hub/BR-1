@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 bot = None
 main_bot = None
 
+# Глобальный лок — только один запуск универсального метода одновременно
+_universal_lock = asyncio.Lock()
+
 def set_bot_universal(b):
     global bot, main_bot
     bot = b
@@ -346,11 +349,25 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
             results[label] = "❌"
         await _update()
 
-    # Начальное состояние
-    await _update()
+    # Проверяем лок — если уже кто-то использует универсальный метод, отказываем
+    if _universal_lock.locked():
+        try:
+            await bot_instance.edit_message_text(
+                "⏳ *Универсальный метод уже запущен другим пользователем.*\n"
+                "Подожди пока он завершится.",
+                user, status_msg_id, parse_mode="Markdown")
+        except Exception:
+            pass
+        return
 
-    # Запуск параллельно
-    await asyncio.gather(*[_run_one(label, factory) for label, factory in tasks_info])
+    async with _universal_lock:
+        # Начальное состояние
+        await _update()
+
+        # Запуск последовательно в рандомном порядке
+        shuffled = random.sample(tasks_info, len(tasks_info))
+        for label, factory in shuffled:
+            await _run_one(label, factory)
 
     # ─── Единый итоговый отчёт ────────────────────────────────────────────────
     now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
