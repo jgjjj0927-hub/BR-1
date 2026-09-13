@@ -5171,7 +5171,7 @@ async def universal_step_link(message: types.Message, state: FSMContext):
 			f"✅ *Ссылка принята* — {ltype}\n"
 			f"`{parsed['normalized']}`\n\n"
 			"*└─ Опишите нарушение для TIDA-жалобы:*\n"
-			"_(1-2 предложения на английском)_",
+			"_(1-2 предложения на английском / русском)_",
 			parse_mode="Markdown", reply_markup=main_menu)
 		return
 
