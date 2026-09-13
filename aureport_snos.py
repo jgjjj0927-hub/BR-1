@@ -230,13 +230,15 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
     pb = ProgressBar(bot, user, total=total, title="🔍 *AU Report*", silent=silent)
     await pb.start()
     done_ref = [0]
+    _sem = asyncio.Semaphore(10)
 
     async def _run(i, session_path):
-        proxy = _parse_proxy(proxies[i % len(proxies)]) if proxies else None
-        result = await _single_session_flow(session_path, target, proxy)
-        done_ref[0] += 1
-        await pb.update(done_ref[0])
-        return result
+        async with _sem:
+            proxy = _parse_proxy(proxies[i % len(proxies)]) if proxies else None
+            result = await _single_session_flow(session_path, target, proxy)
+            done_ref[0] += 1
+            await pb.update(done_ref[0])
+            return result
 
     results = await asyncio.gather(*[_run(i, s) for i, s in enumerate(sessions)], return_exceptions=True)
     await pb.finish()

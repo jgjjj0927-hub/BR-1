@@ -539,16 +539,18 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     pb = ProgressBar(bot, user, total=total, title="🎵 *TIDA*", silent=silent)
     await pb.start()
     done_ref = [0]
+    _sem = asyncio.Semaphore(10)
 
     async def _tracked(s):
-        result = await _single_session_flow(
-            s, target, custom_text,
-            random.choice(all_proxies) if all_proxies else None,
-            tida_peer_ref,
-            all_proxies if all_proxies else None)
-        done_ref[0] += 1
-        await pb.update(done_ref[0])
-        return result
+        async with _sem:
+            result = await _single_session_flow(
+                s, target, custom_text,
+                random.choice(all_proxies) if all_proxies else None,
+                tida_peer_ref,
+                all_proxies if all_proxies else None)
+            done_ref[0] += 1
+            await pb.update(done_ref[0])
+            return result
 
     results = await asyncio.gather(*[_tracked(s) for s in sessions], return_exceptions=True)
     await pb.finish()

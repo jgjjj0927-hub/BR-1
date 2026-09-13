@@ -866,21 +866,20 @@ async def welcome(message: types.Message, state: FSMContext):
 	await db.add_user(uid, message.from_user.username or '')
 
 	if not await is_verified(uid):
-		ref_arg = None
+		# Сохраняем ref_arg до выбора языка
 		if is_new:
 			args = message.get_args()
 			if args and args.startswith("ref_"):
-				ref_arg = args
-		try:
-			code = generate_captcha_text()
-			_captcha_codes[uid] = code
-			await state.set_state(WaitCaptchaFSM.code)
-			await state.update_data(ref_arg=ref_arg)
-			await bot.send_photo(uid, photo=generate_captcha_image(code),
-				caption=t('captcha_prompt'), parse_mode="Markdown")
-		except Exception as e:
-			print(f"[CAPTCHA] Ошибка генерации: {e}", flush=True)
-			await bot.send_message(uid, t('captcha_error'), parse_mode="Markdown")
+				_pending_refs[uid] = args
+		# Сначала спрашиваем язык — капча будет на выбранном языке
+		lang_markup = types.InlineKeyboardMarkup(row_width=2)
+		lang_markup.add(
+			types.InlineKeyboardButton("🇷🇺 Русский", callback_data='lang_select_ru'),
+			types.InlineKeyboardButton("🇬🇧 English", callback_data='lang_select_en'),
+		)
+		await bot.send_message(uid,
+			"🌐 *Выберите язык | Choose language:*",
+			parse_mode="Markdown", reply_markup=lang_markup)
 		return
 	try:
 		await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
@@ -903,14 +902,14 @@ async def welcome(message: types.Message, state: FSMContext):
 @dp.message_handler(state=WaitCaptchaFSM.code)
 async def check_captcha(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
+	lang = await db.get_lang(uid)
 	if message.text.strip().lower() == _captcha_codes.get(uid, "").lower():
-		fsm_data = await state.get_data()
 		await state.finish()
 		_captcha_codes.pop(uid, None)
 		await set_verified(uid)
 
 		# Реферальная логика — только после прохождения капчи
-		ref_arg = fsm_data.get('ref_arg')
+		ref_arg = _pending_refs.pop(uid, None)
 		if ref_arg and ref_arg.startswith("ref_"):
 			try:
 				referrer_id = int(ref_arg[4:])
@@ -919,41 +918,59 @@ async def check_captcha(message: types.Message, state: FSMContext):
 					new_count = await db.increment_referral_count(referrer_id)
 					await bot.send_message(
 						referrer_id,
-						f"👥 *По вашей ссылке зарегистрировался новый пользователь!*\n"
-						f"*└─ Всего рефералов: {new_count}*",
+						t('ref_new_user', await db.get_lang(referrer_id), count=new_count),
 						parse_mode="Markdown"
 					)
 			except (ValueError, Exception):
 				pass
 
-		# После капчи показываем выбор языка
-		lang_markup = types.InlineKeyboardMarkup(row_width=2)
-		lang_markup.add(
-			types.InlineKeyboardButton("🇷🇺 Русский", callback_data='lang_select_ru'),
-			types.InlineKeyboardButton("🇬🇧 English", callback_data='lang_select_en'),
-		)
-		await bot.send_message(uid, t('captcha_ok_lang'), parse_mode="Markdown", reply_markup=lang_markup)
+		# Язык уже выбран до капчи — сразу показываем стикер и меню
+		try:
+			await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
+		except Exception:
+			pass
+		if not await check_subscription(uid):
+			await send_subscribe_required(uid, lang=lang)
+			return
+		await send_and_pin_site_msg(uid)
+		await bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
+			caption=t('menu_caption', lang),
+			parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins, lang))
 	else:
 		try:
 			code = generate_captcha_text()
 			_captcha_codes[uid] = code
 			await bot.send_photo(uid, photo=generate_captcha_image(code),
-				caption=t('captcha_wrong'), parse_mode="Markdown")
+				caption=t('captcha_wrong', lang), parse_mode="Markdown")
 		except Exception as e:
 			print(f"[CAPTCHA] Ошибка повторной генерации: {e}", flush=True)
-			await bot.send_message(uid, t('captcha_error'), parse_mode="Markdown")
+			await bot.send_message(uid, t('captcha_error', lang), parse_mode="Markdown")
 
 
 @dp.callback_query_handler(lambda c: c.data in ('lang_select_ru', 'lang_select_en'), state='*')
 async def handle_lang_select(call: types.CallbackQuery, state: FSMContext):
 	uid = call.from_user.id
 	lang = 'ru' if call.data == 'lang_select_ru' else 'en'
-	await set_verified(uid)
 	await db.set_lang(uid, lang)
 	try:
 		await call.message.delete()
 	except Exception:
 		pass
+
+	# Если пользователь ещё не прошёл капчу — показываем капчу на выбранном языке
+	if not await is_verified(uid):
+		try:
+			code = generate_captcha_text()
+			_captcha_codes[uid] = code
+			await state.set_state(WaitCaptchaFSM.code)
+			await bot.send_photo(uid, photo=generate_captcha_image(code),
+				caption=t('captcha_prompt', lang), parse_mode="Markdown")
+		except Exception as e:
+			print(f"[CAPTCHA] Ошибка генерации: {e}", flush=True)
+			await bot.send_message(uid, t('captcha_error', lang), parse_mode="Markdown")
+		return
+
+	# Иначе — смена языка из профиля, просто показываем меню
 	await bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
 	if not await check_subscription(uid):
 		await send_subscribe_required(uid, lang=lang)
