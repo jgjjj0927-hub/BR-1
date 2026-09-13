@@ -85,7 +85,7 @@ class ProgressBar:
             return
         try:
             await self._bot.edit_message_text(
-                self._uid, self._msg_id, self._text(done), parse_mode="Markdown")
+                self._text(done), self._uid, self._msg_id, parse_mode="Markdown")
             self._last_pct = milestone
         except Exception:
             pass
