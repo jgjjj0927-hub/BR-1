@@ -603,12 +603,12 @@ async def listtargetwl(message: types.Message):
 # ─── Подписки / оплата ────────────────────────────────────────────────────────
 
 _SUB_MAP = {
-	"1":          ("1",  "1",   "на 1 день",   "100"),
-	"3":          ("2",  "3",   "на 3 дня",    "175"),
-	"7":          ("4",  "7",   "на 7 дней",   "350"),
-	"30":         ("8",  "30",  "на 30 дней",  "700"),
-	"forever":    ("6",  "999", "навсегда",    "500"),
-	"premupgrade":("5",  "1",   "Премиум",     "400"),
+	"1":          ("1",  "1",   "sub_1d",      "100"),
+	"3":          ("2",  "3",   "sub_3d",      "175"),
+	"7":          ("4",  "7",   "sub_7d",      "350"),
+	"30":         ("8",  "30",  "sub_30d",     "700"),
+	"forever":    ("6",  "999", "sub_forever", "500"),
+	"premupgrade":("5",  "1",   "sub_premium", "400"),
 }
 _YM_WALLET = "4100118677444773"
 _TON_ADDRESS = "UQDeT6tcvKiwrR_fCa0ORJ_OOKPQbnvbzyB8l1YXzXK0iLCf"
@@ -622,7 +622,9 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 		st = callback_query.data.split('_', 1)[1]
 		if st not in _SUB_MAP:
 			return
-		amount_usd, _, pidor, amount_rub = _SUB_MAP[st]
+		_lang = await db.get_lang(user_id)
+		amount_usd, _, pidor_key, amount_rub = _SUB_MAP[st]
+		pidor = t(pidor_key, _lang)
 		method_markup = types.InlineKeyboardMarkup(row_width=1)
 		method_markup.add(
 			types.InlineKeyboardButton("CryptoBot", callback_data=f'pay_crypto_{st}'),
@@ -633,7 +635,7 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption=f">⚙️ *Покупка*\n*└─ Вы покупаете: {pidor}*\n\n*Выберите способ оплаты:*",
+			caption=t('shop_buy_select', _lang, item=pidor),
 			parse_mode="MarkdownV2", reply_markup=method_markup
 		)
 	except Exception as e:
@@ -648,20 +650,22 @@ async def pay_crypto_callback(callback_query: types.CallbackQuery):
 		st = callback_query.data[len('pay_crypto_'):]
 		if st not in _SUB_MAP:
 			return
-		amount_usd, sub_days, pidor, _ = _SUB_MAP[st]
+		_lang = await db.get_lang(user_id)
+		amount_usd, sub_days, pidor_key, _ = _SUB_MAP[st]
+		pidor = t(pidor_key, _lang)
 		invoice = await asyncio.to_thread(crypto.create_invoice, asset='USDT', amount=amount_usd)
 		pay_url = invoice['pay_url']
 		invoice_id = invoice['invoice_id']
 		pay_check = types.InlineKeyboardMarkup(row_width=2)
 		pay_check.add(
-			types.InlineKeyboardButton("💸 Оплатить", url=pay_url),
-			types.InlineKeyboardButton("✅ Оплатил", callback_data=f'check_status_{invoice_id}_{st}_{sub_days}')
+			types.InlineKeyboardButton(t('pay_btn_pay', _lang), url=pay_url),
+			types.InlineKeyboardButton(t('pay_btn_paid', _lang), callback_data=f'check_status_{invoice_id}_{st}_{sub_days}')
 		)
 		pay_check.add(keyboards.back)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption=f">⚙️ *Покупка*\n*└─ Вы покупаете: {pidor}*\n*└─ Вы платите: {amount_usd}$*",
+			caption=t('shop_buy_usd', _lang, item=pidor, amount=amount_usd),
 			parse_mode="MarkdownV2", reply_markup=pay_check
 		)
 	except Exception as e:
@@ -691,9 +695,11 @@ async def pay_sbp_callback(callback_query: types.CallbackQuery):
 		st = callback_query.data[len('pay_sbp_'):]
 		if st not in _SUB_MAP:
 			return
-		amount_usd, sub_days, pidor, amount_rub = _SUB_MAP[st]
+		_lang = await db.get_lang(user_id)
+		amount_usd, sub_days, pidor_key, amount_rub = _SUB_MAP[st]
+		pidor = t(pidor_key, _lang)
 		label = f"sub_{user_id}_{st}"
-		targets = _urlparse.quote(f"Подписка BR V2 {pidor}", safe='')
+		targets = _urlparse.quote(f"Subscription BR V2 {pidor}", safe='')
 		ym_url = (
 			f"https://yoomoney.ru/quickpay/confirm.xml"
 			f"?receiver={_YM_WALLET}"
@@ -705,14 +711,14 @@ async def pay_sbp_callback(callback_query: types.CallbackQuery):
 		short_url = await _create_pay_link(ym_url)
 		sbp_markup = types.InlineKeyboardMarkup(row_width=1)
 		sbp_markup.add(
-			types.InlineKeyboardButton("💳 Оплатить", url=short_url),
-			types.InlineKeyboardButton("✅ Оплатил", callback_data=f'sbp_paid_{st}'),
+			types.InlineKeyboardButton(t('pay_btn_card', _lang), url=short_url),
+			types.InlineKeyboardButton(t('pay_btn_paid', _lang), callback_data=f'sbp_paid_{st}'),
 			keyboards.back,
 		)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption=f">⚙️ *Покупка*\n*└─ Вы покупаете: {pidor}*\n*└─ Вы платите: {amount_rub}₽*",
+			caption=t('shop_buy_rub', _lang, item=pidor, amount=amount_rub),
 			parse_mode="MarkdownV2", reply_markup=sbp_markup
 		)
 	except Exception as e:
@@ -722,9 +728,10 @@ async def pay_sbp_callback(callback_query: types.CallbackQuery):
 async def sbp_paid_callback(callback_query: types.CallbackQuery):
 	try:
 		await bot.answer_callback_query(callback_query.id)
+		_lang = await db.get_lang(callback_query.from_user.id)
 		await bot.send_message(
 			callback_query.from_user.id,
-			"✅ *Подписка будет выдана в течение 15 минут автоматически\\.*",
+			t('pay_sub_pending', _lang),
 			parse_mode="MarkdownV2"
 		)
 	except Exception as e:
@@ -736,9 +743,10 @@ async def case_sbp_paid_callback(callback_query: types.CallbackQuery):
 		await bot.answer_callback_query(callback_query.id)
 		uid = callback_query.from_user.id
 		username = callback_query.from_user.username or "None"
+		_lang = await db.get_lang(uid)
 		await bot.send_message(
 			uid,
-			"✅ *Кейс будет выдан в течение 15 минут после подтверждения оплаты\\.*",
+			t('pay_case_pending', _lang),
 			parse_mode="MarkdownV2"
 		)
 		await bot.send_message(
@@ -758,7 +766,9 @@ async def pay_ton_callback(callback_query: types.CallbackQuery):
 		st = callback_query.data[len('pay_ton_'):]
 		if st not in _SUB_MAP:
 			return
-		amount_usd, _, pidor, _ = _SUB_MAP[st]
+		_lang = await db.get_lang(user_id)
+		amount_usd, _, pidor_key, _ = _SUB_MAP[st]
+		pidor = t(pidor_key, _lang)
 		ton_markup = types.InlineKeyboardMarkup(row_width=1)
 		ton_markup.add(
 			types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
@@ -767,14 +777,7 @@ async def pay_ton_callback(callback_query: types.CallbackQuery):
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption=(
-				f">⚙️ *Покупка*\n"
-				f"*└─ Вы покупаете: {pidor}*\n"
-				f"*└─ Вы платите: {amount_usd}$*\n\n"
-				f"*Адрес TonKeeper:*\n"
-				f"`{_TON_ADDRESS}`\n\n"
-				f"*После оплаты напишите* @TariSmit"
-			),
+			caption=t('shop_buy_ton', _lang, item=pidor, amount=amount_usd, address=_TON_ADDRESS),
 			parse_mode="MarkdownV2", reply_markup=ton_markup
 		)
 	except Exception as e:
@@ -788,19 +791,20 @@ async def check_status_callback(callback_query: types.CallbackQuery):
 		user_id = callback_query.from_user.id
 		if not await check_user_in_db(user_id):
 			return
+		_lang = await db.get_lang(user_id)
 		old_invoice = await asyncio.to_thread(crypto.get_invoices, invoice_ids=invoice_id)
 		if old_invoice['items'][0]['status'] != "paid":
-			await bot.send_message(user_id, "❌ *Оплата не получена!*", parse_mode=ParseMode.MARKDOWN)
+			await bot.send_message(user_id, t('pay_not_received', _lang), parse_mode=ParseMode.MARKDOWN)
 			return
 		# Защита от повторного начисления
 		if await db.is_invoice_used(invoice_id):
-			await bot.send_message(user_id, "✅ *Этот платёж уже был обработан!*", parse_mode=ParseMode.MARKDOWN)
+			await bot.send_message(user_id, t('pay_already_processed', _lang), parse_mode=ParseMode.MARKDOWN)
 			return
 		await db.mark_invoice_used(invoice_id, user_id)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption=">⚙️ *Спасибо за заказ*", parse_mode="MarkdownV2", reply_markup=back_markup
+			caption=t('pay_thanks', _lang), parse_mode="MarkdownV2", reply_markup=back_markup
 		)
 		if sub_type != "premupgrade":
 			new_date = (now_msk() + timedelta(days=int(sub_days))).strftime("%Y-%m-%d %H:%M:%S")
@@ -1620,43 +1624,16 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="MarkdownV2", reply_markup=keyboards.get_mirrors_menu_markup(_user_lang))
 		elif d == "shop":
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="⚙️ *Ассортимент*\n\n>*└─ 1 день \- 1$ / 100₽*\n>*└─ 3 дня \- 2$ / 175₽*\n>*└─ 7 дней \- 4$ / 350₽*\n>*└─ 30 дней \- 8$ / 700₽*\n>*└─ Навсегда \- 6$ / 500₽ \[\-70%\]*\n\n>*👑 Премиум: 5$ / 400₽ \[\-50%\]*",
+				caption=t('shop_caption', _user_lang),
 				parse_mode="MarkdownV2", reply_markup=shop_markup)
-		elif d == "buyforadmins":
+		elif d in ("buyforadmins", "yoomoney", "tinkoff", "sberbank"):
 			card_markup = types.InlineKeyboardMarkup(row_width=1)
 			card_markup.add(
 				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
 				keyboards.back
 			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="💳 *Оплата картой*\n\n*└─ Напишите* @TariSmit *и я скину вам ссылку для оплаты\.*",
-				parse_mode="MarkdownV2", reply_markup=card_markup)
-		elif d == "yoomoney":
-			card_markup = types.InlineKeyboardMarkup(row_width=1)
-			card_markup.add(
-				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
-				keyboards.back
-			)
-			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="💳 *Оплата картой*\n\n*└─ Напишите* @TariSmit *и я скину вам ссылку для оплаты\.*",
-				parse_mode="MarkdownV2", reply_markup=card_markup)
-		elif d == "tinkoff":
-			card_markup = types.InlineKeyboardMarkup(row_width=1)
-			card_markup.add(
-				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
-				keyboards.back
-			)
-			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="💳 *Оплата картой*\n\n*└─ Напишите* @TariSmit *и я скину вам ссылку для оплаты\.*",
-				parse_mode="MarkdownV2", reply_markup=card_markup)
-		elif d == "sberbank":
-			card_markup = types.InlineKeyboardMarkup(row_width=1)
-			card_markup.add(
-				types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
-				keyboards.back
-			)
-			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="💳 *Оплата картой*\n\n*└─ Напишите* @TariSmit *и я скину вам ссылку для оплаты\.*",
+				caption=t('card_payment_caption', _user_lang),
 				parse_mode="MarkdownV2", reply_markup=card_markup)
 		elif d == "preminfo":
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
