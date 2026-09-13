@@ -357,10 +357,10 @@ async def increment_referral_count(referrer_id: int) -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "UPDATE users SET referral_count = referral_count + 1 WHERE user_id = $1 RETURNING referral_count",
+            "UPDATE users SET referral_count = COALESCE(referral_count, 0) + 1 WHERE user_id = $1 RETURNING referral_count",
             referrer_id
         )
-        return row["referral_count"] if row else 0
+        return int(row["referral_count"]) if row and row["referral_count"] is not None else 1
 
 
 async def get_referral_count(user_id: int) -> int:
