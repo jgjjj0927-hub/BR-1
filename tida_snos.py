@@ -498,7 +498,7 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
     return False
 
 
-async def main_tida(target_link: str, custom_text: str, user: int, username: str, _log_user=None):
+async def main_tida(target_link: str, custom_text: str, user: int, username: str, _log_user=None, silent: bool = False):
     sessions = _get_sessions()
     if not sessions:
         await bot.send_message(user,
@@ -584,12 +584,15 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
         f"🔴 *Не удалось: {total - successful}*"
     )
 
-    try:
-        await bot.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
-    except Exception as e:
-        logger.error(f"[TIDA] Ошибка отправки результата пользователю: {e}")
+    if not silent:
+        try:
+            await bot.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+        except Exception as e:
+            logger.error(f"[TIDA] Ошибка отправки результата пользователю: {e}")
 
-    try:
-        await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
-    except Exception as e:
-        logger.error(f"[TIDA] Ошибка отправки лога: {e}")
+        try:
+            await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"[TIDA] Ошибка отправки лога: {e}")
+
+    return (successful, total)

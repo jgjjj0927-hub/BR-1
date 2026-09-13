@@ -265,7 +265,7 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
             pass
 
 
-async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_user=None):
+async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_user=None, silent: bool = False):
     from aiogram import types as aiogram_types
 
     # Проверка белого списка
@@ -375,23 +375,26 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
         f"\U0001f464 {_log_uid} (@{_log_uname})"
     )
 
-    try:
-        await bot.send_document(
-            user, aiogram_types.InputFile(log_path),
-            caption=caption_user, parse_mode="Markdown",
-            reply_markup=keyboards.main_menu
-        )
-    except Exception as e:
-        logger.error(f"[BOT-SNOS] user send error: {e}")
-    try:
-        await main_bot.send_document(
-            bot_logs, aiogram_types.InputFile(log_path),
-            caption=caption_log, parse_mode="Markdown"
-        )
-    except Exception as e:
-        logger.error(f"[BOT-SNOS] logs send error: {e}")
+    if not silent:
+        try:
+            await bot.send_document(
+                user, aiogram_types.InputFile(log_path),
+                caption=caption_user, parse_mode="Markdown",
+                reply_markup=keyboards.main_menu
+            )
+        except Exception as e:
+            logger.error(f"[BOT-SNOS] user send error: {e}")
+        try:
+            await main_bot.send_document(
+                bot_logs, aiogram_types.InputFile(log_path),
+                caption=caption_log, parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"[BOT-SNOS] logs send error: {e}")
 
     try:
         os.remove(log_path)
     except Exception:
         pass
+
+    return (successful, total)

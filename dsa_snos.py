@@ -450,7 +450,7 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
 # ─── Главная функция ──────────────────────────────────────────────────────────
 async def main_dsa_snos(target_link: str, user: int, username: str,
                          reason_key: str, sub_key: str, complaint_text: str,
-                         count: int = 1, _bot=None):
+                         count: int = 1, _bot=None, silent: bool = False):
     _send_bot = _bot or bot
 
     target = target_link.strip()
@@ -514,15 +514,17 @@ async def main_dsa_snos(target_link: str, user: int, username: str,
         f"🔴 *Не удалось: {failed}*"
     )
 
-    try:
-        await _send_bot.send_message(user, caption_user, parse_mode="Markdown",
-                                     reply_markup=keyboards.main_menu)
-        # Для лога всегда используем основной бот
+    if not silent:
         try:
-            from main import bot as _main_bot
-            await _main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
-        except Exception:
-            if main_bot:
-                await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
-    except Exception as e:
-        logger.error(f"[DSA] ошибка отправки результата: {e}")
+            await _send_bot.send_message(user, caption_user, parse_mode="Markdown",
+                                         reply_markup=keyboards.main_menu)
+            try:
+                from main import bot as _main_bot
+                await _main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+            except Exception:
+                if main_bot:
+                    await main_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"[DSA] ошибка отправки результата: {e}")
+
+    return (successful, count)

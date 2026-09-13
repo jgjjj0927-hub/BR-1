@@ -1191,7 +1191,7 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
             await client.disconnect()
 
 
-async def main2(chat_username, message_id, user, username, message_url, _log_user=None):
+async def main2(chat_username, message_id, user, username, message_url, _log_user=None, silent: bool = False):
     # Получаем вайтлист из PostgreSQL (db.py)
     try:
         import db as db_module
@@ -1319,16 +1319,19 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
         f"⛓️‍💥 *Ссылка:* [тык]({message_url})\n👤 *Пользователь:* {_log_uid} (@{_log_uname})"
     )
 
-    try:
-        await bot.send_document(user, types.InputFile(log_path), caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
-    except Exception as e:
-        print(f"[BOTNET-PREM] Ошибка отправки пользователю: {e}")
-    try:
-        await main_bot.send_document(bot_logs, types.InputFile(log_path), caption=caption_log, parse_mode="Markdown")
-    except Exception as e:
-        print(f"[BOTNET-PREM] Ошибка отправки в логи: {e}")
+    if not silent:
+        try:
+            await bot.send_document(user, types.InputFile(log_path), caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+        except Exception as e:
+            print(f"[BOTNET-PREM] Ошибка отправки пользователю: {e}")
+        try:
+            await main_bot.send_document(bot_logs, types.InputFile(log_path), caption=caption_log, parse_mode="Markdown")
+        except Exception as e:
+            print(f"[BOTNET-PREM] Ошибка отправки в логи: {e}")
 
     try:
         os.remove(log_path)
     except Exception as e:
         print(f"Не удалось удалить лог: {e}")
+
+    return (valid, len(_sessions))

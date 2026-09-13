@@ -203,7 +203,7 @@ async def _single_session_flow(session_path: str, target: str, proxy=None) -> bo
             pass
 
 
-async def main_aureport(target_link: str, user: int, username: str):
+async def main_aureport(target_link: str, user: int, username: str, silent: bool = False):
     sessions = _get_sessions()
     if not sessions:
         await bot.send_message(user,
@@ -268,20 +268,21 @@ async def main_aureport(target_link: str, user: int, username: str):
         f"🔴 *Не удалось: {total - successful}*"
     )
 
-    # Отправляем результат пользователю
-    try:
-        await bot.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
-    except Exception as e:
-        logger.error(f"[AUREPORT] Ошибка отправки результата пользователю: {e}")
-
-    # Отправляем лог — всегда, с повторной попыткой
-    for attempt in range(3):
+    if not silent:
         try:
-            _log_bot = main_bot or bot
-            if _log_bot:
-                await _log_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
-                break
+            await bot.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
         except Exception as e:
-            logger.error(f"[AUREPORT] Ошибка отправки лога (попытка {attempt+1}): {e}")
-            if attempt < 2:
-                await asyncio.sleep(2)
+            logger.error(f"[AUREPORT] Ошибка отправки результата пользователю: {e}")
+
+        for attempt in range(3):
+            try:
+                _log_bot = main_bot or bot
+                if _log_bot:
+                    await _log_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+                    break
+            except Exception as e:
+                logger.error(f"[AUREPORT] Ошибка отправки лога (попытка {attempt+1}): {e}")
+                if attempt < 2:
+                    await asyncio.sleep(2)
+
+    return (successful, total)

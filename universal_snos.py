@@ -15,6 +15,7 @@ from telethon import TelegramClient
 from telethon.errors import UsernameNotOccupiedError, UsernameInvalidError, ChannelPrivateError
 
 import config
+from config import bot_logs
 import keyboards
 from utils import now_msk
 
@@ -255,39 +256,40 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
 
     if link_type == TYPE_MESSAGE:
         tasks_info = [
-            ("🕸 Ботнет",      lambda: botnet_main(uname, mid, user, username, norm)),
-            ("👑 Ботнет Прем", lambda: botnet_main2(uname, mid, user, username, norm)),
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username)),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username)),
-            ("📢 Канал",       lambda: main_channel_snos(uname, "spam", user, username, mid)),
-            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text)),
+            ("🕸 Ботнет",      lambda: botnet_main(uname, mid, user, username, norm, silent=True)),
+            ("👑 Ботнет Прем", lambda: botnet_main2(uname, mid, user, username, norm, silent=True)),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True)),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True)),
+            ("📢 Канал",       lambda: main_channel_snos(uname, "spam", user, username, mid, silent=True)),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True)),
         ]
 
     elif link_type == TYPE_INVITE:
         tasks_info = [
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username)),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username)),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True)),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True)),
         ]
 
     elif link_type == TYPE_BOT:
         tasks_info = [
-            ("🤖 Бот-метод",   lambda: main_bot_snos(f"@{uname}", "personal", user, username, norm)),
-            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text)),
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username)),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username)),
+            ("🤖 Бот-метод",   lambda: main_bot_snos(f"@{uname}", "personal", user, username, norm, silent=True)),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True)),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True)),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True)),
         ]
 
     elif link_type == TYPE_USER_CHANNEL:
         tasks_info = [
-            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text)),
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username)),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username)),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True)),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True)),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True)),
         ]
 
     import time as _time
 
     total = len(tasks_info)
-    results = {}       # label -> "✅" | "❌"
+    results = {}        # label -> "✅" | "❌"
+    results_data = {}   # label -> (suc, tot)
     start_ts = _time.monotonic()
 
     BAR_LEN = 15
@@ -316,7 +318,9 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
             lines.append(f"{_bar(pct)} *{pct}%*{eta_str}\n")
         for label, _ in tasks_info:
             mark = results.get(label, "⏳")
-            lines.append(f"{mark} {label}")
+            rd = results_data.get(label)
+            stat = f" `{rd[0]}/{rd[1]}`" if rd else ""
+            lines.append(f"{mark} {label}{stat}")
         ok = sum(1 for v in results.values() if v == "✅")
         fail = sum(1 for v in results.values() if v == "❌")
         if done == total:
@@ -327,14 +331,16 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
     async def _update():
         try:
             await bot_instance.edit_message_text(
-                user, status_msg_id, _status_text(), parse_mode="Markdown")
+                _status_text(), user, status_msg_id, parse_mode="Markdown")
         except Exception:
             pass
 
     async def _run_one(label: str, factory):
         try:
-            await factory()
+            ret = await factory()
             results[label] = "✅"
+            if isinstance(ret, tuple) and len(ret) == 2:
+                results_data[label] = ret
         except Exception as e:
             logger.warning(f"[UNIVERSAL] {label} error: {e}")
             results[label] = "❌"
@@ -345,3 +351,43 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
 
     # Запуск параллельно
     await asyncio.gather(*[_run_one(label, factory) for label, factory in tasks_info])
+
+    # ─── Единый итоговый отчёт ────────────────────────────────────────────────
+    now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
+    norm_escaped = norm.replace('_', '\\_')
+
+    lines_user = [f"🌐 *Универсальный метод завершён!*\n\n🎯 *Цель:* {norm_escaped}\n🕐 *Время:* {now_str}\n"]
+    for label, _ in tasks_info:
+        mark = results.get(label, "❌")
+        rd = results_data.get(label)
+        stat = f" `{rd[0]}/{rd[1]}`" if rd else ""
+        lines_user.append(f"{mark} {label}{stat}")
+    caption_user = "\n".join(lines_user)
+
+    try:
+        import db as _db_mod
+        _is_hid = await _db_mod.get_is_hidden(user)
+        _log_uid = "скрыт" if _is_hid else str(user)
+        _log_uname = "скрыт" if _is_hid else username
+    except Exception:
+        _log_uid, _log_uname = str(user), username
+
+    lines_log = [f"🌐 *Универсальный метод*\n\n🎯 *Цель:* {norm_escaped}\n👤 *Пользователь:* {_log_uid} (@{_log_uname})\n🕐 *Время:* {now_str}\n"]
+    for label, _ in tasks_info:
+        mark = results.get(label, "❌")
+        rd = results_data.get(label)
+        stat = f" `{rd[0]}/{rd[1]}`" if rd else ""
+        lines_log.append(f"{mark} {label}{stat}")
+    caption_log = "\n".join(lines_log)
+
+    try:
+        await bot_instance.send_message(user, caption_user, parse_mode="Markdown",
+                                        reply_markup=keyboards.main_menu)
+    except Exception as e:
+        logger.error(f"[UNIVERSAL] Ошибка отправки отчёта пользователю: {e}")
+
+    try:
+        _lb = main_bot or bot_instance
+        await _lb.send_message(bot_logs, caption_log, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"[UNIVERSAL] Ошибка отправки лога: {e}")

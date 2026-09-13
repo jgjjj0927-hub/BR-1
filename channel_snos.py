@@ -310,7 +310,7 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
             await client.disconnect()
 
 
-async def main_channel_snos(channel_username, reason_key, user, username, message_id=None, _log_user=None):
+async def main_channel_snos(channel_username, reason_key, user, username, message_id=None, _log_user=None, silent: bool = False):
     """Главная функция жалоб на канал."""
     reason_label = CHANNEL_REASON_LABELS.get(reason_key, reason_key)
     _sessions = _get_sessions()
@@ -434,18 +434,21 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
         f"👤 *Пользователь:* {_log_uid} (@{_log_uname})"
     )
 
-    try:
-        await bot.send_document(user, aiogram_types.InputFile(log_path),
-            caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
-    except Exception as e:
-        print(f"[CH-SNOS] Ошибка отправки пользователю: {e}", flush=True)
-    try:
-        await main_bot.send_document(bot_logs, aiogram_types.InputFile(log_path),
-            caption=caption_log, parse_mode="Markdown")
-    except Exception as e:
-        print(f"[CH-SNOS] Ошибка отправки в логи: {e}", flush=True)
+    if not silent:
+        try:
+            await bot.send_document(user, aiogram_types.InputFile(log_path),
+                caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+        except Exception as e:
+            print(f"[CH-SNOS] Ошибка отправки пользователю: {e}", flush=True)
+        try:
+            await main_bot.send_document(bot_logs, aiogram_types.InputFile(log_path),
+                caption=caption_log, parse_mode="Markdown")
+        except Exception as e:
+            print(f"[CH-SNOS] Ошибка отправки в логи: {e}", flush=True)
 
     try:
         os.remove(log_path)
     except Exception:
         pass
+
+    return (valid, len(_sessions))
