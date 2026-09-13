@@ -17,8 +17,7 @@ except ImportError:
 try:
     import asyncio
     from telethon import TelegramClient
-    from telethon.errors import (FloodWaitError, SessionPasswordNeededError,
-                                 PhoneCodeInvalidError)
+    from telethon.errors import FloodWaitError
     HAS_TELETHON = True
 except ImportError:
     HAS_TELETHON = False
@@ -49,13 +48,12 @@ API_ID   = 24565698
 API_HASH = "5a084b434f8505ace703485b9da85040"
 
 
-# ── Telethon engine (user account) ───────────────────────────────────────────
+# ── Telethon engine (bot token) ───────────────────────────────────────────────
 class TGEngine:
     def __init__(self):
         os.makedirs(SESSION_DIR, exist_ok=True)
         self._loop   = asyncio.new_event_loop()
         self._client = None
-        self._phone  = None
         t = threading.Thread(target=self._run_loop, daemon=True)
         t.start()
 
@@ -67,38 +65,18 @@ class TGEngine:
         fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return fut.result(timeout=timeout)
 
-    def _session_path(self, phone: str) -> str:
-        safe = phone.replace("+", "").replace(" ", "")
-        return os.path.join(SESSION_DIR, safe)
+    def _session_path(self, token: str) -> str:
+        safe = token.split(":")[0]
+        return os.path.join(SESSION_DIR, f"bot_{safe}")
 
-    def connect(self, phone: str):
-        self._phone = phone
-
+    def connect(self, token: str):
         async def _():
             self._client = TelegramClient(
-                self._session_path(phone), API_ID, API_HASH,
+                self._session_path(token), API_ID, API_HASH,
                 system_version='4.16.30-vxCUSTOM')
-            await self._client.connect()
-            return await self._client.is_user_authorized()
-
+            await self._client.start(bot_token=token)
+            return True
         return self._run(_())
-
-    def send_code(self, phone: str):
-        async def _():
-            result = await self._client.send_code_request(phone)
-            return result.phone_code_hash
-        return self._run(_())
-
-    def sign_in(self, phone: str, code: str, phone_code_hash: str):
-        async def _():
-            await self._client.sign_in(phone, code,
-                                       phone_code_hash=phone_code_hash)
-        self._run(_())
-
-    def sign_in_2fa(self, password: str):
-        async def _():
-            await self._client.sign_in(password=password)
-        self._run(_())
 
     def get_dialogs(self, limit=200) -> list:
         async def _():
@@ -228,144 +206,50 @@ class Bubble(tk.Frame):
         self.clipboard_append(self.msg["text"])
 
 
-# ── Auth Dialog ───────────────────────────────────────────────────────────────
+# ── Auth Dialog (bot token) ───────────────────────────────────────────────────
 class AuthDialog(tk.Toplevel):
-    """Multi-step login: phone → code → (2FA password)"""
-
     def __init__(self, parent, engine: TGEngine, on_done):
         super().__init__(parent)
         self._engine  = engine
         self._on_done = on_done
-        self._phone   = ""
-        self._hash    = ""
-        self.title("Вход в Telegram")
+        self.title("Токен бота")
         self.configure(bg=BG_MAIN)
-        self.geometry("420x260")
+        self.geometry("460x220")
         self.resizable(False, False)
         self.grab_set()
         self.transient(parent)
-        self._show_phone()
 
-    def _clear(self):
-        for w in self.winfo_children():
-            w.destroy()
-
-    def _label(self, text, **kw):
-        tk.Label(self, text=text, font=F_MAIN, fg=TEXT_DIM,
-                 bg=BG_MAIN, **kw).pack(anchor="w", padx=24, pady=(4, 2))
-
-    def _entry(self, show=""):
-        e = tk.Entry(self, font=F_MAIN, fg=TEXT_MAIN, bg=BG_FIELD,
-                     insertbackground=TEXT_MAIN, relief="flat", bd=0, show=show)
-        e.pack(fill="x", padx=24, ipady=8)
-        return e
-
-    def _btn(self, text, cmd):
-        tk.Button(self, text=text, font=F_MAIN, fg="white", bg=ACCENT,
-                  activebackground="#3A7BD5", bd=0, pady=8, cursor="hand2",
-                  command=cmd).pack(fill="x", padx=24, pady=(16, 4))
-
-    # Step 1 — phone
-    def _show_phone(self):
-        self._clear()
-        tk.Label(self, text="🔐  Вход в Telegram", font=F_BOLD,
-                 fg=TEXT_MAIN, bg=BG_MAIN).pack(pady=(20, 12))
-        self._label("Номер телефона (с +):")
-        self._e = self._entry()
+        tk.Label(self, text="🤖  Введи токен бота", font=F_BOLD,
+                 fg=TEXT_MAIN, bg=BG_MAIN).pack(pady=(22, 10))
+        tk.Label(self, text="Bot Token (от @BotFather):", font=F_MAIN,
+                 fg=TEXT_DIM, bg=BG_MAIN).pack(anchor="w", padx=24)
+        self._e = tk.Entry(self, font=F_MAIN, fg=TEXT_MAIN, bg=BG_FIELD,
+                           insertbackground=TEXT_MAIN, relief="flat", bd=0)
+        self._e.pack(fill="x", padx=24, ipady=8)
         self._e.focus_set()
-        self._btn("Далее →", self._do_phone)
-        self.bind("<Return>", lambda _: self._do_phone())
 
-    def _do_phone(self):
-        phone = self._e.get().strip()
-        if not phone:
+        tk.Button(self, text="Подключить →", font=F_MAIN, fg="white",
+                  bg=ACCENT, activebackground="#3A7BD5", bd=0, pady=8,
+                  cursor="hand2", command=self._do).pack(fill="x", padx=24,
+                                                         pady=(14, 4))
+        self._st = tk.Label(self, text="", font=F_SMALL, fg=TEXT_DIM, bg=BG_MAIN)
+        self._st.pack()
+        self.bind("<Return>", lambda _: self._do())
+
+    def _do(self):
+        token = self._e.get().strip()
+        if not token:
             return
-        self._phone = phone
-        self._set_status("отправка кода…")
+        self._st.config(text="подключение…")
 
-        def _do():
+        def _work():
             try:
-                authorized = self._engine.connect(phone)
-                if authorized:
-                    self.after(0, self._finish)
-                    return
-                h = self._engine.send_code(phone)
-                self._hash = h
-                self.after(0, self._show_code)
+                self._engine.connect(token)
+                self.after(0, lambda: (self.destroy(), self._on_done(token)))
             except Exception as ex:
-                self.after(0, lambda: self._set_status(f"Ошибка: {ex}"))
+                self.after(0, lambda: self._st.config(text=f"Ошибка: {ex}"))
 
-        threading.Thread(target=_do, daemon=True).start()
-
-    # Step 2 — code
-    def _show_code(self):
-        self._clear()
-        tk.Label(self, text="📱  Код подтверждения", font=F_BOLD,
-                 fg=TEXT_MAIN, bg=BG_MAIN).pack(pady=(20, 12))
-        self._label(f"Код отправлен на {self._phone}:")
-        self._e = self._entry()
-        self._e.focus_set()
-        self._btn("Войти →", self._do_code)
-        self.bind("<Return>", lambda _: self._do_code())
-
-    def _do_code(self):
-        code = self._e.get().strip()
-        if not code:
-            return
-        self._set_status("проверка…")
-
-        def _do():
-            try:
-                self._engine.sign_in(self._phone, code, self._hash)
-                self.after(0, self._finish)
-            except SessionPasswordNeededError:
-                self.after(0, self._show_2fa)
-            except PhoneCodeInvalidError:
-                self.after(0, lambda: self._set_status("Неверный код"))
-            except Exception as ex:
-                self.after(0, lambda: self._set_status(f"Ошибка: {ex}"))
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    # Step 3 — 2FA
-    def _show_2fa(self):
-        self._clear()
-        tk.Label(self, text="🔑  Двухфакторная защита", font=F_BOLD,
-                 fg=TEXT_MAIN, bg=BG_MAIN).pack(pady=(20, 12))
-        self._label("Пароль 2FA:")
-        self._e = self._entry(show="•")
-        self._e.focus_set()
-        self._btn("Войти →", self._do_2fa)
-        self.bind("<Return>", lambda _: self._do_2fa())
-
-    def _do_2fa(self):
-        pw = self._e.get().strip()
-        if not pw:
-            return
-        self._set_status("проверка…")
-
-        def _do():
-            try:
-                self._engine.sign_in_2fa(pw)
-                self.after(0, self._finish)
-            except Exception as ex:
-                self.after(0, lambda: self._set_status(f"Ошибка: {ex}"))
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _set_status(self, text: str):
-        # find or create status label
-        for w in self.winfo_children():
-            if getattr(w, "_is_status", False):
-                w.config(text=text)
-                return
-        lbl = tk.Label(self, text=text, font=F_SMALL, fg=TEXT_DIM, bg=BG_MAIN)
-        lbl._is_status = True
-        lbl.pack(pady=4)
-
-    def _finish(self):
-        self.destroy()
-        self._on_done(self._phone)
+        threading.Thread(target=_work, daemon=True).start()
 
 
 # ── Edit Dialog ───────────────────────────────────────────────────────────────
@@ -423,9 +307,9 @@ class App(tk.Tk):
 
         self._build()
 
-        phone = self._cfg.get("phone")
-        if phone:
-            self._auto_connect(phone)
+        token = self._cfg.get("token")
+        if token:
+            self._auto_connect(token)
         else:
             self.after(200, self._open_auth)
 
@@ -440,15 +324,12 @@ class App(tk.Tk):
         open(CONFIG_FILE, "w").write(json.dumps(self._cfg, ensure_ascii=False))
 
     # ── Connect ───────────────────────────────────────────────────────────────
-    def _auto_connect(self, phone: str):
+    def _auto_connect(self, token: str):
         self._v_sub.set("подключение…")
 
         def _do():
             try:
-                authorized = self._engine.connect(phone)
-                if not authorized:
-                    self.after(0, self._open_auth)
-                    return
+                self._engine.connect(token)
                 self.after(0, lambda: self._v_sub.set("загрузка чатов…"))
                 self.after(0, self._refresh_sidebar)
                 dialogs = self._engine.get_dialogs(limit=300)
@@ -467,10 +348,10 @@ class App(tk.Tk):
 
         threading.Thread(target=_do, daemon=True).start()
 
-    def _on_auth_done(self, phone: str):
-        self._cfg["phone"] = phone
+    def _on_auth_done(self, token: str):
+        self._cfg["token"] = token
         self._save_cfg()
-        self._auto_connect(phone)
+        self._auto_connect(token)
 
     # ── UI ────────────────────────────────────────────────────────────────────
     def _build(self):
@@ -508,7 +389,7 @@ class App(tk.Tk):
                   activebackground=BG_ACTIVE, activeforeground=TEXT_MAIN,
                   bd=0, cursor="hand2",
                   command=self._reload_dialogs).pack(fill="x", padx=10, pady=2)
-        tk.Button(btm, text="⚙  Сменить аккаунт",
+        tk.Button(btm, text="⚙  Сменить токен",
                   font=F_SMALL, fg=TEXT_DIM, bg=BG_SIDEBAR,
                   activebackground=BG_ACTIVE,
                   bd=0, cursor="hand2",
