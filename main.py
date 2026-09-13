@@ -1239,7 +1239,7 @@ async def _dsa_generate_and_show(uid: int, bot_instance, dp_instance, state):
 	reason_label = DSA_REASONS.get(reason_key, ("", "Other", None))[0]
 	sub_label = DSA_SUB_REASONS.get(sub_key, ("", ""))[1] if sub_key else ""
 
-	await bot_instance.send_message(uid, "⏳ *Генерирую текст жалобы через ИИ...*", parse_mode="Markdown")
+	await bot_instance.send_message(uid, t('ai_generating_dsa', await db.get_lang(uid)), parse_mode="Markdown")
 
 	# Получаем текст сообщения
 	msg_text = await fetch_message_text(link)
@@ -1256,9 +1256,7 @@ async def _dsa_generate_and_show(uid: int, bot_instance, dp_instance, state):
 
 	preview = generated
 	await bot_instance.send_message(uid,
-		f"🤖 *ИИ сгенерировал текст жалобы:*\n\n"
-		f"`{preview}`\n\n"
-		f"*Использовать этот текст или ввести свой?*",
+		t('dsa_ai_result', await db.get_lang(uid), text=preview),
 		parse_mode="Markdown",
 		reply_markup=keyboards.dsa_text_confirm_markup(preview))
 
@@ -1602,7 +1600,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 			dyn_info_markup.add(keyboards.get_back_btn(_user_lang))
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=">*Информация*", parse_mode="MarkdownV2", reply_markup=dyn_info_markup)
+				caption=t('info_caption', _user_lang), parse_mode="MarkdownV2", reply_markup=dyn_info_markup)
 
 		elif d == 'bonuses_menu':
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
@@ -3029,7 +3027,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.answer_callback_query(call.id)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption="🪤 *Trap-метод*\n\n*Запускаю создание бота...*",
+				caption=t('trap_creating', _user_lang),
 				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 			# Запускаем в фоне чтобы не блокировать
@@ -3085,7 +3083,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				)
 			except Exception as e:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f">❌ *Ошибка логгера: сервер недоступен*",
+					caption=t('logger_server_err', _user_lang),
 					parse_mode="MarkdownV2", reply_markup=panel_back_markup)
 
 		# ─── Блокировка карты ─────────────────────────────────────────────────
@@ -3166,6 +3164,7 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 	fsm_data = await state.get_data()
 	await state.finish()
 	uid = message.from_user.id
+	lang = await db.get_lang(uid)
 	_bot_token = fsm_data.get('_bot_token')
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
@@ -3180,7 +3179,7 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 	except Exception as e: print(f"[HISTORY] web log error: {e}", flush=True)
 	try:
 		await _bot.send_document(uid, types.InputFile(log_path),
-			caption=f"⚙️ *Веб*\n🟢 *Успешно: {success}*\n🔴 *Не удалось: {error}*",
+			caption=t('web_result_caption', lang, success=success, error=error),
 			reply_markup=main_menu, parse_mode="Markdown")
 	except Exception: pass
 	try:
@@ -3201,7 +3200,7 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 async def get_mail_subject(message: types.Message, state: FSMContext):
 	await state.update_data(subject=message.text)
 	# КД ставим только после реальной отправки в start_bulk_email
-	await message.answer("✉️ *Введите текст письма:*", parse_mode="Markdown")
+	await message.answer(t('mail_enter_text', await db.get_lang(message.from_user.id)), parse_mode="Markdown")
 	await WaitMailTextFSM.text.set()
 
 @dp.message_handler(state=WaitMailTextFSM.text)
@@ -3211,10 +3210,11 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 	_bot_token = data.get('_bot_token')
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+	_mail_lang = await db.get_lang(message.from_user.id)
 	await state.finish()
 	mails = load_mails()
 	if not mails:
-		await message.answer("❌ *Нет почт!*", parse_mode="Markdown"); return
+		await message.answer(t('mail_no_mails', _mail_lang), parse_mode="Markdown"); return
 	receiver_emails = ["dmca@telegram.org","support@telegram.org","abuse@telegram.org","stopCA@telegram.org"]
 	success, error, log_path = await send_bulk_emails(
 		subject, message.text, mails, receiver_emails,
@@ -3226,7 +3226,7 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 	except Exception as e: print(f"[HISTORY] mail log error: {e}", flush=True)
 	try:
 		await _bot.send_document(message.from_user.id, types.InputFile(log_path),
-			caption=f"⚙️ *Почты*\n🟢 {success}\n🔴 {error}", parse_mode="Markdown", reply_markup=main_menu)
+			caption=t('mail_result_caption', _mail_lang, success=success, error=error), parse_mode="Markdown", reply_markup=main_menu)
 		_log_uid_m, _log_uname_m = await _log_display(message.from_user.id, message.from_user.username or "None")
 		await bot.send_document(bot_logs, types.InputFile(log_path),
 			caption=f"📈 *Почты*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid_m} (@{_log_uname_m})", parse_mode="Markdown")
@@ -3646,6 +3646,7 @@ async def telegraph_step1(message: types.Message, state: FSMContext):
 	"""Пользователь ввёл ссылку на статью."""
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
+	lang = await db.get_lang(uid)
 	raw = message.text.strip()
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
@@ -3665,7 +3666,7 @@ async def telegraph_step1(message: types.Message, state: FSMContext):
 		return
 
 	# Проверяем доступность статьи
-	await _bot.send_message(uid, "🔍 *Проверяю статью...*", parse_mode="Markdown")
+	await _bot.send_message(uid, t('telegraph_checking', lang), parse_mode="Markdown")
 	article_text, status = await fetch_telegraph_text(raw)
 
 	if status == 404:
@@ -3691,7 +3692,7 @@ async def telegraph_step1(message: types.Message, state: FSMContext):
 		return
 
 	# Groq генерация
-	await _bot.send_message(uid, "🤖 *Генерирую текст жалобы...*", parse_mode="Markdown")
+	await _bot.send_message(uid, t('telegraph_generating', lang), parse_mode="Markdown")
 	subject, body = await generate_telegraph_text(raw, article_text)
 
 	# Сохраняем в FSM
@@ -3719,6 +3720,7 @@ async def telegraph_custom_text(message: types.Message, state: FSMContext):
 	"""Пользователь ввёл свой текст письма."""
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
+	lang = await db.get_lang(uid)
 	custom_body = message.text.strip()
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
@@ -3729,7 +3731,7 @@ async def telegraph_custom_text(message: types.Message, state: FSMContext):
 	await state.finish()
 
 	if not custom_body:
-		await _bot.send_message(uid, "❌ *Пустой текст*", parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('telegraph_empty_text', lang), parse_mode="Markdown", reply_markup=main_menu)
 		return
 
 	if uid not in admins:
@@ -3941,7 +3943,8 @@ async def tida_target_step(message: types.Message, state: FSMContext):
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
 	_bot = Bot(token=_bot_token) if bool(_bot_token and _bot_token != config.TOKEN) else bot
-	await _bot.send_message(uid, "❌ *Используйте кнопки для выбора типа цели*", parse_mode="Markdown", reply_markup=main_menu)
+	await _bot.send_message(uid, t('tida_wrong_target', await db.get_lang(uid)), parse_mode="Markdown", reply_markup=main_menu)
+
 
 
 @dp.message_handler(state=WaitTidaFSM.ai_desc)
@@ -3958,7 +3961,7 @@ async def tida_ai_desc_step(message: types.Message, state: FSMContext):
 
 	await state.finish()
 
-	await _bot.send_message(uid, "⏳ *Генерирую текст жалобы через ИИ...*", parse_mode="Markdown")
+	await _bot.send_message(uid, t('tida_ai_generating', await db.get_lang(uid)), parse_mode="Markdown")
 
 	from tida_snos import generate_tida_text
 	generated = await generate_tida_text(description, target_type, is_description=True)
@@ -4168,6 +4171,7 @@ async def profile_step1(message: types.Message, state: FSMContext):
 async def stress_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
+	lang = await db.get_lang(uid)
 	raw = message.text.strip()
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
@@ -4196,10 +4200,10 @@ async def stress_step1(message: types.Message, state: FSMContext):
 
 	# Проверяем подписку — стрессер только с подпиской, бесплатные репорты не тратим
 	if not is_admin and subscribe < now_msk():
-		await _bot.send_message(uid, '❌ *Нужна подписка для использования стрессера!*', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('stress_no_sub', lang), parse_mode="Markdown", reply_markup=main_menu)
 		return
 
-	await _bot.send_message(uid, f'⚡️ *Запускаем стрессер на {bot_target}...*', parse_mode="Markdown")
+	await _bot.send_message(uid, t('stress_launching', lang, target=bot_target), parse_mode="Markdown")
 	set_bot_stress(_bot)
 
 	try:

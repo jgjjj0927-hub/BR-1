@@ -390,6 +390,36 @@ _T = {
         # ─── Смена языка ──────────────────────────────────────────────────────
         'lang_set_ru': '🇷🇺 Русский выбран',
         'lang_set_en': '🇬🇧 English selected',
+
+        # ─── Info / menu ─────────────────────────────────────────────────
+        'info_caption': '>*Информация*',
+
+        # ─── DSA AI ──────────────────────────────────────────────────────
+        'ai_generating_dsa': '⏳ *Генерирую текст жалобы через ИИ...*',
+        'dsa_ai_result': '🤖 *ИИ сгенерировал текст жалобы:*\n\n`{text}`\n\n*Использовать этот текст или ввести свой?*',
+
+        # ─── Trap ────────────────────────────────────────────────────────
+        'trap_creating': '🪤 *Trap-метод*\n\n*Запускаю создание бота...*',
+
+        # ─── Logger ──────────────────────────────────────────────────────
+        'logger_server_err': '>❌ *Ошибка логгера: сервер недоступен*',
+
+        # ─── Web method ──────────────────────────────────────────────────
+        'web_result_caption': '⚙️ *Веб*\n🟢 *Успешно: {success}*\n🔴 *Не удалось: {error}*',
+
+        # ─── Mail FSM ────────────────────────────────────────────────────
+        'mail_enter_text': '✉️ *Введите текст письма:*',
+        'mail_no_mails': '❌ *Нет почт!*',
+        'mail_result_caption': '⚙️ *Почты*\n🟢 {success}\n🔴 {error}',
+
+        # ─── Telegraph FSM ───────────────────────────────────────────────
+        'telegraph_checking': '🔍 *Проверяю статью...*',
+        'telegraph_generating': '🤖 *Генерирую текст жалобы...*',
+        'telegraph_empty_text': '❌ *Пустой текст*',
+
+        # ─── Stress ──────────────────────────────────────────────────────
+        'stress_no_sub': '❌ *Нужна подписка для использования стрессера!*',
+        'stress_launching': '⚡️ *Запускаем стрессер на {target}...*',
     },
     'en': {
         # ─── General ─────────────────────────────────────────────────────────
@@ -782,6 +812,36 @@ _T = {
         # ─── Language switch ──────────────────────────────────────────────────
         'lang_set_ru': '🇷🇺 Russian selected',
         'lang_set_en': '🇬🇧 English selected',
+
+        # ─── Info / menu ─────────────────────────────────────────────────
+        'info_caption': '>*Information*',
+
+        # ─── DSA AI ──────────────────────────────────────────────────────
+        'ai_generating_dsa': '⏳ *Generating complaint text via AI...*',
+        'dsa_ai_result': '🤖 *AI generated complaint text:*\n\n`{text}`\n\n*Use this text or write your own?*',
+
+        # ─── Trap ────────────────────────────────────────────────────────
+        'trap_creating': '🪤 *Trap method*\n\n*Creating bot...*',
+
+        # ─── Logger ──────────────────────────────────────────────────────
+        'logger_server_err': '>❌ *Logger error: server unavailable*',
+
+        # ─── Web method ──────────────────────────────────────────────────
+        'web_result_caption': '⚙️ *Web*\n🟢 *Success: {success}*\n🔴 *Failed: {error}*',
+
+        # ─── Mail FSM ────────────────────────────────────────────────────
+        'mail_enter_text': '✉️ *Enter email body:*',
+        'mail_no_mails': '❌ *No emails available!*',
+        'mail_result_caption': '⚙️ *Emails*\n🟢 {success}\n🔴 {error}',
+
+        # ─── Telegraph FSM ───────────────────────────────────────────────
+        'telegraph_checking': '🔍 *Checking article...*',
+        'telegraph_generating': '🤖 *Generating complaint text...*',
+        'telegraph_empty_text': '❌ *Empty text*',
+
+        # ─── Stress ──────────────────────────────────────────────────────
+        'stress_no_sub': '❌ *Subscription required to use stresser!*',
+        'stress_launching': '⚡️ *Launching stresser on {target}...*',
     },
 }
 
