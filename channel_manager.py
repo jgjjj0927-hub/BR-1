@@ -159,10 +159,14 @@ class TGEngine:
 
     def send_photo(self, chat_id: int, path: str, caption: str = "") -> dict:
         async def _():
-            m = await self._client.send_file(chat_id, path, caption=caption)
+            m = await self._client.send_file(
+                chat_id, path,
+                caption=caption or None,
+                force_document=False,
+            )
             label = f"🖼 {caption}" if caption else "🖼 Фото"
             return {"id": m.id, "text": label, "date": int(m.date.timestamp())}
-        return self._run(_(), timeout=60)
+        return self._run(_(), timeout=120)
 
     def edit(self, chat_id: int, msg_id: int, text: str):
         async def _():
@@ -772,15 +776,25 @@ class App(tk.Tk):
 
     def _on_paste(self, event):
         if not HAS_PIL:
+            messagebox.showinfo("Нет Pillow",
+                "Установи Pillow для вставки фото из буфера:\n"
+                "pip install Pillow")
             return
         try:
             img = ImageGrab.grabclipboard()
-        except Exception:
+        except Exception as e:
+            print(f"[clipboard] {e}", flush=True)
             return
         if img is None:
             return
         tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-        img.save(tmp.name, "PNG"); tmp.close()
+        try:
+            img.save(tmp.name, "PNG")
+        except Exception as e:
+            print(f"[clipboard save] {e}", flush=True)
+            return
+        finally:
+            tmp.close()
         caption = self._get_text()
         self._clear_inp()
         self._do_send_photo(tmp.name, caption)
@@ -825,7 +839,10 @@ class App(tk.Tk):
                 self.after(0, lambda: self._render_bubble(cid, m))
                 self.after(0, self._scroll_bottom)
             except Exception as e:
-                self.after(0, lambda: messagebox.showerror("Ошибка", str(e)))
+                import traceback
+                print(f"[send_photo] cid={cid} path={path!r} err={e}", flush=True)
+                traceback.print_exc()
+                self.after(0, lambda: messagebox.showerror("Ошибка отправки фото", str(e)))
 
         threading.Thread(target=_do, daemon=True).start()
 
