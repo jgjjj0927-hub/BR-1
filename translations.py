@@ -195,6 +195,141 @@ _T = {
         'btn_media_submit': '📤 Отправить видео',
         'btn_media_my': '📋 Мои заявки',
         'btn_media_terms': '📜 Условия',
+
+        # ─── Панель: выбор режима ─────────────────────────────────────────────
+        'panel_select_regular': '🔓 Обычный',
+        'panel_select_premium': '👑 Премиум',
+
+        # ─── Методы (обычный раздел) ──────────────────────────────────────────
+        'btn_aureport_method': '🇦🇺 AU Report',
+        'btn_tida_method': '🟣 TIDA',
+        'btn_code_method': '📱 Спам кодами',
+        'btn_logger_method': '🔗 Логгер',
+
+        # ─── Методы (премиум раздел) ──────────────────────────────────────────
+        'btn_web_method': '🌐 Web',
+        'btn_mail_method': '✉️ Mail',
+        'btn_dsa_method': '🇪🇺 DSA Report',
+        'btn_telegraph_method': '📄 Telegraph снос',
+        'btn_universal_method': '🌐 Универсальный метод',
+        'btn_profile_report': '👤 Profile Report',
+        'btn_trap_method': '🪤 Trap-метод',
+        'btn_session_method': '💀 Снос сессий',
+
+        # ─── Рефералы ─────────────────────────────────────────────────────────
+        'refs_exchange': '🔄 Обменять 10 рефералов → 1 день',
+
+        # ─── Кейс: покупка / открытие ─────────────────────────────────────────
+        'case_buy_usdt': '💲 USDT (CryptoPay)',
+        'case_buy_sbp': '🇷🇺 СБП (200₽)',
+        'case_open_confirm': '🎲 Открыть!',
+        'case_back': '[🔙] Назад к кейсам',
+
+        # ─── Промокоды: типы ──────────────────────────────────────────────────
+        'promo_type_normal': '📅 Обычный (с днями)',
+        'promo_type_premium': '👑 Премиум (навсегда)',
+        'promo_type_reports': '🎯 Репорты',
+
+        # ─── Общие кнопки ─────────────────────────────────────────────────────
+        'btn_info_manual': '📖 Мануал',
+        'btn_read_done': '🔻 Прочитано',
+        'btn_subscribe_chan': '🔥 Подпишись',
+        'btn_close': 'Закрыть',
+
+        # ─── Оплата ───────────────────────────────────────────────────────────
+        'pay_sbp': '🇷🇺 СБП',
+
+        # ─── Пробив ───────────────────────────────────────────────────────────
+        'probiv_no_sub': '⛔️ *Подписка истекла. Пробив недоступен.*',
+        'probiv_cd': '⏳ *КД: подожди {wait} сек.*',
+        'probiv_empty': '❌ Пустой запрос.',
+        'probiv_searching': '🔍 *Ищу...*',
+
+        # ─── Тех. работы ──────────────────────────────────────────────────────
+        'maintenance_msg': '🔧 Сейчас идут технические работы / обновление. Попробуйте позже.',
+
+        # ─── Ошибки доступа ───────────────────────────────────────────────────
+        'err_no_access': 'Нет доступа',
+        'err_subscribe_required': '⛔️ Требуется подписка',
+        'err_admin_only': '❌ Только для администраторов!',
+        'err_user_not_found': '❌ *Пользователь не найден, напишите /start*',
+        'err_no_sub_no_free': '❌ *Нет подписки и бесплатных репортов!*',
+        'err_monitor_sub': '❌ Мониторинг доступен только с подпиской!',
+        'err_generic': '❌ *Ошибка:* `{err}`',
+
+        # ─── Методы: старт ────────────────────────────────────────────────────
+        'free_report_used': '🎯 *Использован бесплатный репорт! Осталось: {count}*',
+        'botnet_launching': '📤 *Запустил отправку...*',
+        'botnet_prem_launching': '👑 *Запустил отправку...*',
+        'botnet_invalid_link': (
+            '*⭕️ Неверная ссылка!*\n\n'
+            '*Ботнет требует ссылку на конкретное сообщение:*\n'
+            '`https://t.me/channel/123`\n\n'
+            '*Для сноса канала/аккаунта используй TIDA*'
+        ),
+        'bot_method_launching': '🤖 *Запустил жалобы на {target}...*\n*└─ КД после: {cd}*',
+        'bot_not_a_bot': '❌ *Это не бот!*\n\n*Бот-метод работает только с ботами.*\n*Username бота должен оканчиваться на* `bot`\n*Пример:* `@example_bot`',
+        'cd_5min': '5 минут',
+        'cd_1hour': '1 час',
+        'channel_launching': '📢 *Запустил жалобы на канал {target}...*',
+        'tida_analyzing': '🔍 *Анализирую ссылку...*',
+        'tida_generating': '⏳ *Читаю сообщение и генерирую текст через ИИ...*',
+        'tida_ai_generating': '🤖 *Генерирую текст жалобы...*',
+        'tida_checking_article': '🔍 *Проверяю статью...*',
+        'tida_ai_tida_prompt': '⏳ *Генерирую текст жалобы через ИИ...*',
+        'tida_text_too_short': '❌ *Текст слишком короткий! Минимум 10 символов.*',
+        'tida_empty_text': '❌ *Пустой текст*',
+        'tida_wrong_target': '❌ *Используйте кнопки для выбора типа цели*',
+        'tida_private_link': '_(приватная/закрытая ссылка)_',
+        'tida_session_expired': '❌ *Данные устарели, начните заново*',
+        'code_launching': '📱 *Запускаю код-метод...*\n*└─ Номер:* `{phone}`\n\n_Это займёт 1-2 минуты_',
+        'code_invalid_phone': '❌ *Введите корректный номер телефона!*\n`+79991234567`',
+        'bank_invalid': '❌ *Введите корректный номер телефона или карты!*',
+        'session_method_prompt': '💀 *Снос сессий*\n\nВведи *username* жертвы:',
+        'session_method_phone_prompt': '📱 Введи *номер телефона* жертвы:\n`+79991234567`',
+        'session_method_invalid': '❌ *Неверный username!*',
+        'trap_cancelled': '❌ *Trap-метод отменён.*',
+        'trap_session_expired': '❌ *Сессия истекла. Начни заново.*',
+
+        # ─── Зеркала ──────────────────────────────────────────────────────────
+        'mirror_token_cancel': '❌ *Ввод токена отменён.*',
+        'mirror_token_invalid': '❌ *Неверный формат токена!*\n*Пример:* `1234567890:ABCdef...`',
+        'mirror_token_exists': '❌ *Этот токен уже зарегистрирован!*',
+        'mirror_token_checking': '⏳ *Проверяем токен...*',
+        'mirror_token_bad': '❌ *Токен невалидный или бот не существует!*\n*Проверь и попробуй снова.*',
+
+        # ─── Мониторинг ───────────────────────────────────────────────────────
+        'monitor_started': '✅ Мониторинг запущен!',
+        'monitor_notify_off': '🔕 Уведомления отключены до сноса',
+        'monitor_not_found': '❌ Монитор не найден',
+        'monitor_error': '❌ Ошибка',
+
+        # ─── Колесо / спин ────────────────────────────────────────────────────
+        'wheel_block_premium': '❌ Крутить нельзя — у вас активный выигранный премиум!',
+        'wheel_block_sub': '❌ Крутить нельзя — у вас активная выигранная подписка!',
+        'wheel_cd': '⏳ Следующий спин через {h}ч {m}м',
+
+        # ─── Кейсы ────────────────────────────────────────────────────────────
+        'case_already': '✅ Кейс уже начислен!',
+        'case_no_payment': '❌ Оплата не получена!',
+        'case_err': '❌ Ошибка проверки',
+        'case_no_cases': '❌ Нет кейсов!',
+
+        # ─── Рефералы ─────────────────────────────────────────────────────────
+        'refs_not_enough': '❌ Недостаточно рефералов! У вас {count}/10',
+        'refs_exchanged': '✅ Обменяно! +1 день подписки',
+
+        # ─── Отмена ───────────────────────────────────────────────────────────
+        'action_cancelled': 'Отменено',
+
+        # ─── Скрытие профиля ──────────────────────────────────────────────────
+        'hidden_on': '✅ Скрыт в логах',
+        'hidden_off': '❌ Виден в логах',
+        'hidden_now_visible': '👁 Теперь вы видны в логах',
+
+        # ─── Смена языка ──────────────────────────────────────────────────────
+        'lang_set_ru': '🇷🇺 Русский выбран',
+        'lang_set_en': '🇬🇧 English selected',
     },
     'en': {
         # ─── General ─────────────────────────────────────────────────────────
@@ -392,6 +527,141 @@ _T = {
         'btn_media_submit': '📤 Submit video',
         'btn_media_my': '📋 My submissions',
         'btn_media_terms': '📜 Terms',
+
+        # ─── Panel: mode select ───────────────────────────────────────────────
+        'panel_select_regular': '🔓 Regular',
+        'panel_select_premium': '👑 Premium',
+
+        # ─── Methods (regular section) ────────────────────────────────────────
+        'btn_aureport_method': '🇦🇺 AU Report',
+        'btn_tida_method': '🟣 TIDA',
+        'btn_code_method': '📱 Code Spam',
+        'btn_logger_method': '🔗 Logger',
+
+        # ─── Methods (premium section) ────────────────────────────────────────
+        'btn_web_method': '🌐 Web',
+        'btn_mail_method': '✉️ Mail',
+        'btn_dsa_method': '🇪🇺 DSA Report',
+        'btn_telegraph_method': '📄 Telegraph Takedown',
+        'btn_universal_method': '🌐 Universal Method',
+        'btn_profile_report': '👤 Profile Report',
+        'btn_trap_method': '🪤 Trap Method',
+        'btn_session_method': '💀 Session Takedown',
+
+        # ─── Referrals ────────────────────────────────────────────────────────
+        'refs_exchange': '🔄 Exchange 10 referrals → 1 day',
+
+        # ─── Case: buy / open ─────────────────────────────────────────────────
+        'case_buy_usdt': '💲 USDT (CryptoPay)',
+        'case_buy_sbp': '🇷🇺 SBP (200₽)',
+        'case_open_confirm': '🎲 Open!',
+        'case_back': '[🔙] Back to cases',
+
+        # ─── Promo types ─────────────────────────────────────────────────────
+        'promo_type_normal': '📅 Regular (with days)',
+        'promo_type_premium': '👑 Premium (forever)',
+        'promo_type_reports': '🎯 Reports',
+
+        # ─── Common buttons ───────────────────────────────────────────────────
+        'btn_info_manual': '📖 Manual',
+        'btn_read_done': '🔻 Read',
+        'btn_subscribe_chan': '🔥 Subscribe',
+        'btn_close': 'Close',
+
+        # ─── Payment ─────────────────────────────────────────────────────────
+        'pay_sbp': '🇷🇺 SBP',
+
+        # ─── Lookup (Probiv) ─────────────────────────────────────────────────
+        'probiv_no_sub': '⛔️ *Subscription expired. Lookup unavailable.*',
+        'probiv_cd': '⏳ *Cooldown: wait {wait} sec.*',
+        'probiv_empty': '❌ Empty query.',
+        'probiv_searching': '🔍 *Searching...*',
+
+        # ─── Maintenance ─────────────────────────────────────────────────────
+        'maintenance_msg': '🔧 Maintenance / update in progress. Try again later.',
+
+        # ─── Access errors ────────────────────────────────────────────────────
+        'err_no_access': 'No access',
+        'err_subscribe_required': '⛔️ Subscription required',
+        'err_admin_only': '❌ Admins only!',
+        'err_user_not_found': '❌ *User not found, type /start*',
+        'err_no_sub_no_free': '❌ *No subscription and no free reports!*',
+        'err_monitor_sub': '❌ Monitoring is only available with a subscription!',
+        'err_generic': '❌ *Error:* `{err}`',
+
+        # ─── Method launch messages ───────────────────────────────────────────
+        'free_report_used': '🎯 *Free report used! Remaining: {count}*',
+        'botnet_launching': '📤 *Launching send...*',
+        'botnet_prem_launching': '👑 *Launching send...*',
+        'botnet_invalid_link': (
+            '*⭕️ Invalid link!*\n\n'
+            '*Botnet requires a link to a specific message:*\n'
+            '`https://t.me/channel/123`\n\n'
+            '*To take down a channel/account, use TIDA*'
+        ),
+        'bot_method_launching': '🤖 *Launched reports on {target}...*\n*└─ CD after: {cd}*',
+        'bot_not_a_bot': '❌ *This is not a bot!*\n\n*Bot method only works with bots.*\n*The bot username must end with* `bot`\n*Example:* `@example_bot`',
+        'cd_5min': '5 minutes',
+        'cd_1hour': '1 hour',
+        'channel_launching': '📢 *Launched reports on channel {target}...*',
+        'tida_analyzing': '🔍 *Analyzing link...*',
+        'tida_generating': '⏳ *Reading message and generating text via AI...*',
+        'tida_ai_generating': '🤖 *Generating complaint text...*',
+        'tida_checking_article': '🔍 *Checking article...*',
+        'tida_ai_tida_prompt': '⏳ *Generating complaint text via AI...*',
+        'tida_text_too_short': '❌ *Text too short! Minimum 10 characters.*',
+        'tida_empty_text': '❌ *Empty text*',
+        'tida_wrong_target': '❌ *Use buttons to select target type*',
+        'tida_private_link': '_(private/closed link)_',
+        'tida_session_expired': '❌ *Data expired, start over*',
+        'code_launching': '📱 *Launching code method...*\n*└─ Number:* `{phone}`\n\n_This will take 1-2 minutes_',
+        'code_invalid_phone': '❌ *Enter a valid phone number!*\n`+79991234567`',
+        'bank_invalid': '❌ *Enter a valid phone number or card number!*',
+        'session_method_prompt': '💀 *Session Takedown*\n\nEnter victim\'s *username*:',
+        'session_method_phone_prompt': '📱 Enter victim\'s *phone number*:\n`+79991234567`',
+        'session_method_invalid': '❌ *Invalid username!*',
+        'trap_cancelled': '❌ *Trap method cancelled.*',
+        'trap_session_expired': '❌ *Session expired. Start over.*',
+
+        # ─── Mirrors ─────────────────────────────────────────────────────────
+        'mirror_token_cancel': '❌ *Token input cancelled.*',
+        'mirror_token_invalid': '❌ *Invalid token format!*\n*Example:* `1234567890:ABCdef...`',
+        'mirror_token_exists': '❌ *This token is already registered!*',
+        'mirror_token_checking': '⏳ *Checking token...*',
+        'mirror_token_bad': '❌ *Invalid token or bot does not exist!*\n*Check and try again.*',
+
+        # ─── Monitoring ──────────────────────────────────────────────────────
+        'monitor_started': '✅ Monitoring started!',
+        'monitor_notify_off': '🔕 Notifications disabled until takedown',
+        'monitor_not_found': '❌ Monitor not found',
+        'monitor_error': '❌ Error',
+
+        # ─── Wheel / spin ─────────────────────────────────────────────────────
+        'wheel_block_premium': '❌ Cannot spin — you have an active won premium!',
+        'wheel_block_sub': '❌ Cannot spin — you have an active won subscription!',
+        'wheel_cd': '⏳ Next spin in {h}h {m}m',
+
+        # ─── Cases ────────────────────────────────────────────────────────────
+        'case_already': '✅ Case already credited!',
+        'case_no_payment': '❌ Payment not received!',
+        'case_err': '❌ Verification error',
+        'case_no_cases': '❌ No cases!',
+
+        # ─── Referrals ────────────────────────────────────────────────────────
+        'refs_not_enough': '❌ Not enough referrals! You have {count}/10',
+        'refs_exchanged': '✅ Exchanged! +1 day subscription',
+
+        # ─── Cancel ───────────────────────────────────────────────────────────
+        'action_cancelled': 'Cancelled',
+
+        # ─── Profile visibility ───────────────────────────────────────────────
+        'hidden_on': '✅ Hidden in logs',
+        'hidden_off': '❌ Visible in logs',
+        'hidden_now_visible': '👁 You are now visible in logs',
+
+        # ─── Language switch ──────────────────────────────────────────────────
+        'lang_set_ru': '🇷🇺 Russian selected',
+        'lang_set_en': '🇬🇧 English selected',
     },
 }
 

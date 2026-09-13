@@ -88,7 +88,12 @@ class MaintenanceMiddleware(BaseMiddleware):
     async def on_pre_process_callback_query(self, call: types.CallbackQuery, data: dict):
         uid = call.from_user.id
         if _get_maintenance() and uid not in admins and call.data != 'toggle_maintenance':
-            await call.answer("🔧 Сейчас идут технические работы / обновление. Попробуйте позже.", show_alert=True)
+            _maint_lang = 'ru'
+            try:
+                _maint_lang = await db.get_lang(call.from_user.id)
+            except Exception:
+                pass
+            await call.answer(t('maintenance_msg', _maint_lang), show_alert=True)
             raise CancelHandler()
 
 bot = Bot(token=config.TOKEN)
@@ -450,15 +455,18 @@ maintenance_mode = _get_maintenance()
 @dp.callback_query_handler(lambda c: c.data == 'session_method')
 async def session_method_start(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in admins:
-        await call.answer("❌ Только для админов!", show_alert=True)
+        _slang = await db.get_lang(call.from_user.id)
+        await call.answer(t('err_admin_only', _slang), show_alert=True)
         return
-    await call.message.answer("💀 *Снос сессий*\n\nВведи *username* жертвы:", parse_mode="Markdown")
+    _slang = await db.get_lang(call.from_user.id)
+    await call.message.answer(t('session_method_prompt', _slang), parse_mode="Markdown")
     await WaitSessionFSM.wait_username.set()
 
 @dp.message_handler(state=WaitSessionFSM.wait_username)
 async def session_got_username(message: types.Message, state: FSMContext):
     await state.update_data(victim_username=message.text.strip().lstrip('@'))
-    await message.answer("📱 Введи *номер телефона* жертвы:\n`+79991234567`", parse_mode="Markdown")
+    _slang = await db.get_lang(message.from_user.id)
+    await message.answer(t('session_method_phone_prompt', _slang), parse_mode="Markdown")
     await WaitSessionFSM.wait_phone.set()
 
 @dp.message_handler(state=WaitSessionFSM.wait_phone)
@@ -970,17 +978,23 @@ PROBIV_HELP = (
 @dp.callback_query_handler(lambda c: c.data == 'probiv', state='*')
 async def probiv_menu(call: types.CallbackQuery, state: FSMContext):
     uid = call.from_user.id
+    _lang = 'ru'
+    try:
+        _lang = await db.get_lang(uid)
+    except Exception:
+        pass
     user_data = await db.get_user(uid)
     if not user_data:
-        await call.answer("Нет доступа", show_alert=True)
+        await call.answer(t('err_no_access', _lang), show_alert=True)
         return
     sub = user_data.get('subscribe')
     sub_active = sub > now_msk() if isinstance(sub, datetime) else False
     if not sub_active:
-        await call.answer("⛔️ Требуется подписка", show_alert=True)
+        await call.answer(t('err_subscribe_required', _lang), show_alert=True)
         return
     cancel_markup = types.InlineKeyboardMarkup()
-    cancel_markup.add(types.InlineKeyboardButton("❌ Отмена", callback_data='probiv_cancel'))
+    _cancel_text = '❌ Отмена' if _lang == 'ru' else '❌ Cancel'
+    cancel_markup.add(types.InlineKeyboardButton(_cancel_text, callback_data='probiv_cancel'))
     await call.message.answer(PROBIV_HELP, parse_mode="Markdown", reply_markup=cancel_markup)
     await WaitProbivFSM.query.set()
     await call.answer()
@@ -988,16 +1002,26 @@ async def probiv_menu(call: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data == 'probiv_cancel', state='*')
 async def probiv_cancel(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
+    _lang = 'ru'
+    try:
+        _lang = await db.get_lang(call.from_user.id)
+    except Exception:
+        pass
     try:
         await call.message.delete()
     except Exception:
         pass
-    await call.answer("Отменено")
+    await call.answer(t('action_cancelled', _lang))
 
 @dp.message_handler(state=WaitProbivFSM.query)
 async def probiv_query(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or str(uid)
+	_lang = 'ru'
+	try:
+		_lang = await db.get_lang(uid)
+	except Exception:
+		pass
 
 	# Проверяем подписку
 	user_data = await db.get_user(uid)
@@ -1008,7 +1032,7 @@ async def probiv_query(message: types.Message, state: FSMContext):
 	sub_active = sub > now_msk() if isinstance(sub, datetime) else False
 	if not sub_active:
 		await state.finish()
-		await message.answer("⛔️ *Подписка истекла. Пробив недоступен.*", parse_mode="Markdown")
+		await message.answer(t('probiv_no_sub', _lang), parse_mode="Markdown")
 		return
 
 	is_premium = bool(user_data.get('premium', 0))
@@ -1022,7 +1046,7 @@ async def probiv_query(message: types.Message, state: FSMContext):
 		diff = (now_dt - last_req_naive).total_seconds()
 		if diff < 30:
 			wait = int(30 - diff)
-			await message.answer(f"⏳ *КД: подожди {wait} сек.*", parse_mode="Markdown")
+			await message.answer(t('probiv_cd', _lang, wait=wait), parse_mode="Markdown")
 			return
 
 	if not is_premium:
@@ -1043,7 +1067,7 @@ async def probiv_query(message: types.Message, state: FSMContext):
 
 	raw = message.text.strip()
 	if not raw:
-		await message.answer("❌ Пустой запрос.", parse_mode="Markdown")
+		await message.answer(t('probiv_empty', _lang), parse_mode="Markdown")
 		return
 
 	# Парсим команды вида /cmd значение
@@ -1077,7 +1101,7 @@ async def probiv_query(message: types.Message, state: FSMContext):
 		)
 		return
 
-	wait_msg = await message.answer("🔍 *Ищу...*", parse_mode="Markdown")
+	wait_msg = await message.answer(t('probiv_searching', _lang), parse_mode="Markdown")
 
 	try:
 		import urllib.parse
@@ -1307,14 +1331,15 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				print(f"Ошибка создания invite link: {e}", flush=True)
 				invite1 = config.bot_channel_link
 				invite2 = config.bot_channel2_link
+			_sub_lang = await db.get_lang(uid)
 			temp_check_markup = types.InlineKeyboardMarkup(row_width=1)
 			temp_check_markup.add(
-				types.InlineKeyboardButton("[1️⃣] Подпишись (1 мин)", url=invite1),
-				types.InlineKeyboardButton("[2️⃣] Подпишись (1 мин)", url=invite2),
-				types.InlineKeyboardButton("[🔎] Проверить", callback_data='start_check_sub')
+				types.InlineKeyboardButton(t('sub_btn_1', _sub_lang), url=invite1),
+				types.InlineKeyboardButton(t('sub_btn_2', _sub_lang), url=invite2),
+				types.InlineKeyboardButton(t('sub_btn_check', _sub_lang), callback_data='start_check_sub')
 			)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="*⚠️ Подпишитесь на каналы!*\n*└─ Ссылки действуют 1 минуту*", parse_mode="Markdown", reply_markup=temp_check_markup)
+				caption=t('sub_check_caption', _sub_lang), parse_mode="Markdown", reply_markup=temp_check_markup)
 			return
 
 		user_data = await db.get_user(uid)
@@ -1480,7 +1505,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d == 'profile_toggle_hidden':
 			new_hidden = await db.toggle_hidden(uid)
-			await call.answer("✅ Скрыт в логах" if new_hidden else "❌ Виден в логах", show_alert=False)
+			await call.answer(t('hidden_on', _user_lang) if new_hidden else t('hidden_off', _user_lang), show_alert=False)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=t('settings_caption', _user_lang), parse_mode="Markdown",
@@ -1497,7 +1522,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			pool_ = await db.get_pool()
 			async with pool_.acquire() as _conn:
 				await _conn.execute("UPDATE users SET is_hidden = FALSE WHERE user_id = $1", uid)
-			await call.answer("👁 Теперь вы видны в логах", show_alert=False)
+			await call.answer(t('hidden_now_visible', _user_lang), show_alert=False)
 			try:
 				await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
 			except Exception:
@@ -1508,14 +1533,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				types.InlineKeyboardButton("🇷🇺 Русский", callback_data='profile_lang_ru'),
 				types.InlineKeyboardButton("🇬🇧 English", callback_data='profile_lang_en'),
 			)
-			_lang_markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='settings_menu'))
+			_lang_markup.add(types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='settings_menu'))
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption="🌐 *Выберите язык | Choose language*",
 				parse_mode="Markdown", reply_markup=_lang_markup)
 		elif d in ('profile_lang_ru', 'profile_lang_en'):
 			_new_lang = 'ru' if d == 'profile_lang_ru' else 'en'
 			await db.set_lang(uid, _new_lang)
-			await call.answer("🇷🇺 Русский выбран" if _new_lang == 'ru' else "🇬🇧 English selected", show_alert=False)
+			await call.answer(t('lang_set_ru', _new_lang) if _new_lang == 'ru' else t('lang_set_en', _new_lang), show_alert=False)
 			is_hidden = await db.get_is_hidden(uid)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
@@ -1790,7 +1815,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d == 'monitor_menu' or d.startswith('monitor_menu_p_'):
 			if subscribe < now_msk():
-				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('err_monitor_sub', _user_lang), show_alert=True)
 				return
 			page = int(d.split('_p_')[1]) if '_p_' in d else 0
 			PER_PAGE = 5
@@ -1851,17 +1876,17 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			try:
 				monitor_id = int(d[len('monitor_mute_'):])
 			except ValueError:
-				await bot_instance.answer_callback_query(call.id, "❌ Ошибка", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('monitor_error', _user_lang), show_alert=True)
 				return
 			ok = await db.set_monitor_silent(monitor_id, uid, True)
 			if ok:
-				await bot_instance.answer_callback_query(call.id, "🔕 Уведомления отключены до сноса", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('monitor_notify_off', _user_lang), show_alert=True)
 				try:
 					await bot_instance.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
 				except Exception:
 					pass
 			else:
-				await bot_instance.answer_callback_query(call.id, "❌ Монитор не найден", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('monitor_not_found', _user_lang), show_alert=True)
 
 		elif d == 'monitor_limit':
 			await bot_instance.answer_callback_query(
@@ -1872,7 +1897,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d.startswith('monitor_add_'):
 			if subscribe < now_msk():
-				await bot_instance.answer_callback_query(call.id, "❌ Мониторинг доступен только с подпиской!", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('err_monitor_sub', _user_lang), show_alert=True)
 				return
 			import urllib.parse
 			raw_target = d[len('monitor_add_'):]
@@ -1904,11 +1929,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			expires_at = now_msk() + timedelta(hours=hours)
 
 			await db.add_monitor(uid, target, expires_at)
-			await bot_instance.answer_callback_query(call.id, "✅ Мониторинг запущен!", show_alert=False)
+			await bot_instance.answer_callback_query(call.id, t('monitor_started', _user_lang), show_alert=False)
 
 			markup = types.InlineKeyboardMarkup(row_width=1)
-			markup.add(types.InlineKeyboardButton("🔍 Мои мониторы", callback_data='monitor_menu'))
-			markup.add(types.InlineKeyboardButton("[🔙] Главное меню", callback_data='go_to_main_menu'))
+			_mon_label = '🔍 Мои мониторы' if _user_lang == 'ru' else '🔍 My monitors'
+			markup.add(types.InlineKeyboardButton(_mon_label, callback_data='monitor_menu'))
+			markup.add(types.InlineKeyboardButton(t('btn_main_menu', _user_lang), callback_data='go_to_main_menu'))
 
 			await bot_instance.send_message(
 				uid,
@@ -2129,17 +2155,17 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'exchange_refs':
 			ref_count = await db.get_referral_count(uid)
 			if ref_count < 10:
-				await bot_instance.answer_callback_query(call.id, f"❌ Недостаточно рефералов! У вас {ref_count}/10", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('refs_not_enough', _user_lang, count=ref_count), show_alert=True)
 			else:
 				# Атомарное снятие — защита от race condition
 				success = await db.spend_referrals(uid, 10)
 				if not success:
-					await bot_instance.answer_callback_query(call.id, "❌ Недостаточно рефералов!", show_alert=True)
+					await bot_instance.answer_callback_query(call.id, t('refs_not_enough', _user_lang, count=0), show_alert=True)
 				else:
 					new_date = (now_msk() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
 					await db.set_subscribe(uid, new_date)
 					remaining = ref_count - 10
-					await bot_instance.answer_callback_query(call.id, "✅ Обменяно! +1 день подписки", show_alert=True)
+					await bot_instance.answer_callback_query(call.id, t('refs_exchanged', _user_lang), show_alert=True)
 					try:
 						me = await bot_instance.get_me()
 						bot_uname = me.username
@@ -2285,12 +2311,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if last_prize in ("forever", "sub_1d", "premium"):
 				if last_prize == "premium" and premium == 1:
 					await bot_instance.answer_callback_query(
-						call.id, "❌ Крутить нельзя — у вас активный выигранный премиум!", show_alert=True
+						call.id, t('wheel_block_premium', _user_lang), show_alert=True
 					)
 					return
 				if last_prize in ("forever", "sub_1d") and subscribe > now:
 					await bot_instance.answer_callback_query(
-						call.id, "❌ Крутить нельзя — у вас активная выигранная подписка!", show_alert=True
+						call.id, t('wheel_block_sub', _user_lang), show_alert=True
 					)
 					return
 
@@ -2298,7 +2324,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				remaining = timedelta(seconds=6*3600) - (now - last_spin)
 				h = int(remaining.total_seconds() // 3600)
 				m = int((remaining.total_seconds() % 3600) // 60)
-				await bot_instance.answer_callback_query(call.id, f"⏳ Следующий спин через {h}ч {m}м", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('wheel_cd', _user_lang, h=h, m=m), show_alert=True)
 				return
 
 			await db.set_wheel_last_spin(uid, now)
@@ -2431,15 +2457,15 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d.startswith('case_check_'):
 			invoice_id = d.replace('case_check_', '')
 			if await db.is_case_invoice_used(invoice_id):
-				await bot_instance.answer_callback_query(call.id, "✅ Кейс уже начислен!", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('case_already', _user_lang), show_alert=True)
 				return
 			try:
 				inv = await asyncio.to_thread(crypto.get_invoices, invoice_ids=invoice_id)
 				if inv['items'][0]['status'] != 'paid':
-					await bot_instance.answer_callback_query(call.id, "❌ Оплата не получена!", show_alert=True)
+					await bot_instance.answer_callback_query(call.id, t('case_no_payment', _user_lang), show_alert=True)
 					return
 			except Exception:
-				await bot_instance.answer_callback_query(call.id, "❌ Ошибка проверки", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('case_err', _user_lang), show_alert=True)
 				return
 			await db.add_case(uid, invoice_id)
 			count = await db.get_unopened_cases(uid)
@@ -2483,7 +2509,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'case_open_confirm':
 			opened = await db.open_case(uid)
 			if not opened:
-				await bot_instance.answer_callback_query(call.id, "❌ Нет кейсов!", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('case_no_cases', _user_lang), show_alert=True)
 				return
 			# Розыгрыш
 			import random as _random
@@ -3253,6 +3279,7 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 	await state.finish()
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
+	lang = await db.get_lang(uid)
 	_bot_token = fsm_data.get('_bot_token')
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
@@ -3260,17 +3287,17 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 		chat_username, message_id = await extract_username_and_message_id(url)
 		user_data = await db.get_user(uid)
 		if not user_data:
-			await _bot.send_message(uid, '❌ *Пользователь не найден, напишите /start*', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+			await _bot.send_message(uid, t('err_user_not_found', lang), parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 			return
 		subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 		if subscribe < now_msk():
 			used = await db.use_free_report(uid)
 			if not used:
-				await _bot.send_message(uid, '❌ *Нет подписки и бесплатных репортов!*', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+				await _bot.send_message(uid, t('err_no_sub_no_free', lang), parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 				return
 			free_left = await db.get_free_reports(uid)
-			await _bot.send_message(uid, f'🎯 *Использован бесплатный репорт! Осталось: {free_left}*', parse_mode=ParseMode.MARKDOWN)
-		await _bot.send_message(uid, '📤 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
+			await _bot.send_message(uid, t('free_report_used', lang, count=free_left), parse_mode=ParseMode.MARKDOWN)
+		await _bot.send_message(uid, t('botnet_launching', lang), parse_mode=ParseMode.MARKDOWN)
 		botnet_set_bot(_bot)
 		await botnet_main(chat_username, message_id, uid, username, url)
 		try: await db.log_attack(uid, url, "botnet")
@@ -3286,12 +3313,7 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 		except Exception:
 			pass
 	except ValueError:
-		await _bot.send_message(uid,
-			'*⭕️ Неверная ссылка!*\n\n'
-			'*Ботнет требует ссылку на конкретное сообщение:*\n'
-			'`https://t.me/channel/123`\n\n'
-			'*Для сноса канала/аккаунта используй TIDA*',
-			parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+		await _bot.send_message(uid, t('botnet_invalid_link', lang), parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	except Exception as e:
 		print(f"[BOTNET] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
@@ -3311,12 +3333,13 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 	await state.finish()
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
+	lang = await db.get_lang(uid)
 	_bot_token = fsm_data.get('_bot_token')
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 	try:
 		chat_username, message_id = await extract_username_and_message_id2(url)
-		await _bot.send_message(uid, '👑 *Запустил отправку...*', parse_mode=ParseMode.MARKDOWN)
+		await _bot.send_message(uid, t('botnet_prem_launching', lang), parse_mode=ParseMode.MARKDOWN)
 		botnet_set_bot2(_bot)
 		await botnet_main2(chat_username, message_id, uid, username, url)
 		try: await db.log_attack(uid, url, "prem_botnet")
@@ -3332,7 +3355,7 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		except Exception:
 			pass
 	except ValueError:
-		await _bot.send_message(uid, '*⭕️ Неверная ссылка!*', parse_mode=ParseMode.MARKDOWN)
+		await _bot.send_message(uid, t('botnet_invalid_link', lang), parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
 		print(f"[PREM] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
@@ -3349,28 +3372,29 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 async def mirror_token_received(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	token = message.text.strip()
+	lang = await db.get_lang(uid)
 
 	# Если прислали команду — отменяем FSM
 	if token.startswith('/'):
 		await state.finish()
-		await bot.send_message(uid, "❌ *Ввод токена отменён.*", parse_mode="Markdown", reply_markup=main_menu)
+		await bot.send_message(uid, t('mirror_token_cancel', lang), parse_mode="Markdown", reply_markup=main_menu)
 		return
 
 	# Базовая проверка формата токена
 	if ':' not in token or len(token) < 30:
 		await state.finish()
-		await bot.send_message(uid, "❌ *Неверный формат токена!*\n*Пример:* `1234567890:ABCdef...`", parse_mode="Markdown")
+		await bot.send_message(uid, t('mirror_token_invalid', lang), parse_mode="Markdown")
 		return
 
 	await state.finish()
 
 	# Проверяем не сдан ли токен уже
 	if await db.token_exists(token):
-		await bot.send_message(uid, "❌ *Этот токен уже зарегистрирован!*", parse_mode="Markdown")
+		await bot.send_message(uid, t('mirror_token_exists', lang), parse_mode="Markdown")
 		return
 
 	# Проверяем токен через getMe
-	wait_msg = await bot.send_message(uid, "⏳ *Проверяем токен...*", parse_mode="Markdown")
+	wait_msg = await bot.send_message(uid, t('mirror_token_checking', lang), parse_mode="Markdown")
 	bot_username_new = await validate_token(token)
 	try:
 		await bot.delete_message(uid, wait_msg.message_id)
@@ -3378,7 +3402,7 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 		pass
 
 	if not bot_username_new:
-		await bot.send_message(uid, "❌ *Токен невалидный или бот не существует!*\n*Проверь и попробуй снова.*", parse_mode="Markdown")
+		await bot.send_message(uid, t('mirror_token_bad', lang), parse_mode="Markdown")
 		return
 
 	# Сохраняем и запускаем зеркало
@@ -3415,6 +3439,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	raw = message.text.strip()
+	lang = await db.get_lang(uid)
 
 	# Сначала читаем fsm_data чтобы _bot был доступен для сообщений об ошибках
 	fsm_data = await state.get_data()
@@ -3425,13 +3450,13 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	user_data = await db.get_user(uid)
 	if not user_data:
 		await state.finish()
-		await _bot.send_message(uid, '❌ *Пользователь не найден, напишите /start*', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('err_user_not_found', lang), parse_mode="Markdown", reply_markup=main_menu)
 		return
 	subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 
 	if uid not in admins and subscribe < now_msk():
 		await state.finish()
-		await _bot.send_message(uid, ">❌ *оплати\!*", parse_mode="MarkdownV2", reply_markup=main_menu)
+		await _bot.send_message(uid, t('err_pay', lang), parse_mode="MarkdownV2", reply_markup=main_menu)
 		return
 
 	if raw.startswith("https://t.me/"):
@@ -3446,12 +3471,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	# Проверяем что это бот (username должен оканчиваться на 'bot')
 	if not bot_target.lower().endswith("bot"):
 		await state.finish()
-		await _bot.send_message(uid,
-			"❌ *Это не бот!*\n\n"
-			"*Бот-метод работает только с ботами.*\n"
-			"*Username бота должен оканчиваться на* `bot`\n"
-			"*Пример:* `@example_bot`",
-			parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('bot_not_a_bot', lang), parse_mode="Markdown", reply_markup=main_menu)
 		return
 
 	# Детектируем тип бота — свой (капча) или чужой
@@ -3468,7 +3488,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 			if uid in last_used_bot_snos_fast and (now_msk() - last_used_bot_snos_fast[uid]) < timedelta(minutes=5):
 				rem = timedelta(minutes=5) - (now_msk() - last_used_bot_snos_fast[uid])
 				await state.finish()
-				await _bot.send_message(uid, f'❌ *Жди {rem.seconds // 60}м {rem.seconds % 60}с*', parse_mode="Markdown", reply_markup=main_menu)
+				await _bot.send_message(uid, t('err_wait', lang, m=rem.seconds // 60, s=rem.seconds % 60), parse_mode="Markdown", reply_markup=main_menu)
 				return
 		else:
 			# Чужой бот — КД 1 час
@@ -3477,7 +3497,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await state.finish()
-				await _bot.send_message(uid, f'❌ *Жди {h}ч {m}м*', parse_mode="Markdown", reply_markup=main_menu)
+				await _bot.send_message(uid, t('err_wait_hm', lang, h=h, m=m), parse_mode="Markdown", reply_markup=main_menu)
 				return
 
 	reason_key = fsm_data.get('bot_reason', 'other')
@@ -3489,8 +3509,8 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 	else:
 		last_used_bot_snos[uid] = now_msk()
 
-	kd_label = "5 минут" if is_fast_bot else "1 час"
-	await _bot.send_message(uid, f'🤖 *Запустил жалобы на {bot_target}...*\n*└─ КД после: {kd_label}*', parse_mode=ParseMode.MARKDOWN)
+	kd_label = t('cd_5min', lang) if is_fast_bot else t('cd_1hour', lang)
+	await _bot.send_message(uid, t('bot_method_launching', lang, target=bot_target, cd=kd_label), parse_mode=ParseMode.MARKDOWN)
 
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	try:
@@ -3525,6 +3545,7 @@ async def channel_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	raw = message.text.strip()
+	lang = await db.get_lang(uid)
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
@@ -3556,7 +3577,7 @@ async def channel_step1(message: types.Message, state: FSMContext):
 	# КД 30 минут
 	if uid not in admins and uid not in no_kd and uid in last_used_channel and (now_msk() - last_used_channel[uid]) < timedelta(minutes=30):
 		rem = timedelta(minutes=30) - (now_msk() - last_used_channel[uid])
-		await _bot.send_message(uid, f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('err_wait', lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=main_menu)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -3571,14 +3592,14 @@ async def channel_step1(message: types.Message, state: FSMContext):
 			if subscribe_ch < now_msk():
 				used = await db.use_free_report(uid)
 				if not used:
-					await _bot.send_message(uid, '❌ *Нет подписки и бесплатных репортов!*', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+					await _bot.send_message(uid, t('err_no_sub_no_free', lang), parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 					return
 				free_left = await db.get_free_reports(uid)
-				await _bot.send_message(uid, f'🎯 *Использован бесплатный репорт! Осталось: {free_left}*', parse_mode=ParseMode.MARKDOWN)
+				await _bot.send_message(uid, t('free_report_used', lang, count=free_left), parse_mode=ParseMode.MARKDOWN)
 
 	last_used_channel[uid] = now_msk()
 	msg_info = f" (сообщение #{message_id})" if message_id else ""
-	await _bot.send_message(uid, f'📢 *Запустил жалобы на канал {ch_target}{msg_info}...*', parse_mode="Markdown")
+	await _bot.send_message(uid, t('channel_launching', lang, target=f'{ch_target}{msg_info}'), parse_mode="Markdown")
 
 	try:
 		set_bot_channel(_bot)
@@ -3815,6 +3836,7 @@ async def dsa_custom_text(message: types.Message, state: FSMContext):
 async def tida_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	raw = message.text.strip()
+	lang = await db.get_lang(uid)
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
 
@@ -3827,7 +3849,7 @@ async def tida_step1(message: types.Message, state: FSMContext):
 	await state.update_data(tida_link=raw)
 
 	# Анализируем ссылку
-	await _bot.send_message(uid, "🔍 *Анализирую ссылку...*", parse_mode="Markdown")
+	await _bot.send_message(uid, t('tida_analyzing', lang), parse_mode="Markdown")
 
 	from tida_snos import analyze_tida_link
 	info = await analyze_tida_link(raw)
@@ -3843,13 +3865,18 @@ async def tida_step1(message: types.Message, state: FSMContext):
 		tida_analysis=info,
 	)
 
-	target_names = {"account": "👤 Аккаунт", "bot": "🤖 Бот", "chat": "💬 Чат", "channel": "📢 Канал"}
-	target_label = target_names.get(target_type, "Цель")
+	target_names = {
+		"account": t('tida_target_account', lang),
+		"bot": t('tida_target_bot', lang),
+		"chat": t('tida_target_chat', lang),
+		"channel": t('tida_target_channel', lang),
+	}
+	target_label = target_names.get(target_type, t('tida_target_channel', lang))
 
 	if is_public and has_msg and msg_text:
 		# Публичная + есть сообщение — сразу генерируем ИИ-текст
 		await WaitTidaFSM.text_confirm.set()
-		await _bot.send_message(uid, "⏳ *Читаю сообщение и генерирую текст через ИИ...*", parse_mode="Markdown")
+		await _bot.send_message(uid, t('tida_generating', lang), parse_mode="Markdown")
 		from tida_snos import generate_tida_text
 		generated = await generate_tida_text(msg_text, target_type, is_description=False)
 		if not generated:
@@ -3872,12 +3899,12 @@ async def tida_step1(message: types.Message, state: FSMContext):
 		await WaitTidaFSM.ai_desc.set()
 		markup = types.InlineKeyboardMarkup(row_width=1)
 		markup.add(
-			types.InlineKeyboardButton("📝 Описать нарушение (ИИ составит текст)", callback_data='tida_choose_ai_desc'),
-			types.InlineKeyboardButton("✏️ Написать свой текст", callback_data='tida_choose_manual'),
+			types.InlineKeyboardButton(t('tida_ai_desc', lang), callback_data='tida_choose_ai_desc'),
+			types.InlineKeyboardButton(t('tida_manual_text', lang), callback_data='tida_choose_manual'),
 		)
 		type_info = ""
 		if not is_public:
-			type_info = "_(приватная/закрытая ссылка)_"
+			type_info = t('tida_private_link', lang)
 		await _bot.send_message(uid,
 			f"🟣 *TIDA*\n\n"
 			f"🎯 *Цель:* {target_label} {type_info}\n"
@@ -3897,6 +3924,7 @@ async def tida_step2(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	custom_text = message.text.strip()
+	lang = await db.get_lang(uid)
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
 	target_link = fsm_data.get('tida_link', '')
@@ -3906,7 +3934,7 @@ async def tida_step2(message: types.Message, state: FSMContext):
 	await state.finish()
 
 	if len(custom_text) < 10:
-		await _bot.send_message(uid, "❌ *Текст слишком короткий! Минимум 10 символов.*", parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('tida_text_too_short', lang), parse_mode="Markdown", reply_markup=main_menu)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -3989,6 +4017,7 @@ async def bank_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	card_data = message.text.strip()
+	lang = await db.get_lang(uid)
 	fsm_data = await state.get_data()
 	bank_key = fsm_data.get('bank_key', 'tbank')
 	_bot_token = fsm_data.get('_bot_token')
@@ -3998,7 +4027,7 @@ async def bank_step1(message: types.Message, state: FSMContext):
 	await state.finish()
 
 	if len(card_data) < 7:
-		await _bot.send_message(uid, "❌ *Введите корректный номер телефона или карты!*", parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('bank_invalid', lang), parse_mode="Markdown", reply_markup=main_menu)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -4029,6 +4058,7 @@ async def code_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	phone = message.text.strip()
+	lang = await db.get_lang(uid)
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
@@ -4037,14 +4067,14 @@ async def code_step1(message: types.Message, state: FSMContext):
 	await state.finish()
 
 	if len(phone) < 7 or not any(c.isdigit() for c in phone):
-		await _bot.send_message(uid, "❌ *Введите корректный номер телефона!*\n`+79991234567`", parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('code_invalid_phone', lang), parse_mode="Markdown", reply_markup=main_menu)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
 			except Exception: pass
 		return
 
-	await _bot.send_message(uid, f"📱 *Запускаю код-метод...*\n*└─ Номер:* `{phone}`\n\n_Это займёт 1-2 минуты_", parse_mode="Markdown")
+	await _bot.send_message(uid, t('code_launching', lang, phone=phone), parse_mode="Markdown")
 
 	try:
 		set_bot_code(_bot)
@@ -4066,6 +4096,7 @@ async def trap_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
 	username = message.from_user.username or "None"
 	raw = message.text.strip().lstrip("@")
+	lang = await db.get_lang(uid)
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
@@ -4074,7 +4105,7 @@ async def trap_step1(message: types.Message, state: FSMContext):
 	await state.finish()
 
 	if not raw or len(raw) < 3:
-		await _bot.send_message(uid, "❌ *Неверный username!*", parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('trap_cancelled', lang), parse_mode="Markdown", reply_markup=main_menu)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -4083,7 +4114,7 @@ async def trap_step1(message: types.Message, state: FSMContext):
 
 	trap_data = _trap_sessions.get(uid)
 	if not trap_data:
-		await _bot.send_message(uid, "❌ *Сессия истекла. Начни заново.*", parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, t('trap_session_expired', lang), parse_mode="Markdown", reply_markup=main_menu)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()

@@ -140,8 +140,8 @@ menu = get_menu(is_admin=False)
 def get_panel_select_markup(lang: str = 'ru', is_admin: bool = False) -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=2)
     m.add(
-        types.InlineKeyboardButton('🔓 Обычный', callback_data='panel_regular'),
-        types.InlineKeyboardButton('👑 Премиум', callback_data='panel_premium'),
+        types.InlineKeyboardButton(t('panel_select_regular', lang), callback_data='panel_regular'),
+        types.InlineKeyboardButton(t('panel_select_premium', lang), callback_data='panel_premium'),
     )
     m.add(get_back_btn(lang))
     return m
@@ -157,12 +157,12 @@ def get_functions(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     )
     m.add(types.InlineKeyboardButton(t('btn_manual_method', lang), callback_data='manual_method'))
     m.add(
-        types.InlineKeyboardButton("🇦🇺 AU Report", callback_data='aureport_method'),
-        types.InlineKeyboardButton("🟣 TIDA", callback_data='tida_method'),
+        types.InlineKeyboardButton(t('btn_aureport_method', lang), callback_data='aureport_method'),
+        types.InlineKeyboardButton(t('btn_tida_method', lang), callback_data='tida_method'),
     )
     m.add(
-        types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method'),
-        types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method'),
+        types.InlineKeyboardButton(t('btn_code_method', lang), callback_data='code_method'),
+        types.InlineKeyboardButton(t('btn_logger_method', lang), callback_data='logger_method'),
     )
     m.add(types.InlineKeyboardButton(t('btn_back', lang), callback_data='functions'))
     return m
@@ -173,20 +173,20 @@ def get_premium_functions(lang: str = 'ru', is_admin: bool = False) -> types.Inl
     m = types.InlineKeyboardMarkup(row_width=2)
     m.add(types.InlineKeyboardButton(t('btn_prem_botnet', lang), callback_data='prem_botnet_method'))
     m.add(
-        types.InlineKeyboardButton("🌐 Web", callback_data='web_method'),
-        types.InlineKeyboardButton("✉️ Mail", callback_data='mail_method'),
+        types.InlineKeyboardButton(t('btn_web_method', lang), callback_data='web_method'),
+        types.InlineKeyboardButton(t('btn_mail_method', lang), callback_data='mail_method'),
     )
     m.add(
         types.InlineKeyboardButton(t('btn_bank_method', lang), callback_data='bank_method'),
-        types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'),
+        types.InlineKeyboardButton(t('btn_dsa_method', lang), callback_data='dsa_method'),
     )
-    m.add(types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method'))
-    m.add(types.InlineKeyboardButton("🌐 Универсальный метод", callback_data='universal_method'))
+    m.add(types.InlineKeyboardButton(t('btn_telegraph_method', lang), callback_data='telegraph_method'))
+    m.add(types.InlineKeyboardButton(t('btn_universal_method', lang), callback_data='universal_method'))
     if is_admin:
-        m.add(types.InlineKeyboardButton("👤 Profile Report", callback_data='profile_method'))
+        m.add(types.InlineKeyboardButton(t('btn_profile_report', lang), callback_data='profile_method'))
         m.add(
-            types.InlineKeyboardButton("🪤 Trap-метод", callback_data='trap_method'),
-            types.InlineKeyboardButton("💀 Снос сессий", callback_data='session_method'),
+            types.InlineKeyboardButton(t('btn_trap_method', lang), callback_data='trap_method'),
+            types.InlineKeyboardButton(t('btn_session_method', lang), callback_data='session_method'),
         )
     m.add(types.InlineKeyboardButton(t('btn_back', lang), callback_data='functions'))
     return m
@@ -303,55 +303,78 @@ def manual_confirm_step2(method: str, lang: str = 'ru') -> types.InlineKeyboardM
 
 functions = get_functions('ru')
 
+
 # ─── DSA причины ──────────────────────────────────────────────────────────────
-dsa_reason_markup = types.InlineKeyboardMarkup(row_width=1)
-dsa_reason_markup.add(
-    types.InlineKeyboardButton("👶 Child abuse", callback_data='dsa_r_child_abuse'),
-    types.InlineKeyboardButton("💥 Violence", callback_data='dsa_r_violence'),
-    types.InlineKeyboardButton("🔫 Illegal goods", callback_data='dsa_r_illegal_goods'),
-    types.InlineKeyboardButton("🔞 Illegal adult content", callback_data='dsa_r_illegal_adult'),
-    types.InlineKeyboardButton("🔐 Personal data", callback_data='dsa_r_personal_data'),
-    types.InlineKeyboardButton("💣 Terrorism", callback_data='dsa_r_terrorism'),
-    types.InlineKeyboardButton("📢 Scam or spam", callback_data='dsa_r_scam'),
-    types.InlineKeyboardButton("📝 Other", callback_data='dsa_r_other'),
-    types.InlineKeyboardButton("[🔙] Назад", callback_data='functions'),
-)
+def get_dsa_reason_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton("👶 Child abuse", callback_data='dsa_r_child_abuse'),
+        types.InlineKeyboardButton("💥 Violence", callback_data='dsa_r_violence'),
+        types.InlineKeyboardButton("🔫 Illegal goods", callback_data='dsa_r_illegal_goods'),
+        types.InlineKeyboardButton("🔞 Illegal adult content", callback_data='dsa_r_illegal_adult'),
+        types.InlineKeyboardButton("🔐 Personal data", callback_data='dsa_r_personal_data'),
+        types.InlineKeyboardButton("💣 Terrorism", callback_data='dsa_r_terrorism'),
+        types.InlineKeyboardButton("📢 Scam or spam", callback_data='dsa_r_scam'),
+        types.InlineKeyboardButton("📝 Other", callback_data='dsa_r_other'),
+        types.InlineKeyboardButton(t('btn_back', lang), callback_data='functions'),
+    )
+    return m
+
 
 # ─── DSA подкатегории ─────────────────────────────────────────────────────────
-dsa_sub_illegal_goods = types.InlineKeyboardMarkup(row_width=1)
-dsa_sub_illegal_goods.add(
-    types.InlineKeyboardButton("🔫 Weapons", callback_data='dsa_s_weapons'),
-    types.InlineKeyboardButton("💊 Drugs", callback_data='dsa_s_drugs'),
-    types.InlineKeyboardButton("📄 Fake documents", callback_data='dsa_s_fake_docs'),
-    types.InlineKeyboardButton("💵 Counterfeit money", callback_data='dsa_s_counterfeit'),
-    types.InlineKeyboardButton("📦 Other goods", callback_data='dsa_s_other_goods'),
-    types.InlineKeyboardButton("[🔙] Назад", callback_data='dsa_method'),
-)
+def get_dsa_sub_illegal_goods(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton("🔫 Weapons", callback_data='dsa_s_weapons'),
+        types.InlineKeyboardButton("💊 Drugs", callback_data='dsa_s_drugs'),
+        types.InlineKeyboardButton("📄 Fake documents", callback_data='dsa_s_fake_docs'),
+        types.InlineKeyboardButton("💵 Counterfeit money", callback_data='dsa_s_counterfeit'),
+        types.InlineKeyboardButton("📦 Other goods", callback_data='dsa_s_other_goods'),
+        types.InlineKeyboardButton(t('btn_back', lang), callback_data='dsa_method'),
+    )
+    return m
 
-dsa_sub_illegal_adult = types.InlineKeyboardMarkup(row_width=1)
-dsa_sub_illegal_adult.add(
-    types.InlineKeyboardButton("👶 Child abuse", callback_data='dsa_s_child_abuse_adult'),
-    types.InlineKeyboardButton("📸 Non-consensual sexual imagery", callback_data='dsa_s_nonconsensual'),
-    types.InlineKeyboardButton("🔞 Other illegal sexual content", callback_data='dsa_s_other_sexual'),
-    types.InlineKeyboardButton("[🔙] Назад", callback_data='dsa_method'),
-)
 
-dsa_sub_personal_data = types.InlineKeyboardMarkup(row_width=1)
-dsa_sub_personal_data.add(
-    types.InlineKeyboardButton("🖼 Private images", callback_data='dsa_s_private_images'),
-    types.InlineKeyboardButton("📱 Phone number", callback_data='dsa_s_phone'),
-    types.InlineKeyboardButton("🏠 Address", callback_data='dsa_s_address'),
-    types.InlineKeyboardButton("📋 Other personal information", callback_data='dsa_s_other_personal'),
-    types.InlineKeyboardButton("[🔙] Назад", callback_data='dsa_method'),
-)
+def get_dsa_sub_illegal_adult(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton("👶 Child abuse", callback_data='dsa_s_child_abuse_adult'),
+        types.InlineKeyboardButton("📸 Non-consensual sexual imagery", callback_data='dsa_s_nonconsensual'),
+        types.InlineKeyboardButton("🔞 Other illegal sexual content", callback_data='dsa_s_other_sexual'),
+        types.InlineKeyboardButton(t('btn_back', lang), callback_data='dsa_method'),
+    )
+    return m
 
-dsa_sub_scam = types.InlineKeyboardMarkup(row_width=1)
-dsa_sub_scam.add(
-    types.InlineKeyboardButton("🎣 Phishing", callback_data='dsa_s_phishing'),
-    types.InlineKeyboardButton("🎭 Impersonation", callback_data='dsa_s_impersonation'),
-    types.InlineKeyboardButton("💸 Fraudulent sales", callback_data='dsa_s_fraud_sales'),
-    types.InlineKeyboardButton("[🔙] Назад", callback_data='dsa_method'),
-)
+
+def get_dsa_sub_personal_data(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton("🖼 Private images", callback_data='dsa_s_private_images'),
+        types.InlineKeyboardButton("📱 Phone number", callback_data='dsa_s_phone'),
+        types.InlineKeyboardButton("🏠 Address", callback_data='dsa_s_address'),
+        types.InlineKeyboardButton("📋 Other personal information", callback_data='dsa_s_other_personal'),
+        types.InlineKeyboardButton(t('btn_back', lang), callback_data='dsa_method'),
+    )
+    return m
+
+
+def get_dsa_sub_scam(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton("🎣 Phishing", callback_data='dsa_s_phishing'),
+        types.InlineKeyboardButton("🎭 Impersonation", callback_data='dsa_s_impersonation'),
+        types.InlineKeyboardButton("💸 Fraudulent sales", callback_data='dsa_s_fraud_sales'),
+        types.InlineKeyboardButton(t('btn_back', lang), callback_data='dsa_method'),
+    )
+    return m
+
+
+# Обратная совместимость — статичные ru-версии
+dsa_reason_markup = get_dsa_reason_markup('ru')
+dsa_sub_illegal_goods = get_dsa_sub_illegal_goods('ru')
+dsa_sub_illegal_adult = get_dsa_sub_illegal_adult('ru')
+dsa_sub_personal_data = get_dsa_sub_personal_data('ru')
+dsa_sub_scam = get_dsa_sub_scam('ru')
 
 
 def dsa_text_confirm_markup(text_preview: str, lang: str = 'ru') -> types.InlineKeyboardMarkup:
@@ -385,32 +408,49 @@ def get_case_menu_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
 def get_referral_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=1)
     m.add(
-        types.InlineKeyboardButton("🔄 Обменять 10 рефералов → 1 день", callback_data='exchange_refs'),
+        types.InlineKeyboardButton(t('refs_exchange', lang), callback_data='exchange_refs'),
         get_bonuses_back_btn(lang),
     )
     return m
 
-case_buy_markup = types.InlineKeyboardMarkup(row_width=1)
-case_buy_markup.add(
-    types.InlineKeyboardButton("💲 USDT (CryptoPay)", callback_data='case_buy_usdt'),
-    types.InlineKeyboardButton("🇷🇺 СБП (200₽)", callback_data='case_buy_sbp'),
-    types.InlineKeyboardButton("[🔙] Назад", callback_data='case_menu'),
-)
 
-case_open_markup = types.InlineKeyboardMarkup(row_width=1)
-case_open_markup.add(
-    types.InlineKeyboardButton("🎲 Открыть!", callback_data='case_open_confirm'),
-    types.InlineKeyboardButton("[🔙] Назад", callback_data='case_menu'),
-)
+def get_case_buy_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton(t('case_buy_usdt', lang), callback_data='case_buy_usdt'),
+        types.InlineKeyboardButton(t('case_buy_sbp', lang), callback_data='case_buy_sbp'),
+        types.InlineKeyboardButton(t('btn_back', lang), callback_data='case_menu'),
+    )
+    return m
+
+
+def get_case_open_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton(t('case_open_confirm', lang), callback_data='case_open_confirm'),
+        types.InlineKeyboardButton(t('btn_back', lang), callback_data='case_menu'),
+    )
+    return m
+
+
+# Обратная совместимость
+case_buy_markup = get_case_buy_markup('ru')
+case_open_markup = get_case_open_markup('ru')
+
 
 # ─── Промо-тип ────────────────────────────────────────────────────────────────
-promo_type_markup = types.InlineKeyboardMarkup(row_width=1)
-promo_type_markup.add(
-    types.InlineKeyboardButton("📅 Обычный (с днями)", callback_data='promo_type_normal'),
-    types.InlineKeyboardButton("👑 Премиум (навсегда)", callback_data='promo_type_premium'),
-    types.InlineKeyboardButton("🎯 Репорты", callback_data='promo_type_reports'),
-    back
-)
+def get_promo_type_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton(t('promo_type_normal', lang), callback_data='promo_type_normal'),
+        types.InlineKeyboardButton(t('promo_type_premium', lang), callback_data='promo_type_premium'),
+        types.InlineKeyboardButton(t('promo_type_reports', lang), callback_data='promo_type_reports'),
+        get_back_btn(lang),
+    )
+    return m
+
+
+promo_type_markup = get_promo_type_markup('ru')
 
 channel_reason_markup = get_channel_reason_markup('ru')
 bot_reason_markup = get_bot_reason_markup('ru')
@@ -420,22 +460,44 @@ free_menu_markup = get_free_menu_markup('ru')
 # ─── Меню Бесплатно ───────────────────────────────────────────────────────────
 # (kept for compat, use get_free_menu_markup(lang) for language-aware version)
 
-pay_method = types.InlineKeyboardMarkup(row_width=1)
-sbp_btn = types.InlineKeyboardButton("🇷🇺 СБП", callback_data='yoomoney')
-pay_method.add(sbp_btn, back)
+def get_pay_method_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(types.InlineKeyboardButton(t('pay_sbp', lang), callback_data='yoomoney'), get_back_btn(lang))
+    return m
 
-info_markup = types.InlineKeyboardMarkup(row_width=1)
-manual = types.InlineKeyboardButton("📖 Мануал", url='https://br-v2.top/manual')
-info_markup.add(manual, back)
 
-del_message = types.InlineKeyboardMarkup(row_width=1)
-close = types.InlineKeyboardButton("🔻 Прочитано", callback_data='close')
-kotik = types.InlineKeyboardButton("🔥 Подпишись", url=config.bot_channel_link)
-del_message.add(close, kotik)
+pay_method = get_pay_method_markup('ru')
 
-del_message2 = types.InlineKeyboardMarkup(row_width=2)
-close2 = types.InlineKeyboardButton("Закрыть", callback_data='close')
-del_message2.add(close2)
+
+def get_info_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton(t('btn_info_manual', lang), url='https://br-v2.top/manual'),
+        get_back_btn(lang),
+    )
+    return m
+
+
+info_markup = get_info_markup('ru')
+
+
+def get_del_message_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=1)
+    m.add(
+        types.InlineKeyboardButton(t('btn_read_done', lang), callback_data='close'),
+        types.InlineKeyboardButton(t('btn_subscribe_chan', lang), url=config.bot_channel_link),
+    )
+    return m
+
+
+def get_close_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=2)
+    m.add(types.InlineKeyboardButton(t('btn_close', lang), callback_data='close'))
+    return m
+
+
+del_message = get_del_message_markup('ru')
+del_message2 = get_close_markup('ru')
 
 admin_markup = types.InlineKeyboardMarkup(row_width=2)
 add_subsribe = types.InlineKeyboardButton("[+] Выдать подписку", callback_data='add_subsribe')
