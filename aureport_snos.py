@@ -215,9 +215,12 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
     target = target_link.strip()
     if target.startswith("@"):
         target = f"t.me/{target[1:]}"
-    elif not target.startswith("t.me/") and not target.startswith("https://t.me/"):
+    elif target.startswith("https://t.me/"):
+        target = target[len("https://"):]
+    elif target.startswith("http://t.me/"):
+        target = target[len("http://"):]
+    elif not target.startswith("t.me/"):
         target = f"t.me/{target}"
-    target = target.replace("https://", "")
 
     proxies = _load_proxies()
     total = len(sessions)
