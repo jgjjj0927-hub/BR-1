@@ -224,7 +224,7 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
 
     logger.info(f"[AUREPORT] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(proxies)}")
 
-    pb = ProgressBar(bot, user, total=total, title="🔍 *AU Report*")
+    pb = ProgressBar(bot, user, total=total, title="🔍 *AU Report*", silent=silent)
     await pb.start()
     done_ref = [0]
 

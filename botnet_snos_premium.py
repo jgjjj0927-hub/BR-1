@@ -1217,7 +1217,7 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
     # Запускаем сессии пачками по 8 с задержкой 3-5 сек между пачками
     BATCH_SIZE = 8
     results = []
-    pb = ProgressBar(bot, user, total=len(_sessions), title="👑 *Ботнет Премиум*")
+    pb = ProgressBar(bot, user, total=len(_sessions), title="👑 *Ботнет Премиум*", silent=silent)
     await pb.start()
     done_count = 0
     for i in range(0, len(_sessions), BATCH_SIZE):

@@ -470,7 +470,7 @@ async def main_dsa_snos(target_link: str, user: int, username: str,
     successful = 0
     failed = 0
 
-    pb = ProgressBar(_send_bot, user, total=count, title="🇪🇺 *DSA Report*")
+    pb = ProgressBar(_send_bot, user, total=count, title="🇪🇺 *DSA Report*", silent=silent)
     await pb.start()
     for i in range(count):
         result = await _run_single_report(target, reason_radio, sub_reason_radio, complaint_text)

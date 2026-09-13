@@ -351,7 +351,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
 
     BATCH_SIZE = 8
     results = []
-    pb = ProgressBar(bot, user, total=len(_sessions), title="📢 *Канал-метод*")
+    pb = ProgressBar(bot, user, total=len(_sessions), title="📢 *Канал-метод*", silent=silent)
     await pb.start()
     done_count = 0
     for i in range(0, len(_sessions), BATCH_SIZE):

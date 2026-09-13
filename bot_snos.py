@@ -308,7 +308,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
     # Пачки по 8 — чтобы не было database is locked и массовых таймаутов
     BATCH_SIZE = 8
     results = []
-    pb = ProgressBar(bot, user, total=total, title="🤖 *Бот-метод*")
+    pb = ProgressBar(bot, user, total=total, title="🤖 *Бот-метод*", silent=silent)
     await pb.start()
     done_count = 0
     for i in range(0, total, BATCH_SIZE):

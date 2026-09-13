@@ -536,7 +536,7 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(all_proxies)}")
 
     tida_peer_ref = [None]
-    pb = ProgressBar(bot, user, total=total, title="🎵 *TIDA*")
+    pb = ProgressBar(bot, user, total=total, title="🎵 *TIDA*", silent=silent)
     await pb.start()
     done_ref = [0]
 

@@ -37,11 +37,12 @@ class ProgressBar:
         await pb.finish()   # удаляет прогресс-сообщение (итог шлёт сам метод)
     """
 
-    def __init__(self, bot, user_id: int, total: int, title: str = ""):
+    def __init__(self, bot, user_id: int, total: int, title: str = "", silent: bool = False):
         self._bot = bot
         self._uid = user_id
         self._total = total
         self._title = title
+        self._silent = silent
         self._msg_id: int | None = None
         self._start = _time.monotonic()
         self._last_edit: float = 0.0
@@ -67,6 +68,8 @@ class ProgressBar:
         return f"~{remaining // 60} мин {remaining % 60} сек"
 
     async def start(self):
+        if self._silent:
+            return
         try:
             msg = await self._bot.send_message(
                 self._uid, self._text(0), parse_mode="Markdown")
