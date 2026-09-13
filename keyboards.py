@@ -181,6 +181,7 @@ def get_premium_functions(lang: str = 'ru', is_admin: bool = False) -> types.Inl
         types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'),
     )
     m.add(types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method'))
+    m.add(types.InlineKeyboardButton("🌐 Универсальный метод", callback_data='universal_method'))
     if is_admin:
         m.add(types.InlineKeyboardButton("👤 Profile Report", callback_data='profile_method'))
         m.add(

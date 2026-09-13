@@ -34,6 +34,8 @@ DEPSEARCH_TOKEN = "OsMTcjyHTRtfABnWA4V3d12SYKVIYE8z"
 from profile_snos import main_profile_snos, set_bot_profile
 from trap_snos import main_trap_snos, transfer_and_apply, set_bot_trap
 from session_snos import main_session_snos, set_bot_session
+from universal_snos import parse_link, validate_link, run_universal, set_bot_universal
+from universal_snos import TYPE_PRIVATE_CHANNEL, TYPE_INVITE, TYPE_MESSAGE, TYPE_BOT, TYPE_USER_CHANNEL, TYPE_INVALID
 import db
 
 channel_id = config.channel_id
@@ -345,6 +347,10 @@ class WaitTidaFSM(StatesGroup):
 	ai_desc = State()     # описание нарушения для ИИ
 	text = State()        # финальный текст (ручной ввод)
 	text_confirm = State() # подтверждение ИИ-текста
+
+class WaitUniversalFSM(StatesGroup):
+	link = State()
+	tida_text = State()
 
 class WaitDsaFSM(StatesGroup):
 	link = State()
@@ -2542,6 +2548,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			"web_method", "mail_method", "botnet_method", "prem_botnet_method",
 			"bot_method", "channel_method", "aureport_method",
 			"tida_method", "bank_method", "telegraph_method",
+			"universal_method",
 		}
 
 		# ─── Шаг 1: показываем предупреждение при нажатии на метод ──────────
@@ -2955,6 +2962,28 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"— До 250 символов\n"
 				"— Кратко опишите нарушение",
 				parse_mode="Markdown", reply_markup=panel_back_markup)
+
+		# ─── Универсальный метод ─────────────────────────────────────────────────
+		elif d == "universal_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if premium == 0:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitUniversalFSM.link.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"🌐 *Универсальный метод*\n\n"
+					"*└─ Отправьте ссылку на цель:*\n\n"
+					"`https://t.me/username/123`\n"
+					"`https://t.me/username`\n"
+					"`@username`"
+				),
+				parse_mode="Markdown", reply_markup=panel_back_markup
+			)
 
 		# ─── [ТЕСТ] Profile Report ────────────────────────────────────────────────
 		elif d == "profile_method":
@@ -4763,6 +4792,7 @@ async def on_startup(dp):
 	set_bot_profile(bot)
 	set_bot_trap(bot)
 	set_bot_telegraph(bot)
+	set_bot_universal(bot)
 	asyncio.ensure_future(monitor_loop())
 	from monitor_snos import _telegraph_monitor_loop
 	asyncio.ensure_future(_telegraph_monitor_loop())
@@ -5082,6 +5112,98 @@ async def media_admin_reject_reason(message: types.Message, state: FSMContext):
         pass
 
     await message.reply(f"❌ Заявка #{sub_id} отклонена. Пользователь уведомлён.")
+
+
+# ─── Универсальный метод — ввод ссылки ───────────────────────────────────────
+@dp.message_handler(state=WaitUniversalFSM.link)
+async def universal_step_link(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	raw = message.text.strip()
+
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror else bot
+
+	parsed = parse_link(raw)
+
+	if parsed["type"] == TYPE_INVALID:
+		await _bot.send_message(uid,
+			f"❌ *Неверная ссылка*\n`{parsed['error']}`\n\nПопробуйте ещё раз:",
+			parse_mode="Markdown", reply_markup=main_menu)
+		return
+
+	if parsed["type"] == TYPE_PRIVATE_CHANNEL:
+		await state.finish()
+		await _bot.send_message(uid,
+			"❌ *Приватные ссылки* `t.me/c/...` *не поддерживаются*",
+			parse_mode="Markdown", reply_markup=main_menu)
+		return
+
+	# Валидация через API
+	wait_msg = await _bot.send_message(uid, "🔍 *Проверяю ссылку...*", parse_mode="Markdown")
+	parsed = await validate_link(parsed)
+
+	if not parsed.get("valid", True):
+		await state.finish()
+		await _bot.delete_message(uid, wait_msg.message_id)
+		await _bot.send_message(uid,
+			f"❌ *Ссылка недействительна*\n`{parsed.get('error', 'Не найдено')}`",
+			parse_mode="Markdown", reply_markup=main_menu)
+		return
+
+	await _bot.delete_message(uid, wait_msg.message_id)
+
+	# TIDA нужен текст — спрашиваем перед запуском
+	tida_needed = parsed["type"] in (TYPE_MESSAGE, TYPE_INVITE, TYPE_BOT, TYPE_USER_CHANNEL)
+	if tida_needed:
+		await state.update_data(univ_parsed=parsed, _bot_token=_bot_token)
+		await dp.current_state(chat=uid, user=uid).set_state(WaitUniversalFSM.tida_text.state)
+		link_type_labels = {
+			TYPE_MESSAGE: "📨 Ссылка на сообщение",
+			TYPE_INVITE: "🔗 Инвайт-ссылка",
+			TYPE_BOT: "🤖 Бот",
+			TYPE_USER_CHANNEL: "👤 Пользователь/канал",
+		}
+		ltype = link_type_labels.get(parsed["type"], "")
+		await _bot.send_message(uid,
+			f"✅ *Ссылка принята* — {ltype}\n"
+			f"`{parsed['normalized']}`\n\n"
+			"*└─ Опишите нарушение для TIDA-жалобы:*\n"
+			"_(1-2 предложения на английском)_",
+			parse_mode="Markdown", reply_markup=main_menu)
+		return
+
+	# Без TIDA — сразу запуск
+	await state.finish()
+	status_msg = await _bot.send_message(uid,
+		f"⚙️ *Универсальный метод* — `{parsed['normalized']}`\n\n⏳ Запускаю...",
+		parse_mode="Markdown")
+	set_bot_universal(_bot)
+	asyncio.create_task(run_universal(parsed, "", uid, username, status_msg.message_id, _bot))
+
+
+# ─── Универсальный метод — ввод текста TIDA ──────────────────────────────────
+@dp.message_handler(state=WaitUniversalFSM.tida_text)
+async def universal_step_tida_text(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	tida_text = message.text.strip()
+
+	fsm_data = await state.get_data()
+	parsed = fsm_data.get('univ_parsed', {})
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror else bot
+
+	await state.finish()
+
+	status_msg = await _bot.send_message(uid,
+		f"⚙️ *Универсальный метод* — `{parsed.get('normalized', '')}`\n\n⏳ Запускаю...",
+		parse_mode="Markdown")
+	set_bot_universal(_bot)
+	asyncio.create_task(run_universal(parsed, tida_text, uid, username, status_msg.message_id, _bot))
 
 
 if __name__ == "__main__":
