@@ -16,12 +16,12 @@ def now_msk() -> datetime:
 
 # ─── Прогресс-бар ─────────────────────────────────────────────────────────────
 
-_BAR_LEN = 15
+_BAR_LEN = 10
 
 
 def _pbar_str(pct: int) -> str:
     filled = round(_BAR_LEN * pct / 100)
-    return "🟩" * filled + "⬜" * (_BAR_LEN - filled)
+    return "[" + "▓" * filled + "▒" * (_BAR_LEN - filled) + "]"
 
 
 class ProgressBar:

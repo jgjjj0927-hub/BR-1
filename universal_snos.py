@@ -330,11 +330,11 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
     results_data = {}   # label -> (suc, tot)
     start_ts = _time.monotonic()
 
-    BAR_LEN = 15
+    BAR_LEN = 10
 
     def _bar(pct: int) -> str:
         filled = round(BAR_LEN * pct / 100)
-        return "🟩" * filled + "⬜" * (BAR_LEN - filled)
+        return "[" + "▓" * filled + "▒" * (BAR_LEN - filled) + "]"
 
     def _eta(done: int) -> str:
         if done == 0:
