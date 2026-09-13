@@ -245,38 +245,43 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
         except Exception:
             pass
 
-    # Определяем набор методов
-    tasks_info = []  # (label, coro)
+    # DSA defaults
+    dsa_reason = "scam"
+    dsa_sub = "None"
+    dsa_text = tida_text or "This account is involved in scam or spam activity."
+
+    # Определяем набор методов — lambdas чтобы корутины создавались лениво
+    tasks_info = []  # (label, factory)
 
     if link_type == TYPE_MESSAGE:
         tasks_info = [
-            ("🕸 Ботнет",         botnet_main(uname, mid, user, username, norm)),
-            ("👑 Ботнет Прем",    botnet_main2(uname, mid, user, username, norm)),
-            ("🔍 AU Report",      main_aureport(norm, user, username)),
-            ("🎵 TIDA",           main_tida(norm, tida_text, user, username)),
-            ("📢 Канал",          main_channel_snos(uname, "spam", user, username, mid)),
-            ("🇪🇺 DSA",           main_dsa_snos(norm, user, username)),
+            ("🕸 Ботнет",      lambda: botnet_main(uname, mid, user, username, norm)),
+            ("👑 Ботнет Прем", lambda: botnet_main2(uname, mid, user, username, norm)),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username)),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username)),
+            ("📢 Канал",       lambda: main_channel_snos(uname, "spam", user, username, mid)),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text)),
         ]
 
     elif link_type == TYPE_INVITE:
         tasks_info = [
-            ("🔍 AU Report",      main_aureport(norm, user, username)),
-            ("🎵 TIDA",           main_tida(norm, tida_text, user, username)),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username)),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username)),
         ]
 
     elif link_type == TYPE_BOT:
         tasks_info = [
-            ("🤖 Бот-метод",      main_bot_snos(f"@{uname}", "personal", user, username, norm)),
-            ("🇪🇺 DSA",           main_dsa_snos(norm, user, username)),
-            ("🔍 AU Report",      main_aureport(norm, user, username)),
-            ("🎵 TIDA",           main_tida(norm, tida_text, user, username)),
+            ("🤖 Бот-метод",   lambda: main_bot_snos(f"@{uname}", "personal", user, username, norm)),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text)),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username)),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username)),
         ]
 
     elif link_type == TYPE_USER_CHANNEL:
         tasks_info = [
-            ("🇪🇺 DSA",           main_dsa_snos(norm, user, username)),
-            ("🔍 AU Report",      main_aureport(norm, user, username)),
-            ("🎵 TIDA",           main_tida(norm, tida_text, user, username)),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text)),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username)),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username)),
         ]
 
     total = len(tasks_info)
@@ -300,9 +305,9 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
         except Exception:
             pass
 
-    async def _run_one(label: str, coro):
+    async def _run_one(label: str, factory):
         try:
-            await coro
+            await factory()
             results[label] = "✅"
         except Exception as e:
             logger.warning(f"[UNIVERSAL] {label} error: {e}")
@@ -310,4 +315,4 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
         await _update()
 
     # Запуск параллельно
-    await asyncio.gather(*[_run_one(label, coro) for label, coro in tasks_info])
+    await asyncio.gather(*[_run_one(label, factory) for label, factory in tasks_info])
