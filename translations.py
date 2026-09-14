@@ -43,6 +43,7 @@ _T = {
         'sub_3d': 'на 3 дня',
         'sub_7d': 'на 7 дней',
         'sub_30d': 'на 30 дней',
+        'sub_60d': 'на 60 дней',
         'sub_forever': 'навсегда',
         'sub_premium': 'Премиум',
 
@@ -465,6 +466,7 @@ _T = {
         'sub_3d': 'for 3 days',
         'sub_7d': 'for 7 days',
         'sub_30d': 'for 30 days',
+        'sub_60d': 'for 60 days',
         'sub_forever': 'forever',
         'sub_premium': 'Premium',
 

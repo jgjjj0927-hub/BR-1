@@ -1174,3 +1174,81 @@ async def toggle_hidden(user_id: int) -> bool:
         new_val = not bool(row["is_hidden"]) if row else True
         await conn.execute("UPDATE users SET is_hidden = $1 WHERE user_id = $2", new_val, user_id)
         return new_val
+
+
+# ─── Крипто-кошельки (ротация) ────────────────────────────────────────────────
+
+async def init_crypto_wallets_table():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS crypto_wallets (
+                slot INT PRIMARY KEY CHECK (slot BETWEEN 1 AND 5),
+                address TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT FALSE
+            )
+        """)
+
+
+async def get_active_wallet() -> str | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT address FROM crypto_wallets WHERE is_active = TRUE LIMIT 1")
+        return row["address"] if row else None
+
+
+async def get_all_wallets() -> list:
+    """Возвращает все слоты [{'slot': 1, 'address': '...', 'is_active': True/False}, ...]."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT slot, address, is_active FROM crypto_wallets ORDER BY slot")
+        return [dict(r) for r in rows]
+
+
+async def set_wallet_slot(slot: int, address: str):
+    """Добавляет или обновляет кошелёк в указанном слоте (1-5)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO crypto_wallets (slot, address, is_active) VALUES ($1, $2, FALSE) "
+            "ON CONFLICT (slot) DO UPDATE SET address = $2",
+            slot, address
+        )
+
+
+async def remove_wallet_slot(slot: int):
+    """Удаляет кошелёк из слота. Если он был активным — ротация на следующий."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT is_active FROM crypto_wallets WHERE slot = $1", slot)
+        was_active = row["is_active"] if row else False
+        await conn.execute("DELETE FROM crypto_wallets WHERE slot = $1", slot)
+    if was_active:
+        await rotate_wallet()
+
+
+async def rotate_wallet() -> str | None:
+    """Переключает активный кошелёк на следующий. Возвращает новый адрес или None."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT slot, address FROM crypto_wallets ORDER BY slot"
+        )
+        if not rows:
+            return None
+        slots = [dict(r) for r in rows]
+        active_row = await conn.fetchrow("SELECT slot FROM crypto_wallets WHERE is_active = TRUE LIMIT 1")
+        current_slot = active_row["slot"] if active_row else 0
+
+        # Ищем следующий слот после текущего (с wraparound)
+        next_entry = None
+        for entry in slots:
+            if entry["slot"] > current_slot:
+                next_entry = entry
+                break
+        if next_entry is None:
+            next_entry = slots[0]  # wraparound
+
+        await conn.execute("UPDATE crypto_wallets SET is_active = FALSE WHERE is_active = TRUE")
+        await conn.execute("UPDATE crypto_wallets SET is_active = TRUE WHERE slot = $1", next_entry["slot"])
+        return next_entry["address"]
