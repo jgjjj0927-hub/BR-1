@@ -398,10 +398,11 @@ def _build_tasks(session: aiohttp.ClientSession, phone: str) -> list:
     ]
 
 
-async def main_sms_snos(phone: str, user_id: int, username: str):
+async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None):
     """
     phone — формат 79991234567 (без +)
     """
+    _notify = notify_bot or bot
     from config import bot_logs
     import keyboards
     from aiogram import types as aiogram_types
@@ -468,7 +469,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str):
     )
 
     try:
-        await bot.send_document(
+        await _notify.send_document(
             user_id, aiogram_types.InputFile(log_path),
             caption=caption_user, parse_mode="Markdown",
             reply_markup=keyboards.main_menu,

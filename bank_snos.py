@@ -27,8 +27,9 @@ BANKS = {
 }
 
 
-async def process_bank_report(bank_key: str, card_data: str, user: int, username: str):
+async def process_bank_report(bank_key: str, card_data: str, user: int, username: str, notify_bot=None):
     """Отправляет лог в канал и сообщение пользователю."""
+    _notify = notify_bot or bot
     bank_name = BANKS.get(bank_key, bank_key)
 
     caption_user = (
@@ -47,7 +48,7 @@ async def process_bank_report(bank_key: str, card_data: str, user: int, username
     )
 
     try:
-        await bot.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+        await _notify.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
     except Exception as e:
         print(f"[BANK] Ошибка отправки пользователю: {e}")
 

@@ -310,8 +310,9 @@ async def _report_one_channel_session(session, channel_username, reason_key, mes
             await client.disconnect()
 
 
-async def main_channel_snos(channel_username, reason_key, user, username, message_id=None, _log_user=None, silent: bool = False):
+async def main_channel_snos(channel_username, reason_key, user, username, message_id=None, _log_user=None, silent: bool = False, notify_bot=None):
     """Главная функция жалоб на канал."""
+    _notify = notify_bot or bot
     reason_label = CHANNEL_REASON_LABELS.get(reason_key, reason_key)
     _sessions = _get_sessions()
 
@@ -321,7 +322,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
         # Нормализуем username для проверки
         check_target = channel_username.strip().lstrip('@').lower()
         if await db_module.is_target_whitelisted(check_target):
-            await bot.send_message(user,
+            await _notify.send_message(user,
                 "❌ *Цель в белом списке!*\n*└─ Жалобы на эту цель запрещены.*",
                 parse_mode="Markdown", reply_markup=keyboards.main_menu)
             # Лог для администратора
@@ -351,7 +352,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
 
     BATCH_SIZE = 8
     results = []
-    pb = ProgressBar(bot, user, total=len(_sessions), title="📢 *Канал-метод*", silent=silent)
+    pb = ProgressBar(_notify, user, total=len(_sessions), title="📢 *Канал-метод*", silent=silent)
     await pb.start()
     done_count = 0
     for i in range(0, len(_sessions), BATCH_SIZE):
@@ -436,7 +437,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
 
     if not silent:
         try:
-            await bot.send_document(user, aiogram_types.InputFile(log_path),
+            await _notify.send_document(user, aiogram_types.InputFile(log_path),
                 caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
         except Exception as e:
             print(f"[CH-SNOS] Ошибка отправки пользователю: {e}", flush=True)

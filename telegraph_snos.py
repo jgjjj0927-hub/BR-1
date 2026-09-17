@@ -327,13 +327,13 @@ async def main_telegraph_snos(
     )
 
     try:
-        await bot.send_message(
+        await _notify.send_message(
             user_id, caption,
             parse_mode="Markdown",
             reply_markup=keyboards.main_menu,
             disable_web_page_preview=True
         )
-        await bot.send_message(
+        await (main_bot or bot).send_message(
             bot_logs, caption_log,
             parse_mode="Markdown",
             disable_web_page_preview=True

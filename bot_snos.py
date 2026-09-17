@@ -265,15 +265,16 @@ async def _attack_with_session(session_path, idx, bot_username, proxies, reason_
             pass
 
 
-async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_user=None, silent: bool = False):
+async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_user=None, silent: bool = False, notify_bot=None):
     from aiogram import types as aiogram_types
+    _notify = notify_bot or bot
 
     # Проверка белого списка
     try:
         import db as db_module
         check_target = bot_username.strip().lstrip('@').lower()
         if await db_module.is_target_whitelisted(check_target):
-            await bot.send_message(
+            await _notify.send_message(
                 user,
                 "*\u26d4 \u0426\u0435\u043b\u044c \u0432 \u0431\u0435\u043b\u043e\u043c \u0441\u043f\u0438\u0441\u043a\u0435!*\n"
                 "*\u0416\u0430\u043b\u043e\u0431\u044b \u043d\u0430 \u044d\u0442\u0443 \u0446\u0435\u043b\u044c \u0437\u0430\u043f\u0440\u0435\u0449\u0435\u043d\u044b.*",
@@ -308,7 +309,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
     # Пачки по 8 — чтобы не было database is locked и массовых таймаутов
     BATCH_SIZE = 8
     results = []
-    pb = ProgressBar(bot, user, total=total, title="🤖 *Бот-метод*", silent=silent)
+    pb = ProgressBar(_notify, user, total=total, title="🤖 *Бот-метод*", silent=silent)
     await pb.start()
     done_count = 0
     for i in range(0, total, BATCH_SIZE):
@@ -377,7 +378,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
 
     if not silent:
         try:
-            await bot.send_document(
+            await _notify.send_document(
                 user, aiogram_types.InputFile(log_path),
                 caption=caption_user, parse_mode="Markdown",
                 reply_markup=keyboards.main_menu

@@ -234,7 +234,8 @@ async def _send_one_code(phone: str, proxy_url: str | None, attempt: int, used_u
 
 
 
-async def main_code_snos(phone: str, user_id: int, username: str):
+async def main_code_snos(phone: str, user_id: int, username: str, notify_bot=None):
+    _notify = notify_bot or bot
     from config import bot_logs
     import keyboards
     from aiogram import types as aiogram_types
@@ -337,7 +338,7 @@ async def main_code_snos(phone: str, user_id: int, username: str):
     )
 
     try:
-        await bot.send_document(
+        await _notify.send_document(
             user_id, aiogram_types.InputFile(log_path),
             caption=caption_user, parse_mode="Markdown",
             reply_markup=keyboards.main_menu

@@ -520,10 +520,11 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
     return False
 
 
-async def main_tida(target_link: str, custom_text: str, user: int, username: str, _log_user=None, silent: bool = False):
+async def main_tida(target_link: str, custom_text: str, user: int, username: str, _log_user=None, silent: bool = False, notify_bot=None):
+    _notify = notify_bot or bot
     sessions = _get_sessions()
     if not sessions:
-        await bot.send_message(user,
+        await _notify.send_message(user,
             "❌ *Нет сессий для TIDA!*\n*Положи .session файлы в папку* `tida_sessions/`",
             parse_mode="Markdown", reply_markup=keyboards.main_menu)
         return
@@ -543,12 +544,12 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     # Защита от t.me/ без юзернейма
     parts = target.split("/")
     if len(parts) < 2 or not parts[1]:
-        await bot.send_message(user, "❌ *Неверная ссылка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
+        await _notify.send_message(user, "❌ *Неверная ссылка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
         return
 
     all_proxies = _get_all_proxies()
     if not all_proxies:
-        await bot.send_message(user,
+        await _notify.send_message(user,
             "⚠️ *TIDA работает без прокси — это может не сработать.*\n*Рекомендуется добавить SOCKS5 прокси.*",
             parse_mode="Markdown")
 
@@ -558,7 +559,7 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(all_proxies)}")
 
     tida_peer_ref = [None]
-    pb = ProgressBar(bot, user, total=total, title="🎵 *TIDA*", silent=silent)
+    pb = ProgressBar(_notify, user, total=total, title="🎵 *TIDA*", silent=silent)
     await pb.start()
     done_ref = [0]
     _sem = asyncio.Semaphore(10)
@@ -610,7 +611,7 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
 
     if not silent:
         try:
-            await bot.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+            await _notify.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
         except Exception as e:
             logger.error(f"[TIDA] Ошибка отправки результата пользователю: {e}")
 

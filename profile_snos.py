@@ -266,7 +266,7 @@ async def _report_session(session_path: str, target_username: str,
             pass
 
 
-async def main_profile_snos(target_link: str, user: int, username: str):
+async def main_profile_snos(target_link: str, user: int, username: str, notify_bot=None):
     """Главная функция — жалоба на профиль от всех сессий."""
 
     # Нормализуем target
@@ -280,9 +280,10 @@ async def main_profile_snos(target_link: str, user: int, username: str):
     else:
         target = raw.split('/')[0].split('?')[0]
 
+    _notify = notify_bot or bot
     sessions = _get_sessions()
     if not sessions:
-        await bot.send_message(
+        await _notify.send_message(
             user, '❌ *Нет сессий!*',
             parse_mode='Markdown', reply_markup=keyboards.main_menu
         )
@@ -290,7 +291,7 @@ async def main_profile_snos(target_link: str, user: int, username: str):
 
     total = len(sessions)
 
-    await bot.send_message(
+    await _notify.send_message(
         user,
         f'👤 *\[ТЕСТ\] Profile Report*\n'
         f'*└─ Цель:* `@{target}`\n'

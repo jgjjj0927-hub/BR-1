@@ -233,11 +233,11 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
         "botnet": last_used_botnet_dict, "botnet2": ..., ...
     }
     """
-    from botnet_snos import main as botnet_main, set_bot as botnet_set_bot
-    from botnet_snos_premium import main2 as botnet_main2, set_bot2 as botnet_set_bot2
-    from aureport_snos import main_aureport, set_bot_aureport
-    from tida_snos import main_tida, set_bot_tida
-    from channel_snos import main_channel_snos, set_bot_channel
+    from botnet_snos import main as botnet_main
+    from botnet_snos_premium import main2 as botnet_main2
+    from aureport_snos import main_aureport
+    from tida_snos import main_tida
+    from channel_snos import main_channel_snos
     from dsa_snos import main_dsa_snos, set_bot_dsa
     from bot_snos import main_bot_snos, set_bot_snos
 

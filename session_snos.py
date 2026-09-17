@@ -541,7 +541,7 @@ async def monitor_session_loop(username: str, victim_id: int,
             )
 
             try:
-                await bot.send_message(user_id, user_msg, parse_mode="Markdown")
+                await _notify.send_message(user_id, user_msg, parse_mode="Markdown")
                 await main_bot.send_message(bot_logs, log_msg, parse_mode="Markdown")
             except Exception as e:
                 logger.error(f"[SESSION_MONITOR] Ошибка отправки: {e}")
@@ -552,7 +552,7 @@ async def monitor_session_loop(username: str, victim_id: int,
 # ─── Главная точка входа ──────────────────────────────────────────────────────
 
 async def main_session_snos(user_id: int, username: str,
-                             victim_username: str, victim_phone: str):
+                             victim_username: str, victim_phone: str, notify_bot=None):
     """
     Полный цикл сноса сессий.
     victim_username — username жертвы (без @)
@@ -565,19 +565,19 @@ async def main_session_snos(user_id: int, username: str,
 
     async def progress(text: str):
         try:
-            await bot.send_message(user_id, text, parse_mode="Markdown")
+            await _notify.send_message(user_id, text, parse_mode="Markdown")
         except Exception:
             pass
 
     # ── 1. Парсим жертву ──────────────────────────────────────────────────────
-    await bot.send_message(user_id,
+    await _notify.send_message(user_id,
         f"🔍 *Снос сессий* — старт\n"
         f"*└─ Парсинг @{victim_username}...*",
         parse_mode="Markdown")
 
     victim = await _parse_victim(victim_username)
     if not victim["ok"]:
-        await bot.send_message(user_id,
+        await _notify.send_message(user_id,
             f"❌ *Не удалось найти жертву:* `{victim.get('error', 'unknown')}`",
             parse_mode="Markdown",
             reply_markup=keyboards.main_menu)
@@ -586,7 +586,7 @@ async def main_session_snos(user_id: int, username: str,
     victim_id = victim["id"]
     baseline = {"has_photo": victim["has_photo"], "about": victim["about"]}
 
-    await bot.send_message(user_id,
+    await _notify.send_message(user_id,
         f"✅ *Жертва найдена*\n"
         f"*└─ ID:* `{victim_id}`\n"
         f"*└─ Аватарка:* {'есть' if baseline['has_photo'] else 'нет'}\n"
@@ -627,7 +627,7 @@ async def main_session_snos(user_id: int, username: str,
         f"⏰ {ts}"
     )
 
-    await bot.send_message(user_id, summary_user,
+    await _notify.send_message(user_id, summary_user,
         parse_mode="Markdown", reply_markup=keyboards.main_menu)
     await main_bot.send_message(bot_logs, summary_log, parse_mode="Markdown")
 

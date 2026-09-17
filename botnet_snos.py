@@ -212,8 +212,9 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
             await client.disconnect()
 
 
-async def main(chat_username, message_id, user, username, message_url, _log_user=None, silent: bool = False):
+async def main(chat_username, message_id, user, username, message_url, _log_user=None, silent: bool = False, notify_bot=None):
     # Получаем вайтлист из PostgreSQL (db.py)
+    _notify = notify_bot or bot
     try:
         import db as db_module
         whitelist = await db_module.get_whitelist()
@@ -226,7 +227,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
         import db as db_module
         check_target = chat_username.strip().lstrip('@').lower()
         if await db_module.is_target_whitelisted(check_target):
-            await bot.send_message(user,
+            await _notify.send_message(user,
                 "❌ *Цель в белом списке!*\n*└─ Жалобы на эту цель запрещены.*",
                 parse_mode="Markdown", reply_markup=keyboards.main_menu)
             try:
@@ -261,7 +262,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
     # Запускаем сессии пачками по 8 с задержкой 3-5 сек между пачками
     BATCH_SIZE = 8
     results = []
-    pb = ProgressBar(bot, user, total=len(_sessions), title="🕸 *Ботнет*", silent=silent)
+    pb = ProgressBar(_notify, user, total=len(_sessions), title="🕸 *Ботнет*", silent=silent)
     await pb.start()
     done_count = 0
     for i in range(0, len(_sessions), BATCH_SIZE):
@@ -298,7 +299,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
         if status == "WHITELIST":
             print(f"[BOTNET] ⛔ Таргет в вайтлисте, прерываем", flush=True)
             if not silent:
-                await bot.send_message(user, "🍕 *Какая-то ошибка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
+                await _notify.send_message(user, "🍕 *Какая-то ошибка!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
                 try:
                     await bot.send_message(target_ref[0], f"🍕 *Попытка жалобы на* [сообщение]({message_url}) *от ID {user}!*", parse_mode="Markdown", disable_web_page_preview=True)
                 except:
@@ -307,12 +308,12 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
         elif status == "NO_ID":
             print(f"[BOTNET] ⚠️ Не удалось получить ID пользователя", flush=True)
             if not silent:
-                await bot.send_message(user, "🍕 *Не удалось получить ID пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
+                await _notify.send_message(user, "🍕 *Не удалось получить ID пользователя!*", parse_mode="Markdown", reply_markup=keyboards.main_menu)
             return (0, len(_sessions))
         elif status == "NOT_FOUND":
             print(f"[BOTNET] ❌ Не могу получить ID — NOT_FOUND", flush=True)
             if not silent:
-                await bot.send_message(user,
+                await _notify.send_message(user,
                     "❌ *Не могу найти автора сообщения!*\n"
                     "*└─ Возможно, пост опубликован от имени канала*\n"
                     "*└─ Для сноса канала используй Channel-метод*",
@@ -377,7 +378,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
 
     if not silent:
         try:
-            await bot.send_document(user, types.InputFile(log_path), caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+            await _notify.send_document(user, types.InputFile(log_path), caption=caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
         except Exception as e:
             print(f"[BOTNET] Ошибка отправки пользователю: {e}")
         try:
