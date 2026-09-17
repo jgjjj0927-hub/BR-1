@@ -4815,7 +4815,7 @@ async def _sub_expiry_notify_loop():
 
 
 async def _start_invite_api():
-	"""HTTP API на localhost:8080 — раздаёт свежие инвайт-ссылки зеркалам."""
+	"""HTTP API на localhost:8181 — раздаёт свежие инвайт-ссылки зеркалам."""
 	from aiohttp import web as aio_web
 	import time as _t
 
@@ -4882,14 +4882,14 @@ async def _start_invite_api():
 	# Если порт занят — ждём и пробуем снова
 	for _attempt in range(10):
 		try:
-			site = aio_web.TCPSite(runner, "127.0.0.1", 8080)
+			site = aio_web.TCPSite(runner, "127.0.0.1", 8181)
 			await site.start()
-			print("[API] HTTP сервер запущен на localhost:8080", flush=True)
+			print("[API] HTTP сервер запущен на localhost:8181", flush=True)
 			return
 		except OSError:
-			print(f"[API] Порт 8080 занят, жду 3с... ({_attempt+1}/10)", flush=True)
+			print(f"[API] Порт 8181 занят, жду 3с... ({_attempt+1}/10)", flush=True)
 			await asyncio.sleep(3)
-	print("[API] Не удалось запустить на 8080", flush=True)
+	print("[API] Не удалось запустить на 8181", flush=True)
 
 
 async def on_startup(dp):

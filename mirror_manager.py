@@ -30,8 +30,8 @@ _mirror_bots: dict[str, Bot] = {}  # token → Bot instance
 _mirror_captcha_codes: dict[str, dict[int, str]] = {}
 
 MIRROR_LIMIT = 100  # максимум активных зеркал одновременно
-INVITE_API = "http://127.0.0.1:8080/invite"
-CHECK_API  = "http://127.0.0.1:8080/check"
+INVITE_API = "http://127.0.0.1:8181/invite"
+CHECK_API  = "http://127.0.0.1:8181/check"
 
 
 async def _api_get_invite_links() -> tuple[str, str]:

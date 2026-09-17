@@ -28,8 +28,8 @@ GATEWAY_TOKENS = [
     os.environ.get("GATEWAY_TOKEN_3", "").strip(),
 ]
 
-INVITE_API = "http://127.0.0.1:8080/invite"
-FREE_MIRROR_API = "http://127.0.0.1:8080/free_mirror"
+INVITE_API = "http://127.0.0.1:8181/invite"
+FREE_MIRROR_API = "http://127.0.0.1:8181/free_mirror"
 
 
 async def get_invite_links() -> tuple[str, str]:
