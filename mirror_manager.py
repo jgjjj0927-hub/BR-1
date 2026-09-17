@@ -179,6 +179,18 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         lines = ["📋 *Белый список целей:*\n"] + [f"• `@{p}`" for p in patterns]
         await mirror_bot.send_message(message.chat.id, "\n".join(lines), parse_mode="Markdown")
 
+    async def _send_and_pin_site_msg(uid: int):
+        try:
+            msg = await mirror_bot.send_message(
+                uid,
+                "🔗 *Бот удален?* — [br\-v2\.top](https://br-v2.top)",
+                parse_mode="MarkdownV2",
+                disable_web_page_preview=False
+            )
+            await mirror_bot.pin_chat_message(uid, msg.message_id, disable_notification=True)
+        except Exception as e:
+            print(f"[MIRROR PIN] Ошибка: {e}", flush=True)
+
     # ─── /start ───────────────────────────────────────────────────────────────
     @dp.message_handler(commands=['start'], state='*')
     async def mirror_start(message: types.Message, state: FSMContext):
@@ -215,6 +227,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             uid, photo=open('material/menu.png', 'rb'),
             caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
             parse_mode="MarkdownV2", reply_markup=keyboards.menu)
+        await _send_and_pin_site_msg(uid)
 
     # ─── Капча ────────────────────────────────────────────────────────────────
     @dp.message_handler(state=MirrorCaptchaFSM.code)
@@ -249,6 +262,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 uid, photo=open('material/menu.png', 'rb'),
                 caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
                 parse_mode="MarkdownV2", reply_markup=keyboards.menu)
+            await _send_and_pin_site_msg(uid)
         else:
             code = generate_captcha_text()
             _mirror_captcha_codes.setdefault(token, {})[uid] = code
