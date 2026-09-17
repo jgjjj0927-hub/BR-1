@@ -31,6 +31,7 @@ _YM_SUB_DAYS = {
     "3": 3,
     "7": 7,
     "30": 30,
+    "60": 60,
     "forever": 999,
     "premupgrade": 0,  # premium flag, not days
 }
