@@ -48,6 +48,23 @@ Rules:
 - Output ONLY the complaint text, nothing else"""
 
 
+def _classify_violation(text: str) -> str:
+    t = text.lower()
+    if any(k in t for k in ['csam', 'child', 'minor', 'младенц', 'ребен', 'дет', 'несовершеннолет']):
+        return "Child sexual abuse material (CSAM) — explicit sexual content involving minors"
+    if any(k in t for k in ['наркот', 'drug', 'мефедрон', 'амфет', 'героин', 'кокаин', 'марихуан', 'закладк']):
+        return "Illegal drug distribution and narcotics sales"
+    if any(k in t for k in ['пробив', 'доксинг', 'dox', 'личные данные', 'персональн']):
+        return "Doxxing and illegal personal data trading"
+    if any(k in t for k in ['скам', 'мошен', 'fraud', 'scam', 'развод']):
+        return "Fraud and scam activity"
+    if any(k in t for k in ['террор', 'экстремизм', 'взрыв', 'убийств', 'насили']):
+        return "Terrorism, extremism and violent content"
+    if any(k in t for k in ['спам', 'spam', 'реклам']):
+        return "Spam and unsolicited advertising"
+    return "Systematic violation of Telegram Terms of Service"
+
+
 async def generate_tida_text(content: str, target_type: str, is_description: bool = False) -> str:
     """Генерирует текст жалобы через Groq для TIDA."""
     target_label = TARGET_LABELS.get(target_type, "resource")
@@ -55,10 +72,9 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
 
     system = TIDA_SYSTEM_PROMPT.replace("{action}", action).replace("{target}", target_label)
 
-    if is_description:
-        user_content = f"Violation description provided by user: {content[:500]}\nTarget: {target_label}"
-    else:
-        user_content = f"Message content from Telegram: {content[:500]}\nTarget: {target_label}"
+    # Не слать сырое описание — только абстрактную категорию нарушения
+    violation_category = _classify_violation(content)
+    user_content = f"Violation category: {violation_category}\nTarget type: {target_label}"
 
     try:
         async with aiohttp.ClientSession() as session:
