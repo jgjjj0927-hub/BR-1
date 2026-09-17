@@ -1341,10 +1341,6 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_rl_lang2 = await db.get_lang(uid)
 			await call.message.answer(t('rate_limit', _rl_lang2))
 			return
-		if not await check_user_in_db(uid):
-			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption="*Пропишите /start*", parse_mode="Markdown")
-			return
 		if not await subsribe_channel(uid, channel_id) or not await subsribe_channel(uid, channel2_id):
 			# Создаём временные invite links через основной бот (только он — администратор канала)
 			try:
@@ -1371,13 +1367,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		user_data = await db.get_user(uid)
 		if not user_data:
-			await db.add_user(uid)
-			user_data = await db.get_user(uid)
+			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+				caption="*Пропишите /start*", parse_mode="Markdown")
+			return
 		subscribe = datetime.strptime(str(user_data['subscribe'])[:19], "%Y-%m-%d %H:%M:%S")
 		premium = int(user_data['premium'])
 		username = call.from_user.username or "None"
 		fullname = call.from_user.first_name
-		_user_lang = await db.get_lang(uid)
+		_user_lang = user_data.get('lang') or 'ru'
 		back_markup = keyboards.get_back_markup(_user_lang)
 		panel_back_markup = keyboards.get_panel_back_markup(_user_lang)
 		main_menu = keyboards.get_main_menu_markup(_user_lang)
