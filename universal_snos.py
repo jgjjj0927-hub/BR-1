@@ -25,8 +25,13 @@ logger = logging.getLogger(__name__)
 bot = None
 main_bot = None
 
-# Глобальный лок — только один запуск универсального метода одновременно
-_universal_lock = asyncio.Lock()
+# Лок per-user — один запуск на пользователя одновременно
+_user_locks: dict = {}  # uid -> asyncio.Lock
+
+def _get_user_lock(uid: int) -> asyncio.Lock:
+    if uid not in _user_locks:
+        _user_locks[uid] = asyncio.Lock()
+    return _user_locks[uid]
 
 def set_bot_universal(b):
     global bot, main_bot
@@ -238,21 +243,13 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
     from aureport_snos import main_aureport
     from tida_snos import main_tida
     from channel_snos import main_channel_snos
-    from dsa_snos import main_dsa_snos, set_bot_dsa
-    from bot_snos import main_bot_snos, set_bot_snos
+    from dsa_snos import main_dsa_snos
+    from bot_snos import main_bot_snos
 
     link_type = parsed["type"]
     norm = parsed["normalized"]
     uname = parsed.get("username")
     mid = parsed.get("message_id")
-
-    # Настраиваем боты
-    for fn in (botnet_set_bot, botnet_set_bot2, set_bot_aureport,
-               set_bot_tida, set_bot_channel, set_bot_dsa, set_bot_snos):
-        try:
-            fn(bot_instance)
-        except Exception:
-            pass
 
     # DSA defaults
     dsa_reason = "scam"
@@ -292,35 +289,37 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
     # Определяем набор методов — 3-tuple: (label, factory, cd_key)
     tasks_info = []
 
+    _nb = bot_instance  # notify_bot для sub-методов
+
     if link_type == TYPE_MESSAGE:
         tasks_info = [
-            ("🕸 Ботнет",      lambda: botnet_main(uname, mid, user, username, norm, silent=True),  "botnet"),
+            ("🕸 Ботнет",      lambda: botnet_main(uname, mid, user, username, norm, silent=True, notify_bot=_nb),  "botnet"),
             ("👑 Ботнет Прем", lambda: botnet_main2(uname, mid, user, username, norm, silent=True), "botnet2"),
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True),             "aureport"),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True),       "tida"),
-            ("📢 Канал",       lambda: main_channel_snos(uname, "spam", user, username, mid, silent=True), "channel"),
-            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True), "dsa"),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True, notify_bot=_nb),             "aureport"),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True, notify_bot=_nb),       "tida"),
+            ("📢 Канал",       lambda: main_channel_snos(uname, "spam", user, username, mid, silent=True, notify_bot=_nb), "channel"),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True, _bot=_nb), "dsa"),
         ]
 
     elif link_type == TYPE_INVITE:
         tasks_info = [
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True), "aureport"),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True), "tida"),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True, notify_bot=_nb), "aureport"),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True, notify_bot=_nb), "tida"),
         ]
 
     elif link_type == TYPE_BOT:
         tasks_info = [
-            ("🤖 Бот-метод",   lambda: main_bot_snos(f"@{uname}", "personal", user, username, norm, silent=True), "bot_snos"),
-            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True), "dsa"),
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True), "aureport"),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True), "tida"),
+            ("🤖 Бот-метод",   lambda: main_bot_snos(f"@{uname}", "personal", user, username, norm, silent=True, notify_bot=_nb), "bot_snos"),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True, _bot=_nb), "dsa"),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True, notify_bot=_nb), "aureport"),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True, notify_bot=_nb), "tida"),
         ]
 
     elif link_type == TYPE_USER_CHANNEL:
         tasks_info = [
-            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True), "dsa"),
-            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True), "aureport"),
-            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True), "tida"),
+            ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True, _bot=_nb), "dsa"),
+            ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True, notify_bot=_nb), "aureport"),
+            ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True, notify_bot=_nb), "tida"),
         ]
 
     import time as _time
@@ -396,18 +395,19 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
             results[label] = "❌"
         await _update()
 
-    # Проверяем лок — если уже кто-то использует универсальный метод, отказываем
-    if _universal_lock.locked():
+    # Лок per-user — не даём одному пользователю запустить дважды
+    _lock = _get_user_lock(user)
+    if _lock.locked():
         try:
             await bot_instance.edit_message_text(
-                "⏳ *Универсальный метод уже запущен другим пользователем.*\n"
+                "⏳ *Универсальный метод уже запущен.*\n"
                 "Подожди пока он завершится.",
                 user, status_msg_id, parse_mode="Markdown")
         except Exception:
             pass
         return
 
-    async with _universal_lock:
+    async with _lock:
         # Начальное состояние
         await _update()
 
