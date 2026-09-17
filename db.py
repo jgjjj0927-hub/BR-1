@@ -477,6 +477,11 @@ async def init_mirrors_table():
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS mirror_bonus_given INT DEFAULT 0")
         except Exception:
             pass
+        # Системные зеркала — только они раздаются gateway ботами
+        try:
+            await conn.execute("ALTER TABLE mirrors ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT FALSE")
+        except Exception:
+            pass
 
 
 async def _init_paid_invoices_table():
@@ -1294,17 +1299,28 @@ async def get_free_mirror(exclude: str = None) -> str | None:
     async with pool.acquire() as conn:
         exclude_clause = "AND m.token != $1" if exclude else ""
         params = [exclude] if exclude else []
-        # Ищем зеркало с минимумом назначений
+        # Берём только системные зеркала с минимумом назначений
         row = await conn.fetchrow(f"""
             SELECT m.token, COUNT(a.user_id) as cnt
             FROM mirrors m
             LEFT JOIN mirror_assignments a ON a.mirror_token = m.token
-            WHERE 1=1 {exclude_clause}
+            WHERE m.is_system = TRUE {exclude_clause}
             GROUP BY m.token
             ORDER BY cnt ASC
             LIMIT 1
         """, *params)
         return row["token"] if row else None
+
+
+async def add_system_mirror(token: str, bot_username: str):
+    """Добавляет системное зеркало (для gateway). user_id=0 — наше."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO mirrors (token, user_id, bot_username, is_system)
+            VALUES ($1, 0, $2, TRUE)
+            ON CONFLICT (token) DO UPDATE SET is_system = TRUE, bot_username = $2
+        """, token, bot_username)
 
 
 async def get_mirror_user_count(mirror_token: str) -> int:
