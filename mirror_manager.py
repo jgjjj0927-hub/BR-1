@@ -572,8 +572,7 @@ async def _run_mirror(token: str):
             except Exception:
                 pass
             try:
-                session = await mirror_bot.get_session()
-                await session.close()
+                await mirror_bot.session.close()
             except Exception:
                 pass
             _mirror_bots.pop(token, None)
