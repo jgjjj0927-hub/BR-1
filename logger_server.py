@@ -20,6 +20,7 @@ from pydantic import BaseModel
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://botuser:botpass123@localhost/botdb")
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "BratokBB")
 BOT_TOKEN = os.getenv("TOKEN", "")
+NOTIFY_TOKEN = os.getenv("NOTIFY_TOKEN", "") or BOT_TOKEN  # токен зеркала для уведомлений
 NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,60693380,8701067595").split(",") if x.strip()]
 YM_SECRET = os.getenv("YM_SECRET", "uEyXCRwqs60eoUFLfvUI9cNt")
 BOT_LOGS = int(os.getenv("BOT_LOGS", "8316051968"))
@@ -260,7 +261,7 @@ async def _notify_admin_login(ip, ua, login_id, geo):
         for aid in NOTIFY_ADMINS:
             try:
                 await s.post(
-                    "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage",
+                    "https://api.telegram.org/bot" + NOTIFY_TOKEN + "/sendMessage",
                     json={"chat_id": aid, "text": text, "parse_mode": "Markdown", "reply_markup": kb}
                 )
             except Exception:
@@ -419,7 +420,7 @@ async def _notify_admin_login(ip: str, ua: str, login_id: int, geo: str):
         for admin_id in NOTIFY_ADMINS:
             try:
                 await s.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    f"https://api.telegram.org/bot{NOTIFY_TOKEN}/sendMessage",
                     json={"chat_id": admin_id, "text": text, "parse_mode": "Markdown", "reply_markup": kb}
                 )
             except Exception:
@@ -1081,7 +1082,7 @@ async def ym_notify(request: Request):
             operation_id, uid
         )
 
-    tok = BOT_TOKEN
+    tok = NOTIFY_TOKEN
     async with aiohttp.ClientSession() as s:
         try:
             await s.post(
