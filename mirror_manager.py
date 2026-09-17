@@ -270,25 +270,55 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 uid, photo=generate_captcha_image(code),
                 caption="*❌ Неверно! Попробуй ещё раз:*", parse_mode="Markdown")
 
+    _MIRROR_SUB_MAP = {
+        "1":          ("1",  "1",   "на 1 день"),
+        "3":          ("2",  "3",   "на 3 дня"),
+        "7":          ("4",  "7",   "на 7 дней"),
+        "30":         ("8",  "30",  "на 30 дней"),
+        "60":         ("12", "60",  "на 60 дней"),
+        "premupgrade":("5",  "1",   "Премиум"),
+    }
+
     # ─── Оплата sub_ ──────────────────────────────────────────────────────────
-    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'))
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'), state='*')
     async def mirror_sub(callback_query: types.CallbackQuery):
         try:
+            await callback_query.answer()
+            st = callback_query.data.split('_', 1)[1]
+            if st not in _MIRROR_SUB_MAP:
+                return
+            amount, sub_days, pidor = _MIRROR_SUB_MAP[st]
+            method_markup = types.InlineKeyboardMarkup(row_width=1)
+            method_markup.add(
+                types.InlineKeyboardButton("CryptoBot (USDT)", callback_data=f'pay_mirror_crypto_{st}'),
+                keyboards.back,
+            )
+            caption_text = f">⚙️ *Покупка*\n*└─ Вы покупаете: {pidor}*\n*└─ Вы платите: {amount}$*\n\n*Выберите способ оплаты:*"
+            try:
+                await mirror_bot.edit_message_caption(
+                    chat_id=callback_query.message.chat.id,
+                    message_id=callback_query.message.message_id,
+                    caption=caption_text,
+                    parse_mode="MarkdownV2", reply_markup=method_markup)
+            except Exception:
+                await mirror_bot.edit_message_text(
+                    caption_text,
+                    chat_id=callback_query.message.chat.id,
+                    message_id=callback_query.message.message_id,
+                    parse_mode="MarkdownV2", reply_markup=method_markup)
+        except Exception as e:
+            print(f"[MIRROR] sub: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_mirror_crypto_'), state='*')
+    async def mirror_pay_crypto(callback_query: types.CallbackQuery):
+        try:
+            await callback_query.answer()
             from pyCryptoPayAPI import pyCryptoPayAPI
             crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
-            user_id = callback_query.from_user.id
-            sub_map = {
-                "1":          ("1",  "1",   "на 1 день"),
-                "3":          ("2",  "3",   "на 3 дня"),
-                "7":          ("4",  "7",   "на 7 дней"),
-                "30":         ("8",  "30",  "на 30 дней"),
-                "60":         ("12", "60",  "на 60 дней"),
-                "premupgrade":("5",  "1",   "Премиум"),
-            }
-            st = callback_query.data.split('_')[1]
-            if st not in sub_map:
+            st = callback_query.data[len('pay_mirror_crypto_'):]
+            if st not in _MIRROR_SUB_MAP:
                 return
-            amount, sub_days, pidor = sub_map[st]
+            amount, sub_days, pidor = _MIRROR_SUB_MAP[st]
             invoice = await asyncio.to_thread(crypto.create_invoice, asset='USDT', amount=amount)
             pay_check = types.InlineKeyboardMarkup(row_width=2)
             pay_check.add(
@@ -296,7 +326,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 types.InlineKeyboardButton("🔍 Проверить",
                     callback_data=f'check_status_{invoice["invoice_id"]}_{st}_{sub_days}'))
             pay_check.add(keyboards.back)
-            caption_text = f">⚙️ *Покупка*\n*└─ Вы покупаете: {pidor}*\n*└─ Вы платите: {amount}$*"
+            caption_text = f">⚙️ *Оплата CryptoBot*\n*└─ {pidor}*\n*└─ {amount} USDT*"
             try:
                 await mirror_bot.edit_message_caption(
                     chat_id=callback_query.message.chat.id,
@@ -310,9 +340,9 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                     message_id=callback_query.message.message_id,
                     parse_mode="MarkdownV2", reply_markup=pay_check)
         except Exception as e:
-            print(f"[MIRROR] sub: {e}")
+            print(f"[MIRROR] pay_crypto: {e}")
 
-    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'))
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'), state='*')
     async def mirror_check_status(callback_query: types.CallbackQuery):
         try:
             from pyCryptoPayAPI import pyCryptoPayAPI
