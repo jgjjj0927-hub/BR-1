@@ -1445,10 +1445,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			prem = t('profile_prem_yes', _user_lang) if premium == 1 else t('profile_prem_no', _user_lang)
 			free_reports = await db.get_free_reports(uid)
 			ref_count = await db.get_referral_count(uid)
+			# Топ-3 текущей недели
+			from datetime import timedelta as _td2
+			_now2 = now_msk()
+			_wstart = (_now2 - _td2(days=_now2.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+			_wend = _wstart + _td2(weeks=1)
+			_top3 = await db.get_weekly_top3(_wstart, _wend)
+			_MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
+			_PRIZES = {1: 150, 2: 75, 3: 50}
+			_top_lines = ["\n\n🏆 *Топ рейтинг недели:*"]
+			if _top3:
+				for _ri, _rrow in enumerate(_top3, 1):
+					_runame = f"@{_rrow['username']}" if _rrow['username'] else f"ID {_rrow['user_id']}"
+					_top_lines.append(f"{_MEDALS[_ri]} {_runame} — {_rrow['total']} репортов → {_PRIZES[_ri]}⭐")
+			else:
+				_top_lines.append("_Пока нет репортов — стань первым!_")
+			_top_lines.append("_Рейтинг обновляется каждый понедельник_")
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
+			_profile_markup.add(types.InlineKeyboardButton("🏆 Подробнее о топе", callback_data='top_rating'))
 			_profile_markup.add(keyboards.get_back_btn(_user_lang))
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=f"{t('profile_caption', _user_lang)}\n\n{t('profile_name', _user_lang, name=fullname)}\n{t('profile_id', _user_lang, uid=uid)}\n{t('profile_username', _user_lang, username=username)}\n{t('profile_premium', _user_lang, prem=prem)}\n{t('profile_free_reports', _user_lang, count=free_reports)}\n{t('profile_refs', _user_lang, count=ref_count)}\n\n{t('profile_sub_status', _user_lang, sub_text=sub_text)}",
+				caption=f"{t('profile_caption', _user_lang)}\n\n{t('profile_name', _user_lang, name=fullname)}\n{t('profile_id', _user_lang, uid=uid)}\n{t('profile_username', _user_lang, username=username)}\n{t('profile_premium', _user_lang, prem=prem)}\n{t('profile_free_reports', _user_lang, count=free_reports)}\n{t('profile_refs', _user_lang, count=ref_count)}\n\n{t('profile_sub_status', _user_lang, sub_text=sub_text)}" + "\n".join(_top_lines),
 				parse_mode="Markdown", reply_markup=_profile_markup)
 		elif d == 'admin_panel':
 			if uid not in admins:
@@ -1657,8 +1674,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"Рейтинг обновляется каждый понедельник в 00:00 МСК, "
 				"победители получают Stars в течение 24ч."
 			)
-			_top_markup = types.InlineKeyboardMarkup(row_width=1)
-			_top_markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data='bonuses_menu'))
+			_top_markup = types.InlineKeyboardMarkup(row_width=2)
+			_top_markup.add(
+				types.InlineKeyboardButton("👤 Профиль", callback_data='profile'),
+				types.InlineKeyboardButton("🎁 Бонусы", callback_data='bonuses_menu'),
+			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption="\n".join(_lines), parse_mode="Markdown", reply_markup=_top_markup)
