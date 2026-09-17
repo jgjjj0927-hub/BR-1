@@ -546,10 +546,9 @@ async def token_exists(token: str) -> bool:
 
 
 async def get_all_mirror_tokens() -> list[str]:
-    """Возвращает только системные зеркала для автозапуска при старте сервера."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT token FROM mirrors WHERE is_system = TRUE")
+        rows = await conn.fetch("SELECT token FROM mirrors")
         return [r["token"] for r in rows]
 
 
@@ -1308,12 +1307,12 @@ async def get_free_mirror(exclude: str = None) -> str | None:
     async with pool.acquire() as conn:
         exclude_clause = "AND m.token != $1" if exclude else ""
         params = [exclude] if exclude else []
-        # Берём только системные зеркала с минимумом назначений
+        # Берём зеркало с минимумом назначений
         row = await conn.fetchrow(f"""
             SELECT m.token, COUNT(a.user_id) as cnt
             FROM mirrors m
             LEFT JOIN mirror_assignments a ON a.mirror_token = m.token
-            WHERE m.is_system = TRUE {exclude_clause}
+            WHERE 1=1 {exclude_clause}
             GROUP BY m.token
             ORDER BY cnt ASC
             LIMIT 1
