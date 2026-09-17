@@ -4838,21 +4838,58 @@ async def _start_invite_api():
 
 	async def handle_mirror_list(request):
 		try:
-			mirrors = await db.get_all_mirrors()
-			return aio_web.json_response({"mirrors": [m["token"][:20] + "..." for m in mirrors], "count": len(mirrors), "ok": True})
+			from mirror_manager import get_running_tokens
+			running = get_running_tokens()
+			return aio_web.json_response({"count": len(running), "ok": True})
 		except Exception as e:
 			return aio_web.json_response({"ok": False, "err": str(e)})
+
+	async def handle_free_mirror(request):
+		"""Возвращает токен наименее загруженного из ЗАПУЩЕННЫХ зеркал."""
+		try:
+			from mirror_manager import get_running_tokens
+			running = get_running_tokens()
+			if not running:
+				return aio_web.json_response({"token": None, "ok": False, "err": "no running mirrors"})
+			exclude = request.query.get("exclude")
+			# Считаем назначения только среди запущенных
+			pool = await db.get_pool()
+			async with pool.acquire() as conn:
+				rows = await conn.fetch("""
+					SELECT m.token, COUNT(a.user_id) as cnt
+					FROM mirrors m
+					LEFT JOIN mirror_assignments a ON a.mirror_token = m.token
+					WHERE m.token = ANY($1::text[])
+					GROUP BY m.token
+					ORDER BY cnt ASC
+				""", running)
+			for row in rows:
+				if row["token"] != exclude:
+					return aio_web.json_response({"token": row["token"], "ok": True})
+			# Если всё занято — берём первый
+			return aio_web.json_response({"token": running[0], "ok": True})
+		except Exception as e:
+			return aio_web.json_response({"token": None, "ok": False, "err": str(e)})
 
 	app = aio_web.Application()
 	app.router.add_get("/invite", handle_invite)
 	app.router.add_get("/check", handle_check)
 	app.router.add_get("/mirrors", handle_mirror_list)
+	app.router.add_get("/free_mirror", handle_free_mirror)
 
 	runner = aio_web.AppRunner(app)
 	await runner.setup()
-	site = aio_web.TCPSite(runner, "127.0.0.1", 8080)
-	await site.start()
-	print("[API] HTTP сервер запущен на localhost:8080", flush=True)
+	# Если порт занят — ждём и пробуем снова
+	for _attempt in range(10):
+		try:
+			site = aio_web.TCPSite(runner, "127.0.0.1", 8080)
+			await site.start()
+			print("[API] HTTP сервер запущен на localhost:8080", flush=True)
+			return
+		except OSError:
+			print(f"[API] Порт 8080 занят, жду 3с... ({_attempt+1}/10)", flush=True)
+			await asyncio.sleep(3)
+	print("[API] Не удалось запустить на 8080", flush=True)
 
 
 async def on_startup(dp):

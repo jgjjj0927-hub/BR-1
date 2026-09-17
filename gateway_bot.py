@@ -29,6 +29,7 @@ GATEWAY_TOKENS = [
 ]
 
 INVITE_API = "http://127.0.0.1:8080/invite"
+FREE_MIRROR_API = "http://127.0.0.1:8080/free_mirror"
 
 
 async def get_invite_links() -> tuple[str, str]:
@@ -40,6 +41,22 @@ async def get_invite_links() -> tuple[str, str]:
                 return data.get("link1", ""), data.get("link2", "")
     except Exception:
         return "", ""
+
+
+async def get_free_mirror_token(exclude: str = None) -> str | None:
+    """Получает токен наименее загруженного ЗАПУЩЕННОГО зеркала через HTTP API."""
+    try:
+        params = {}
+        if exclude:
+            params["exclude"] = exclude
+        async with aiohttp.ClientSession() as session:
+            async with session.get(FREE_MIRROR_API, params=params, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                data = await resp.json()
+                if data.get("ok"):
+                    return data.get("token")
+    except Exception:
+        pass
+    return None
 
 
 def _build_gateway_dispatcher(token: str, gateway_id: int) -> tuple[Bot, Dispatcher]:
@@ -71,8 +88,8 @@ def _build_gateway_dispatcher(token: str, gateway_id: int) -> tuple[Bot, Dispatc
         msg = await message.answer("🔍 *Ищу токен...*", parse_mode="Markdown")
         await asyncio.sleep(1)
 
-        # Получаем свободное зеркало
-        mirror_token = await db.get_free_mirror()
+        # Получаем свободное зеркало из числа ЗАПУЩЕННЫХ через HTTP API
+        mirror_token = await get_free_mirror_token()
         if not mirror_token:
             await gbot.edit_message_text(
                 "❌ *Нет доступных зеркал. Попробуй позже.*",
@@ -89,8 +106,8 @@ def _build_gateway_dispatcher(token: str, gateway_id: int) -> tuple[Bot, Dispatc
         # Проверяем токен
         username = await validate_token(mirror_token)
         if not username:
-            # Мёртвый — берём следующий
-            mirror_token = await db.get_free_mirror(exclude=mirror_token)
+            # Мёртвый — берём следующий из запущенных
+            mirror_token = await get_free_mirror_token(exclude=mirror_token)
             if mirror_token:
                 username = await validate_token(mirror_token)
 
