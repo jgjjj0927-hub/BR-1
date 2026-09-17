@@ -137,6 +137,16 @@ async def run_gateways():
             continue
         gbot, gdp = _build_gateway_dispatcher(token, i)
         me = await gbot.get_me()
+        # Сбрасываем вебхук и очищаем очередь апдейтов
+        await gbot.delete_webhook(drop_pending_updates=True)
+        # Ждём пока предыдущий long-poll умрёт
+        for _ in range(6):
+            try:
+                await gbot.get_updates(offset=-1, timeout=0, limit=1)
+                break
+            except Exception:
+                await asyncio.sleep(3)
+        await asyncio.sleep(1)
         print(f"[GATEWAY] #{i} @{me.username} запущен", flush=True)
         tasks.append(asyncio.ensure_future(gdp.start_polling(timeout=20)))
 
