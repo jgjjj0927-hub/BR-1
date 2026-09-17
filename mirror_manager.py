@@ -225,11 +225,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         if not await _api_check_subscription(uid):
             await _mirror_send_subscribe(uid, mirror_bot)
             return
+        await _send_and_pin_site_msg(uid)
         await mirror_bot.send_photo(
             uid, photo=open('material/menu.png', 'rb'),
             caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
             parse_mode="MarkdownV2", reply_markup=keyboards.menu)
-        await _send_and_pin_site_msg(uid)
 
     # ─── Капча ────────────────────────────────────────────────────────────────
     @dp.message_handler(state=MirrorCaptchaFSM.code)
@@ -260,11 +260,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             if not await _api_check_subscription(uid):
                 await _mirror_send_subscribe(uid, mirror_bot)
                 return
+            await _send_and_pin_site_msg(uid)
             await mirror_bot.send_photo(
                 uid, photo=open('material/menu.png', 'rb'),
                 caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
                 parse_mode="MarkdownV2", reply_markup=keyboards.menu)
-            await _send_and_pin_site_msg(uid)
         else:
             code = generate_captcha_text()
             _mirror_captcha_codes.setdefault(token, {})[uid] = code
