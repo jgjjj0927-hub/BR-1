@@ -1106,11 +1106,12 @@ async def ym_notify(request: Request):
             operation_id, uid
         )
 
-    tok = await _get_notify_token(uid)
+    user_tok = await _get_notify_token(uid)
+    main_tok = BOT_TOKEN or user_tok
     async with aiohttp.ClientSession() as s:
         try:
             await s.post(
-                f"https://api.telegram.org/bot{tok}/sendMessage",
+                f"https://api.telegram.org/bot{user_tok}/sendMessage",
                 json={"chat_id": uid, "text": msg_text, "parse_mode": "MarkdownV2"},
                 timeout=aiohttp.ClientTimeout(total=5)
             )
@@ -1118,7 +1119,7 @@ async def ym_notify(request: Request):
             log.warning(f"[ym-notify] user notify failed uid={uid}: {e}")
         try:
             await s.post(
-                f"https://api.telegram.org/bot{tok}/sendMessage",
+                f"https://api.telegram.org/bot{main_tok}/sendMessage",
                 json={"chat_id": BOT_LOGS, "text": log_text, "parse_mode": "Markdown"},
                 timeout=aiohttp.ClientTimeout(total=5)
             )
