@@ -3790,7 +3790,7 @@ async def telegraph_step1(message: types.Message, state: FSMContext):
 		telegraph_subject=subject,
 		telegraph_body=body,
 	)
-	await dp.current_state(chat=uid, user=uid).set_state(WaitTelegraphFSM.confirm.state)
+	await state.set_state(WaitTelegraphFSM.confirm.state)
 
 	# Показываем сгенерированный текст
 	await _bot.send_message(uid,
@@ -5440,7 +5440,7 @@ async def universal_step_link(message: types.Message, state: FSMContext):
 	tida_needed = parsed["type"] in (TYPE_MESSAGE, TYPE_INVITE, TYPE_BOT, TYPE_USER_CHANNEL)
 	if tida_needed:
 		await state.update_data(univ_parsed=parsed, _bot_token=_bot_token)
-		await dp.current_state(chat=uid, user=uid).set_state(WaitUniversalFSM.tida_text.state)
+		await state.set_state(WaitUniversalFSM.tida_text.state)
 		link_type_labels = {
 			TYPE_MESSAGE: "📨 Ссылка на сообщение",
 			TYPE_INVITE: "🔗 Инвайт-ссылка",
