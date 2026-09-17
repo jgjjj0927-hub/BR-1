@@ -3701,8 +3701,7 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 		parse_mode="Markdown")
 
 	try:
-		set_bot_aureport(_bot)
-		await main_aureport(raw, uid, username)
+		await main_aureport(raw, uid, username, notify_bot=_bot)
 		try: await db.log_attack(uid, raw, "aureport")
 		except Exception as e: print(f"[HISTORY] aureport log error: {e}", flush=True)
 		# Предлагаем мониторинг
@@ -3717,7 +3716,6 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 		print(f"[AUREPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка AU Report:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
-		set_bot_aureport(bot)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()

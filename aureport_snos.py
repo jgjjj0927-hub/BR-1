@@ -203,10 +203,11 @@ async def _single_session_flow(session_path: str, target: str, proxy=None) -> bo
             pass
 
 
-async def main_aureport(target_link: str, user: int, username: str, silent: bool = False):
+async def main_aureport(target_link: str, user: int, username: str, silent: bool = False, notify_bot=None):
+    _notify = notify_bot or bot
     sessions = _get_sessions()
     if not sessions:
-        await bot.send_message(user,
+        await _notify.send_message(user,
             "❌ *Нет сессий для AU Report!*\n*Положи .session файлы в папку* `aureport_sessions/`",
             parse_mode="Markdown", reply_markup=keyboards.main_menu)
         return
@@ -227,7 +228,7 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
 
     logger.info(f"[AUREPORT] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(proxies)}")
 
-    pb = ProgressBar(bot, user, total=total, title="🔍 *AU Report*", silent=silent)
+    pb = ProgressBar(_notify, user, total=total, title="🔍 *AU Report*", silent=silent)
     await pb.start()
     done_ref = [0]
     _sem = asyncio.Semaphore(10)
@@ -275,7 +276,7 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
 
     if not silent:
         try:
-            await bot.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
+            await _notify.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
         except Exception as e:
             logger.error(f"[AUREPORT] Ошибка отправки результата пользователю: {e}")
 
