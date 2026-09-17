@@ -22,6 +22,8 @@ import config
 import db
 import keyboards
 from captcha import generate_captcha_text, generate_captcha_image
+from translations import t
+from utils import now_msk
 
 _running_mirrors: dict[str, asyncio.Task] = {}
 _mirror_bots: dict[str, Bot] = {}  # token → Bot instance
