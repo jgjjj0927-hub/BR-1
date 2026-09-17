@@ -278,12 +278,12 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
             user_id = callback_query.from_user.id
             sub_map = {
-                "1": ("1", "1", "на 1 день"),
-                "3": ("2", "3", "на 3 дня"),
-                "7": (4, "7", "на 7 дней"),
-                "30": (8, "30", "на 30 дней"),
-                "forever": (6, "999", "навсегда"),
-                "premupgrade": (5, "1", "Премиум"),
+                "1":          ("1",  "1",   "на 1 день"),
+                "3":          ("2",  "3",   "на 3 дня"),
+                "7":          ("4",  "7",   "на 7 дней"),
+                "30":         ("8",  "30",  "на 30 дней"),
+                "60":         ("12", "60",  "на 60 дней"),
+                "premupgrade":("5",  "1",   "Премиум"),
             }
             st = callback_query.data.split('_')[1]
             if st not in sub_map:
@@ -296,11 +296,19 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 types.InlineKeyboardButton("🔍 Проверить",
                     callback_data=f'check_status_{invoice["invoice_id"]}_{st}_{sub_days}'))
             pay_check.add(keyboards.back)
-            await mirror_bot.edit_message_caption(
-                chat_id=callback_query.message.chat.id,
-                message_id=callback_query.message.message_id,
-                caption=f">⚙️ *Покупка*\n*└─ Вы покупаете: {pidor}*\n*└─ Вы платите: {amount}$*",
-                parse_mode="MarkdownV2", reply_markup=pay_check)
+            caption_text = f">⚙️ *Покупка*\n*└─ Вы покупаете: {pidor}*\n*└─ Вы платите: {amount}$*"
+            try:
+                await mirror_bot.edit_message_caption(
+                    chat_id=callback_query.message.chat.id,
+                    message_id=callback_query.message.message_id,
+                    caption=caption_text,
+                    parse_mode="MarkdownV2", reply_markup=pay_check)
+            except Exception:
+                await mirror_bot.edit_message_text(
+                    caption_text,
+                    chat_id=callback_query.message.chat.id,
+                    message_id=callback_query.message.message_id,
+                    parse_mode="MarkdownV2", reply_markup=pay_check)
         except Exception as e:
             print(f"[MIRROR] sub: {e}")
 
