@@ -5048,7 +5048,8 @@ async def on_startup(dp):
 		await db.init_monitors_table()
 		await db.init_attack_log_table()
 		await db.init_leaderboard_table()
-		print("БД инициализирована успешно.")
+		await db.clear_attack_log_current_week()
+		print("БД инициализирована успешно. Счётчик репортов текущей недели сброшен.")
 	except Exception as e:
 		print(f"ОШИБКА БД при старте: {e}")
 	botnet_set_bot(bot)

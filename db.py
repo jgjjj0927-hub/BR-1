@@ -1063,6 +1063,16 @@ async def init_attack_log_table():
         await conn.execute("CREATE INDEX IF NOT EXISTS attack_log_user_idx ON attack_log(user_id, created_at DESC)")
 
 
+async def clear_attack_log_current_week():
+    """Очищает записи текущей недели (сброс к нулю)."""
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+    week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM attack_log WHERE created_at >= $1", week_start)
+
+
 async def log_attack(user_id: int, target_url: str, method: str, success_count: int = 0):
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -1145,17 +1155,16 @@ async def init_leaderboard_table():
 
 
 async def get_weekly_top3(week_start, week_end) -> list:
-    """Топ-3 пользователей по сумме репортов за период."""
+    """Топ-3 пользователей по количеству репортов за период."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT al.user_id,
                    COALESCE(u.username, '') AS username,
-                   COALESCE(SUM(al.success_count), 0) AS total
+                   COUNT(*) AS total
             FROM attack_log al
             LEFT JOIN users u ON u.user_id = al.user_id
             WHERE al.created_at >= $1 AND al.created_at < $2
-              AND al.success_count > 0
             GROUP BY al.user_id, u.username
             ORDER BY total DESC
             LIMIT 3
