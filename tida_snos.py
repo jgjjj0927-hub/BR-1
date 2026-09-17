@@ -73,7 +73,7 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
                     ],
                     "max_tokens": 100,
                     "temperature": 0.7,
-                    "reasoning_effort": "none",
+                    "reasoning_effort": "low",
                 },
                 timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
@@ -85,9 +85,6 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
                 import re
                 text = msg.get("content", "").strip()
                 text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-                if not text:
-                    text = msg.get("reasoning", "").strip()
-                    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
                 return text[:300]
     except Exception as e:
         logger.error(f"[TIDA-AI] Groq error: {e}")
