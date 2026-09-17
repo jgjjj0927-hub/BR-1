@@ -80,9 +80,12 @@ class MaintenanceMiddleware(BaseMiddleware):
             if current and 'CaptchaFSM' in str(current):
                 return
             _bot = message.bot
-            await _bot.send_message(uid,
-                "🔧 *Сейчас идут технические работы / обновление.*\n*Попробуйте позже.*",
-                parse_mode="Markdown")
+            try:
+                await _bot.send_message(uid,
+                    "🔧 *Сейчас идут технические работы / обновление.*\n*Попробуйте позже.*",
+                    parse_mode="Markdown")
+            except Exception:
+                pass
             raise CancelHandler()
 
     async def on_pre_process_callback_query(self, call: types.CallbackQuery, data: dict):
