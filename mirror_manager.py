@@ -529,6 +529,11 @@ async def _run_mirror(token: str):
                 except Exception:
                     break
             await asyncio.sleep(1)
+            # Сбрасываем вебхук — иначе getUpdates вернёт ошибку
+            try:
+                await mirror_bot.delete_webhook(drop_pending_updates=True)
+            except Exception:
+                pass
             await _poll_loop(mirror_bot, dp)
             break  # нормальный выход из цикла (polling остановлен снаружи)
         except Unauthorized:
