@@ -1629,6 +1629,43 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption=t('bonuses_caption', _user_lang), parse_mode="Markdown",
 				reply_markup=keyboards.get_bonuses_markup(_user_lang))
 
+		elif d == 'top_rating':
+			from datetime import datetime as _dt, timedelta as _td
+			_now = now_msk()
+			_days_since_mon = _now.weekday()
+			_week_start = (_now - _td(days=_days_since_mon)).replace(hour=0, minute=0, second=0, microsecond=0)
+			_week_end = _week_start + _td(weeks=1)
+			_top3 = await db.get_weekly_top3(_week_start, _week_end)
+			_MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
+			_PRIZES = {1: 150, 2: 75, 3: 50}
+			_week_label = f"{_week_start.strftime('%d.%m')} — {(_week_end - _td(days=1)).strftime('%d.%m')}"
+			_lines = [f"🏆 *Рейтинг недели* ({_week_label})\n"]
+			if _top3:
+				for _i, _row in enumerate(_top3, 1):
+					_uname = f"@{_row['username']}" if _row['username'] else f"ID {_row['user_id']}"
+					_lines.append(f"{_MEDALS[_i]} {_uname} — {_row['total']} репортов")
+			else:
+				_lines.append("_Пока нет репортов — стань первым!_")
+			_lines.append(
+				"\n*🎁 Награды за неделю:*\n"
+				"🥇 1 место — 150 ⭐ Telegram Stars\n"
+				"🥈 2 место — 75 ⭐ Telegram Stars\n"
+				"🥉 3 место — 50 ⭐ Telegram Stars\n\n"
+				"*📈 Как попасть в топ?*\n"
+				"Отправляй больше успешных репортов через любой метод — "
+				"ботнет, веб, SMS, DSA и другие. "
+				"Рейтинг обновляется каждый понедельник в 00:00 МСК, "
+				"победители получают Stars в течение 24ч."
+			)
+			_top_markup = types.InlineKeyboardMarkup(row_width=1)
+			_top_markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data='bonuses_menu'))
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption="\n".join(_lines), parse_mode="Markdown", reply_markup=_top_markup)
+			except Exception:
+				await bot_instance.edit_message_text("\n".join(_lines), chat_id=call.message.chat.id,
+					message_id=call.message.message_id, parse_mode="Markdown", reply_markup=_top_markup)
+
 		elif d == 'settings_menu':
 			is_hidden = await db.get_is_hidden(uid)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
@@ -4943,6 +4980,61 @@ async def _start_invite_api():
 	print("[API] Не удалось запустить на 8181", flush=True)
 
 
+async def _weekly_leaderboard_loop():
+	"""Каждый понедельник в 00:00 МСК объявляет топ-3 и уведомляет победителей."""
+	_PRIZES = {1: 150, 2: 75, 3: 50}
+	_MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
+
+	while True:
+		# Секунды до следующего понедельника 00:00 МСК
+		_now = now_msk()
+		_days_until_mon = (7 - _now.weekday()) % 7 or 7
+		_target = (_now + timedelta(days=_days_until_mon)).replace(hour=0, minute=0, second=0, microsecond=0)
+		_sleep = max(60, (_target - _now).total_seconds())
+		print(f"[LEADERBOARD] Следующий запуск через {_sleep/3600:.1f}ч", flush=True)
+		await asyncio.sleep(_sleep)
+
+		# Прошедшая неделя: Пн 00:00 МСК → только что наступивший Пн 00:00
+		_now = now_msk()
+		_week_end = _now.replace(hour=0, minute=0, second=0, microsecond=0)
+		_week_start = _week_end - timedelta(weeks=1)
+		_week_label = f"{_week_start.strftime('%d.%m')} — {(_week_end - timedelta(days=1)).strftime('%d.%m')}"
+
+		try:
+			_top3 = await db.get_weekly_top3(_week_start, _week_end)
+			await db.save_leaderboard_winners(_week_start, _top3)
+
+			_lines = [f"🏆 *Итоги рейтинга* ({_week_label})\n"]
+			if _top3:
+				for _i, _row in enumerate(_top3, 1):
+					_uname = f"@{_row['username']}" if _row['username'] else f"ID {_row['user_id']}"
+					_prize = _PRIZES[_i]
+					_lines.append(f"{_MEDALS[_i]} {_uname} — {_row['total']} репортов → *{_prize} ⭐*")
+				_lines.append("\n_Stars будут зачислены победителям в течение 24ч_")
+			else:
+				_lines.append("_В эту неделю репортов не было_")
+
+			await bot.send_message(bot_logs, "\n".join(_lines), parse_mode="Markdown")
+
+			for _i, _row in enumerate(_top3, 1):
+				_prize = _PRIZES[_i]
+				try:
+					await bot.send_message(
+						_row['user_id'],
+						f"{_MEDALS[_i]} *Вы заняли {_i}-е место в рейтинге недели!*\n\n"
+						f"🎯 Репортов: *{_row['total']}*\n"
+						f"🎁 Награда: *{_prize} ⭐ Telegram Stars*\n\n"
+						f"_Stars будут зачислены в течение 24 часов_",
+						parse_mode="Markdown"
+					)
+				except Exception:
+					pass
+		except Exception as _e:
+			print(f"[LEADERBOARD] Ошибка: {_e}", flush=True)
+
+		await asyncio.sleep(60)  # буфер чтобы не сработало дважды
+
+
 async def on_startup(dp):
 	try:
 		await bot.delete_webhook(drop_pending_updates=True)
@@ -4963,6 +5055,7 @@ async def on_startup(dp):
 		await db.init_cases_table()
 		await db.init_monitors_table()
 		await db.init_attack_log_table()
+		await db.init_leaderboard_table()
 		print("БД инициализирована успешно.")
 	except Exception as e:
 		print(f"ОШИБКА БД при старте: {e}")
@@ -4984,6 +5077,7 @@ async def on_startup(dp):
 	from monitor_snos import _telegraph_monitor_loop
 	asyncio.ensure_future(_telegraph_monitor_loop())
 	asyncio.ensure_future(_sub_expiry_notify_loop())
+	asyncio.ensure_future(_weekly_leaderboard_loop())
 	# Зеркала запускаем в фоне — основной бот стартует сразу
 	asyncio.ensure_future(start_all_mirrors())
 	# HTTP API для шлюзовых ботов (приглашения, проверка подписки)

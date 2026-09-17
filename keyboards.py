@@ -107,6 +107,7 @@ def get_bonuses_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton(t('btn_referral', lang), callback_data='referral'),
         types.InlineKeyboardButton(t('btn_mirrors', lang), callback_data='mirrors_menu'),
     )
+    m.add(types.InlineKeyboardButton('🏆 Топ рейтинг', callback_data='top_rating'))
     m.add(get_back_btn(lang))
     return m
 

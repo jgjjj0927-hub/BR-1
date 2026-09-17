@@ -1124,6 +1124,59 @@ async def reset_sub_expiry_notified(user_id: int):
         )
 
 
+# ─── Еженедельный рейтинг ────────────────────────────────────────────────────
+
+async def init_leaderboard_table():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS leaderboard_winners (
+                id SERIAL PRIMARY KEY,
+                week_start DATE NOT NULL,
+                place INT NOT NULL,
+                user_id BIGINT NOT NULL,
+                username TEXT DEFAULT '',
+                total_reports INT NOT NULL DEFAULT 0,
+                stars_prize INT NOT NULL DEFAULT 0,
+                paid BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+
+async def get_weekly_top3(week_start, week_end) -> list:
+    """Топ-3 пользователей по сумме репортов за период."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT al.user_id,
+                   COALESCE(u.username, '') AS username,
+                   COALESCE(SUM(al.success_count), 0) AS total
+            FROM attack_log al
+            LEFT JOIN users u ON u.user_id = al.user_id
+            WHERE al.created_at >= $1 AND al.created_at < $2
+              AND al.success_count > 0
+            GROUP BY al.user_id, u.username
+            ORDER BY total DESC
+            LIMIT 3
+        """, week_start, week_end)
+        return [dict(r) for r in rows]
+
+
+async def save_leaderboard_winners(week_start, winners: list):
+    """Сохраняет победителей недели в историю."""
+    _PRIZES = {1: 150, 2: 75, 3: 50}
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for i, row in enumerate(winners, 1):
+            await conn.execute("""
+                INSERT INTO leaderboard_winners (week_start, place, user_id, username, total_reports, stars_prize)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT DO NOTHING
+            """, week_start.date(), i, row['user_id'], row['username'],
+                int(row['total']), _PRIZES.get(i, 0))
+
+
 # ─── Пробив — лимиты ──────────────────────────────────────────────────────────
 
 async def get_probiv_usage(user_id: int) -> dict:
