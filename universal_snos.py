@@ -185,45 +185,65 @@ async def validate_link(parsed: dict) -> dict:
     session_path = os.path.join(SESSION_FOLDER, random.choice(sessions))
     api_id, api_hash = _random_creds()
 
+    client = None
     try:
         client = TelegramClient(session_path, api_id, api_hash,
                                 system_version='4.16.30-vxCUSTOM')
-        await client.connect()
-        if not await client.is_user_authorized():
-            await client.disconnect()
+
+        try:
+            await asyncio.wait_for(client.connect(), timeout=10)
+        except asyncio.TimeoutError:
+            logger.warning("[UNIVERSAL] validate_link: connect timeout")
+            return {**parsed, "valid": True}
+
+        try:
+            authorized = await asyncio.wait_for(client.is_user_authorized(), timeout=5)
+        except asyncio.TimeoutError:
+            logger.warning("[UNIVERSAL] validate_link: is_user_authorized timeout")
+            return {**parsed, "valid": True}
+
+        if not authorized:
             return {**parsed, "valid": True}  # сессия протухла — пропускаем
 
         uname = parsed["username"]
         try:
-            entity = await client.get_entity(uname)
+            entity = await asyncio.wait_for(client.get_entity(uname), timeout=10)
+        except asyncio.TimeoutError:
+            logger.warning(f"[UNIVERSAL] get_entity timeout для @{uname}")
+            return {**parsed, "valid": True}
         except (UsernameNotOccupiedError, UsernameInvalidError):
-            await client.disconnect()
             return {**parsed, "valid": False, "error": f"@{uname} не существует"}
         except ChannelPrivateError:
-            await client.disconnect()
             return {**parsed, "valid": False, "error": "Канал приватный"}
         except Exception as e:
-            await client.disconnect()
             logger.warning(f"[UNIVERSAL] get_entity error: {e}")
             return {**parsed, "valid": True}  # при ошибке не блокируем
 
         # Для сообщения — проверяем что оно существует
         if parsed["type"] == TYPE_MESSAGE and parsed["message_id"]:
             try:
-                msgs = await client.get_messages(entity, ids=[parsed["message_id"]])
+                msgs = await asyncio.wait_for(
+                    client.get_messages(entity, ids=[parsed["message_id"]]), timeout=10
+                )
                 if not msgs or msgs[0] is None:
-                    await client.disconnect()
                     return {**parsed, "valid": False,
                             "error": f"Сообщение #{parsed['message_id']} не найдено"}
+            except asyncio.TimeoutError:
+                logger.warning("[UNIVERSAL] get_messages timeout")
             except Exception as e:
                 logger.warning(f"[UNIVERSAL] get_messages error: {e}")
 
-        await client.disconnect()
         return {**parsed, "valid": True}
 
     except Exception as e:
         logger.warning(f"[UNIVERSAL] validate error: {e}")
         return {**parsed, "valid": True}
+    finally:
+        if client is not None:
+            try:
+                await asyncio.wait_for(client.disconnect(), timeout=5)
+            except Exception:
+                pass
 
 
 # ─── Запуск всех методов ──────────────────────────────────────────────────────
