@@ -253,7 +253,9 @@ async def subsribe_channel(user_id, chan):
 	except Exception as e:
 		err = str(e).lower()
 		# Если бот не авторизован или нет доступа к каналу — блокируем
-		if 'unauthorized' in err or 'forbidden' in err or 'chat not found' in err:
+		if any(k in err for k in ('unauthorized', 'forbidden', 'chat not found',
+		                          'user not found', 'participant', 'not a member',
+		                          'kicked', 'deactivated')):
 			return False
 		return True  # другие ошибки (сеть и т.д.) — не блокируем
 
