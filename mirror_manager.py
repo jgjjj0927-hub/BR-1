@@ -196,12 +196,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 uid, photo=img,
                 caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",
                 parse_mode="Markdown")
-            await MirrorCaptchaFSM.code.set()
+            await state.set_state(MirrorCaptchaFSM.code.state)
             if is_new:
                 args = message.get_args()
                 if args and args.startswith("ref_"):
-                    async with dp.current_state(user=uid).proxy() as fsm_data:
-                        fsm_data['ref_arg'] = args
+                    await state.update_data(ref_arg=args)
             return
         await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
         # Проверяем подписку через HTTP API основного бота
@@ -348,7 +347,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                     await mirror_bot.send_photo(uid, photo=img,
                         caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",
                         parse_mode="Markdown")
-                    await MirrorCaptchaFSM.code.set()
+                    await state.set_state(MirrorCaptchaFSM.code.state)
                     return
                 await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
                 await mirror_bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
@@ -420,7 +419,10 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         """Перенаправляет все текстовые FSM состояния в обработчики main.py"""
         current_state = await state.get_state()
         if current_state is None:
-            await message.answer("👋 Нажми /start чтобы начать.", parse_mode="Markdown")
+            try:
+                await message.answer("👋 Нажми /start чтобы начать.", parse_mode="Markdown")
+            except Exception:
+                pass
             return
 
         from main import (
