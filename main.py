@@ -4251,8 +4251,16 @@ async def stress_step1(message: types.Message, state: FSMContext):
 
 # ─── Управление подписками (админ) ────────────────────────────────────────────
 
-async def _notify_user(target: int, text: str, **kwargs):
-	"""Отправляет уведомление через зеркало юзера, иначе через основной бот."""
+async def _notify_user(target: int, text: str, source_bot=None, **kwargs):
+	"""Отправляет уведомление через source_bot (бот админа), затем через assigned mirror."""
+	# 1. Через того же бота, от которого пришла команда админа
+	if source_bot is not None and source_bot is not bot:
+		try:
+			await source_bot.send_message(target, text, **kwargs)
+			return
+		except Exception:
+			pass
+	# 2. Через зеркало, к которому привязан юзер
 	try:
 		from mirror_manager import _mirror_bots
 		token = await db.get_user_mirror(target)
@@ -4261,8 +4269,13 @@ async def _notify_user(target: int, text: str, **kwargs):
 			return
 	except Exception:
 		pass
+	# 3. Через любое живое зеркало
 	try:
-		await bot.send_message(target, text, **kwargs)
+		from mirror_manager import _mirror_bots
+		if _mirror_bots:
+			live_bot = next(iter(_mirror_bots.values()))
+			await live_bot.send_message(target, text, **kwargs)
+			return
 	except Exception:
 		pass
 
@@ -4289,7 +4302,7 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 		new_date = (now_msk() + timedelta(days=int(message.text))).strftime("%Y-%m-%d %H:%M:%S")
 		await db.set_subscribe(target, new_date)
 		await state.finish()
-		await _notify_user(target, f"🎱 *Подписка обновлена до* `{new_date}`", parse_mode="Markdown", reply_markup=del_message2)
+		await _notify_user(target, f"🎱 *Подписка обновлена до* `{new_date}`", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"🎱 *Готово! Подписка выдана* `{target}` *до* `{new_date}`", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* `{target}` до `{new_date}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except ValueError:
@@ -4307,7 +4320,7 @@ async def clear_sub_uid(message: types.Message, state: FSMContext):
 			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_subscribe(target, "1999-01-01 00:00:00", force=True)
 		await state.finish()
-		await _notify_user(target, "*🎱 Подписка сброшена.*", parse_mode="Markdown", reply_markup=del_message2)
+		await _notify_user(target, "*🎱 Подписка сброшена.*", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"🎱 *Сброшена подписка* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception:
@@ -4322,7 +4335,7 @@ async def add_prem_uid(message: types.Message, state: FSMContext):
 			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_premium(target, 1)
 		await state.finish()
-		await _notify_user(target, "*👑 Вам выдан Premium.*", parse_mode="Markdown", reply_markup=del_message2)
+		await _notify_user(target, "*👑 Вам выдан Premium.*", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Премиум выдан* `{target}`*!*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"👑 *Выдан премиум* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception as e:
@@ -4338,7 +4351,7 @@ async def clear_prem_uid(message: types.Message, state: FSMContext):
 			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_premium(target, 0)
 		await state.finish()
-		await _notify_user(target, "*🎱 Премиум сброшен.*", parse_mode="Markdown", reply_markup=del_message2)
+		await _notify_user(target, "*🎱 Премиум сброшен.*", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"👑 *Сброшен премиум* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception:
