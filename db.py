@@ -1252,3 +1252,64 @@ async def rotate_wallet() -> str | None:
         await conn.execute("UPDATE crypto_wallets SET is_active = FALSE WHERE is_active = TRUE")
         await conn.execute("UPDATE crypto_wallets SET is_active = TRUE WHERE slot = $1", next_entry["slot"])
         return next_entry["address"]
+
+
+# ─── Gateway / Mirror assignments ─────────────────────────────────────────────
+
+async def init_gateway_tables():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS mirror_assignments (
+                user_id BIGINT PRIMARY KEY,
+                mirror_token TEXT NOT NULL,
+                gateway_bot_id INT DEFAULT 1,
+                assigned_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+
+async def get_user_mirror(user_id: int) -> str | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT mirror_token FROM mirror_assignments WHERE user_id = $1", user_id
+        )
+
+
+async def assign_mirror_to_user(user_id: int, mirror_token: str, gateway_bot_id: int = 1):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO mirror_assignments (user_id, mirror_token, gateway_bot_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id) DO UPDATE SET mirror_token = $2, gateway_bot_id = $3, assigned_at = NOW()
+        """, user_id, mirror_token, gateway_bot_id)
+
+
+async def get_free_mirror(exclude: str = None) -> str | None:
+    """Возвращает токен зеркала с наименьшим числом назначений.
+    Сначала ищет незанятое, иначе возвращает наименее загруженное."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        exclude_clause = "AND m.token != $1" if exclude else ""
+        params = [exclude] if exclude else []
+        # Ищем зеркало с минимумом назначений
+        row = await conn.fetchrow(f"""
+            SELECT m.token, COUNT(a.user_id) as cnt
+            FROM mirrors m
+            LEFT JOIN mirror_assignments a ON a.mirror_token = m.token
+            WHERE 1=1 {exclude_clause}
+            GROUP BY m.token
+            ORDER BY cnt ASC
+            LIMIT 1
+        """, *params)
+        return row["token"] if row else None
+
+
+async def get_mirror_user_count(mirror_token: str) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM mirror_assignments WHERE mirror_token = $1", mirror_token
+        ) or 0

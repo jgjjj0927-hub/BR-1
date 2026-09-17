@@ -29,7 +29,32 @@ _mirror_bots: dict[str, Bot] = {}  # token → Bot instance
 # Предотвращает коллизии когда один uid открыл несколько зеркал
 _mirror_captcha_codes: dict[str, dict[int, str]] = {}
 
-MIRROR_LIMIT = 20  # максимум активных зеркал одновременно
+MIRROR_LIMIT = 100  # максимум активных зеркал одновременно
+INVITE_API = "http://127.0.0.1:8080/invite"
+CHECK_API  = "http://127.0.0.1:8080/check"
+
+
+async def _api_get_invite_links() -> tuple[str, str]:
+    """Получает свежие инвайт-ссылки у основного бота по HTTP."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(INVITE_API, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                data = await resp.json()
+                return data.get("link1", ""), data.get("link2", "")
+    except Exception:
+        return "", ""
+
+
+async def _api_check_subscription(uid: int) -> bool:
+    """Проверяет подписку юзера через HTTP API основного бота."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(CHECK_API, params={"uid": uid},
+                                   timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                data = await resp.json()
+                return bool(data.get("subscribed", False))
+    except Exception:
+        return True  # при ошибке пропускаем (чтоб не блокировать юзера)
 
 
 class MirrorCaptchaFSM(StatesGroup):
@@ -37,6 +62,35 @@ class MirrorCaptchaFSM(StatesGroup):
 
 class MirrorCreateFSM(StatesGroup):
     token = State()
+
+
+async def _mirror_send_subscribe(uid: int, mirror_bot: Bot):
+    """Отправляет юзеру требование подписки, получая ссылки через HTTP API."""
+    try:
+        lang = await db.get_lang(uid)
+    except Exception:
+        lang = 'ru'
+    link1, link2 = await _api_get_invite_links()
+    from translations import t
+    import config as _cfg
+    if not link1:
+        link1 = _cfg.bot_channel_link
+    if not link2:
+        link2 = _cfg.bot_channel2_link
+    markup = _build_sub_markup(link1, link2, lang)
+    await mirror_bot.send_message(uid, t('sub_required', lang), parse_mode="Markdown", reply_markup=markup)
+
+
+def _build_sub_markup(link1: str, link2: str, lang: str):
+    from aiogram import types as _types
+    from translations import t
+    markup = _types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        _types.InlineKeyboardButton(t('sub_btn_1', lang), url=link1),
+        _types.InlineKeyboardButton(t('sub_btn_2', lang), url=link2),
+        _types.InlineKeyboardButton(t('sub_btn_check', lang), callback_data='start_check_sub'),
+    )
+    return markup
 
 
 def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
@@ -149,10 +203,9 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                         fsm_data['ref_arg'] = args
             return
         await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
-        # Проверяем подписку через основной бот
-        from main import check_subscription, send_subscribe_required
-        if not await check_subscription(uid):
-            await send_subscribe_required(uid, mirror_bot)
+        # Проверяем подписку через HTTP API основного бота
+        if not await _api_check_subscription(uid):
+            await _mirror_send_subscribe(uid, mirror_bot)
             return
         await mirror_bot.send_photo(
             uid, photo=open('material/menu.png', 'rb'),
@@ -184,10 +237,9 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 except Exception:
                     pass
             await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
-            # Проверяем подписку через основной бот
-            from main import check_subscription, send_subscribe_required
-            if not await check_subscription(uid):
-                await send_subscribe_required(uid, mirror_bot)
+            # Проверяем подписку через HTTP API основного бота
+            if not await _api_check_subscription(uid):
+                await _mirror_send_subscribe(uid, mirror_bot)
                 return
             await mirror_bot.send_photo(
                 uid, photo=open('material/menu.png', 'rb'),

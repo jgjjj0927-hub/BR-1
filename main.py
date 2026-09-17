@@ -4814,6 +4814,47 @@ async def _sub_expiry_notify_loop():
 		await _asyncio.sleep(600)
 
 
+async def _start_invite_api():
+	"""HTTP API на localhost:8080 — раздаёт свежие инвайт-ссылки зеркалам."""
+	from aiohttp import web as aio_web
+	import time as _t
+
+	async def handle_invite(request):
+		try:
+			expire = int(_t.time()) + 60
+			link1 = await bot.create_chat_invite_link(channel_id, expire_date=expire, member_limit=1)
+			link2 = await bot.create_chat_invite_link(channel2_id, expire_date=expire, member_limit=1)
+			return aio_web.json_response({"link1": link1.invite_link, "link2": link2.invite_link, "ok": True})
+		except Exception as e:
+			return aio_web.json_response({"link1": config.bot_channel_link, "link2": config.bot_channel2_link, "ok": False, "err": str(e)})
+
+	async def handle_check(request):
+		try:
+			uid = int(request.query.get("uid", 0))
+			result = await check_subscription(uid)
+			return aio_web.json_response({"subscribed": result, "ok": True})
+		except Exception as e:
+			return aio_web.json_response({"subscribed": False, "ok": False, "err": str(e)})
+
+	async def handle_mirror_list(request):
+		try:
+			mirrors = await db.get_all_mirrors()
+			return aio_web.json_response({"mirrors": [m["token"][:20] + "..." for m in mirrors], "count": len(mirrors), "ok": True})
+		except Exception as e:
+			return aio_web.json_response({"ok": False, "err": str(e)})
+
+	app = aio_web.Application()
+	app.router.add_get("/invite", handle_invite)
+	app.router.add_get("/check", handle_check)
+	app.router.add_get("/mirrors", handle_mirror_list)
+
+	runner = aio_web.AppRunner(app)
+	await runner.setup()
+	site = aio_web.TCPSite(runner, "127.0.0.1", 8080)
+	await site.start()
+	print("[API] HTTP сервер запущен на localhost:8080", flush=True)
+
+
 async def on_startup(dp):
 	try:
 		await bot.delete_webhook(drop_pending_updates=True)
@@ -4857,6 +4898,13 @@ async def on_startup(dp):
 	asyncio.ensure_future(_sub_expiry_notify_loop())
 	# Зеркала запускаем в фоне — основной бот стартует сразу
 	asyncio.ensure_future(start_all_mirrors())
+	# HTTP API для шлюзовых ботов (приглашения, проверка подписки)
+	asyncio.ensure_future(_start_invite_api())
+	# Инициализируем таблицы шлюза
+	try:
+		await db.init_gateway_tables()
+	except Exception as e:
+		print(f"[GATEWAY] init_gateway_tables: {e}")
 	print("Бот запущен.")
 
 
