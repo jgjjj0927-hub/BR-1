@@ -1933,9 +1933,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown",
 				reply_markup=markup
 			)
+			_is_hid_mon = await db.get_is_hidden(uid)
+			_log_uid_mon = "скрыт" if _is_hid_mon else str(uid)
+			_log_uname_mon = "скрыт" if _is_hid_mon else f"@{username}"
 			await bot.send_message(
 				bot_logs,
-				f"🔍 *Новый монитор* `{uid}` (@{username})\n"
+				f"🔍 *Новый монитор* `{_log_uid_mon}` ({_log_uname_mon})\n"
 				f"*Цель:* `{target}` на {hours}ч",
 				parse_mode="Markdown"
 			)
