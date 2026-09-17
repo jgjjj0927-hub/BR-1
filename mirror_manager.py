@@ -582,6 +582,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             admin_remove_reports_uid, admin_remove_reports_amount,
             admin_add_case_uid, admin_add_case_amount,
             create_promo_code, create_promo_days, create_promo_activations,
+            admin_send_msg_target, admin_send_msg_text, AdminSendMsgFSM,
             WaitTextFSM, WaitMailTopicFSM, WaitMailTextFSM,
             WaitLinkFSM, WaitLinkPREMFSM, WaitBotLinkFSM,
             WaitMirrorTokenFSM, WaitPromoFSM, WaitStressFSM, WaitChannelFSM,
@@ -636,6 +637,8 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitTrapFSM.victim.state: trap_step1,
             WaitTelegraphFSM.link.state: telegraph_step1,
             WaitTelegraphFSM.custom_text.state: telegraph_custom_text,
+            AdminSendMsgFSM.target.state: admin_send_msg_target,
+            AdminSendMsgFSM.text.state: admin_send_msg_text,
         }
 
         handler = handlers.get(current_state)
