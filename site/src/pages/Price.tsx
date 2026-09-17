@@ -1,7 +1,7 @@
 import { useLang } from '../App';
 
 const SUPPORT = 'https://t.me/TariSmit';
-const BOT = 'https://t.me/Brrown_V2bot';
+const BOT = 'https://t.me/Botv2wwwbot';
 
 const T = {
   ru: {
