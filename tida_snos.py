@@ -66,14 +66,13 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
                 json={
-                    "model": "qwen/qwen3.6-27b",
+                    "model": "llama-3.3-70b-versatile",
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user_content}
                     ],
-                    "max_tokens": 80,
+                    "max_tokens": 100,
                     "temperature": 0.7,
-                    "reasoning_effort": "none",
                 },
                 timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
