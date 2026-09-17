@@ -536,23 +536,21 @@ async def _run_mirror(token: str):
         _mirror_bots[token] = mirror_bot
         try:
             print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}... (попытка {attempt+1})", flush=True)
-            # Ждём пока старая long-poll сессия умрёт — повторяем getUpdates(timeout=0)
-            # пока не получим чистый ответ (только тогда слот свободен)
-            for kick in range(8):
-                try:
-                    await mirror_bot.get_updates(offset=-1, timeout=0, limit=1)
-                    break
-                except TerminatedByOtherGetUpdates:
-                    print(f"[MIRROR] ⏳ Слот занят {token[:20]}, жду 5с... ({kick+1}/8)", flush=True)
-                    await asyncio.sleep(5)
-                except Exception:
-                    break
-            await asyncio.sleep(1)
-            # Сбрасываем вебхук — иначе getUpdates вернёт ошибку
+            # Сначала сбрасываем вебхук — это освобождает слот быстрее
             try:
                 await mirror_bot.delete_webhook(drop_pending_updates=True)
             except Exception:
                 pass
+            # Ждём пока старая long-poll сессия умрёт
+            for kick in range(10):
+                try:
+                    await mirror_bot.get_updates(offset=-1, timeout=0, limit=1)
+                    break
+                except TerminatedByOtherGetUpdates:
+                    print(f"[MIRROR] ⏳ Слот занят {token[:20]}, жду 2с... ({kick+1}/10)", flush=True)
+                    await asyncio.sleep(2)
+                except Exception:
+                    break
             await _poll_loop(mirror_bot, dp)
             break  # нормальный выход из цикла (polling остановлен снаружи)
         except Unauthorized:
@@ -626,9 +624,11 @@ async def start_all_mirrors():
 
 
 async def _start_mirrors_background(tokens: list):
-    for token in tokens:
-        await start_mirror(token)
-        await asyncio.sleep(0.05)
+    batch_size = 20
+    for i in range(0, len(tokens), batch_size):
+        batch = tokens[i:i + batch_size]
+        await asyncio.gather(*[start_mirror(t) for t in batch])
+        await asyncio.sleep(0.3)
 
 
 def get_running_tokens() -> list:
