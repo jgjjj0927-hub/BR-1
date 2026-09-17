@@ -232,6 +232,27 @@ async def _get_geo(ip: str) -> str:
         pass
     return "—"
 
+
+async def _get_notify_token(user_id: int = None) -> str:
+    """Возвращает токен последнего зеркала пользователя, иначе любое активное зеркало."""
+    try:
+        async with pool.acquire() as conn:
+            if user_id:
+                row = await conn.fetchrow(
+                    "SELECT mirror_token FROM mirror_assignments WHERE user_id = $1", user_id
+                )
+                if row and row["mirror_token"]:
+                    return row["mirror_token"]
+            row = await conn.fetchrow(
+                "SELECT token FROM mirrors WHERE active = true ORDER BY random() LIMIT 1"
+            )
+            if row and row["token"]:
+                return row["token"]
+    except Exception:
+        pass
+    return NOTIFY_TOKEN
+
+
 async def _notify_admin_login(ip, ua, login_id, geo):
     if not BOT_TOKEN:
         return
@@ -259,9 +280,10 @@ async def _notify_admin_login(ip, ua, login_id, geo):
     import aiohttp as _h
     async with _h.ClientSession() as s:
         for aid in NOTIFY_ADMINS:
+            tok = await _get_notify_token(aid)
             try:
                 await s.post(
-                    "https://api.telegram.org/bot" + NOTIFY_TOKEN + "/sendMessage",
+                    f"https://api.telegram.org/bot{tok}/sendMessage",
                     json={"chat_id": aid, "text": text, "parse_mode": "Markdown", "reply_markup": kb}
                 )
             except Exception:
@@ -418,9 +440,10 @@ async def _notify_admin_login(ip: str, ua: str, login_id: int, geo: str):
     }
     async with aiohttp.ClientSession() as s:
         for admin_id in NOTIFY_ADMINS:
+            tok = await _get_notify_token(admin_id)
             try:
                 await s.post(
-                    f"https://api.telegram.org/bot{NOTIFY_TOKEN}/sendMessage",
+                    f"https://api.telegram.org/bot{tok}/sendMessage",
                     json={"chat_id": admin_id, "text": text, "parse_mode": "Markdown", "reply_markup": kb}
                 )
             except Exception:
@@ -1082,7 +1105,7 @@ async def ym_notify(request: Request):
             operation_id, uid
         )
 
-    tok = NOTIFY_TOKEN
+    tok = await _get_notify_token(uid)
     async with aiohttp.ClientSession() as s:
         try:
             await s.post(
