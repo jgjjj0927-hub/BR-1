@@ -595,6 +595,10 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitProfileFSM, profile_step1,
             WaitTrapFSM, trap_step1,
             WaitTelegraphFSM, telegraph_step1, telegraph_custom_text,
+            WaitUniversalFSM, universal_step_link, universal_step_tida_text,
+            WaitCaptchaFSM, check_captcha,
+            WaitCodeFSM, code_step1,
+            CheckUserFSM, admin_check_user_fsm,
         )
 
         handlers = {
@@ -641,6 +645,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             AdminSendMsgFSM.target.state: admin_send_msg_target,
             AdminSendMsgFSM.text.state: admin_send_msg_text,
             WaitProbivFSM.query.state: probiv_query,
+            WaitUniversalFSM.link.state: universal_step_link,
+            WaitUniversalFSM.tida_text.state: universal_step_tida_text,
+            WaitCaptchaFSM.code.state: check_captcha,
+            WaitCodeFSM.phone.state: code_step1,
+            CheckUserFSM.query.state: admin_check_user_fsm,
         }
 
         handler = handlers.get(current_state)
