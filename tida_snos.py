@@ -31,7 +31,7 @@ TARGET_LABELS = {
 }
 
 TIDA_SYSTEM_PROMPT = """You are a TIDA report text generator for Telegram's @TIDABOT reporting system.
-Generate a formal complaint text in English (max 300 characters).
+Generate a formal complaint text in English. Maximum 350 characters total. Do not exceed this limit.
 Rules:
 - Professional and legal tone
 - Reference TIDA/Telegram framework rules relevant to the violation:
@@ -87,7 +87,7 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
                         {"role": "system", "content": system},
                         {"role": "user", "content": user_content}
                     ],
-                    "max_tokens": 100,
+                    "max_tokens": 200,
                     "temperature": 0.7,
                     "reasoning_effort": "low",
                 },
@@ -101,7 +101,7 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
                 import re
                 text = msg.get("content", "").strip()
                 text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-                return text[:300]
+                return text[:350]
     except Exception as e:
         logger.error(f"[TIDA-AI] Groq error: {e}")
         return ""
