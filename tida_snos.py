@@ -73,6 +73,7 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
                     ],
                     "max_tokens": 100,
                     "temperature": 0.7,
+                    "reasoning_effort": "none",
                 },
                 timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
