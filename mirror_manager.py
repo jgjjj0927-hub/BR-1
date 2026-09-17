@@ -271,13 +271,41 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 caption="*❌ Неверно! Попробуй ещё раз:*", parse_mode="Markdown")
 
     _MIRROR_SUB_MAP = {
-        "1":          ("1",  "1",   "на 1 день"),
-        "3":          ("2",  "3",   "на 3 дня"),
-        "7":          ("4",  "7",   "на 7 дней"),
-        "30":         ("8",  "30",  "на 30 дней"),
-        "60":         ("12", "60",  "на 60 дней"),
-        "premupgrade":("5",  "1",   "Премиум"),
+        "1":          ("1",  "1",   "sub_1d",      "100"),
+        "3":          ("2",  "3",   "sub_3d",      "175"),
+        "7":          ("4",  "7",   "sub_7d",      "350"),
+        "30":         ("8",  "30",  "sub_30d",     "700"),
+        "60":         ("12", "60",  "sub_60d",     "1100"),
+        "premupgrade":("5",  "1",   "sub_premium", "400"),
     }
+    _MIRROR_YM_WALLET = "4100118677444773"
+    _MIRROR_TON_ADDRESS = "UQDeT6tcvKiwrR_fCa0ORJ_OOKPQbnvbzyB8l1YXzXK0iLCf"
+
+    async def _mirror_edit(callback_query, caption, markup):
+        try:
+            await mirror_bot.edit_message_caption(
+                chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
+                caption=caption, parse_mode="MarkdownV2", reply_markup=markup)
+        except Exception:
+            await mirror_bot.edit_message_text(
+                caption, chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
+                parse_mode="MarkdownV2", reply_markup=markup)
+
+    async def _mirror_create_pay_link(ym_url: str) -> str:
+        try:
+            import aiohttp as _aiohttp
+            async with _aiohttp.ClientSession() as _s:
+                async with _s.post(
+                    'http://127.0.0.1:8080/register_pay',
+                    json={'url': ym_url},
+                    timeout=_aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    data = await resp.json()
+                    return f"https://br-v2.top/pay/{data['token']}"
+        except Exception:
+            return ym_url
 
     # ─── Оплата sub_ ──────────────────────────────────────────────────────────
     @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'), state='*')
@@ -287,93 +315,146 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             st = callback_query.data.split('_', 1)[1]
             if st not in _MIRROR_SUB_MAP:
                 return
-            amount, sub_days, pidor = _MIRROR_SUB_MAP[st]
+            _lang = await db.get_lang(callback_query.from_user.id)
+            amount_usd, _, pidor_key, _ = _MIRROR_SUB_MAP[st]
+            pidor = t(pidor_key, _lang)
             method_markup = types.InlineKeyboardMarkup(row_width=1)
             method_markup.add(
-                types.InlineKeyboardButton("CryptoBot (USDT)", callback_data=f'pay_mirror_crypto_{st}'),
+                types.InlineKeyboardButton("CryptoBot", callback_data=f'pay_crypto_{st}'),
+                types.InlineKeyboardButton("🇷🇺 СБП", callback_data=f'pay_sbp_{st}'),
+                types.InlineKeyboardButton("TonKeeper", callback_data=f'pay_ton_{st}'),
                 keyboards.back,
             )
-            caption_text = f">⚙️ *Покупка*\n*└─ Вы покупаете: {pidor}*\n*└─ Вы платите: {amount}$*\n\n*Выберите способ оплаты:*"
-            try:
-                await mirror_bot.edit_message_caption(
-                    chat_id=callback_query.message.chat.id,
-                    message_id=callback_query.message.message_id,
-                    caption=caption_text,
-                    parse_mode="MarkdownV2", reply_markup=method_markup)
-            except Exception:
-                await mirror_bot.edit_message_text(
-                    caption_text,
-                    chat_id=callback_query.message.chat.id,
-                    message_id=callback_query.message.message_id,
-                    parse_mode="MarkdownV2", reply_markup=method_markup)
+            await _mirror_edit(callback_query, t('shop_buy_select', _lang, item=pidor), method_markup)
         except Exception as e:
             print(f"[MIRROR] sub: {e}")
 
-    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_mirror_crypto_'), state='*')
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_crypto_'), state='*')
     async def mirror_pay_crypto(callback_query: types.CallbackQuery):
         try:
             await callback_query.answer()
             from pyCryptoPayAPI import pyCryptoPayAPI
-            crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
-            st = callback_query.data[len('pay_mirror_crypto_'):]
+            _crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
+            st = callback_query.data[len('pay_crypto_'):]
             if st not in _MIRROR_SUB_MAP:
                 return
-            amount, sub_days, pidor = _MIRROR_SUB_MAP[st]
-            invoice = await asyncio.to_thread(crypto.create_invoice, asset='USDT', amount=amount)
+            _lang = await db.get_lang(callback_query.from_user.id)
+            amount_usd, sub_days, pidor_key, _ = _MIRROR_SUB_MAP[st]
+            pidor = t(pidor_key, _lang)
+            invoice = await asyncio.to_thread(_crypto.create_invoice, asset='USDT', amount=amount_usd)
             pay_check = types.InlineKeyboardMarkup(row_width=2)
             pay_check.add(
-                types.InlineKeyboardButton("💸 Оплатить", url=invoice['pay_url']),
-                types.InlineKeyboardButton("🔍 Проверить",
+                types.InlineKeyboardButton(t('pay_btn_pay', _lang), url=invoice['pay_url']),
+                types.InlineKeyboardButton(t('pay_btn_paid', _lang),
                     callback_data=f'check_status_{invoice["invoice_id"]}_{st}_{sub_days}'))
             pay_check.add(keyboards.back)
-            caption_text = f">⚙️ *Оплата CryptoBot*\n*└─ {pidor}*\n*└─ {amount} USDT*"
-            try:
-                await mirror_bot.edit_message_caption(
-                    chat_id=callback_query.message.chat.id,
-                    message_id=callback_query.message.message_id,
-                    caption=caption_text,
-                    parse_mode="MarkdownV2", reply_markup=pay_check)
-            except Exception:
-                await mirror_bot.edit_message_text(
-                    caption_text,
-                    chat_id=callback_query.message.chat.id,
-                    message_id=callback_query.message.message_id,
-                    parse_mode="MarkdownV2", reply_markup=pay_check)
+            await _mirror_edit(callback_query, t('shop_buy_usd', _lang, item=pidor, amount=amount_usd), pay_check)
         except Exception as e:
             print(f"[MIRROR] pay_crypto: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_sbp_'), state='*')
+    async def mirror_pay_sbp(callback_query: types.CallbackQuery):
+        try:
+            import urllib.parse as _urlparse
+            await callback_query.answer()
+            st = callback_query.data[len('pay_sbp_'):]
+            if st not in _MIRROR_SUB_MAP:
+                return
+            _lang = await db.get_lang(callback_query.from_user.id)
+            amount_usd, sub_days, pidor_key, amount_rub = _MIRROR_SUB_MAP[st]
+            pidor = t(pidor_key, _lang)
+            user_id = callback_query.from_user.id
+            label = f"sub_{user_id}_{st}"
+            targets = _urlparse.quote(f"Subscription BR V2 {pidor}", safe='')
+            ym_url = (
+                f"https://yoomoney.ru/quickpay/confirm.xml"
+                f"?receiver={_MIRROR_YM_WALLET}"
+                f"&quickpay-form=shop"
+                f"&targets={targets}"
+                f"&sum={amount_rub}"
+                f"&label={label}"
+            )
+            short_url = await _mirror_create_pay_link(ym_url)
+            sbp_markup = types.InlineKeyboardMarkup(row_width=1)
+            sbp_markup.add(
+                types.InlineKeyboardButton(t('pay_btn_card', _lang), url=short_url),
+                types.InlineKeyboardButton(t('pay_btn_paid', _lang), callback_data=f'sbp_paid_{st}'),
+                keyboards.back,
+            )
+            await _mirror_edit(callback_query, t('shop_buy_rub', _lang, item=pidor, amount=amount_rub), sbp_markup)
+        except Exception as e:
+            print(f"[MIRROR] pay_sbp: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sbp_paid_'), state='*')
+    async def mirror_sbp_paid(callback_query: types.CallbackQuery):
+        try:
+            await callback_query.answer()
+            _lang = await db.get_lang(callback_query.from_user.id)
+            await mirror_bot.send_message(
+                callback_query.from_user.id,
+                t('pay_sub_pending', _lang), parse_mode="MarkdownV2")
+        except Exception as e:
+            print(f"[MIRROR] sbp_paid: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_ton_'), state='*')
+    async def mirror_pay_ton(callback_query: types.CallbackQuery):
+        try:
+            await callback_query.answer()
+            st = callback_query.data[len('pay_ton_'):]
+            if st not in _MIRROR_SUB_MAP:
+                return
+            _lang = await db.get_lang(callback_query.from_user.id)
+            amount_usd, _, pidor_key, _ = _MIRROR_SUB_MAP[st]
+            pidor = t(pidor_key, _lang)
+            ton_markup = types.InlineKeyboardMarkup(row_width=1)
+            ton_markup.add(
+                types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
+                keyboards.back,
+            )
+            await _mirror_edit(callback_query,
+                t('shop_buy_ton', _lang, item=pidor, amount=amount_usd, address=_MIRROR_TON_ADDRESS),
+                ton_markup)
+        except Exception as e:
+            print(f"[MIRROR] pay_ton: {e}")
 
     @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'), state='*')
     async def mirror_check_status(callback_query: types.CallbackQuery):
         try:
             from pyCryptoPayAPI import pyCryptoPayAPI
-            crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
+            _crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
             parts = callback_query.data.split('_')
             invoice_id, sub_type, sub_days = parts[2], parts[3], parts[4]
             user_id = callback_query.from_user.id
-            old_invoice = await asyncio.to_thread(crypto.get_invoices, invoice_ids=invoice_id)
+            _lang = await db.get_lang(user_id)
+            old_invoice = await asyncio.to_thread(_crypto.get_invoices, invoice_ids=invoice_id)
             if old_invoice['items'][0]['status'] != "paid":
-                await mirror_bot.send_message(user_id, "❌ *Оплата не получена!*", parse_mode=ParseMode.MARKDOWN)
+                await mirror_bot.send_message(user_id, t('pay_not_received', _lang), parse_mode=ParseMode.MARKDOWN)
                 return
-            # Защита от повторного начисления
             if await db.is_invoice_used(invoice_id):
-                await mirror_bot.send_message(user_id, "✅ *Этот платёж уже был обработан!*", parse_mode=ParseMode.MARKDOWN)
+                await mirror_bot.send_message(user_id, t('pay_already_processed', _lang), parse_mode=ParseMode.MARKDOWN)
                 return
             await db.mark_invoice_used(invoice_id, user_id)
-            await mirror_bot.edit_message_caption(
-                chat_id=callback_query.message.chat.id,
-                message_id=callback_query.message.message_id,
-                caption=">⚙️ *Спасибо за заказ*", parse_mode="MarkdownV2",
-                reply_markup=keyboards.back_markup)
+            try:
+                await mirror_bot.edit_message_caption(
+                    chat_id=callback_query.message.chat.id,
+                    message_id=callback_query.message.message_id,
+                    caption=t('pay_thanks', _lang), parse_mode="MarkdownV2",
+                    reply_markup=keyboards.back_markup)
+            except Exception:
+                pass
             if sub_type != "premupgrade":
-                new_date = (datetime.now() + timedelta(days=int(sub_days))).strftime("%Y-%m-%d %H:%M:%S")
+                new_date = (now_msk() + timedelta(days=int(sub_days))).strftime("%Y-%m-%d %H:%M:%S")
                 await db.set_subscribe(user_id, new_date)
                 referrer_id = await db.get_referrer_id(user_id)
                 if referrer_id:
                     bonus_days = max(1, int(int(sub_days) * 0.1))
-                    await db.set_subscribe(referrer_id,
-                        (datetime.now() + timedelta(days=bonus_days)).strftime("%Y-%m-%d %H:%M:%S"))
-                    await mirror_bot.send_message(referrer_id,
-                        f"💰 *Реферальный бонус!*\n*└─ +{bonus_days} день подписки*",
+                    ref_new_date = (now_msk() + timedelta(days=bonus_days)).strftime("%Y-%m-%d %H:%M:%S")
+                    await db.set_subscribe(referrer_id, ref_new_date)
+                    await mirror_bot.send_message(
+                        referrer_id,
+                        f"💰 *Реферальный бонус!*\n"
+                        f"*└─ Ваш реферал купил подписку*\n"
+                        f"*└─ Вам начислено: +{bonus_days} день подписки*",
                         parse_mode="Markdown")
             else:
                 await db.set_premium(user_id, 1)
