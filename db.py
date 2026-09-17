@@ -546,6 +546,15 @@ async def token_exists(token: str) -> bool:
 
 
 async def get_all_mirror_tokens() -> list[str]:
+    """Возвращает только системные зеркала для автозапуска при старте сервера."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT token FROM mirrors WHERE is_system = TRUE")
+        return [r["token"] for r in rows]
+
+
+async def get_all_mirror_tokens_user() -> list[str]:
+    """Все зеркала включая пользовательские (для статистики)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT token FROM mirrors")
