@@ -1666,6 +1666,27 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_photo(call.message.chat.id, photo=open('material/menu.png', 'rb'),
 				caption=t('menu_caption', _user_lang), parse_mode="MarkdownV2", reply_markup=keyboards.get_menu(uid in admins, _user_lang))
 
+		# ─── Пробив ───────────────────────────────────────────────────────────
+		elif d == 'probiv':
+			sub_active = subscribe > now_msk()
+			if not sub_active:
+				await bot_instance.answer_callback_query(call.id, t('err_subscribe_required', _user_lang), show_alert=True)
+				return
+			cancel_markup = types.InlineKeyboardMarkup()
+			_cancel_text = '❌ Отмена' if _user_lang == 'ru' else '❌ Cancel'
+			cancel_markup.add(types.InlineKeyboardButton(_cancel_text, callback_data='probiv_cancel'))
+			await bot_instance.send_message(uid, PROBIV_HELP, parse_mode="Markdown", reply_markup=cancel_markup)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitProbivFSM.query.state)
+			await call.answer()
+
+		elif d == 'probiv_cancel':
+			await dp_instance.current_state(chat=uid, user=uid).set_state(None)
+			try:
+				await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+			except Exception:
+				pass
+			await call.answer(t('action_cancelled', _user_lang))
+
 		# ─── Мониторинг ────────────────────────────────────────────────────────
 		elif d == 'media':
 			await state.finish()
