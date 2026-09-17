@@ -4251,6 +4251,21 @@ async def stress_step1(message: types.Message, state: FSMContext):
 
 # ─── Управление подписками (админ) ────────────────────────────────────────────
 
+async def _notify_user(target: int, text: str, **kwargs):
+	"""Отправляет уведомление через зеркало юзера, иначе через основной бот."""
+	try:
+		from mirror_manager import _mirror_bots
+		token = await db.get_user_mirror(target)
+		if token and token in _mirror_bots:
+			await _mirror_bots[token].send_message(target, text, **kwargs)
+			return
+	except Exception:
+		pass
+	try:
+		await bot.send_message(target, text, **kwargs)
+	except Exception:
+		pass
+
 @dp.message_handler(state=AddSubscribeFSM.user_id)
 async def add_sub_uid(message: types.Message, state: FSMContext):
 	try:
@@ -4262,7 +4277,7 @@ async def add_sub_uid(message: types.Message, state: FSMContext):
 			return
 		await state.update_data(user_id=target)
 		await message.answer(f"🎱 *ID найден:* `{target}`\n*Введите количество дней:*", parse_mode=ParseMode.MARKDOWN)
-		await AddSubscribeFSM.days.set()
+		await state.set_state(AddSubscribeFSM.days.state)
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -4274,10 +4289,7 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 		new_date = (now_msk() + timedelta(days=int(message.text))).strftime("%Y-%m-%d %H:%M:%S")
 		await db.set_subscribe(target, new_date)
 		await state.finish()
-		try:
-			await bot.send_message(target, f"🎱 *Подписка обновлена до* `{new_date}`", parse_mode="Markdown", reply_markup=del_message2)
-		except Exception:
-			pass
+		await _notify_user(target, f"🎱 *Подписка обновлена до* `{new_date}`", parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"🎱 *Готово! Подписка выдана* `{target}` *до* `{new_date}`", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* `{target}` до `{new_date}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except ValueError:
@@ -4295,7 +4307,7 @@ async def clear_sub_uid(message: types.Message, state: FSMContext):
 			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_subscribe(target, "1999-01-01 00:00:00", force=True)
 		await state.finish()
-		await bot.send_message(target, "*🎱 Подписка сброшена.*", parse_mode="Markdown", reply_markup=del_message2)
+		await _notify_user(target, "*🎱 Подписка сброшена.*", parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"🎱 *Сброшена подписка* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception:
@@ -4310,10 +4322,7 @@ async def add_prem_uid(message: types.Message, state: FSMContext):
 			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_premium(target, 1)
 		await state.finish()
-		try:
-			await bot.send_message(target, "*👑 Вам выдан Premium.*", parse_mode="Markdown", reply_markup=del_message2)
-		except Exception:
-			pass
+		await _notify_user(target, "*👑 Вам выдан Premium.*", parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Премиум выдан* `{target}`*!*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"👑 *Выдан премиум* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception as e:
@@ -4329,7 +4338,7 @@ async def clear_prem_uid(message: types.Message, state: FSMContext):
 			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_premium(target, 0)
 		await state.finish()
-		await bot.send_message(target, "*🎱 Премиум сброшен.*", parse_mode="Markdown", reply_markup=del_message2)
+		await _notify_user(target, "*🎱 Премиум сброшен.*", parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
 		await bot.send_message(bot_logs, f"👑 *Сброшен премиум* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
 	except Exception:

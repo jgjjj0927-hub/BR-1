@@ -184,6 +184,10 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     async def mirror_start(message: types.Message, state: FSMContext):
         uid = message.chat.id
         await state.finish()  # сбрасываем любое старое состояние
+        try:
+            await db.touch_user_mirror(uid, token)
+        except Exception:
+            pass
         if await db.is_blocked(uid):
             return
         is_new = not await db.user_exists(uid)
@@ -417,6 +421,12 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     @dp.message_handler(state='*', content_types=types.ContentTypes.TEXT)
     async def mirror_fsm_router(message: types.Message, state: FSMContext):
         """Перенаправляет все текстовые FSM состояния в обработчики main.py"""
+        uid = message.from_user.id
+        # Фиксируем последнее активное зеркало юзера
+        try:
+            await db.touch_user_mirror(uid, token)
+        except Exception:
+            pass
         current_state = await state.get_state()
         if current_state is None:
             try:

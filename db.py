@@ -1300,6 +1300,17 @@ async def assign_mirror_to_user(user_id: int, mirror_token: str, gateway_bot_id:
         """, user_id, mirror_token, gateway_bot_id)
 
 
+async def touch_user_mirror(user_id: int, mirror_token: str):
+    """Обновляет активное зеркало юзера не меняя gateway_bot_id."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO mirror_assignments (user_id, mirror_token, gateway_bot_id)
+            VALUES ($1, $2, 0)
+            ON CONFLICT (user_id) DO UPDATE SET mirror_token = $2, assigned_at = NOW()
+        """, user_id, mirror_token)
+
+
 async def get_free_mirror(exclude: str = None) -> str | None:
     """Возвращает токен зеркала с наименьшим числом назначений.
     Сначала ищет незанятое, иначе возвращает наименее загруженное."""
