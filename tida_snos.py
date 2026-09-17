@@ -194,6 +194,11 @@ async def analyze_tida_link(link: str) -> dict:
     except Exception as e:
         logger.warning(f"[TIDA-AI] analyze error: {e}")
 
+    # Если entity-lookup не удался и тип остался "channel" —
+    # для голого юзернейма (без message_id, не joinchat) ставим "account"
+    if result["target_type"] == "channel" and not result["has_message_id"] and not is_private:
+        result["target_type"] = "account"
+
     return result
 
 
