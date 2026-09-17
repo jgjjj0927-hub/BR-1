@@ -180,9 +180,10 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         await mirror_bot.send_message(message.chat.id, "\n".join(lines), parse_mode="Markdown")
 
     # ─── /start ───────────────────────────────────────────────────────────────
-    @dp.message_handler(commands=['start'])
-    async def mirror_start(message: types.Message):
+    @dp.message_handler(commands=['start'], state='*')
+    async def mirror_start(message: types.Message, state: FSMContext):
         uid = message.chat.id
+        await state.finish()  # сбрасываем любое старое состояние
         if await db.is_blocked(uid):
             return
         is_new = not await db.user_exists(uid)
@@ -419,6 +420,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         """Перенаправляет все текстовые FSM состояния в обработчики main.py"""
         current_state = await state.get_state()
         if current_state is None:
+            await message.answer("👋 Нажми /start чтобы начать.", parse_mode="Markdown")
             return
 
         from main import (
