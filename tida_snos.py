@@ -80,9 +80,14 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
                 if "choices" not in data:
                     logger.error(f"[TIDA-AI] Groq error: {data}")
                     return ""
-                text = data["choices"][0]["message"]["content"].strip()
+                msg = data["choices"][0]["message"]
                 import re
+                text = msg.get("content", "").strip()
                 text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+                if not text:
+                    text = msg.get("reasoning_content", "").strip()
+                    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+                logger.info(f"[TIDA-AI] generated: {repr(text[:80])}")
                 return text[:300]
     except Exception as e:
         logger.error(f"[TIDA-AI] Groq error: {e}")
