@@ -514,10 +514,16 @@ async def _poll_loop(mirror_bot, dp):
     """Ручной polling loop — даёт полный контроль над исключениями.
     dp.start_polling() имеет внутренний retry который глотает TerminatedByOtherGetUpdates,
     поэтому используем свой цикл чтобы исключение доходило до вызывающего кода."""
+    from aiogram import Bot as _Bot, Dispatcher as _Dispatcher
     offset = 0
     while True:
         updates = await mirror_bot.get_updates(offset=offset, timeout=20, limit=100)
         for update in updates:
+            # Устанавливаем ContextVar ПЕРЕД ensure_future чтобы задача
+            # унаследовала правильный бот и диспетчер (иначе message.bot
+            # указывает на главного бота через глобальный ContextVar)
+            _Bot.set_current(mirror_bot)
+            _Dispatcher.set_current(dp)
             asyncio.ensure_future(dp.process_update(update))
         if updates:
             offset = max(u.update_id + 1 for u in updates)
