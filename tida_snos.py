@@ -66,7 +66,7 @@ async def generate_tida_text(content: str, target_type: str, is_description: boo
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
                 json={
-                    "model": "llama-3.3-70b-versatile",
+                    "model": "llama3-70b-8192",
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user_content}
