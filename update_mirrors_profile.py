@@ -1,110 +1,137 @@
 """
 update_mirrors_profile.py
-Обновляет все зеркала: имя → "Brown V2", описание → "Наш сайт - br-v2.top",
-аватарка → копия с главного бота.
+Обновляет все зеркала: имя, описание (оба поля), аватарка через Telethon.
 
 Запуск: python3 update_mirrors_profile.py
 """
 
 import asyncio
-import aiohttp
 import io
+import json
+import urllib.request
+import urllib.parse
+
 import config
 import db
 
-NAME        = "Brown V2"
-DESCRIPTION = "Наш сайт - br-v2.top"
-MAIN_TOKEN  = config.TOKEN
+NAME             = "Brown V2"
+DESCRIPTION      = "Наш сайт - br-v2.top"   # пустой чат
+SHORT_DESC       = "Наш сайт - br-v2.top"   # поле «О боте» в профиле
+MAIN_TOKEN       = config.TOKEN
+API_ID           = int(config.AUREPORT_API_ID)
+API_HASH         = config.AUREPORT_API_HASH
 
 
-async def fetch_main_bot_avatar(session: aiohttp.ClientSession) -> bytes | None:
-    """Скачивает текущую аватарку главного бота."""
+def _tg_json(token: str, method: str, **params) -> dict:
+    """Синхронный HTTP-запрос к Bot API (без aiohttp)."""
+    url  = f"https://api.telegram.org/bot{token}/{method}"
+    data = json.dumps(params).encode()
+    req  = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
     try:
-        # Узнаём ID главного бота
-        async with session.get(f"https://api.telegram.org/bot{MAIN_TOKEN}/getMe") as r:
-            me = (await r.json())["result"]
-            bot_id = me["id"]
-
-        # Берём первое фото профиля
-        async with session.get(
-            f"https://api.telegram.org/bot{MAIN_TOKEN}/getUserProfilePhotos",
-            params={"user_id": bot_id, "limit": 1},
-        ) as r:
-            data = (await r.json())["result"]
-
-        if not data.get("total_count"):
-            print("⚠️  У главного бота нет аватарки")
-            return None
-
-        # Самый большой размер
-        file_id = data["photos"][0][-1]["file_id"]
-
-        async with session.get(
-            f"https://api.telegram.org/bot{MAIN_TOKEN}/getFile",
-            params={"file_id": file_id},
-        ) as r:
-            file_path = (await r.json())["result"]["file_path"]
-
-        async with session.get(
-            f"https://api.telegram.org/file/bot{MAIN_TOKEN}/{file_path}"
-        ) as r:
-            return await r.read()
-
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
     except Exception as e:
-        print(f"❌ Не удалось скачать аватарку: {e}")
+        return {"ok": False, "description": str(e)}
+
+
+def _tg_upload_photo(token: str, photo_bytes: bytes) -> dict:
+    """Загружает фото через multipart/form-data (setMyPhoto)."""
+    url      = f"https://api.telegram.org/bot{token}/setMyPhoto"
+    boundary = b"----BRV2BOUNDARY"
+    body     = (
+        b"--" + boundary + b"\r\n"
+        b'Content-Disposition: form-data; name="photo"; filename="avatar.jpg"\r\n'
+        b"Content-Type: image/jpeg\r\n\r\n"
+        + photo_bytes + b"\r\n"
+        b"--" + boundary + b"--\r\n"
+    )
+    req = urllib.request.Request(
+        url, data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary.decode()}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read())
+    except Exception as e:
+        return {"ok": False, "description": str(e)}
+
+
+async def _fetch_main_avatar() -> bytes | None:
+    """Скачивает аватарку главного бота через Telethon."""
+    from telethon import TelegramClient
+    from telethon.sessions import StringSession
+    try:
+        client = TelegramClient(StringSession(), API_ID, API_HASH)
+        await asyncio.wait_for(client.connect(), timeout=15)
+        await client.start(bot_token=MAIN_TOKEN)
+        me = await client.get_me()
+        photos = await client.get_profile_photos(me)
+        if not photos:
+            print("⚠️  У главного бота нет аватарки")
+            await client.disconnect()
+            return None
+        buf = io.BytesIO()
+        await client.download_media(photos[0], file=buf)
+        await client.disconnect()
+        data = buf.getvalue()
+        print(f"📥 Аватарка скачана: {len(data):,} байт")
+        return data
+    except Exception as e:
+        print(f"❌ Ошибка при скачивании аватарки: {e}")
         return None
 
 
-async def update_one(session: aiohttp.ClientSession, token: str, photo: bytes | None):
-    short = token[:20] + "..."
-    errors = []
-
-    # Имя
+async def _set_photo_telethon(token: str, photo_bytes: bytes) -> bool:
+    """Загружает аватарку зеркалу через Telethon (надёжнее Bot API)."""
+    from telethon import TelegramClient
+    from telethon.sessions import StringSession
+    from telethon.tl.functions.photos import UploadProfilePhotoRequest
     try:
-        async with session.post(
-            f"https://api.telegram.org/bot{token}/setMyName",
-            json={"name": NAME},
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as r:
-            res = await r.json()
-            if not res.get("ok"):
-                errors.append(f"name: {res.get('description')}")
+        client = TelegramClient(StringSession(), API_ID, API_HASH)
+        await asyncio.wait_for(client.connect(), timeout=15)
+        await client.start(bot_token=token)
+        file = await client.upload_file(photo_bytes, file_name="avatar.jpg")
+        await client(UploadProfilePhotoRequest(file=file))
+        await client.disconnect()
+        return True
     except Exception as e:
-        errors.append(f"name: {e}")
+        return False
 
-    # Описание
-    try:
-        async with session.post(
-            f"https://api.telegram.org/bot{token}/setMyDescription",
-            json={"description": DESCRIPTION},
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as r:
-            res = await r.json()
-            if not res.get("ok"):
-                errors.append(f"desc: {res.get('description')}")
-    except Exception as e:
-        errors.append(f"desc: {e}")
 
-    # Аватарка
-    if photo:
-        try:
-            form = aiohttp.FormData()
-            form.add_field("photo", io.BytesIO(photo), filename="avatar.jpg", content_type="image/jpeg")
-            async with session.post(
-                f"https://api.telegram.org/bot{token}/setMyPhoto",
-                data=form,
-                timeout=aiohttp.ClientTimeout(total=15),
-            ) as r:
-                res = await r.json()
-                if not res.get("ok"):
-                    errors.append(f"photo: {res.get('description')}")
-        except Exception as e:
-            errors.append(f"photo: {e}")
+async def update_one(token: str, photo: bytes | None, sem: asyncio.Semaphore):
+    async with sem:
+        short  = token[:22] + "..."
+        errors = []
 
-    if errors:
-        print(f"  ⚠️  {short} — ошибки: {'; '.join(errors)}")
-    else:
-        print(f"  ✅ {short}")
+        loop = asyncio.get_event_loop()
+
+        # Имя
+        r = await loop.run_in_executor(None, lambda: _tg_json(token, "setMyName", name=NAME))
+        if not r.get("ok"):
+            errors.append(f"name: {r.get('description')}")
+
+        # Описание (пустой чат)
+        r = await loop.run_in_executor(None, lambda: _tg_json(token, "setMyDescription", description=DESCRIPTION))
+        if not r.get("ok"):
+            errors.append(f"desc: {r.get('description')}")
+
+        # О боте (профиль)
+        r = await loop.run_in_executor(None, lambda: _tg_json(token, "setMyShortDescription", short_description=SHORT_DESC))
+        if not r.get("ok"):
+            errors.append(f"short_desc: {r.get('description')}")
+
+        # Аватарка — сначала пробуем Telethon, fallback на Bot API
+        if photo:
+            ok = await _set_photo_telethon(token, photo)
+            if not ok:
+                r = await loop.run_in_executor(None, lambda: _tg_upload_photo(token, photo))
+                if not r.get("ok"):
+                    errors.append(f"photo: {r.get('description')}")
+
+        if errors:
+            print(f"  ⚠️  {short} — {'; '.join(errors)}")
+        else:
+            print(f"  ✅ {short}")
 
 
 async def main():
@@ -114,24 +141,12 @@ async def main():
         print("Зеркал в БД нет.")
         return
 
-    print(f"Найдено зеркал: {len(tokens)}")
+    print(f"Найдено зеркал: {len(tokens)}\n")
+    photo = await _fetch_main_avatar()
 
-    async with aiohttp.ClientSession() as session:
-        print("📥 Скачиваю аватарку главного бота...")
-        photo = await fetch_main_bot_avatar(session)
-        if photo:
-            print(f"   Размер: {len(photo):,} байт")
-
-        print("\n🔄 Обновляю зеркала...")
-        # По 5 параллельно чтобы не флудить Telegram
-        sem = asyncio.Semaphore(5)
-
-        async def bounded(tok):
-            async with sem:
-                await update_one(session, tok, photo)
-
-        await asyncio.gather(*[bounded(t) for t in tokens])
-
+    print("\n🔄 Обновляю зеркала...\n")
+    sem = asyncio.Semaphore(3)  # 3 параллельно — Telethon не любит больше
+    await asyncio.gather(*[update_one(t, photo, sem) for t in tokens])
     print("\n✅ Готово.")
 
 
