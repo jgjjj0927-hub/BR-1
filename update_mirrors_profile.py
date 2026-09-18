@@ -90,7 +90,9 @@ async def _set_photo_telethon(token: str, photo_bytes: bytes) -> bool:
         client = TelegramClient(StringSession(), API_ID, API_HASH)
         await asyncio.wait_for(client.connect(), timeout=15)
         await client.start(bot_token=token)
-        file = await client.upload_file(photo_bytes, file_name="avatar.jpg")
+        buf = io.BytesIO(photo_bytes)
+        buf.name = "avatar.jpg"
+        file = await client.upload_file(buf, file_name="avatar.jpg")
         await client(UploadProfilePhotoRequest(file=file))
         await client.disconnect()
         return True
