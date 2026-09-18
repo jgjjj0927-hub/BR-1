@@ -10,14 +10,17 @@ import config, db
 NAME       = "Brown V2"
 DESC       = "Наш сайт - br-v2.top"
 SHORT_DESC = "Наш сайт - br-v2.top"
-MAIN_TOK   = config.TOKEN
+MAIN_TOK   = sys.argv[1] if len(sys.argv) > 1 else config.TOKEN
 CONCUR     = 20          # параллельных запросов
 
 
 async def download_avatar(session: aiohttp.ClientSession) -> bytes:
     # id главного бота
     async with session.get(f"https://api.telegram.org/bot{MAIN_TOK}/getMe") as r:
-        bot_id = (await r.json())["result"]["id"]
+        resp = await r.json()
+    if not resp.get("ok"):
+        raise RuntimeError(f"getMe failed: {resp}")
+    bot_id = resp["result"]["id"]
     # список фото
     async with session.get(
         f"https://api.telegram.org/bot{MAIN_TOK}/getUserProfilePhotos",
