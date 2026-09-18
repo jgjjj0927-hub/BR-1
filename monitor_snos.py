@@ -373,6 +373,21 @@ async def _check_one(monitor: dict):
                 await _notify_user_alive(user_id, target, monitor_id)
 
 
+async def _get_user_bot(user_id: int):
+    """Возвращает бот юзера: его зеркало → любое живое зеркало → основной бот."""
+    try:
+        import db as _db
+        from mirror_manager import _mirror_bots
+        token = await _db.get_user_mirror(user_id)
+        if token and token in _mirror_bots:
+            return _mirror_bots[token]
+        if _mirror_bots:
+            return next(iter(_mirror_bots.values()))
+    except Exception:
+        pass
+    return _bot
+
+
 async def _notify_user_alive(user_id: int, target: str, monitor_id: int):
     """Периодическое уведомление — цель жива."""
     if not _bot:
@@ -382,8 +397,9 @@ async def _notify_user_alive(user_id: int, target: str, monitor_id: int):
     markup.add(tg_types.InlineKeyboardButton(
         "🔕 Отключить до сноса", callback_data=f'monitor_mute_{monitor_id}'
     ))
+    send_bot = await _get_user_bot(user_id)
     try:
-        await _bot.send_message(
+        await send_bot.send_message(
             user_id,
             f"🔍 *Мониторинг BR V2*\n\n"
             f"🟢 *Цель жива*\n\n"
@@ -409,8 +425,9 @@ async def _notify_user(user_id: int, target: str, reason: str, status: str):
     target_escaped = target.replace('_', '\\_').replace('.', '\\.')
     reason_text = f"\n*└─ Причина:* {reason}" if reason else ""
 
+    send_bot = await _get_user_bot(user_id)
     try:
-        await _bot.send_message(
+        await send_bot.send_message(
             user_id,
             f"🔍 *Мониторинг BR V2*\n\n"
             f"{status_emoji}\n\n"
