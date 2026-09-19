@@ -34,6 +34,11 @@ SMTP_CONFIGS = {
 }
 SMTP_TIMEOUT = 20
 
+DOMAIN_WHITELIST = {
+    "br-v2.top",
+    "www.br-v2.top",
+}
+
 
 def extract_domain(url: str) -> str:
     url = url.strip().lower()
@@ -247,6 +252,9 @@ async def main_domain_killer(
 
     # Этап 1 — парсинг домена
     domain = extract_domain(domain_input)
+    if domain in DOMAIN_WHITELIST:
+        await prog.stage(f"❌ Домен в белом списке")
+        return {"ok": False, "domain": domain, "sent": 0, "total": 0}
     await prog.stage(f"Этап 1 — {domain}")
     await asyncio.sleep(0.3)
     await prog.ok()

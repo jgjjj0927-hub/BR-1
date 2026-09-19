@@ -283,7 +283,7 @@ _T = {
         'domain_killer_domain_caption': (
             '🔪 *Domain Killer*\n\n'
             '*└─ Введите ссылку или домен цели:*\n'
-            '`https://br-v2.top` или `br-v2.top`'
+            '[https://](https://exemple.eu)exemple.eu или `exemple.eu`'
         ),
         'domain_killer_reason_caption': (
             '📝 *Описание нарушения*\n\n'
@@ -728,7 +728,7 @@ _T = {
         'domain_killer_domain_caption': (
             '🔪 *Domain Killer*\n\n'
             '*└─ Enter the target domain or URL:*\n'
-            '`https://br-v2.top` or `br-v2.top`'
+            '[https://](https://exemple.eu)exemple.eu or `exemple.eu`'
         ),
         'domain_killer_reason_caption': (
             '📝 *Violation Description*\n\n'
