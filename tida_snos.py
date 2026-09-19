@@ -378,19 +378,27 @@ async def _create_client(session_path: str, proxy=None):
         return None
 
 
-async def _send_one_report(client, bot_entity, target: str, custom_text: str, report_num: int) -> bool:
+async def _send_one_report(client, bot_entity, target: str, custom_text: str, report_num: int) -> tuple[bool, bool]:
+    """Возвращает (success, region_blocked)."""
     done = asyncio.Event()
     step = 0
     success = False
+    region_blocked = False
     session_name = os.path.basename(client.session.filename)
 
     @client.on(events.NewMessage(from_users=bot_entity.id))
     async def handler(event):
-        nonlocal step, success
+        nonlocal step, success, region_blocked
         text = event.message.message.strip().lower()
         markup = event.message.reply_markup
 
         logger.info(f"[TIDA] [{session_name}] [{report_num}] 📨 TIDABOT: step={step} | text={text[:120]!r}")
+
+        if "not available in your region" in text:
+            logger.warning(f"[TIDA] [{session_name}] [{report_num}] 🌍 Регион заблокирован — нужен другой прокси")
+            region_blocked = True
+            done.set()
+            return
 
         if ("please enter a t.me" in text or "enter the link" in text or "enter a link" in text or "t.me link" in text) and step == 0:
             await asyncio.sleep(0.3)
@@ -453,7 +461,7 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
         logger.warning(f"[TIDA] [{session_name}] [{report_num}] ⏳ Таймаут")
 
     client.remove_event_handler(handler)
-    return success
+    return success, region_blocked
 
 
 async def _single_session_flow(session_path: str, target: str, custom_text: str,
@@ -462,19 +470,26 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
     if tida_peer_ref is None:
         tida_peer_ref = [None]
 
-    MAX_PROXY_RETRIES = min(2, len(all_proxies)) if all_proxies else 1
-    used_proxies = set()
-    current_proxy = proxy
+    proxies_pool = list(all_proxies) if all_proxies else []
+    if proxy and proxy not in proxies_pool:
+        proxies_pool.insert(0, proxy)
+    random.shuffle(proxies_pool)
+    if proxy in proxies_pool:
+        proxies_pool.remove(proxy)
+        proxies_pool.insert(0, proxy)
 
-    for attempt in range(MAX_PROXY_RETRIES):
+    tried = set()
+    candidates = proxies_pool if proxies_pool else [None]
+
+    for attempt, current_proxy in enumerate(candidates):
+        proxy_key = current_proxy[1] if current_proxy else "нет"
+        if proxy_key in tried:
+            continue
+        tried.add(proxy_key)
+
         client = await _create_client(session_path, current_proxy)
         if not client:
-            # Попробуй другой прокси
-            if all_proxies:
-                remaining = [p for i, p in enumerate(all_proxies) if i not in used_proxies]
-                if remaining:
-                    current_proxy = random.choice(remaining)
-                    used_proxies.add(all_proxies.index(current_proxy))
+            logger.warning(f"[TIDA] [{session_name}] Не удалось подключиться через {proxy_key}, пробую следующий прокси")
             continue
 
         try:
@@ -490,24 +505,17 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
                     await client.disconnect()
                     return False
 
-            logger.info(f"[TIDA] [{session_name}] Попытка {attempt + 1}/{MAX_PROXY_RETRIES} | прокси: {current_proxy[1] if current_proxy else 'нет'}")
-            success = await _send_one_report(client, bot_entity, target, custom_text, attempt + 1)
+            logger.info(f"[TIDA] [{session_name}] Попытка {attempt + 1} | прокси: {proxy_key}")
+            success, region_blocked = await _send_one_report(client, bot_entity, target, custom_text, attempt + 1)
 
             if success:
                 return True
 
-            # CREATE_REPORT_FAILED — меняем прокси и пробуем снова
-            if all_proxies and attempt + 1 < MAX_PROXY_RETRIES:
-                proxy_list = list(range(len(all_proxies)))
-                remaining = [i for i in proxy_list if i not in used_proxies]
-                if remaining:
-                    idx = random.choice(remaining)
-                    used_proxies.add(idx)
-                    current_proxy = all_proxies[idx]
-                    logger.info(f"[TIDA] [{session_name}] Меняем прокси → {current_proxy[1]}")
-                else:
-                    logger.warning(f"[TIDA] [{session_name}] Все прокси исчерпаны")
-                    return False
+            if region_blocked:
+                logger.info(f"[TIDA] [{session_name}] Регион — пробую следующий прокси...")
+                # продолжаем цикл с другим прокси
+            else:
+                logger.warning(f"[TIDA] [{session_name}] Неудача (не регион) на прокси {proxy_key}")
 
         except Exception as e:
             logger.error(f"[TIDA] [{session_name}] Ошибка: {e}")
@@ -517,6 +525,7 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
             except Exception:
                 pass
 
+    logger.warning(f"[TIDA] [{session_name}] Все прокси исчерпаны")
     return False
 
 
