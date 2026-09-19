@@ -27,3 +27,4 @@ TIDA_API_HASH = os.environ.get("TIDA_API_HASH", "5a084b434f8505ace703485b9da8504
 # ─── DSA Report ───────────────────────────────────────────────────────────────
 CAPMONSTER_KEY = os.environ.get("CAPMONSTER_KEY", "9957fc5afa369dc8087d069abad70988")
 GROQ_KEY = os.environ.get("GROQ_KEY", "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")
+RUCAPTCHA_KEY = os.environ.get("RUCAPTCHA_KEY", "100f8e00ecb621af91171bc1dab68a77")

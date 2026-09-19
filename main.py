@@ -28,6 +28,7 @@ from tida_snos import main_tida, set_bot_tida
 from bank_snos import process_bank_report, set_bot_bank
 from code_snos import main_code_snos, set_bot_code
 from dsa_snos import main_dsa_snos, set_bot_dsa
+from support_snos import main_support
 from telegraph_snos import main_telegraph_snos, set_bot_telegraph, fetch_telegraph_text, generate_telegraph_text
 from monitor_snos import monitor_loop, set_monitor_bot, telegraph_monitor_add
 DEPSEARCH_TOKEN = "OsMTcjyHTRtfABnWA4V3d12SYKVIYE8z"
@@ -123,6 +124,7 @@ last_used_bank = {}
 last_used_dsa = {}
 last_used_telegraph = {}
 last_used_trap = {}
+last_used_support = {}
 _trap_sessions: dict = {}  # uid -> {bot_token, bot_username, bot_name}
 _tida_pending: dict = {}  # uid -> {link, text, target, bot_token, username}
 
@@ -384,6 +386,10 @@ class WaitBankFSM(StatesGroup):
 
 class WaitCodeFSM(StatesGroup):
 	phone = State()
+
+class WaitSupportFSM(StatesGroup):
+	target = State()
+	phone  = State()
 
 class AdminAddReportsFSM(StatesGroup):
 	user_id = State()
@@ -3230,6 +3236,25 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitCodeFSM.phone.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
+		# ─── Саппорт метод ────────────────────────────────────────────────────
+		elif d == "support_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if premium == 0:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if uid not in admins and uid not in no_kd and uid in last_used_support and (now_msk() - last_used_support[uid]) < timedelta(hours=3):
+				rem = timedelta(hours=3) - (now_msk() - last_used_support[uid])
+				h = rem.seconds // 3600
+				m_left = (rem.seconds % 3600) // 60
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_hm', _user_lang, h=h, m=m_left), parse_mode="Markdown", reply_markup=panel_back_markup); return
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=t('support_method_target_caption', _user_lang),
+				parse_mode="Markdown", reply_markup=panel_back_markup
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitSupportFSM.target.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+
 		# ─── Стрессер ─────────────────────────────────────────────────────────
 		elif d == "stress_method":
 			if bot_off():
@@ -4135,6 +4160,71 @@ async def code_step1(message: types.Message, state: FSMContext):
 		await main_code_snos(phone, uid, username, notify_bot=_bot)
 	except Exception as e:
 		print(f"[CODE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
+@dp.message_handler(state=WaitSupportFSM.target)
+async def support_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	lang = await db.get_lang(uid)
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	if not raw or len(raw) < 2:
+		await state.finish()
+		await _bot.send_message(uid, '❌ *Некорректная цель.*', parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	await state.update_data(support_target=raw)
+	await dp.current_state(chat=uid, user=uid).set_state(WaitSupportFSM.phone.state)
+	await _bot.send_message(uid, t('support_method_phone_caption', lang), parse_mode="Markdown")
+
+
+@dp.message_handler(state=WaitSupportFSM.phone)
+async def support_step2(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	lang = await db.get_lang(uid)
+	phone = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	target = fsm_data.get('support_target', '')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	if len(phone) < 7 or not any(c.isdigit() for c in phone):
+		await _bot.send_message(uid, '❌ *Некорректный номер телефона.*\nФормат: `+79991234567`', parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	if uid not in admins:
+		last_used_support[uid] = now_msk()
+
+	await _bot.send_message(uid, t('support_launching', lang), parse_mode="Markdown")
+
+	try:
+		await main_support(target, phone, uid, username, notify_bot=_bot)
+		try: await db.log_attack(uid, target, "support")
+		except Exception as e: print(f"[HISTORY] support log error: {e}", flush=True)
+	except Exception as e:
+		print(f"[SUPPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:

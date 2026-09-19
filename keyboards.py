@@ -181,6 +181,7 @@ def get_premium_functions(lang: str = 'ru', is_admin: bool = False) -> types.Inl
         types.InlineKeyboardButton(t('btn_bank_method', lang), callback_data='bank_method'),
         types.InlineKeyboardButton(t('btn_dsa_method', lang), callback_data='dsa_method'),
     )
+    m.add(types.InlineKeyboardButton(t('btn_support_method', lang), callback_data='support_method'))
     m.add(types.InlineKeyboardButton(t('btn_telegraph_method', lang), callback_data='telegraph_method'))
     m.add(types.InlineKeyboardButton(t('btn_universal_method', lang), callback_data='universal_method'))
     if is_admin:
