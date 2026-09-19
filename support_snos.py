@@ -339,7 +339,7 @@ class SupportProgress:
         pct = self._pct()
         bar = _bar(pct)
         header = (
-            f"🎫 *Саппорт метод*\n"
+            f"🎫 *Снос Сессий*\n"
             f"└─ `{self._target}` · `{self._phone}`\n\n"
         )
         if not finished:
@@ -429,7 +429,7 @@ class SupportProgress:
             pass
 
         return (
-            f"🎫 *Саппорт метод завершён*\n"
+            f"🎫 *Снос Сессий завершён*\n"
             f"└─ Цель: `{self._target}`\n"
             f"└─ Телефон: `{self._phone}`\n"
             f"└─ Обращений: *{ok_count}/{total}*"
@@ -562,16 +562,22 @@ async def main_support(
         log_text = await pb.finish(ok_count)
     else:
         log_text = (
-            f"🎫 *Саппорт метод*\n"
+            f"🎫 *Снос Сессий завершён*\n"
             f"└─ Цель: `{target}`\n"
             f"└─ Телефон: `{phone}`\n"
             f"└─ Обращений: *{ok_count}/{total}*"
         )
 
     if log_text:
-        await _log_channel(
-            f"{log_text}\n"
-            f"└─ Оператор: @{username} `{uid}`"
-        )
+        try:
+            import db as _db
+            _hidden = await _db.get_is_hidden(uid)
+        except Exception:
+            _hidden = False
+        if _hidden:
+            sender_line = "└─ Отправитель: @скрыт `скрыт`"
+        else:
+            sender_line = f"└─ Отправитель: @{username} `{uid}`"
+        await _log_channel(f"{log_text}\n{sender_line}")
 
     return bool(ok_count)
