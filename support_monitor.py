@@ -203,6 +203,12 @@ async def _check_one(key: str, data: dict):
             f"👤 Ник: @{snap['username']} → @{current['username']}"
         )
 
+    # Биография изменилась / исчезла
+    if snap["bio"] and not current["bio"]:
+        triggers.append("📝 Описание профиля исчезло")
+    elif snap["bio"] and current["bio"] and current["bio"] != snap["bio"]:
+        triggers.append("📝 Описание профиля изменилось")
+
     # Не в сети 24ч+
     is_offline_24h = current.get("offline_24h", False)
     if not is_offline_24h and current["last_seen_utc"]:
