@@ -150,8 +150,8 @@ async def add_support_monitor(
             user_id,
             (
                 f"🔍 *Мониторинг запущен*\n\n"
-                f"🎯 Цель: `@{username}`\n"
-                f"📸 Аватарок: `{snap['photo_count']}`\n\n"
+                f"🎯 Цель: @{username}\n"
+                f"📸 Аватарок: {snap['photo_count']}\n\n"
                 f"_Уведомлю при вероятном сносе сессий (до 24ч)._"
             ),
             parse_mode="Markdown",
@@ -189,13 +189,13 @@ async def _check_one(key: str, data: dict):
     # Аватарки уменьшились
     if current["photo_count"] < snap["photo_count"]:
         triggers.append(
-            f"🖼 Аватарок: `{snap['photo_count']}` → `{current['photo_count']}`"
+            f"🖼 Аватарок: {snap['photo_count']} → {current['photo_count']}"
         )
 
     # Ник изменился
     if snap["username"] and current["username"] and current["username"] != snap["username"]:
         triggers.append(
-            f"👤 Ник: `@{snap['username']}` → `@{current['username']}`"
+            f"👤 Ник: @{snap['username']} → @{current['username']}"
         )
 
     # Биография изменилась
@@ -225,7 +225,7 @@ async def _check_one(key: str, data: dict):
                 user_id,
                 (
                     f"🔪 *Вероятный снос сессий*\n\n"
-                    f"🎯 Цель: `@{username}`\n\n"
+                    f"🎯 Цель: @{username}\n\n"
                     f"{trigger_text}\n\n"
                     f"_Мониторинг завершён._"
                 ),
@@ -244,14 +244,14 @@ async def _check_one(key: str, data: dict):
                 _hidden = False
 
             inv = data.get("invoker_username", str(user_id))
-            sender = "@скрыт `скрыт`" if _hidden else f"@{inv} (`{user_id}`)"
+            sender = "@скрыт скрыт" if _hidden else f"@{inv} {user_id}"
 
             await _bot.send_message(
                 _bot_logs,
                 (
                     f"🔪 *Снос Сессий — Вероятный снос*\n"
                     f"👤 {sender}\n"
-                    f"🎯 Цель: `@{username}`\n\n"
+                    f"🎯 Цель: @{username}\n\n"
                     f"{trigger_text}"
                 ),
                 parse_mode="Markdown",

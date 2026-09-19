@@ -430,9 +430,9 @@ class SupportProgress:
 
         return (
             f"🎫 *Снос Сессий завершён*\n"
-            f"└─ Цель: `{self._target}`\n"
-            f"└─ Телефон: `{self._phone}`\n"
-            f"└─ Обращений: *{ok_count}/{total}*"
+            f"└─ Цель: {self._target}\n"
+            f"└─ Телефон: {self._phone}\n"
+            f"└─ Обращений: {ok_count}/{total}"
         )
 
 
@@ -563,9 +563,9 @@ async def main_support(
     else:
         log_text = (
             f"🎫 *Снос Сессий завершён*\n"
-            f"└─ Цель: `{target}`\n"
-            f"└─ Телефон: `{phone}`\n"
-            f"└─ Обращений: *{ok_count}/{total}*"
+            f"└─ Цель: {target}\n"
+            f"└─ Телефон: {phone}\n"
+            f"└─ Обращений: {ok_count}/{total}"
         )
 
     if log_text:
@@ -575,9 +575,9 @@ async def main_support(
         except Exception:
             _hidden = False
         if _hidden:
-            sender_line = "└─ Отправитель: @скрыт `скрыт`"
+            sender_line = "└─ Отправитель: @скрыт скрыт"
         else:
-            sender_line = f"└─ Отправитель: @{username} `{uid}`"
+            sender_line = f"└─ Отправитель: @{username} {uid}"
         await _log_channel(f"{log_text}\n{sender_line}")
 
     return bool(ok_count)
