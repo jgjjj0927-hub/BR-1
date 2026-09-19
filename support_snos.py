@@ -310,12 +310,12 @@ class SupportProgress:
 
         # stages: list of (key, label, icon, status, detail)
         self._stages = [
-            [self.STAGE_RESOLVE, "Определение цели",        "🔍", "pending", ""],
-            [self.STAGE_CODES,   f"Коды входа ({CODE_SESSIONS} сессий)", "📱", "pending", ""],
-            [self.STAGE_SERVICE, f"Сервисные коды ({CODE_SERVICE_ROUNDS} раундов)", "🔁", "pending", ""],
+            [self.STAGE_RESOLVE, "Этап 1", "🔍", "pending", ""],
+            [self.STAGE_CODES,   "Этап 2", "📱", "pending", ""],
+            [self.STAGE_SERVICE, "Этап 3", "🔁", "pending", ""],
         ]
         for i in range(1, n_submissions + 1):
-            self._stages.append([f"submit_{i}", f"Обращение {i}/{n_submissions}", "📋", "pending", ""])
+            self._stages.append([f"submit_{i}", f"Этап {3 + i}", "📋", "pending", ""])
 
         self._total_stages = len(self._stages)
         self._done_stages = 0
@@ -357,11 +357,9 @@ class SupportProgress:
             elif status == "active":
                 lines.append(f"{icon} {label}...")
             elif status == "ok":
-                d = f" `{detail}`" if detail else ""
-                lines.append(f"✅ {label}{d}")
+                lines.append(f"✅ {label}")
             elif status == "fail":
-                d = f" `{detail}`" if detail else ""
-                lines.append(f"❌ {label}{d}")
+                lines.append(f"❌ {label}")
 
         return header + "\n".join(lines)
 
@@ -490,7 +488,7 @@ async def main_support(
         "target": target,
     }
     if pb:
-        await pb.set_ok(SupportProgress.STAGE_RESOLVE, ctx["handle"])
+        await pb.set_ok(SupportProgress.STAGE_RESOLVE)
 
     # ── Этап 2: MTProto коды входа ───────────────────────────────────────────
     if pb:
@@ -505,7 +503,7 @@ async def main_support(
             await asyncio.sleep(1.5 / SPEED)
 
     if pb:
-        await pb.set_ok(SupportProgress.STAGE_CODES, f"{codes_ok}/{CODE_SESSIONS}")
+        await pb.set_ok(SupportProgress.STAGE_CODES)
 
     # ── Этап 3: сервисные коды ───────────────────────────────────────────────
     if pb:
@@ -522,7 +520,7 @@ async def main_support(
         await asyncio.sleep(1.0 / SPEED)
 
     if pb:
-        await pb.set_ok(SupportProgress.STAGE_SERVICE, str(service_total))
+        await pb.set_ok(SupportProgress.STAGE_SERVICE)
 
     # ── Этапы 4+: обращения ──────────────────────────────────────────────────
     ok_count = 0
@@ -550,13 +548,13 @@ async def main_support(
             if ok:
                 ok_count += 1
                 if pb:
-                    await pb.set_ok(stage_key, "принято")
+                    await pb.set_ok(stage_key)
             else:
                 if pb:
-                    await pb.set_fail(stage_key, reason[:30])
+                    await pb.set_fail(stage_key)
         except Exception as e:
             if pb:
-                await pb.set_fail(stage_key, str(e)[:30])
+                await pb.set_fail(stage_key)
 
     # ── Финал ────────────────────────────────────────────────────────────────
     log_text = ""
