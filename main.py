@@ -4217,12 +4217,23 @@ async def support_step2(message: types.Message, state: FSMContext):
 	if uid not in admins:
 		last_used_support[uid] = now_msk()
 
-	await _bot.send_message(uid, t('support_launching', lang), parse_mode="Markdown")
-
 	try:
-		await main_support(target, phone, uid, username, notify_bot=_bot)
+		result = await main_support(
+			target, phone, uid, username,
+			notify_bot=_bot,
+			log_bot=bot,
+			log_channel_id=bot_logs,
+		)
 		try: await db.log_attack(uid, target, "support")
 		except Exception as e: print(f"[HISTORY] support log error: {e}", flush=True)
+		# Предлагаем мониторинг
+		try:
+			_ud = await db.get_user(uid)
+			_prem = int(_ud.get('premium', 0)) if _ud else 0
+			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
+			await _offer_monitor(_bot, uid, target, _prem, _sub)
+		except Exception:
+			pass
 	except Exception as e:
 		print(f"[SUPPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)

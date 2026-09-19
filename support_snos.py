@@ -53,10 +53,17 @@ CALL_TIMEOUT = 25.0
 PROXY_FALLBACK = True
 STICKY_SESSID = True
 
+_BAR_LEN = 10
+
 
 class SafeDict(dict):
     def __missing__(self, key):
         return "{" + key + "}"
+
+
+def _bar(pct: int) -> str:
+    filled = round(_BAR_LEN * pct / 100)
+    return "[" + "▓" * filled + "▒" * (_BAR_LEN - filled) + "]"
 
 
 def _load_proxies_from_file() -> list[str]:
@@ -66,7 +73,6 @@ def _load_proxies_from_file() -> list[str]:
             lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
         result = []
         for line in lines:
-            # убираем протокол — нам нужен голый host:port[:user:pass]
             for pfx in ("http://", "socks4://", "socks5://"):
                 if line.startswith(pfx):
                     line = line[len(pfx):]
@@ -144,7 +150,7 @@ def fetchSupport(proxyStr: str, sessid: str):
     s.proxies = buildHttpProxies(proxyStr, sessid) or {}
     try:
         return getForm(s), s
-    except (requests.exceptions.ProxyError, requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError) as e:
+    except (requests.exceptions.ProxyError, requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError):
         if not (PROXY_FALLBACK and s.proxies):
             raise
         d = requests.Session()
@@ -267,19 +273,6 @@ async def sendCodeOnce(phone: str) -> tuple[bool, str | None]:
             pass
 
 
-async def sendCodes(phone: str, notify) -> int:
-    await notify(f"📱 *Отправка кодов входа* ({CODE_SESSIONS} сессий)...")
-    okCount = 0
-    for i in range(CODE_SESSIONS):
-        good, err = await sendCodeOnce(phone)
-        if good:
-            okCount += 1
-        if i + 1 < CODE_SESSIONS:
-            await asyncio.sleep(1.5 / SPEED)
-    await notify(f"📱 Коды отправлены: *{okCount}/{CODE_SESSIONS}*")
-    return okCount
-
-
 def serviceRoundOnce(phone: str, proxyStr: str, sessid: str) -> int:
     proxies = buildHttpProxies(proxyStr, sessid) if proxyStr else None
     hits = 0
@@ -294,80 +287,201 @@ def serviceRoundOnce(phone: str, proxyStr: str, sessid: str) -> int:
     return hits
 
 
-async def sendCodesViaService(phone: str, httpProxyList: list[str], notify) -> int:
-    if CODE_SERVICE_ROUNDS <= 0:
-        return 0
-    digits = re.sub(r"[^0-9]", "", phone)
-    await notify(f"🔁 *Сервисные коды* ({CODE_SERVICE_ROUNDS} раундов)...")
-    loop = asyncio.get_event_loop()
-    total = 0
-    for i in range(CODE_SERVICE_ROUNDS):
-        proxyStr = random.choice(httpProxyList) if httpProxyList else ""
-        sessid = secrets.token_hex(8)
-        hits = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: serviceRoundOnce(digits, p, s))
-        total += hits
-        await asyncio.sleep(1.0 / SPEED)
-    await notify(f"🔁 Сервисных кодов принято: *{total}*")
-    return total
+# ─── Прогресс-бар: одно сообщение, редактируемое ─────────────────────────────
+
+class SupportProgress:
+    """Единое редактируемое сообщение с поэтапным прогрессом."""
+
+    # Этапы (label, вес в общем прогрессе)
+    # веса будут скорректированы под реальное SUBMISSIONS
+    STAGE_RESOLVE  = "resolve"
+    STAGE_CODES    = "codes"
+    STAGE_SERVICE  = "service"
+    STAGE_SUBMIT   = "submit"   # по одному на каждый сабмит
+
+    def __init__(self, bot, uid: int, target: str, phone: str, n_submissions: int):
+        self._bot = bot
+        self._uid = uid
+        self._target = target
+        self._phone = phone
+        self._n = n_submissions
+        self._msg_id: int | None = None
+        self._start = time.monotonic()
+
+        # stages: list of (key, label, icon, status, detail)
+        self._stages = [
+            [self.STAGE_RESOLVE, "Определение цели",        "🔍", "pending", ""],
+            [self.STAGE_CODES,   f"Коды входа ({CODE_SESSIONS} сессий)", "📱", "pending", ""],
+            [self.STAGE_SERVICE, f"Сервисные коды ({CODE_SERVICE_ROUNDS} раундов)", "🔁", "pending", ""],
+        ]
+        for i in range(1, n_submissions + 1):
+            self._stages.append([f"submit_{i}", f"Обращение {i}/{n_submissions}", "📋", "pending", ""])
+
+        self._total_stages = len(self._stages)
+        self._done_stages = 0
+
+    def _pct(self) -> int:
+        return round(self._done_stages / self._total_stages * 100) if self._total_stages else 100
+
+    def _eta(self) -> str:
+        done = self._done_stages
+        if done == 0:
+            return ""
+        elapsed = time.monotonic() - self._start
+        remaining = int(elapsed / done * (self._total_stages - done))
+        if remaining <= 0:
+            return ""
+        if remaining < 60:
+            return f"~{remaining} сек"
+        return f"~{remaining // 60} мин {remaining % 60} сек"
+
+    def _render(self, finished: bool = False) -> str:
+        pct = self._pct()
+        bar = _bar(pct)
+        header = (
+            f"🎫 *Саппорт метод*\n"
+            f"└─ `{self._target}` · `{self._phone}`\n\n"
+        )
+        if not finished:
+            eta = self._eta()
+            eta_str = f" — {eta}" if eta else ""
+            header += f"{bar} *{pct}%*{eta_str}\n\n"
+        else:
+            header += f"{bar} *100%*\n\n"
+
+        lines = []
+        for stage in self._stages:
+            _, label, icon, status, detail = stage
+            if status == "pending":
+                lines.append(f"⏳ {label}")
+            elif status == "active":
+                lines.append(f"{icon} {label}...")
+            elif status == "ok":
+                d = f" `{detail}`" if detail else ""
+                lines.append(f"✅ {label}{d}")
+            elif status == "fail":
+                d = f" `{detail}`" if detail else ""
+                lines.append(f"❌ {label}{d}")
+
+        return header + "\n".join(lines)
+
+    async def _edit(self, finished: bool = False):
+        if not self._msg_id:
+            return
+        try:
+            await self._bot.edit_message_text(
+                self._render(finished), self._uid, self._msg_id,
+                parse_mode="Markdown"
+            )
+        except Exception:
+            pass
+
+    async def start(self):
+        try:
+            msg = await self._bot.send_message(
+                self._uid, self._render(), parse_mode="Markdown"
+            )
+            self._msg_id = msg.message_id
+        except Exception:
+            pass
+
+    def _find(self, key: str) -> list | None:
+        for s in self._stages:
+            if s[0] == key:
+                return s
+        return None
+
+    async def set_active(self, key: str):
+        s = self._find(key)
+        if s:
+            s[3] = "active"
+        await self._edit()
+
+    async def set_ok(self, key: str, detail: str = ""):
+        s = self._find(key)
+        if s:
+            s[3] = "ok"
+            s[4] = detail
+            self._done_stages += 1
+        await self._edit()
+
+    async def set_fail(self, key: str, detail: str = ""):
+        s = self._find(key)
+        if s:
+            s[3] = "fail"
+            s[4] = detail
+            self._done_stages += 1
+        await self._edit()
+
+    async def finish(self, ok_count: int) -> str:
+        """Финальное редактирование + возвращает итоговый текст для лога канала."""
+        pct = self._pct()
+        total = self._n
+        # Финальная строка итога
+        result_line = f"\n✅ *{ok_count}/{total}* обращений принято" if ok_count else f"\n❌ Все обращения отклонены *{total}/{total}*"
+        if not self._msg_id:
+            return result_line
+
+        text = self._render(finished=True) + result_line
+        try:
+            await self._bot.edit_message_text(
+                text, self._uid, self._msg_id, parse_mode="Markdown"
+            )
+        except Exception:
+            pass
+
+        return (
+            f"🎫 *Саппорт метод завершён*\n"
+            f"└─ Цель: `{self._target}`\n"
+            f"└─ Телефон: `{self._phone}`\n"
+            f"└─ Обращений: *{ok_count}/{total}*"
+        )
 
 
-async def oneSubmission(idx: int, total: int, ctx: dict, phone: str,
-                        httpProxyList: list[str], key: str, notify) -> bool:
-    sessid = secrets.token_hex(8)
-    legalName, email = pickIdentity()
-    proxyStr = random.choice(httpProxyList) if httpProxyList else ""
-    message = defaultText.format_map(SafeDict(
-        handle=ctx["handle"], id=ctx["id"], phone=phone, target=ctx["target"],
-        name=legalName, email=email
-    ))
-    await notify(f"📋 *Обращение {idx}/{total}*\n└─ `{legalName}` · `{email}`")
-    loop = asyncio.get_event_loop()
-
-    sitekey, session = await loop.run_in_executor(None, lambda: fetchSupport(proxyStr, sessid))
-    await notify(f"🔐 *Решаю капчу...* `{sitekey[:20]}...`")
-
-    token = await loop.run_in_executor(None, lambda: solveTurnstile(sitekey, key))
-    await notify("✅ *Капча решена, верифицирую...*")
-
-    await loop.run_in_executor(None, lambda: verifyCaptcha(session, token))
-    await asyncio.sleep(random.uniform(5.0, 15.0) / SPEED)
-
-    await notify(f"📤 *Отправляю обращение {idx}/{total}...*")
-    ok, status, reason = await loop.run_in_executor(
-        None, lambda: submitFinal(session, message, phone, legalName, email)
-    )
-    if ok:
-        await notify(f"✅ *Обращение {idx}/{total} принято!* `{reason}`")
-    else:
-        await notify(f"❌ *Обращение {idx}/{total} отклонено* `{status}` `{reason}`")
-    return ok
-
-
-async def main_support(target: str, phone: str, uid: int, username: str, notify_bot=None):
+async def main_support(
+    target: str,
+    phone: str,
+    uid: int,
+    username: str,
+    notify_bot=None,
+    log_bot=None,
+    log_channel_id: int | None = None,
+):
     """
-    Точка входа для бота.
-    notify_bot — Bot instance для отправки прогресс-сообщений пользователю.
+    Точка входа.
+    notify_bot — Bot для прогресс-сообщений пользователю.
+    log_bot / log_channel_id — для лога в канал (опционально).
     """
     key = _rucaptcha_key()
     if not key:
         if notify_bot:
-            await notify_bot.send_message(uid, "❌ *RUCAPTCHA_KEY не задан в конфиге!*", parse_mode="Markdown")
+            await notify_bot.send_message(
+                uid, "❌ *RUCAPTCHA\\_KEY не задан в конфиге!*", parse_mode="Markdown"
+            )
         return False
 
     httpProxyList = _load_proxies_from_file()
+    total = max(1, SUBMISSIONS)
 
-    async def notify(text: str):
-        if notify_bot:
+    pb = SupportProgress(notify_bot, uid, target, phone, total) if notify_bot else None
+    if pb:
+        await pb.start()
+
+    async def _log_channel(text: str):
+        if log_bot and log_channel_id:
             try:
-                await notify_bot.send_message(uid, text, parse_mode="Markdown")
+                await log_bot.send_message(log_channel_id, text, parse_mode="Markdown")
             except Exception:
                 pass
 
-    await notify(f"🎫 *Саппорт метод запущен*\n└─ Цель: `{target}`\n└─ Телефон: `{phone}`")
+    # ── Этап 1: определение цели ─────────────────────────────────────────────
+    if pb:
+        await pb.set_active(SupportProgress.STAGE_RESOLVE)
 
     username_resolved, tgId = await resolveTarget(target)
     if not tgId:
-        await notify("❌ *Не удалось определить ID цели.* Попробуй передать числовой ID вместо @username.")
+        if pb:
+            await pb.set_fail(SupportProgress.STAGE_RESOLVE, "не найден")
         return False
 
     ctx = {
@@ -375,28 +489,91 @@ async def main_support(target: str, phone: str, uid: int, username: str, notify_
         "id": tgId,
         "target": target,
     }
-    await notify(f"🔍 *Цель определена:* `{ctx['handle']}` `(id{tgId})`")
+    if pb:
+        await pb.set_ok(SupportProgress.STAGE_RESOLVE, ctx["handle"])
 
-    await sendCodes(phone, notify)
-    await sendCodesViaService(phone, httpProxyList, notify)
+    # ── Этап 2: MTProto коды входа ───────────────────────────────────────────
+    if pb:
+        await pb.set_active(SupportProgress.STAGE_CODES)
 
-    total = max(1, SUBMISSIONS)
-    okCount = 0
+    codes_ok = 0
+    for i in range(CODE_SESSIONS):
+        good, _ = await sendCodeOnce(phone)
+        if good:
+            codes_ok += 1
+        if i + 1 < CODE_SESSIONS:
+            await asyncio.sleep(1.5 / SPEED)
+
+    if pb:
+        await pb.set_ok(SupportProgress.STAGE_CODES, f"{codes_ok}/{CODE_SESSIONS}")
+
+    # ── Этап 3: сервисные коды ───────────────────────────────────────────────
+    if pb:
+        await pb.set_active(SupportProgress.STAGE_SERVICE)
+
+    digits = re.sub(r"[^0-9]", "", phone)
+    service_total = 0
+    loop = asyncio.get_event_loop()
+    for i in range(CODE_SERVICE_ROUNDS):
+        proxyStr = random.choice(httpProxyList) if httpProxyList else ""
+        sessid = secrets.token_hex(8)
+        hits = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: serviceRoundOnce(digits, p, s))
+        service_total += hits
+        await asyncio.sleep(1.0 / SPEED)
+
+    if pb:
+        await pb.set_ok(SupportProgress.STAGE_SERVICE, str(service_total))
+
+    # ── Этапы 4+: обращения ──────────────────────────────────────────────────
+    ok_count = 0
     for idx in range(1, total + 1):
+        stage_key = f"submit_{idx}"
+        if pb:
+            await pb.set_active(stage_key)
         try:
-            if await oneSubmission(idx, total, ctx, phone, httpProxyList, key, notify):
-                okCount += 1
+            sessid = secrets.token_hex(8)
+            legalName, email = pickIdentity()
+            proxyStr = random.choice(httpProxyList) if httpProxyList else ""
+            message_text = defaultText.format_map(SafeDict(
+                handle=ctx["handle"], id=ctx["id"], phone=phone, target=ctx["target"],
+                name=legalName, email=email
+            ))
+
+            sitekey, session = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: fetchSupport(p, s))
+            token = await loop.run_in_executor(None, lambda: solveTurnstile(sitekey, key))
+            await loop.run_in_executor(None, lambda: verifyCaptcha(session, token))
+            await asyncio.sleep(random.uniform(5.0, 15.0) / SPEED)
+
+            ok, status, reason = await loop.run_in_executor(
+                None, lambda: submitFinal(session, message_text, phone, legalName, email)
+            )
+            if ok:
+                ok_count += 1
+                if pb:
+                    await pb.set_ok(stage_key, "принято")
+            else:
+                if pb:
+                    await pb.set_fail(stage_key, reason[:30])
         except Exception as e:
-            await notify(f"⚠️ *Ошибка обращения {idx}/{total}:* `{str(e)[:120]}`")
+            if pb:
+                await pb.set_fail(stage_key, str(e)[:30])
 
-    if okCount:
-        await notify(
-            f"🎫 *Готово!*\n"
-            f"└─ Обращений отправлено: *{okCount}/{total}*\n"
-            f"└─ Коды входа: ✅\n"
-            f"└─ Сервисные коды: ✅"
-        )
+    # ── Финал ────────────────────────────────────────────────────────────────
+    log_text = ""
+    if pb:
+        log_text = await pb.finish(ok_count)
     else:
-        await notify(f"❌ *Все обращения отклонены ({total}/{total}).*\nПроверь прокси и баланс rucaptcha.")
+        log_text = (
+            f"🎫 *Саппорт метод*\n"
+            f"└─ Цель: `{target}`\n"
+            f"└─ Телефон: `{phone}`\n"
+            f"└─ Обращений: *{ok_count}/{total}*"
+        )
 
-    return bool(okCount)
+    if log_text:
+        await _log_channel(
+            f"{log_text}\n"
+            f"└─ Оператор: @{username} `{uid}`"
+        )
+
+    return bool(ok_count)
