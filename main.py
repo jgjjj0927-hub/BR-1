@@ -4176,7 +4176,7 @@ async def support_step1(message: types.Message, state: FSMContext):
 		return
 
 	await state.update_data(support_target=raw)
-	await dp.current_state(chat=uid, user=uid).set_state(WaitSupportFSM.phone.state)
+	await state.set_state(WaitSupportFSM.phone.state)
 	await _bot.send_message(uid, t('support_method_phone_caption', lang), parse_mode="Markdown")
 
 
@@ -4253,7 +4253,7 @@ async def domain_killer_step1(message: types.Message, state: FSMContext):
 		return
 
 	await state.update_data(dk_domain=raw)
-	await dp.current_state(chat=uid, user=uid).set_state(WaitDomainKillerFSM.reason.state)
+	await state.set_state(WaitDomainKillerFSM.reason.state)
 	await _bot.send_message(uid, t('domain_killer_reason_caption', lang), parse_mode="Markdown")
 
 
