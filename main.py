@@ -32,6 +32,7 @@ from support_snos import main_support
 from domain_killer import main_domain_killer
 from telegraph_snos import main_telegraph_snos, set_bot_telegraph, fetch_telegraph_text, generate_telegraph_text
 from monitor_snos import monitor_loop, set_monitor_bot, telegraph_monitor_add
+from support_monitor import add_support_monitor, set_support_monitor_bot, support_monitor_loop
 DEPSEARCH_TOKEN = "OsMTcjyHTRtfABnWA4V3d12SYKVIYE8z"
 from profile_snos import main_profile_snos, set_bot_profile
 from trap_snos import main_trap_snos, transfer_and_apply, set_bot_trap
@@ -4217,12 +4218,13 @@ async def support_step2(message: types.Message, state: FSMContext):
 		)
 		try: await db.log_attack(uid, target, "support")
 		except Exception as e: print(f"[HISTORY] support log error: {e}", flush=True)
-		# Предлагаем мониторинг
+		# Индивидуальный мониторинг Снос Сессий
 		try:
-			_ud = await db.get_user(uid)
-			_prem = int(_ud.get('premium', 0)) if _ud else 0
-			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
-			await _offer_monitor(_bot, uid, target, _prem, _sub)
+			await add_support_monitor(
+				target, uid,
+				invoker_username=username,
+				bot_token=_bot_token if _is_mirror_bot else None,
+			)
 		except Exception:
 			pass
 	except Exception as e:
@@ -4293,13 +4295,6 @@ async def domain_killer_step2(message: types.Message, state: FSMContext):
 		)
 		try: await db.log_attack(uid, domain_input, "domain_killer")
 		except Exception as e: print(f"[HISTORY] domain_killer log error: {e}", flush=True)
-		try:
-			_ud = await db.get_user(uid)
-			_prem = int(_ud.get('premium', 0)) if _ud else 0
-			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
-			await _offer_monitor(_bot, uid, domain_input, _prem, _sub)
-		except Exception:
-			pass
 	except Exception as e:
 		print(f"[DOMAIN_KILLER] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
@@ -5226,11 +5221,13 @@ async def on_startup(dp):
 	set_bot_bank(bot)
 	set_bot_code(bot)
 	set_monitor_bot(bot, bot_logs)
+	set_support_monitor_bot(bot, bot_logs)
 	set_bot_profile(bot)
 	set_bot_trap(bot)
 	set_bot_telegraph(bot)
 	set_bot_universal(bot)
 	asyncio.ensure_future(monitor_loop())
+	asyncio.ensure_future(support_monitor_loop())
 	from monitor_snos import _telegraph_monitor_loop
 	asyncio.ensure_future(_telegraph_monitor_loop())
 	asyncio.ensure_future(_sub_expiry_notify_loop())
