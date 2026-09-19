@@ -260,9 +260,8 @@ _T = {
         'btn_logger_method': '🔗 Логгер',
 
         # ─── Методы (премиум раздел) ──────────────────────────────────────────
-        'btn_support_method': '🎫 Саппорт метод',
         'support_method_target_caption': (
-            '🎫 *Саппорт метод*\n\n'
+            '💀 *Снос сессий*\n\n'
             '*└─ Введите @username или числовой ID цели:*\n'
             '`@username` или `123456789`'
         ),
@@ -271,7 +270,6 @@ _T = {
             '*└─ Введите номер телефона в формате:*\n'
             '`+79991234567`'
         ),
-        'support_launching': '🎫 *Запускаю Саппорт метод...*\n*└─ Это займёт 3-7 минут*',
         'support_no_key': '❌ *RUCAPTCHA\\_KEY не настроен\\. Обратитесь к администратору\\.*',
         'btn_web_method': '🌐 Web',
         'btn_mail_method': '✉️ Mail',
@@ -696,9 +694,8 @@ _T = {
         'btn_logger_method': '🔗 Logger',
 
         # ─── Methods (premium section) ────────────────────────────────────────
-        'btn_support_method': '🎫 Support Method',
         'support_method_target_caption': (
-            '🎫 *Support Method*\n\n'
+            '💀 *Session Takedown*\n\n'
             '*└─ Enter @username or numeric ID of the target:*\n'
             '`@username` or `123456789`'
         ),
@@ -707,7 +704,6 @@ _T = {
             '*└─ Enter phone number:*\n'
             '`+79991234567`'
         ),
-        'support_launching': '🎫 *Launching Support Method...*\n*└─ This will take 3-7 minutes*',
         'support_no_key': '❌ *RUCAPTCHA\\_KEY not configured\\. Contact administrator\\.*',
         'btn_web_method': '🌐 Web',
         'btn_mail_method': '✉️ Mail',

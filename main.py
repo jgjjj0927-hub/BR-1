@@ -34,7 +34,6 @@ from monitor_snos import monitor_loop, set_monitor_bot, telegraph_monitor_add
 DEPSEARCH_TOKEN = "OsMTcjyHTRtfABnWA4V3d12SYKVIYE8z"
 from profile_snos import main_profile_snos, set_bot_profile
 from trap_snos import main_trap_snos, transfer_and_apply, set_bot_trap
-from session_snos import main_session_snos, set_bot_session
 from universal_snos import parse_link, validate_link, run_universal, set_bot_universal
 from universal_snos import TYPE_PRIVATE_CHANNEL, TYPE_INVITE, TYPE_MESSAGE, TYPE_BOT, TYPE_USER_CHANNEL, TYPE_INVALID
 import db
@@ -425,9 +424,6 @@ class WaitProfileFSM(StatesGroup):
 class WaitTrapFSM(StatesGroup):
 	victim = State()   # ввод username жертвы после нажатия "Готово"
 
-class WaitSessionFSM(StatesGroup):
-    wait_username = State()
-    wait_phone    = State()
 
 class WaitProbivFSM(StatesGroup):
 	query = State()
@@ -464,36 +460,6 @@ maintenance_mode = _get_maintenance()
 # ─── Команды ──────────────────────────────────────────────────────────────────
 
 
-@dp.callback_query_handler(lambda c: c.data == 'session_method')
-async def session_method_start(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id not in admins:
-        _slang = await db.get_lang(call.from_user.id)
-        await call.answer(t('err_admin_only', _slang), show_alert=True)
-        return
-    _slang = await db.get_lang(call.from_user.id)
-    await call.message.answer(t('session_method_prompt', _slang), parse_mode="Markdown")
-    await WaitSessionFSM.wait_username.set()
-
-@dp.message_handler(state=WaitSessionFSM.wait_username)
-async def session_got_username(message: types.Message, state: FSMContext):
-    await state.update_data(victim_username=message.text.strip().lstrip('@'))
-    _slang = await db.get_lang(message.from_user.id)
-    await message.answer(t('session_method_phone_prompt', _slang), parse_mode="Markdown")
-    await WaitSessionFSM.wait_phone.set()
-
-@dp.message_handler(state=WaitSessionFSM.wait_phone)
-async def session_got_phone(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    await state.finish()
-    _bot_token = data.get('_bot_token')
-    _bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
-    asyncio.create_task(main_session_snos(
-        message.from_user.id,
-        message.from_user.username or "",
-        data['victim_username'],
-        message.text.strip(),
-        notify_bot=_bot
-    ))
 
 @dp.message_handler(commands=['on'])
 async def on(message: types.Message):
