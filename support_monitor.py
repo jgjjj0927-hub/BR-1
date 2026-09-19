@@ -13,7 +13,7 @@ from typing import Optional
 from telethon import TelegramClient
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.functions.photos import GetUserPhotosRequest
-from telethon.tl.types import UserStatusOffline
+from telethon.tl.types import UserStatusOffline, UserStatusLastWeek, UserStatusLastMonth
 from telethon.errors import FloodWaitError
 
 import config
@@ -70,9 +70,10 @@ async def _snapshot(username: str, session_path: str) -> Optional[dict]:
         photo_count = 0
         try:
             res = await client(GetUserPhotosRequest(
-                user_id=entity.id, offset=0, max_id=0, limit=1
+                user_id=entity.id, offset=0, max_id=0, limit=100
             ))
-            photo_count = res.count
+            # photos.photosSlice имеет .count (общее), photos.Photos — нет
+            photo_count = getattr(res, 'count', len(getattr(res, 'photos', [])))
         except Exception:
             pass
 
@@ -86,19 +87,23 @@ async def _snapshot(username: str, session_path: str) -> Optional[dict]:
 
         # Последний онлайн (UTC → наивный UTC для сравнения)
         last_seen_utc = None
+        offline_24h = False
         if isinstance(entity.status, UserStatusOffline):
             ws = entity.status.was_online
             if ws.tzinfo is not None:
                 last_seen_utc = ws.astimezone(timezone.utc).replace(tzinfo=None)
             else:
                 last_seen_utc = ws
+        elif isinstance(entity.status, (UserStatusLastWeek, UserStatusLastMonth)):
+            offline_24h = True
 
         await client.disconnect()
         return {
-            "username":    (entity.username or "").lower(),
-            "photo_count": photo_count,
-            "bio":         bio,
+            "username":      (entity.username or "").lower(),
+            "photo_count":   photo_count,
+            "bio":           bio,
             "last_seen_utc": last_seen_utc,
+            "offline_24h":   offline_24h,
         }
 
     except FloodWaitError as e:
@@ -186,10 +191,10 @@ async def _check_one(key: str, data: dict):
 
     triggers = []
 
-    # Аватарки уменьшились
-    if current["photo_count"] < snap["photo_count"]:
+    # Аватарки слетели до нуля
+    if snap["photo_count"] > 0 and current["photo_count"] == 0:
         triggers.append(
-            f"🖼 Аватарок: {snap['photo_count']} → {current['photo_count']}"
+            f"🖼 Аватарки исчезли: было {snap['photo_count']} → стало 0"
         )
 
     # Ник изменился
@@ -198,15 +203,14 @@ async def _check_one(key: str, data: dict):
             f"👤 Ник: @{snap['username']} → @{current['username']}"
         )
 
-    # Биография изменилась
-    if current["bio"] != snap["bio"]:
-        triggers.append("📝 Описание профиля изменилось")
-
     # Не в сети 24ч+
-    if current["last_seen_utc"]:
+    is_offline_24h = current.get("offline_24h", False)
+    if not is_offline_24h and current["last_seen_utc"]:
         delta = datetime.utcnow() - current["last_seen_utc"]
         if delta >= timedelta(hours=24):
-            triggers.append(f"🕐 Не в сети 24ч+")
+            is_offline_24h = True
+    if is_offline_24h:
+        triggers.append("🕐 Не в сети 24ч+")
 
     if not triggers:
         return
