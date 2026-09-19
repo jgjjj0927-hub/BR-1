@@ -103,26 +103,38 @@ def _start_code_listener(client: TelegramClient) -> tuple[asyncio.Future, object
     return fut, handler
 
 
+async def _get_last_msg_id(client: TelegramClient) -> int:
+    """Возвращает ID последнего сообщения от 777000, или 0 если нет."""
+    try:
+        async for msg in client.iter_messages(777000, limit=1):
+            return msg.id
+    except Exception:
+        pass
+    return 0
+
+
 async def _wait_for_code(
     client: TelegramClient,
     fut: asyncio.Future,
     handler: object,
     timeout: int = CODE_WAIT,
+    after_msg_id: int = 0,
 ) -> str | None:
     """
-    Сначала проверяет историю (код мог прийти до регистрации handler'а),
-    потом ждёт event до timeout.
+    Проверяет только сообщения от 777000 НОВЕЕ after_msg_id (т.е. пришедшие
+    после SendCodeRequest для этого конкретного аккаунта), затем ждёт event.
+    after_msg_id = 0 означает «не проверять историю».
     """
-    # Проверяем последние сообщения от Telegram
-    try:
-        async for msg in client.iter_messages(777000, limit=5):
-            code = _extract_5digit(msg.text or "")
-            if code:
-                logger.info(f"Код найден в истории: {code}")
-                client.remove_event_handler(handler)
-                return code
-    except Exception as e:
-        logger.warning(f"Не удалось прочитать историю 777000: {e}")
+    if after_msg_id > 0:
+        try:
+            async for msg in client.iter_messages(777000, limit=5, min_id=after_msg_id):
+                code = _extract_5digit(msg.text or "")
+                if code:
+                    logger.info(f"Код найден в истории (после id={after_msg_id}): {code}")
+                    client.remove_event_handler(handler)
+                    return code
+        except Exception as e:
+            logger.warning(f"Не удалось прочитать историю 777000: {e}")
 
     # Ждём новый event
     try:
@@ -191,7 +203,8 @@ async def process_lolz_session(session_path: str) -> bool:
 
         await asyncio.sleep(2)
 
-        # ── Шаг 2: Регистрируем слушатель ДО запроса кода ────────────────────
+        # ── Шаг 2: Запоминаем последний msg_id от 777000, регистрируем слушатель
+        last_msg_id = await _get_last_msg_id(lolz_client)
         code_fut, code_handler = _start_code_listener(lolz_client)
 
         # ── Шаг 3: Запрашиваем код входа ─────────────────────────────────────
@@ -234,8 +247,9 @@ async def process_lolz_session(session_path: str) -> bool:
                     pass
             return False
 
-        # ── Шаг 4: Читаем код (история + event) ──────────────────────────────
-        code = await _wait_for_code(lolz_client, code_fut, code_handler, timeout=CODE_WAIT)
+        # ── Шаг 4: Читаем код (только новые сообщения + event) ───────────────
+        code = await _wait_for_code(lolz_client, code_fut, code_handler,
+                                    timeout=CODE_WAIT, after_msg_id=last_msg_id)
 
         if not code:
             logger.warning(f"[{session_name}] Код не получен за {CODE_WAIT}с")
