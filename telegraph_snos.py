@@ -239,6 +239,7 @@ async def main_telegraph_snos(
     username: str,
     custom_text: str = "",
     custom_subject: str = "",
+    notify_bot=None,
 ) -> dict:
     from config import bot_logs
     import keyboards

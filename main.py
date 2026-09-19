@@ -2860,7 +2860,16 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "tida_choose_ai_desc":
 			await call.answer()
 			fsm_data = await dp_instance.current_state(user=uid).get_data()
-			target_type = fsm_data.get('tida_target', 'channel')
+			target_type = fsm_data.get('tida_target')
+			pending_link = fsm_data.get('tida_link')
+			# Auto-generate path: FSM is already finished, restore from _tida_pending
+			if not target_type and uid in _tida_pending:
+				target_type = _tida_pending[uid].get('target', 'channel')
+				pending_link = _tida_pending[uid].get('link', '')
+				await dp_instance.current_state(user=uid).update_data(
+					tida_link=pending_link, tida_target=target_type
+				)
+			target_type = target_type or 'channel'
 			_tida_names = {
 				"account": t('tida_target_account', _user_lang),
 				"bot": t('tida_target_bot', _user_lang),

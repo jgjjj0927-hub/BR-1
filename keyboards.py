@@ -275,6 +275,7 @@ def tida_text_confirm_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     markup.add(
         types.InlineKeyboardButton(t('tida_confirm_use', lang), callback_data='tida_text_confirm'),
         types.InlineKeyboardButton(t('tida_confirm_change', lang), callback_data='tida_text_change'),
+        types.InlineKeyboardButton(t('tida_ai_desc', lang), callback_data='tida_choose_ai_desc'),
         get_panel_back_btn(lang),
     )
     return markup
