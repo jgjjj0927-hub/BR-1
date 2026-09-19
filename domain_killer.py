@@ -312,11 +312,20 @@ async def main_domain_killer(
     # Лог в канал
     if log_bot and log_channel_id:
         try:
+            try:
+                import db as _db
+                _hidden = await _db.get_is_hidden(uid)
+            except Exception:
+                _hidden = False
+            if _hidden:
+                sender_line = "👤 @скрыт (`скрыт`)"
+            else:
+                sender_line = f"👤 @{username} (`{uid}`)"
             await log_bot.send_message(
                 log_channel_id,
                 (
                     f"🔪 *Domain Killer*\n"
-                    f"👤 @{username} (`{uid}`)\n"
+                    f"{sender_line}\n"
                     f"🌐 `{domain}`\n"
                     f"📧 Abuse: `{target_email}`\n"
                     f"🏢 Регистратор: `{registrar}`\n"
