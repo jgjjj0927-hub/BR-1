@@ -22,7 +22,7 @@ from utils import now_msk
 logger = logging.getLogger(__name__)
 
 CHECK_INTERVAL = 15 * 60   # 15 минут
-MAX_DURATION   = 24 * 3600  # максимум 24ч мониторинга
+MAX_DURATION   = 38 * 3600  # максимум 38ч мониторинга
 
 _bot      = None
 _bot_logs = None
@@ -157,7 +157,7 @@ async def add_support_monitor(
                 f"🔍 *Мониторинг запущен*\n\n"
                 f"🎯 Цель: @{username}\n"
                 f"📸 Аватарок: {snap['photo_count']}\n\n"
-                f"_Уведомлю при вероятном сносе сессий (до 24ч)._"
+                f"_Уведомлю при вероятном сносе сессий (до 38ч)._"
             ),
             parse_mode="Markdown",
         )
