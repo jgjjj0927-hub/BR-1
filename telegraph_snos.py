@@ -245,7 +245,7 @@ async def main_telegraph_snos(
     import keyboards
     from aiogram import types as aiogram_types
 
-    print(f"\n[TELEGRAPH] 🚀 Старт | {article_url} | {user_id} (@{username})", flush=True)
+    print(f"\n[TELEGRAPH] 🚀 Старт | {article_url} | {user_id} (`@{username}`)", flush=True)
 
     if custom_text and custom_subject:
         subject = custom_subject
@@ -324,7 +324,7 @@ async def main_telegraph_snos(
         f"📄 *Telegraph*\n"
         f"*└─* [Статья]({article_url})\n"
         f"✅ {ok} | ❌ {fail}\n"
-        f"👤 {_log_uid} (@{_log_uname})"
+        f"👤 {_log_uid} (`@{_log_uname}`)"
     )
 
     try:

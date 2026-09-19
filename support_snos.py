@@ -103,7 +103,7 @@ def randomEmail(first: str, last: str) -> str:
     f, l = translit(first), translit(last)
     year = random.randint(1975, 2005)
     styles = [f"{f}.{l}", f"{f}_{l}{year%100:02d}", f"{l}.{f}", f"{f[:1]}.{l}", f"{f}{l}{year}", f"{f}.{l}.{year}", f"{f}-{l}"]
-    return f"{random.choice(styles)}@{random.choice(mailDomains)}"
+    return f"{random.choice(styles)}`@{random.choice(mailDomains)}`"
 
 
 def pickIdentity():
@@ -127,7 +127,7 @@ def buildHttpProxies(proxyStr: str, sessid: str):
             rawUser = f"{rawUser}__sessid.{sessid}"
         user = urllib.parse.quote(rawUser, safe=".;_-")
         pwd = urllib.parse.quote(rawPwd)
-        url = f"http://{user}:{pwd}@{parts[0]}:{parts[1]}"
+        url = f"http://{user}:{pwd}`@{parts[0]}`:{parts[1]}"
         return {"http": url, "https": url}
     return None
 
@@ -483,7 +483,7 @@ async def main_support(
         return False
 
     ctx = {
-        "handle": f"@{username_resolved}" if username_resolved else f"id{tgId}",
+        "handle": f"`@{username_resolved}`" if username_resolved else f"id{tgId}",
         "id": tgId,
         "target": target,
     }
@@ -577,7 +577,7 @@ async def main_support(
         if _hidden:
             sender_line = "└─ Отправитель: @скрыт скрыт"
         else:
-            sender_line = f"└─ Отправитель: @{username} {uid}"
+            sender_line = f"└─ Отправитель: `@{username}` {uid}"
         await _log_channel(f"{log_text}\n{sender_line}")
 
     return bool(ok_count)

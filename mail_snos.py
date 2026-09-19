@@ -149,7 +149,7 @@ def load_mails(file_path="mails.txt"):
 def mask_email(email):
     local, domain = email.split("@")
     masked_local = (local[0] + "***") if len(local) >= 2 else "*"
-    return f"{masked_local}@{domain}"
+    return f"{masked_local}`@{domain}`"
 
 
 def generate_log_filename():
@@ -190,7 +190,7 @@ async def send_bulk_emails(subject, text, mails, receiver_emails, user_id, usern
         log = []
         log.append("Brown V2 log | mail-method")
         log.append("-" * 42)
-        log.append(f"Пользователь: {user_id} (@{username})")
+        log.append(f"Пользователь: {user_id} (`@{username}`)")
         log.append(f"Тема: {subject}")
         log.append(f"Текст: {text}")
         log.append("-" * 42)

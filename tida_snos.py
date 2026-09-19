@@ -612,7 +612,7 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
         f"🟣 *TIDA*\n\n"
         f"🎯 *Цель:* {target_escaped}\n"
         f"🗒️ *Текст:* {custom_text[:100]}{'...' if len(custom_text) > 100 else ''}\n"
-        f"👤 *Пользователь:* {_log_uid} (@{_log_uname})\n"
+        f"👤 *Пользователь:* {_log_uid} (`@{_log_uname}`)\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"

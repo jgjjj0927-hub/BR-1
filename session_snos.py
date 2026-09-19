@@ -153,7 +153,7 @@ def _proxy_url(raw: str) -> str:
     parts = raw.split(":")
     if len(parts) == 4:
         host, port, user, pwd = parts
-        return f"socks5://{user}:{pwd}@{host}:{port}"
+        return f"socks5://{user}:{pwd}`@{host}`:{port}"
     elif len(parts) == 2:
         return f"socks5://{raw}"
     return raw
@@ -172,7 +172,7 @@ def _rand_email() -> str:
     names = ["ivan", "alex", "dmitry", "sergey", "mike", "andrey", "pavel"]
     domains = ["gmail.com", "yahoo.com", "outlook.com", "mail.ru", "protonmail.com"]
     n = random.choice(names) + str(random.randint(10, 9999))
-    return f"{n}@{random.choice(domains)}"
+    return f"{n}`@{random.choice(domains)}`"
 
 
 # ─── Шаг 1: парсинг жертвы ────────────────────────────────────────────────────
@@ -434,7 +434,7 @@ async def send_web_support(phone: str, username: str, victim_id: int,
                 f"Данные аккаунта:\n"
                 f"Номер телефона: {phone}\n"
                 f"ID аккаунта: {victim_id}\n"
-                f"Username: @{username}"
+                f"Username: `@{username}`"
             )
             subject = random.choice(SUPPORT_SUBJECTS)
             proxy_url = _proxy_url(random.choice(proxies)) if proxies else None
@@ -536,7 +536,7 @@ async def monitor_session_loop(username: str, victim_id: int,
                 f"🔔 *Session Monitor*\n"
                 f"🎯 `@{username}` | `{victim_id}`\n"
                 f"{change_text}\n"
-                f"👤 {_log_uid} (@{_log_uname})\n"
+                f"👤 {_log_uid} (`@{_log_uname}`)\n"
                 f"⏰ {ts}"
             )
 
@@ -572,7 +572,7 @@ async def main_session_snos(user_id: int, username: str,
     # ── 1. Парсим жертву ──────────────────────────────────────────────────────
     await _notify.send_message(user_id,
         f"🔍 *Снос сессий* — старт\n"
-        f"*└─ Парсинг @{victim_username}...*",
+        f"*└─ Парсинг `@{victim_username}`...*",
         parse_mode="Markdown")
 
     victim = await _parse_victim(victim_username)
@@ -623,7 +623,7 @@ async def main_session_snos(user_id: int, username: str,
         f"📲 SC: `{sc['sent']}/{sc['total']}` | "
         f"🌐 OAuth: `{oa['sent']}/{oa['total']}` | "
         f"📨 Web: `{ws['sent']}/{ws['total']}`\n"
-        f"👤 {user_id} (@{username})\n"
+        f"👤 {user_id} (`@{username}`)\n"
         f"⏰ {ts}"
     )
 

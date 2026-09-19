@@ -36,14 +36,14 @@ async def main():
         return
 
     me = await client.get_me()
-    print(f"✅ Подключён: {me.first_name} | @{me.username} | +{me.phone}")
+    print(f"✅ Подключён: {me.first_name} | `@{me.username}` | +{me.phone}")
     print("👂 Слушаю входящие сообщения... (Ctrl+C для выхода)\n")
 
     @client.on(events.NewMessage(incoming=True))
     async def handler(event):
         sender = await event.get_sender()
         sender_name = getattr(sender, 'first_name', '') or getattr(sender, 'title', '') or 'Unknown'
-        username = f"@{sender.username}" if getattr(sender, 'username', None) else str(event.sender_id)
+        username = f"`@{sender.username}`" if getattr(sender, 'username', None) else str(event.sender_id)
         text = event.message.text or ""
 
         # Ищем коды (4-8 цифр подряд)

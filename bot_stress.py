@@ -215,7 +215,7 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
     print(f"\n{'='*50}", flush=True)
     print(f"[STRESS] 🚀 Стрессер запущен", flush=True)
     print(f"[STRESS] 🎯 Цель: {bot_username}", flush=True)
-    print(f"[STRESS] 👤 Пользователь: {user_id} (@{username})", flush=True)
+    print(f"[STRESS] 👤 Пользователь: {user_id} (`@{username}`)", flush=True)
     print(f"{'='*50}", flush=True)
 
     # Шаг 1: найти inline кнопку
@@ -339,7 +339,7 @@ async def main_bot_stress(bot_username: str, user_id: int, username: str, is_adm
         f"⚡️ *Стрессер завершён*\n"
         f"*└─ Цель: {bot_username}*\n"
         f"*└─ Сообщений отправлено: {total_sent}*\n"
-        f"*└─ Пользователь: {user_id} (@{username})*",
+        f"*└─ Пользователь: {user_id} (`@{username}`)*",
         parse_mode="Markdown"
     )
     await _notify.send_message(

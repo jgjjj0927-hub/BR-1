@@ -313,7 +313,7 @@ async def main_profile_snos(target_link: str, user: int, username: str, notify_b
         )
         return
 
-    print(f'[PROFILE] 🚀 Старт | @{target} | сессий={total} | other={other_opt} | misc={misc_opt}', flush=True)
+    print(f'[PROFILE] 🚀 Старт | `@{target}` | сессий={total} | other={other_opt} | misc={misc_opt}', flush=True)
 
     # Запускаем пачками по 3 (по одному репорту с трёх аккаунтов → пауза)
     BATCH_SIZE = 3
@@ -338,8 +338,8 @@ async def main_profile_snos(target_link: str, user: int, username: str, notify_b
     log_lines = [
         'Brown V2 log | profile-method [ТЕСТ]',
         '-' * 42,
-        f'Пользователь: {user} (@{username})',
-        f'Цель: @{target}',
+        f'Пользователь: {user} (`@{username}`)',
+        f'Цель: `@{target}`',
         f'Маршрут: Другое -> Прочее -> текст',
         f'Время: {now_str}',
         '-' * 42,
@@ -359,7 +359,7 @@ async def main_profile_snos(target_link: str, user: int, username: str, notify_b
     target_esc = target.replace('_', '\\_')
     caption_user = (
         f'👤 *\[ТЕСТ\] Profile Report завершён!*\n\n'
-        f'🎯 *Цель:* @{target_esc}\n'
+        f'🎯 *Цель:* `@{target_esc}`\n'
         f'📋 *Маршрут:* Другое → Прочее → текст\n'
         f'🕐 *Время:* {now_str}\n\n'
         f'🟢 *Успешно: {delivered}*\n'
@@ -375,8 +375,8 @@ async def main_profile_snos(target_link: str, user: int, username: str, notify_b
 
     caption_log = (
         f'👤 *\[ТЕСТ\] Profile-method*\n\n'
-        f'🎯 *Цель:* @{target_esc}\n'
-        f'👤 *Пользователь:* `{_log_uid}` (@{_log_uname})\n'
+        f'🎯 *Цель:* `@{target_esc}`\n'
+        f'👤 *Пользователь:* `{_log_uid}` (`@{_log_uname}`)\n'
         f'🕐 *Время:* {now_str}\n\n'
         f'🟢 *Успешно: {delivered}*\n'
         f'🔴 *Не удалось: {failed}*'

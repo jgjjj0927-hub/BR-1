@@ -63,7 +63,7 @@ async def _log_admin_action(uid: int, username: str, action: str):
 			await bot.send_message(
 				bot_logs,
 				f"👁 *Действие суб-админа*\n"
-				f"*└─ ID:* `{uid}` (@{username})\n"
+				f"*└─ ID:* `{uid}` (`@{username}`)\n"
 				f"*└─ Действие:* {action}",
 				parse_mode="Markdown"
 			)
@@ -737,7 +737,7 @@ async def case_sbp_paid_callback(callback_query: types.CallbackQuery):
 		)
 		await bot.send_message(
 			bot_logs,
-			f"🛒 `{uid}` (@{username}) заявил оплату кейса через СБП — проверить и выдать!",
+			f"🛒 `{uid}` (`@{username}`) заявил оплату кейса через СБП — проверить и выдать!",
 			parse_mode="Markdown"
 		)
 	except Exception as e:
@@ -1177,7 +1177,7 @@ async def probiv_query(message: types.Message, state: FSMContext):
 		await bot.send_message(
 			bot_logs,
 			f"🕵️ *Пробив*\n"
-			f"👤 @{_log_uname_p} (`{_log_uid_p}`) | {premium_tag}\n"
+			f"👤 `@{_log_uname_p}` (`{_log_uid_p}`) | {premium_tag}\n"
 			f"📥 Запрос: `{masked}`\n"
 			f"📊 Найдено: *{len(results)}* совпадений",
 			parse_mode="Markdown"
@@ -1432,7 +1432,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_top_lines = ["\n\n🏆 *Топ рейтинг недели:*"]
 			if _top3:
 				for _ri, _rrow in enumerate(_top3, 1):
-					_runame = f"@{_rrow['username']}" if _rrow['username'] else f"ID {_rrow['user_id']}"
+					_runame = f"`@{_rrow['username']}`" if _rrow['username'] else f"ID {_rrow['user_id']}"
 					_top_lines.append(f"{_MEDALS[_ri]} {_runame} — {_rrow['total']} репортов → {_PRIZES[_ri]}⭐")
 			else:
 				_top_lines.append("_Пока нет репортов — стань первым!_")
@@ -1635,7 +1635,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_lines = [f"🏆 *Рейтинг недели* ({_week_label})\n"]
 			if _top3:
 				for _i, _row in enumerate(_top3, 1):
-					_uname = f"@{_row['username']}" if _row['username'] else f"ID {_row['user_id']}"
+					_uname = f"`@{_row['username']}`" if _row['username'] else f"ID {_row['user_id']}"
 					_lines.append(f"{_MEDALS[_i]} {_uname} — {_row['total']} репортов")
 			else:
 				_lines.append("_Пока нет репортов — стань первым!_")
@@ -1766,7 +1766,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					uid, call.from_user.username or '', platform, link
 				)
 				sub_id = _row['id']
-			uname_str = f"@{call.from_user.username}" if call.from_user.username else f"ID {uid}"
+			uname_str = f"`@{call.from_user.username}`" if call.from_user.username else f"ID {uid}"
 			try:
 				await bot_instance.send_message(
 					MEDIA_ADMIN_ID,
@@ -1989,7 +1989,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 			_is_hid_mon = await db.get_is_hidden(uid)
 			_log_uid_mon = "скрыт" if _is_hid_mon else str(uid)
-			_log_uname_mon = "скрыт" if _is_hid_mon else f"@{username}"
+			_log_uname_mon = "скрыт" if _is_hid_mon else f"`@{username}`"
 			await bot.send_message(
 				bot_logs,
 				f"🔍 *Новый монитор* `{_log_uid_mon}` ({_log_uname_mon})\n"
@@ -2513,7 +2513,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				return
 			await db.add_case(uid, invoice_id)
 			count = await db.get_unopened_cases(uid)
-			await bot.send_message(bot_logs, f"🎁 `{uid}` (@{username}) купил кейс", parse_mode="Markdown")
+			await bot.send_message(bot_logs, f"🎁 `{uid}` (`@{username}`) купил кейс", parse_mode="Markdown")
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
@@ -2593,7 +2593,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			count = await db.get_unopened_cases(uid)
 			await bot.send_message(bot_logs,
-				f"🎁 `{uid}` (@{username}) открыл кейс → {log_prize}",
+				f"🎁 `{uid}` (`@{username}`) открыл кейс → {log_prize}",
 				parse_mode="Markdown")
 			markup = types.InlineKeyboardMarkup(row_width=1)
 			if count > 0:
@@ -3311,7 +3311,7 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 	try:
 		_log_uid, _log_uname = await _log_display(uid, username)
 		await bot.send_document(bot_logs, types.InputFile(log_path),
-			caption=f"📈 *Веб*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid} (@{_log_uname})", parse_mode="Markdown")
+			caption=f"📈 *Веб*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid} (`@{_log_uname}`)", parse_mode="Markdown")
 	except Exception: pass
 	try: os.remove(log_path)
 	except Exception: pass
@@ -3355,7 +3355,7 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 			caption=t('mail_result_caption', _mail_lang, success=success, error=error), parse_mode="Markdown", reply_markup=main_menu)
 		_log_uid_m, _log_uname_m = await _log_display(message.from_user.id, message.from_user.username or "None")
 		await bot.send_document(bot_logs, types.InputFile(log_path),
-			caption=f"📈 *Почты*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid_m} (@{_log_uname_m})", parse_mode="Markdown")
+			caption=f"📈 *Почты*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid_m} (`@{_log_uname_m}`)", parse_mode="Markdown")
 	except Exception as e: print(e)
 	try: os.remove(log_path)
 	except Exception: pass
@@ -4354,7 +4354,7 @@ async def trap_step1(message: types.Message, state: FSMContext):
 	_trap_sessions.pop(uid, None)
 
 	await _bot.send_message(uid,
-		f"🔄 *Передаю владельца @{trap_data['bot_username']} → @{raw}...*",
+		f"🔄 *Передаю владельца `@{trap_data['bot_username']}` → `@{raw}`...*",
 		parse_mode="Markdown")
 
 	try:
@@ -4757,7 +4757,7 @@ async def admin_check_user_fsm(message: types.Message, state: FSMContext):
 	if manual: badges.append("🤝 Ручное")
 	badges_str = "  •  ".join(badges) if badges else "—"
 
-	uname_str = f"@{username_str} " if username_str else ""
+	uname_str = f"`@{username_str}` " if username_str else ""
 	text = (
 		f"👤 *Пользователь {uname_str}*`{uid_target}`\n\n"
 		f"*├─ Статусы:* {badges_str}\n"
@@ -4769,7 +4769,7 @@ async def admin_check_user_fsm(message: types.Message, state: FSMContext):
 	if referrer_id:
 		referrer = await db.get_user(referrer_id)
 		ref_uname = referrer.get("username") if referrer else None
-		ref_str = f"@{ref_uname} `{referrer_id}`" if ref_uname else f"`{referrer_id}`"
+		ref_str = f"`@{ref_uname}` `{referrer_id}`" if ref_uname else f"`{referrer_id}`"
 		text += f"*├─ Пригласил:* {ref_str}\n"
 
 	try:
@@ -4818,7 +4818,7 @@ async def admin_send_msg_text(message: types.Message, state: FSMContext):
 		await bot.send_message(uid_target, text)
 		await message.answer(f"✅ *Сообщение отправлено* `{uid_target}`", parse_mode="Markdown")
 		await bot.send_message(bot_logs,
-			f"✉️ *Личное сообщение*\n👤 *От админа:* `{message.from_user.id}` (@{message.from_user.username or 'None'})\n"
+			f"✉️ *Личное сообщение*\n👤 *От админа:* `{message.from_user.id}` (`@{message.from_user.username or 'None'}`)\n"
 			f"🎯 *Кому:* `{uid_target}`\n📝 *Текст:* {text[:300]}",
 			parse_mode="Markdown")
 	except Exception as e:
@@ -5171,7 +5171,7 @@ async def _weekly_leaderboard_loop():
 			_lines = [f"🏆 *Итоги рейтинга* ({_week_label})\n"]
 			if _top3:
 				for _i, _row in enumerate(_top3, 1):
-					_uname = f"@{_row['username']}" if _row['username'] else f"ID {_row['user_id']}"
+					_uname = f"`@{_row['username']}`" if _row['username'] else f"ID {_row['user_id']}"
 					_prize = _PRIZES[_i]
 					_lines.append(f"{_MEDALS[_i]} {_uname} — {_row['total']} репортов → *{_prize} ⭐*")
 				_lines.append("\n_Stars будут зачислены победителям в течение 24ч_")
@@ -5400,7 +5400,7 @@ async def media_confirmed(call: types.CallbackQuery, state: FSMContext):
         sub_id = row['id']
 
     pname = PLATFORM_NAMES.get(platform, platform)
-    uname_str = f"@{username}" if username else f"ID {uid}"
+    uname_str = f"`@{username}`" if username else f"ID {uid}"
 
     # Notify admin
     try:

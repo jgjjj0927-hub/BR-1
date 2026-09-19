@@ -1131,7 +1131,7 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
                     user_entity = await client.get_entity(msg.from_id)
                     target_ref[0] = msg.from_id.user_id if isinstance(msg.from_id, PeerUser) else "?"
                     target_ref[1] = user_entity.username or "Нет username"
-                    print(f"[PREM] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, @{target_ref[1]}", flush=True)
+                    print(f"[PREM] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, `@{target_ref[1]}`", flush=True)
                     if target_ref[0] in whitelist:
                         print(f"[PREM] [{session}] 🍕 WHITELIST — таргет в белом списке", flush=True)
                         return "WHITELIST", None
@@ -1205,7 +1205,7 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
 
     print(f"\n{'='*50}", flush=True)
     print(f"[PREM] 🚀 Запуск премиум-ботнета", flush=True)
-    print(f"[PREM] 👤 Пользователь: {user} (@{username})", flush=True)
+    print(f"[PREM] 👤 Пользователь: {user} (`@{username}`)", flush=True)
     print(f"[PREM] 🔗 Ссылка: {message_url}", flush=True)
     _sessions = _get_sessions()
     print(f"[PREM] 📦 Сессий загружено: {len(_sessions)}", flush=True)
@@ -1237,7 +1237,7 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
     log_lines = [
         "Brown V2 log | botnet-method [PREMIUM]",
         "-" * 42,
-        f"Пользователь: {user} (@{username})",
+        f"Пользователь: {user} (`@{username}`)",
         f"Ссылка: {message_url}",
         "-" * 42
     ]
@@ -1278,7 +1278,7 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
 
     print(f"\n[PREM] {'='*50}", flush=True)
     print(f"[PREM] 🏁 Итоги:", flush=True)
-    print(f"[PREM] 🎯 Таргет: ID={TARGET}, @{target_username}", flush=True)
+    print(f"[PREM] 🎯 Таргет: ID={TARGET}, `@{target_username}`", flush=True)
     print(f"[PREM] ✅ Доставлено: {valid}", flush=True)
     print(f"[PREM] ❌ Не доставлено: {ne_valid}", flush=True)
     print(f"[PREM] 🌊 Флудов: {flood}", flush=True)
@@ -1287,7 +1287,7 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
     log_lines.append("-" * 42)
     log_lines.append("[TARGET]")
     log_lines.append(f"ID: {TARGET}")
-    log_lines.append(f"USERNAME: @{target_username}")
+    log_lines.append(f"USERNAME: `@{target_username}`")
     log_lines.append("-" * 42)
     log_lines.append(f"Успешно: {valid}")
     log_lines.append(f"Неуспешно: {ne_valid}")
@@ -1315,9 +1315,9 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
 
     caption_log = (
         f"📈 *Бот завершил работу*\n* └─📂 Метод: B0tN3t-method [PREMIUM]*\n\n"
-        f"🎯 *Таргет*\n*└─ ID: {TARGET}*\n*└─ USERNAME: @{target_username}*\n\n"
+        f"🎯 *Таргет*\n*└─ ID: {TARGET}*\n*└─ USERNAME: `@{target_username}`*\n\n"
         f"🟢 *Успешно отправлено: {valid}*\n🔴 *Не удалось отправить: {ne_valid}*\n\n"
-        f"⛓️‍💥 *Ссылка:* [тык]({message_url})\n👤 *Пользователь:* {_log_uid} (@{_log_uname})"
+        f"⛓️‍💥 *Ссылка:* [тык]({message_url})\n👤 *Пользователь:* {_log_uid} (`@{_log_uname}`)"
     )
 
     if not silent:

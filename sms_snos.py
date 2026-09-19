@@ -27,7 +27,7 @@ def set_bot_sms(b):
 
 def _rand_email():
     chars = string.ascii_lowercase
-    return f"{''.join(random.choices(chars, k=9))}@{''.join(random.choices(chars, k=5))}.ru"
+    return f"{''.join(random.choices(chars, k=9))}`@{''.join(random.choices(chars, k=5))}`.ru"
 
 
 async def _do_req(session: aiohttp.ClientSession, name: str, method: str, url: str, **kwargs) -> tuple:
@@ -408,7 +408,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
     from aiogram import types as aiogram_types
 
     print(f"\n{'='*55}", flush=True)
-    print(f"[SMS] 🚀 SMS-бомбер | +{phone} | {user_id} (@{username})", flush=True)
+    print(f"[SMS] 🚀 SMS-бомбер | +{phone} | {user_id} (`@{username}`)", flush=True)
     print(f"{'='*55}", flush=True)
 
     connector = aiohttp.TCPConnector(ssl=False, limit=100)
@@ -427,7 +427,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
     log_lines = [
         "Brown V2 | SMS-бомбер",
         "=" * 50,
-        f"Пользователь : {user_id} (@{username})",
+        f"Пользователь : {user_id} (`@{username}`)",
         f"Номер        : +{phone}",
         f"Сервисов     : {total}",
         f"Дата         : {now_msk().strftime('%Y-%m-%d %H:%M:%S')}",
@@ -465,7 +465,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
         f"💬 *SMS-бомбер*\n"
         f"*└─ Номер:* `+{phone}`\n"
         f"✅ {ok} | ⏱ {timeout} | ❌ {err}\n"
-        f"👤 {_log_uid} (@{_log_uname})"
+        f"👤 {_log_uid} (`@{_log_uname}`)"
     )
 
     try:

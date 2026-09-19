@@ -320,7 +320,7 @@ async def main_domain_killer(
             if _hidden:
                 sender_line = "👤 @скрыт скрыт"
             else:
-                sender_line = f"👤 @{username} {uid}"
+                sender_line = f"👤 `@{username}` {uid}"
             await log_bot.send_message(
                 log_channel_id,
                 (
