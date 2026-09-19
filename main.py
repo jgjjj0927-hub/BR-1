@@ -29,6 +29,7 @@ from bank_snos import process_bank_report, set_bot_bank
 from code_snos import main_code_snos, set_bot_code
 from dsa_snos import main_dsa_snos, set_bot_dsa
 from support_snos import main_support
+from domain_killer import main_domain_killer
 from telegraph_snos import main_telegraph_snos, set_bot_telegraph, fetch_telegraph_text, generate_telegraph_text
 from monitor_snos import monitor_loop, set_monitor_bot, telegraph_monitor_add
 DEPSEARCH_TOKEN = "OsMTcjyHTRtfABnWA4V3d12SYKVIYE8z"
@@ -124,6 +125,7 @@ last_used_dsa = {}
 last_used_telegraph = {}
 last_used_trap = {}
 last_used_support = {}
+last_used_domain_killer = {}
 _trap_sessions: dict = {}  # uid -> {bot_token, bot_username, bot_name}
 _tida_pending: dict = {}  # uid -> {link, text, target, bot_token, username}
 
@@ -389,6 +391,10 @@ class WaitCodeFSM(StatesGroup):
 class WaitSupportFSM(StatesGroup):
 	target = State()
 	phone  = State()
+
+class WaitDomainKillerFSM(StatesGroup):
+	domain = State()
+	reason = State()
 
 class AdminAddReportsFSM(StatesGroup):
 	user_id = State()
@@ -3221,6 +3227,25 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitSupportFSM.target.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
+		# ─── Domain Killer ────────────────────────────────────────────────────
+		elif d == "domain_killer_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if uid not in admins:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if uid not in admins and uid not in no_kd and uid in last_used_domain_killer and (now_msk() - last_used_domain_killer[uid]) < timedelta(hours=3):
+				rem = timedelta(hours=3) - (now_msk() - last_used_domain_killer[uid])
+				h = rem.seconds // 3600
+				m_left = (rem.seconds % 3600) // 60
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_hm', _user_lang, h=h, m=m_left), parse_mode="Markdown", reply_markup=panel_back_markup); return
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=t('domain_killer_domain_caption', _user_lang),
+				parse_mode="Markdown", reply_markup=panel_back_markup
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDomainKillerFSM.domain.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+
 		# ─── Стрессер ─────────────────────────────────────────────────────────
 		elif d == "stress_method":
 			if bot_off():
@@ -4202,6 +4227,81 @@ async def support_step2(message: types.Message, state: FSMContext):
 			pass
 	except Exception as e:
 		print(f"[SUPPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
+@dp.message_handler(state=WaitDomainKillerFSM.domain)
+async def domain_killer_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	lang = await db.get_lang(uid)
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	if not raw or len(raw) < 3:
+		await state.finish()
+		await _bot.send_message(uid, '❌ *Некорректный домен.*', parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	await state.update_data(dk_domain=raw)
+	await dp.current_state(chat=uid, user=uid).set_state(WaitDomainKillerFSM.reason.state)
+	await _bot.send_message(uid, t('domain_killer_reason_caption', lang), parse_mode="Markdown")
+
+
+@dp.message_handler(state=WaitDomainKillerFSM.reason)
+async def domain_killer_step2(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	lang = await db.get_lang(uid)
+	reason = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	domain_input = fsm_data.get('dk_domain', '')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+
+	await state.finish()
+
+	if not reason or len(reason) < 5:
+		await _bot.send_message(uid, '❌ *Слишком короткое описание.*', parse_mode="Markdown", reply_markup=main_menu)
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+		return
+
+	if uid not in admins:
+		last_used_domain_killer[uid] = now_msk()
+
+	try:
+		result = await main_domain_killer(
+			domain_input, reason, uid, username,
+			notify_bot=_bot,
+			log_bot=bot,
+			log_channel_id=bot_logs,
+		)
+		try: await db.log_attack(uid, domain_input, "domain_killer")
+		except Exception as e: print(f"[HISTORY] domain_killer log error: {e}", flush=True)
+		try:
+			_ud = await db.get_user(uid)
+			_prem = int(_ud.get('premium', 0)) if _ud else 0
+			_sub = datetime.strptime(str(_ud['subscribe'])[:19], "%Y-%m-%d %H:%M:%S") if _ud else now_msk() - timedelta(days=1)
+			await _offer_monitor(_bot, uid, domain_input, _prem, _sub)
+		except Exception:
+			pass
+	except Exception as e:
+		print(f"[DOMAIN_KILLER] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:

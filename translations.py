@@ -279,6 +279,17 @@ _T = {
         'btn_profile_report': '👤 Profile Report',
         'btn_trap_method': '🪤 Trap-метод',
         'btn_session_method': '💀 Снос сессий',
+        'btn_domain_killer': '🔪 Domain Killer',
+        'domain_killer_domain_caption': (
+            '🔪 *Domain Killer*\n\n'
+            '*└─ Введите ссылку или домен цели:*\n'
+            '`https://br-v2.top` или `br-v2.top`'
+        ),
+        'domain_killer_reason_caption': (
+            '📝 *Описание нарушения*\n\n'
+            '*└─ Опишите нарушение как можно подробнее:*\n'
+            '_Фишинг, мошенничество, продажа запрещённых товаров и т.д._'
+        ),
 
         # ─── Рефералы ─────────────────────────────────────────────────────────
         'refs_exchange': '🔄 Обменять 10 рефералов → 1 день',
@@ -713,6 +724,17 @@ _T = {
         'btn_profile_report': '👤 Profile Report',
         'btn_trap_method': '🪤 Trap Method',
         'btn_session_method': '💀 Session Takedown',
+        'btn_domain_killer': '🔪 Domain Killer',
+        'domain_killer_domain_caption': (
+            '🔪 *Domain Killer*\n\n'
+            '*└─ Enter the target domain or URL:*\n'
+            '`https://br-v2.top` or `br-v2.top`'
+        ),
+        'domain_killer_reason_caption': (
+            '📝 *Violation Description*\n\n'
+            '*└─ Describe the violation in detail:*\n'
+            '_Phishing, fraud, illegal goods, etc._'
+        ),
 
         # ─── Referrals ────────────────────────────────────────────────────────
         'refs_exchange': '🔄 Exchange 10 referrals → 1 day',
