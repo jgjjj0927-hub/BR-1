@@ -21,7 +21,7 @@ import re
 import logging
 import random
 
-from telethon import TelegramClient
+from telethon import TelegramClient, events as tl_events
 from telethon.tl.functions.auth import (
     ResetAuthorizationsRequest,
     SendCodeRequest,
@@ -79,28 +79,54 @@ def _rand_api() -> tuple[int, str]:
     return int(api_id), api_hash
 
 
-async def _read_tg_code(client: TelegramClient, timeout: int = CODE_WAIT) -> str | None:
-    """
-    Слушает входящие сообщения через event handler.
-    Ищет 5-значный код от Telegram (777000).
-    """
-    from telethon import events as tl_events
+def _extract_5digit(text: str) -> str | None:
+    if not text:
+        return None
+    m = re.search(r'\b(\d{5})\b', text)
+    return m.group(1) if m else None
 
-    code_found = asyncio.Future()
 
-    @client.on(tl_events.NewMessage(incoming=True))
+def _start_code_listener(client: TelegramClient) -> tuple[asyncio.Future, object]:
+    """Регистрирует handler ДО отправки кода. Возвращает (future, handler)."""
+    loop = asyncio.get_event_loop()
+    fut: asyncio.Future = loop.create_future()
+
+    @client.on(tl_events.NewMessage(incoming=True, from_users=777000))
     async def handler(event):
-        if code_found.done():
+        if fut.done():
             return
-        text = event.message.text or ""
-        match = re.search(r'\b(\d{5})\b', text)
-        if match:
-            code = match.group(1)
-            logger.info(f"Код получен: {code} | от: {event.sender_id}")
-            code_found.set_result(code)
+        code = _extract_5digit(event.message.text or "")
+        if code:
+            logger.info(f"Код получен в реальном времени: {code}")
+            fut.set_result(code)
 
+    return fut, handler
+
+
+async def _wait_for_code(
+    client: TelegramClient,
+    fut: asyncio.Future,
+    handler: object,
+    timeout: int = CODE_WAIT,
+) -> str | None:
+    """
+    Сначала проверяет историю (код мог прийти до регистрации handler'а),
+    потом ждёт event до timeout.
+    """
+    # Проверяем последние сообщения от Telegram
     try:
-        code = await asyncio.wait_for(code_found, timeout=timeout)
+        async for msg in client.iter_messages(777000, limit=5):
+            code = _extract_5digit(msg.text or "")
+            if code:
+                logger.info(f"Код найден в истории: {code}")
+                client.remove_event_handler(handler)
+                return code
+    except Exception as e:
+        logger.warning(f"Не удалось прочитать историю 777000: {e}")
+
+    # Ждём новый event
+    try:
+        code = await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
         return code
     except asyncio.TimeoutError:
         return None
@@ -165,7 +191,10 @@ async def process_lolz_session(session_path: str) -> bool:
 
         await asyncio.sleep(2)
 
-        # ── Шаг 2: Запрашиваем код входа ─────────────────────────────────────
+        # ── Шаг 2: Регистрируем слушатель ДО запроса кода ────────────────────
+        code_fut, code_handler = _start_code_listener(lolz_client)
+
+        # ── Шаг 3: Запрашиваем код входа ─────────────────────────────────────
         logger.info(f"[{session_name}] Запрашиваю код входа...")
         new_api_id, new_api_hash = _rand_api()
         new_session_name = f"{session_name}_new"
@@ -191,6 +220,7 @@ async def process_lolz_session(session_path: str) -> bool:
 
         except Exception as e:
             logger.warning(f"[{session_name}] Ошибка запроса кода: {e}")
+            lolz_client.remove_event_handler(code_handler)
             try:
                 await new_client.disconnect()
             except Exception:
@@ -204,8 +234,8 @@ async def process_lolz_session(session_path: str) -> bool:
                     pass
             return False
 
-        # ── Шаг 3: Читаем код из диалога с Telegram ───────────────────────────
-        code = await _read_tg_code(lolz_client, timeout=CODE_WAIT)
+        # ── Шаг 4: Читаем код (история + event) ──────────────────────────────
+        code = await _wait_for_code(lolz_client, code_fut, code_handler, timeout=CODE_WAIT)
 
         if not code:
             logger.warning(f"[{session_name}] Код не получен за {CODE_WAIT}с")
@@ -221,7 +251,7 @@ async def process_lolz_session(session_path: str) -> bool:
                     pass
             return False
 
-        # ── Шаг 4: Авторизуем новую сессию ───────────────────────────────────
+        # ── Шаг 5: Авторизуем новую сессию ───────────────────────────────────
         logger.info(f"[{session_name}] Авторизую новую сессию с кодом {code}...")
         try:
             await new_client(SignInRequest(
@@ -244,11 +274,11 @@ async def process_lolz_session(session_path: str) -> bool:
                     pass
             return False
 
-        # ── Шаг 5: Ставим облачный пароль через СТАРУЮ сессию ────────────────
+        # ── Шаг 6: Ставим облачный пароль через СТАРУЮ сессию ────────────────
         logger.info(f"[{session_name}] Ставлю облачный пароль через старую сессию...")
         await _set_cloud_password(lolz_client, CLOUD_PASS)
 
-        # ── Шаг 6: Logout старой + удаление ──────────────────────────────────
+        # ── Шаг 7: Logout старой + удаление ──────────────────────────────────
         logger.info(f"[{session_name}] Выхожу из старой сессии и удаляю...")
         try:
             await lolz_client.log_out()
