@@ -3222,6 +3222,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "support_method":
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_support and (now_msk() - last_used_support[uid]) < timedelta(hours=3):
 				rem = timedelta(hours=3) - (now_msk() - last_used_support[uid])
 				h = rem.seconds // 3600
@@ -3239,6 +3241,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == "domain_killer_method":
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and uid not in no_kd and uid in last_used_domain_killer and (now_msk() - last_used_domain_killer[uid]) < timedelta(hours=3):
 				rem = timedelta(hours=3) - (now_msk() - last_used_domain_killer[uid])
 				h = rem.seconds // 3600
