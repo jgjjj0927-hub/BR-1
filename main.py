@@ -3208,7 +3208,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitCodeFSM.phone.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
-		# ─── Саппорт метод ────────────────────────────────────────────────────
+		# ─── Снос Сессий метод ───────────────────────────────────────────────────
 		elif d == "support_method":
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
