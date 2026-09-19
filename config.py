@@ -8,7 +8,7 @@ bot_logs = int(os.environ.get("BOT_LOGS", "8316051968"))
 bot_channel_link = os.environ.get("CHANNEL_LINK", "https://t.me/+3u8scLryHxdmNDUy")
 bot_channel2_link = os.environ.get("CHANNEL2_LINK", "https://t.me/+3u8scLryHxdmNDUy")
 bot_admin = os.environ.get("BOT_ADMIN", "@KoTik2k8")
-channel_id = os.environ.get("CHANNEL_ID", "-1002847743793")
+channel_id = os.environ.get("CHANNEL_ID", "-1004344760331")
 channel2_id = os.environ.get("CHANNEL2_ID", "-1004351797989")
 NO_KD = list(map(int, os.environ.get("NO_KD", "1403537093,831219481,8312194811").split(",")))
 
