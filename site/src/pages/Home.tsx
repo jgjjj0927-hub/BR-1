@@ -109,10 +109,12 @@ export default function Home() {
     return () => obs.disconnect();
   }, [mirrors, reviews]);
 
-  /* Canvas particle animation */
+  /* Canvas particle animation — disabled on mobile to save GPU */
   useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || isMobile || prefersReduced) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -126,9 +128,9 @@ export default function Home() {
 
     type P = { x: number; y: number; vx: number; vy: number; r: number; alpha: number; cr: number; cg: number; cb: number };
     const palette = [[124,58,255],[56,189,248],[6,214,160],[167,139,250]];
-    const pts: P[] = Array.from({ length: 70 }, () => {
+    const pts: P[] = Array.from({ length: 35 }, () => {
       const [cr,cg,cb] = palette[Math.floor(Math.random()*palette.length)];
-      return { x: Math.random()*1200, y: Math.random()*600, vx:(Math.random()-.5)*.45, vy:(Math.random()-.5)*.45, r:Math.random()*1.8+.4, alpha:Math.random()*.45+.08, cr,cg,cb };
+      return { x: Math.random()*1200, y: Math.random()*600, vx:(Math.random()-.5)*.35, vy:(Math.random()-.5)*.35, r:Math.random()*1.6+.4, alpha:Math.random()*.4+.08, cr,cg,cb };
     });
 
     let raf: number;
@@ -144,7 +146,7 @@ export default function Home() {
       for (let i=0;i<pts.length;i++) for (let j=i+1;j<pts.length;j++) {
         const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y;
         const d=Math.sqrt(dx*dx+dy*dy);
-        if (d<110) { ctx.beginPath(); ctx.strokeStyle=`rgba(124,58,255,${.1*(1-d/110)})`; ctx.lineWidth=.6; ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.stroke(); }
+        if (d<100) { ctx.beginPath(); ctx.strokeStyle=`rgba(124,58,255,${.08*(1-d/100)})`; ctx.lineWidth=.5; ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.stroke(); }
       }
       raf = requestAnimationFrame(draw);
     };
