@@ -212,16 +212,18 @@ _T = {
         'preminfo_caption': (
             '👑 *Премиум — стоит ли брать?*\n\n'
             'Премиум — это дополнение к подписке\\. Покупается один раз, навсегда\\.\n\n'
-            '*Что открывается:*\n'
-            '├ 👑 *Премиальная отправка* — усиленный ботнет, больше аккаунтов, выше шанс сноса\n'
-            '├ 📧 *Mail\\-метод* — репорты через почты напрямую\n'
-            '├ 🌐 *Web\\-метод* — репорты через веб\n'
+            '*🔓 Эксклюзивные методы \\(только Премиум\\):*\n'
+            '├ 👑 *Премиальная отправка* — ботнет из Premium\\-аккаунтов, в 2\\-3x выше доходимость\n'
+            '├ 🌐 *Universal метод* — продвинутая универсальная атака\n'
+            '├ 💀 *Снос сессий* — принудительный сброс всех сессий цели\n'
+            '└ 🌍 *Домен киллер* — блокировка доменов цели\n\n'
+            '*📈 Улучшенные лимиты:*\n'
             '├ 🔍 *Мониторинг ×5* — 5 целей одновременно вместо 3\n'
             '├ ⏱ *Мониторинг 24ч* — срок 24 часа вместо 12\n'
-            '├ 🕵️ *Пробив* — поиск данных по Telegram\n'
-            '└ 🏦 *Блокировка карты* — жалобы в банки на мошенников\n\n'
+            '├ 🕵️ *Пробив* — без ограничений вместо 5 запросов/ч\n'
+            '└ ⚡ *Приоритет в очереди* — твои задачи идут первыми\n\n'
             '*Итог:* обычная подписка — базовые методы\\. Премиум — максимальная мощность\\.\n\n'
-            '💡 _Если цель сложная — без премиума шансы ниже_'
+            '💡 _Если цель сложная — без премиума шансы значительно ниже_'
         ),
 
         # ─── Telegraph ────────────────────────────────────────────────────────
@@ -657,16 +659,18 @@ _T = {
         'preminfo_caption': (
             '👑 *Premium — is it worth it?*\n\n'
             'Premium is an add\\-on to your subscription\\. Purchased once, forever\\.\n\n'
-            '*What unlocks:*\n'
-            '├ 👑 *Premium sending* — enhanced botnet, more accounts, higher chance of ban\n'
-            '├ 📧 *Mail method* — reports via email directly\n'
-            '├ 🌐 *Web method* — reports via web\n'
+            '*🔓 Exclusive methods \\(Premium only\\):*\n'
+            '├ 👑 *Premium Botnet* — Premium\\-account pool, 2\\-3x higher report delivery\n'
+            '├ 🌐 *Universal method* — advanced multi\\-vector attack\n'
+            '├ 💀 *Session Knockdown* — force\\-logout all active sessions of the target\n'
+            '└ 🌍 *Domain Killer* — block the target\'s domains\n\n'
+            '*📈 Upgraded limits:*\n'
             '├ 🔍 *Monitoring ×5* — 5 targets at once instead of 3\n'
             '├ ⏱ *Monitoring 24h* — duration 24 hours instead of 12\n'
-            '├ 🕵️ *Lookup* — search data by Telegram\n'
-            '└ 🏦 *Card block* — reports to banks on scammers\n\n'
+            '├ 🕵️ *Lookup* — unlimited queries instead of 5/hour\n'
+            '└ ⚡ *Priority queue* — your tasks go first\n\n'
             '*Bottom line:* regular subscription — basic methods\\. Premium — maximum power\\.\n\n'
-            '💡 _If the target is tough — without premium, chances are lower_'
+            '💡 _Tough target? Without premium, chances are significantly lower_'
         ),
 
         # ─── Telegraph ───────────────────────────────────────────────────────
