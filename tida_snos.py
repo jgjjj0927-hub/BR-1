@@ -343,6 +343,11 @@ def _get_proxy():
     return proxies[0] if proxies else None
 
 
+# Глобальный blacklist прокси заблокированных по региону (сбрасывается при каждом запуске main_tida)
+_blocked_proxies: set = set()
+_blocked_lock = asyncio.Lock()
+
+
 
 
 async def _create_client(session_path: str, proxy=None):
@@ -470,12 +475,14 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
     if tida_peer_ref is None:
         tida_peer_ref = [None]
 
+    # Собираем кандидатов: сначала назначенный прокси, потом остальные (без заблокированных)
     proxies_pool = list(all_proxies) if all_proxies else []
-    if proxy and proxy not in proxies_pool:
-        proxies_pool.insert(0, proxy)
     random.shuffle(proxies_pool)
-    if proxy in proxies_pool:
+    # Назначенный прокси — первый
+    if proxy and proxy in proxies_pool:
         proxies_pool.remove(proxy)
+        proxies_pool.insert(0, proxy)
+    elif proxy and proxy not in proxies_pool:
         proxies_pool.insert(0, proxy)
 
     tried = set()
@@ -485,6 +492,13 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
         proxy_key = current_proxy[1] if current_proxy else "нет"
         if proxy_key in tried:
             continue
+
+        # Пропускаем прокси известные как заблокированные по региону
+        async with _blocked_lock:
+            if proxy_key in _blocked_proxies:
+                logger.info(f"[TIDA] [{session_name}] Пропускаю заблокированный прокси {proxy_key}")
+                continue
+
         tried.add(proxy_key)
 
         client = await _create_client(session_path, current_proxy)
@@ -512,12 +526,21 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
                 return True
 
             if region_blocked:
-                logger.info(f"[TIDA] [{session_name}] Регион — пробую следующий прокси...")
-                # продолжаем цикл с другим прокси
+                # Добавляем в глобальный blacklist и НЕ переключаемся на другой прокси
+                # (переключение вызывает "two different IPs" ошибку для того же session файла)
+                async with _blocked_lock:
+                    _blocked_proxies.add(proxy_key)
+                logger.warning(f"[TIDA] [{session_name}] Прокси {proxy_key} заблокирован по региону → в blacklist")
+                return False
             else:
                 logger.warning(f"[TIDA] [{session_name}] Неудача (не регион) на прокси {proxy_key}")
 
         except Exception as e:
+            err_str = str(e)
+            if "two different IP" in err_str or "authorization key" in err_str.lower():
+                # Сессия уже подключена с другого IP — не переключаем прокси
+                logger.warning(f"[TIDA] [{session_name}] Конфликт IP сессии, пропускаю")
+                return False
             logger.error(f"[TIDA] [{session_name}] Ошибка: {e}")
         finally:
             try:
@@ -525,12 +548,16 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
             except Exception:
                 pass
 
-    logger.warning(f"[TIDA] [{session_name}] Все прокси исчерпаны")
+    logger.warning(f"[TIDA] [{session_name}] Все незаблокированные прокси исчерпаны")
     return False
 
 
 async def main_tida(target_link: str, custom_text: str, user: int, username: str, _log_user=None, silent: bool = False, notify_bot=None):
+    global _blocked_proxies
     _notify = notify_bot or bot
+    # Сбрасываем blacklist прокси при каждом новом запуске
+    async with _blocked_lock:
+        _blocked_proxies = set()
     sessions = _get_sessions()
     if not sessions:
         await _notify.send_message(user,
