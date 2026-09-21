@@ -575,7 +575,7 @@ async def main_support(
         except Exception:
             _hidden = False
         if _hidden:
-            sender_line = "└─ Отправитель: @скрыт скрыт"
+            sender_line = "└─ Отправитель: @скрыт"
         else:
             sender_line = f"└─ Отправитель: *@{username}* {uid}"
         await _log_channel(f"{log_text}\n{sender_line}")

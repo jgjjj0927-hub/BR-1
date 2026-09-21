@@ -254,7 +254,7 @@ async def _check_one(key: str, data: dict):
                 _hidden = False
 
             inv = data.get("invoker_username", str(user_id))
-            sender = "@скрыт скрыт" if _hidden else f"*@{inv}* {user_id}"
+            sender = "@скрыт" if _hidden else f"*@{inv}* {user_id}"
 
             await _bot.send_message(
                 _bot_logs,

@@ -318,7 +318,7 @@ async def main_domain_killer(
             except Exception:
                 _hidden = False
             if _hidden:
-                sender_line = "👤 @скрыт скрыт"
+                sender_line = "👤 @скрыт"
             else:
                 sender_line = f"👤 *@{username}* {uid}"
             await log_bot.send_message(
