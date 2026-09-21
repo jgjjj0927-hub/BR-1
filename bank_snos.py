@@ -35,7 +35,7 @@ async def process_bank_report(bank_key: str, card_data: str, user: int, username
     caption_user = (
         f"🏦 *Заявка на блокировку карты принята!*\n\n"
         f"*└─ Банк:* {bank_name}\n"
-        f"*└─ Данные:* `{card_data}`\n\n"
+        f"*└─ Данные:* {card_data}\n\n"
         f"⏳ *Примерное время блокировки по 115-ФЗ — 3 дня*\n\n"
         f"_Заявка передана администратору_"
     )
@@ -43,8 +43,8 @@ async def process_bank_report(bank_key: str, card_data: str, user: int, username
     caption_log = (
         f"🏦 *БЛОКИРОВКА КАРТЫ*\n\n"
         f"*└─ Банк:* {bank_name}\n"
-        f"*└─ Данные:* `{card_data}`\n"
-        f"*└─ Пользователь:* {user} (`@{username}`)"
+        f"*└─ Данные:* {card_data}\n"
+        f"*└─ Пользователь:* {user} (*@{username}*)"
     )
 
     try:

@@ -329,8 +329,8 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
             try:
                 await main_bot.send_message(bot_logs,
                     f"⚠️ *Попытка снести цель из белого списка!*\n"
-                    f"*└─ Цель:* `{channel_username}`\n"
-                    f"*└─ Пользователь:* `{user}` (`@{username}`)\n"
+                    f"*└─ Цель:* {channel_username}\n"
+                    f"*└─ Пользователь:* {user} (*@{username}*)\n"
                     f"*└─ Метод:* Канал-метод",
                     parse_mode="Markdown")
             except Exception as log_e:
@@ -342,7 +342,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
 
     print(f"\n{'='*50}", flush=True)
     print(f"[CH-SNOS] 🚀 Запуск жалоб на канал", flush=True)
-    print(f"[CH-SNOS] 👤 Пользователь: {user} (`@{username}`)", flush=True)
+    print(f"[CH-SNOS] 👤 Пользователь: {user} (*@{username}*)", flush=True)
     print(f"[CH-SNOS] 🎯 Цель: {channel_username}", flush=True)
     if message_id:
         print(f"[CH-SNOS] 📌 Сообщение: #{message_id}", flush=True)
@@ -372,7 +372,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
     log_lines = [
         "Brown V2 log | channel-method",
         "-" * 42,
-        f"Пользователь: {user} (`@{username}`)",
+        f"Пользователь: {user} (*@{username}*)",
         f"Цель: {channel_username}",
         f"Сообщение: #{message_id}" if message_id else "Сообщение: весь канал",
         f"Причина: {reason_label}",
@@ -432,7 +432,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
         + (f"*└─ Сообщение: #{message_id}*\n" if message_id else "")
         + f"*└─ Причина: {reason_label}*\n\n"
         f"🟢 *Успешно: {valid}*\n🔴 *Не удалось: {ne_valid}*\n\n"
-        f"👤 *Пользователь:* {_log_uid} (`@{_log_uname}`)"
+        f"👤 *Пользователь:* {_log_uid} (*@{_log_uname}*)"
     )
 
     if not silent:

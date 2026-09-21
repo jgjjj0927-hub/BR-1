@@ -58,7 +58,7 @@ async def set_photo_and_name(api_id: int, api_hash: str, bot_token: str, name: s
     await client.start(bot_token=bot_token)
 
     me = await client.get_me()
-    print(f"✅ Вошёл как бот: `@{me.username}`")
+    print(f"✅ Вошёл как бот: *@{me.username}*")
 
     # Меняем имя через MTProto
     print(f"✏️  Меняю имя на «{name}»...")

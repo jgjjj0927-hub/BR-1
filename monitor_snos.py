@@ -403,7 +403,7 @@ async def _notify_user_alive(user_id: int, target: str, monitor_id: int):
             user_id,
             f"🔍 *Мониторинг BR V2*\n\n"
             f"🟢 *Цель жива*\n\n"
-            f"🎯 *Цель:* `{target}`\n"
+            f"🎯 *Цель:* {target}\n"
             f"🕐 *Следующая проверка через 10 минут*",
             parse_mode="Markdown",
             reply_markup=markup
@@ -431,7 +431,7 @@ async def _notify_user(user_id: int, target: str, reason: str, status: str):
             user_id,
             f"🔍 *Мониторинг BR V2*\n\n"
             f"{status_emoji}\n\n"
-            f"🎯 *Цель:* `{target}`"
+            f"🎯 *Цель:* {target}"
             f"{reason_text}\n\n"
             f"🕐 *Время:* {now_msk().strftime('%d.%m.%Y %H:%M:%S')}",
             parse_mode="Markdown"
@@ -447,7 +447,7 @@ async def _notify_user(user_id: int, target: str, reason: str, status: str):
             _log_uid = "скрыт" if _is_hid else str(user_id)
             await _bot.send_message(
                 _bot_logs,
-                f"🔍 *Монитор:* `{_log_uid}` — цель `{target}` снесена",
+                f"🔍 *Монитор:* {_log_uid} — цель {target} снесена",
                 parse_mode="Markdown"
             )
     except Exception:

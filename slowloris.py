@@ -101,9 +101,9 @@ async def _slowloris_attack(host: str, port: int, path: str, use_ssl: bool,
     try:
         await _notify.send_message(user_id,
             f"⚡️ *Slowloris запущен!*\n"
-            f"*└─ Цель:* `{url}`\n"
-            f"*└─ Соединений:* `{len(sockets)}`\n"
-            f"*└─ Длительность:* `{duration} сек`",
+            f"*└─ Цель:* {url}\n"
+            f"*└─ Соединений:* {len(sockets)}\n"
+            f"*└─ Длительность:* {duration} сек",
             parse_mode="Markdown")
     except Exception:
         pass
@@ -139,14 +139,14 @@ async def _slowloris_attack(host: str, port: int, path: str, use_ssl: bool,
 
     caption_user = (
         f"✅ *Slowloris завершён!*\n\n"
-        f"🎯 *Цель:* `{url}`\n"
+        f"🎯 *Цель:* {url}\n"
         f"🕐 *Время:* {now_str}\n"
         f"🔗 *Макс. соединений:* {connections}\n"
         f"📤 *Keep-alive отправлено:* {sent_count}"
     )
     caption_log = (
         f"⚡️ *Slowloris*\n\n"
-        f"🎯 *Цель:* `{url}`\n"
+        f"🎯 *Цель:* {url}\n"
         f"👤 *Пользователь:* {user_id}\n"
         f"🕐 *Время:* {now_str}\n"
         f"🔗 *Соединений:* {connections} | *Keep-alive:* {sent_count}"
@@ -182,7 +182,7 @@ async def main_slowloris(url: str, user_id: int, username: str,
     try:
         host, port, path, use_ssl = _parse_target(url)
     except Exception as e:
-        await _notify.send_message(user_id, f"❌ *Неверный URL:* `{str(e)[:50]}`",
+        await _notify.send_message(user_id, f"❌ *Неверный URL:* {str(e)[:50]}",
             parse_mode="Markdown", reply_markup=_kb.main_menu)
         return
 

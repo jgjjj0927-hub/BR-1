@@ -30,7 +30,7 @@ _T = {
         'shop_buy_select': '>⚙️ *Покупка*\n*└─ Вы покупаете: {item}*\n\n*Выберите способ оплаты:*',
         'shop_buy_usd': '>⚙️ *Покупка*\n*└─ Вы покупаете: {item}*\n*└─ Вы платите: {amount}$*',
         'shop_buy_rub': '>⚙️ *Покупка*\n*└─ Вы покупаете: {item}*\n*└─ Вы платите: {amount}₽*',
-        'shop_buy_ton': '>⚙️ *Покупка*\n*└─ Вы покупаете: {item}*\n*└─ Вы платите: {amount}$*\n\n*Адрес TonKeeper:*\n`{address}`\n\n*После оплаты напишите* @TariSmit',
+        'shop_buy_ton': '>⚙️ *Покупка*\n*└─ Вы покупаете: {item}*\n*└─ Вы платите: {amount}$*\n\n*Адрес TonKeeper:*\n{address}\n\n*После оплаты напишите* @TariSmit',
         'pay_btn_pay': '💸 Оплатить',
         'pay_btn_card': '💳 Оплатить',
         'pay_btn_paid': '✅ Оплатил',
@@ -111,7 +111,7 @@ _T = {
         'tida_confirm_change': '✏️ Изменить текст',
         'tida_enter_text': '✏️ *Введите текст жалобы:*\n_(на английском языке)_\n\n[📋 Шаблоны текстов](https://t.me/+zTWywoULseYzMWU0)',
         'tida_describe_violation': '📝 *{target}* — опишите нарушение:\n_(ИИ создаст текст жалобы на основе вашего описания)_',
-        'dsa_link_prompt': '🇪🇺 *DSA Report*\n\n*└─ Введите ссылку на сообщение:*\n\n`https://t.me/username/123`',
+        'dsa_link_prompt': '🇪🇺 *DSA Report*\n\n*└─ Введите ссылку на сообщение:*\n\nhttps://t.me/username/123',
 
         # ─── Бесплатно ────────────────────────────────────────────────────────
         'free_create_mirror': '🪞 Создать зеркало',
@@ -129,7 +129,7 @@ _T = {
         'profile_prem_no': 'Нет',
         'profile_name': '▪️ *Имя: {name}*',
         'profile_id': '▪️ *ID: {uid}*',
-        'profile_username': '▪️ *`@{username}`*',
+        'profile_username': '▪️ *@{username}*',
         'profile_premium': '▪️ *Премиум: {prem}*',
         'profile_free_reports': '▪️ *Бесплатных репортов: {count}*',
         'profile_refs': '▪️ *Рефералов: {count}*',
@@ -167,30 +167,30 @@ _T = {
         # ─── Промпты методов ──────────────────────────────────────────────────
         'web_enter_text': '✉️ *Введите текст:*',
         'mail_enter_topic': '📌 *Введите тему:*',
-        'botnet_enter_link': '*Ссылка на сообщение:*\n`https://t.me/username/123`',
+        'botnet_enter_link': '*Ссылка на сообщение:*\nhttps://t.me/username/123',
         'bot_method_prompt': (
             '🤖 *Бот-метод*\n\n'
             '*└─ Введите @username бота:*\n'
-            '`@username_bot`\n\n'
-            '*⚠️ Username должен оканчиваться на* `bot`'
+            '*@username_bot*\n\n'
+            '*⚠️ Username должен оканчиваться на* bot'
         ),
         'channel_method_caption': '📢 *Канал-метод*\n\n*└─ Выберите причину жалобы:*',
         'channel_enter_link': (
             '📢 *Причина: {reason}*\n\n'
             '*Введите @username канала или ссылку:*\n'
-            '`@channel` или `https://t.me/channel`'
+            '*@channel* или https://t.me/channel'
         ),
         'aureport_prompt': (
             '🇦🇺 *AU Report*\n\n'
             '*└─ Введите @username или ссылку на цель:*\n\n'
-            '`@username` или `https://t.me/username`'
+            '*@username* или https://t.me/username'
         ),
         'tida_prompt': (
             '🟣 *TIDA*\n\n'
             '*└─ Отправьте ссылку на цель:*\n\n'
-            '`https://t.me/username`\n'
-            '`https://t.me/channel/123`\n'
-            '`@username`'
+            'https://t.me/username\n'
+            'https://t.me/channel/123\n'
+            '*@username*'
         ),
 
         # ─── Мониторинг ───────────────────────────────────────────────────────
@@ -265,12 +265,12 @@ _T = {
         'support_method_target_caption': (
             '💀 *Снос сессий*\n\n'
             '*└─ Введите @username или числовой ID цели:*\n'
-            '`@username` или `123456789`'
+            '*@username* или 123456789'
         ),
         'support_method_phone_caption': (
             '📱 *Телефон цели*\n\n'
             '*└─ Введите номер телефона в формате:*\n'
-            '`+79991234567`'
+            '+79991234567'
         ),
         'support_no_key': '❌ *RUCAPTCHA\\_KEY не настроен\\. Обратитесь к администратору\\.*',
         'btn_web_method': '🌐 Web',
@@ -285,7 +285,7 @@ _T = {
         'domain_killer_domain_caption': (
             '🔪 *Domain Killer*\n\n'
             '*└─ Введите ссылку или домен цели:*\n'
-            '[https://](https://exemple.eu)exemple.eu или `exemple.eu`'
+            '[https://](https://exemple.eu)exemple.eu или exemple.eu'
         ),
         'domain_killer_reason_caption': (
             '📝 *Описание нарушения*\n\n'
@@ -332,7 +332,7 @@ _T = {
         'err_user_not_found': '❌ *Пользователь не найден, напишите /start*',
         'err_no_sub_no_free': '❌ *Нет подписки и бесплатных репортов!*',
         'err_monitor_sub': '❌ Мониторинг доступен только с подпиской!',
-        'err_generic': '❌ *Ошибка:* `{err}`',
+        'err_generic': '❌ *Ошибка:* {err}',
 
         # ─── Методы: старт ────────────────────────────────────────────────────
         'free_report_used': '🎯 *Использован бесплатный репорт! Осталось: {count}*',
@@ -341,11 +341,11 @@ _T = {
         'botnet_invalid_link': (
             '*⭕️ Неверная ссылка!*\n\n'
             '*Ботнет требует ссылку на конкретное сообщение:*\n'
-            '`https://t.me/channel/123`\n\n'
+            'https://t.me/channel/123\n\n'
             '*Для сноса канала/аккаунта используй TIDA*'
         ),
         'bot_method_launching': '🤖 *Запустил жалобы на {target}...*\n*└─ КД после: {cd}*',
-        'bot_not_a_bot': '❌ *Это не бот!*\n\n*Бот-метод работает только с ботами.*\n*Username бота должен оканчиваться на* `bot`\n*Пример:* `@example_bot`',
+        'bot_not_a_bot': '❌ *Это не бот!*\n\n*Бот-метод работает только с ботами.*\n*Username бота должен оканчиваться на* bot\n*Пример:* *@example_bot*',
         'cd_5min': '5 минут',
         'cd_1hour': '1 час',
         'channel_launching': '📢 *Запустил жалобы на канал {target}...*',
@@ -359,26 +359,26 @@ _T = {
         'tida_wrong_target': '❌ *Используйте кнопки для выбора типа цели*',
         'tida_private_link': '_(приватная/закрытая ссылка)_',
         'tida_session_expired': '❌ *Данные устарели, начните заново*',
-        'code_launching': '📱 *Запускаю код-метод...*\n*└─ Номер:* `{phone}`\n\n_Это займёт 1-2 минуты_',
-        'code_invalid_phone': '❌ *Введите корректный номер телефона!*\n`+79991234567`',
+        'code_launching': '📱 *Запускаю код-метод...*\n*└─ Номер:* {phone}\n\n_Это займёт 1-2 минуты_',
+        'code_invalid_phone': '❌ *Введите корректный номер телефона!*\n+79991234567',
         'bank_invalid': '❌ *Введите корректный номер телефона или карты!*',
         'session_method_prompt': '💀 *Снос сессий*\n\nВведи *username* жертвы:',
-        'session_method_phone_prompt': '📱 Введи *номер телефона* жертвы:\n`+79991234567`',
+        'session_method_phone_prompt': '📱 Введи *номер телефона* жертвы:\n+79991234567',
         'session_method_invalid': '❌ *Неверный username!*',
         'trap_cancelled': '❌ *Trap-метод отменён.*',
         'trap_session_expired': '❌ *Сессия истекла. Начни заново.*',
-        'trap_enter_victim': '🎯 *Введи @username жертвы:*\n\n`@username`',
+        'trap_enter_victim': '🎯 *Введи @username жертвы:*\n\n*@username*',
         'bank_select_caption': '🏦 *Блокировка карты по 115-ФЗ*\n\n*└─ Выберите банк:*',
         'bank_tbank': 'Т-Банк',
         'bank_alfa': 'Альфа-Банк',
         'bank_sber': 'Сбер Банк',
         'bank_ozon': 'Озон Банк',
-        'bank_enter_card': '🏦 *{bank}*\n\n*└─ Введите номер телефона или карты цели:*\n\n`+79991234567` или `4276 1234 5678 9012`',
-        'code_method_caption': '📱 *Спам кодами*\n\n*└─ Введите номер телефона цели:*\n\n`+79991234567`',
+        'bank_enter_card': '🏦 *{bank}*\n\n*└─ Введите номер телефона или карты цели:*\n\n+79991234567 или 4276 1234 5678 9012',
+        'code_method_caption': '📱 *Спам кодами*\n\n*└─ Введите номер телефона цели:*\n\n+79991234567',
 
         # ─── Зеркала ──────────────────────────────────────────────────────────
         'mirror_token_cancel': '❌ *Ввод токена отменён.*',
-        'mirror_token_invalid': '❌ *Неверный формат токена!*\n*Пример:* `1234567890:ABCdef...`',
+        'mirror_token_invalid': '❌ *Неверный формат токена!*\n*Пример:* 1234567890:ABCdef...',
         'mirror_token_exists': '❌ *Этот токен уже зарегистрирован!*',
         'mirror_token_checking': '⏳ *Проверяем токен...*',
         'mirror_token_bad': '❌ *Токен невалидный или бот не существует!*\n*Проверь и попробуй снова.*',
@@ -421,7 +421,7 @@ _T = {
 
         # ─── DSA AI ──────────────────────────────────────────────────────
         'ai_generating_dsa': '⏳ *Генерирую текст жалобы через ИИ...*',
-        'dsa_ai_result': '🤖 *ИИ сгенерировал текст жалобы:*\n\n`{text}`\n\n*Использовать этот текст или ввести свой?*',
+        'dsa_ai_result': '🤖 *ИИ сгенерировал текст жалобы:*\n\n{text}\n\n*Использовать этот текст или ввести свой?*',
 
         # ─── Trap ────────────────────────────────────────────────────────
         'trap_creating': '🪤 *Trap-метод*\n\n*Запускаю создание бота...*',
@@ -477,7 +477,7 @@ _T = {
         'shop_buy_select': '>⚙️ *Purchase*\n*└─ You are buying: {item}*\n\n*Select payment method:*',
         'shop_buy_usd': '>⚙️ *Purchase*\n*└─ You are buying: {item}*\n*└─ You pay: {amount}$*',
         'shop_buy_rub': '>⚙️ *Purchase*\n*└─ You are buying: {item}*\n*└─ You pay: {amount}₽*',
-        'shop_buy_ton': '>⚙️ *Purchase*\n*└─ You are buying: {item}*\n*└─ You pay: {amount}$*\n\n*TonKeeper address:*\n`{address}`\n\n*After payment contact* @TariSmit',
+        'shop_buy_ton': '>⚙️ *Purchase*\n*└─ You are buying: {item}*\n*└─ You pay: {amount}$*\n\n*TonKeeper address:*\n{address}\n\n*After payment contact* @TariSmit',
         'pay_btn_pay': '💸 Pay',
         'pay_btn_card': '💳 Pay',
         'pay_btn_paid': '✅ Paid',
@@ -558,7 +558,7 @@ _T = {
         'tida_confirm_change': '✏️ Change Text',
         'tida_enter_text': '✏️ *Enter complaint text:*\n_(in English)_\n\n[📋 Text Templates](https://t.me/+zTWywoULseYzMWU0)',
         'tida_describe_violation': '📝 *{target}* — describe the violation:\n_(AI will create the complaint text based on your description)_',
-        'dsa_link_prompt': '🇪🇺 *DSA Report*\n\n*└─ Enter the message link:*\n\n`https://t.me/username/123`',
+        'dsa_link_prompt': '🇪🇺 *DSA Report*\n\n*└─ Enter the message link:*\n\nhttps://t.me/username/123',
 
         # ─── Free menu ────────────────────────────────────────────────────────
         'free_create_mirror': '🪞 Create Mirror',
@@ -576,7 +576,7 @@ _T = {
         'profile_prem_no': 'No',
         'profile_name': '▪️ *Name: {name}*',
         'profile_id': '▪️ *ID: {uid}*',
-        'profile_username': '▪️ *`@{username}`*',
+        'profile_username': '▪️ *@{username}*',
         'profile_premium': '▪️ *Premium: {prem}*',
         'profile_free_reports': '▪️ *Free reports: {count}*',
         'profile_refs': '▪️ *Referrals: {count}*',
@@ -614,30 +614,30 @@ _T = {
         # ─── Method prompts ───────────────────────────────────────────────────
         'web_enter_text': '✉️ *Enter text:*',
         'mail_enter_topic': '📌 *Enter subject:*',
-        'botnet_enter_link': '*Message link:*\n`https://t.me/username/123`',
+        'botnet_enter_link': '*Message link:*\nhttps://t.me/username/123',
         'bot_method_prompt': (
             '🤖 *Bot-method*\n\n'
             '*└─ Enter bot @username:*\n'
-            '`@username_bot`\n\n'
-            '*⚠️ Username must end with* `bot`'
+            '*@username_bot*\n\n'
+            '*⚠️ Username must end with* bot'
         ),
         'channel_method_caption': '📢 *Channel-method*\n\n*└─ Select report reason:*',
         'channel_enter_link': (
             '📢 *Reason: {reason}*\n\n'
             'Enter channel @username or link:\n'
-            '`@channel` or `https://t.me/channel`'
+            '*@channel* or https://t.me/channel'
         ),
         'aureport_prompt': (
             '🇦🇺 *AU Report*\n\n'
             '*└─ Enter @username or target link:*\n\n'
-            '`@username` or `https://t.me/username`'
+            '*@username* or https://t.me/username'
         ),
         'tida_prompt': (
             '🟣 *TIDA*\n\n'
             '*└─ Send the target link:*\n\n'
-            '`https://t.me/username`\n'
-            '`https://t.me/channel/123`\n'
-            '`@username`'
+            'https://t.me/username\n'
+            'https://t.me/channel/123\n'
+            '*@username*'
         ),
 
         # ─── Monitoring ───────────────────────────────────────────────────────
@@ -712,12 +712,12 @@ _T = {
         'support_method_target_caption': (
             '💀 *Session Takedown*\n\n'
             '*└─ Enter @username or numeric ID of the target:*\n'
-            '`@username` or `123456789`'
+            '*@username* or 123456789'
         ),
         'support_method_phone_caption': (
             '📱 *Target Phone*\n\n'
             '*└─ Enter phone number:*\n'
-            '`+79991234567`'
+            '+79991234567'
         ),
         'support_no_key': '❌ *RUCAPTCHA\\_KEY not configured\\. Contact administrator\\.*',
         'btn_web_method': '🌐 Web',
@@ -732,7 +732,7 @@ _T = {
         'domain_killer_domain_caption': (
             '🔪 *Domain Killer*\n\n'
             '*└─ Enter the target domain or URL:*\n'
-            '[https://](https://exemple.eu)exemple.eu or `exemple.eu`'
+            '[https://](https://exemple.eu)exemple.eu or exemple.eu'
         ),
         'domain_killer_reason_caption': (
             '📝 *Violation Description*\n\n'
@@ -779,7 +779,7 @@ _T = {
         'err_user_not_found': '❌ *User not found, type /start*',
         'err_no_sub_no_free': '❌ *No subscription and no free reports!*',
         'err_monitor_sub': '❌ Monitoring is only available with a subscription!',
-        'err_generic': '❌ *Error:* `{err}`',
+        'err_generic': '❌ *Error:* {err}',
 
         # ─── Method launch messages ───────────────────────────────────────────
         'free_report_used': '🎯 *Free report used! Remaining: {count}*',
@@ -788,11 +788,11 @@ _T = {
         'botnet_invalid_link': (
             '*⭕️ Invalid link!*\n\n'
             '*Botnet requires a link to a specific message:*\n'
-            '`https://t.me/channel/123`\n\n'
+            'https://t.me/channel/123\n\n'
             '*To take down a channel/account, use TIDA*'
         ),
         'bot_method_launching': '🤖 *Launched reports on {target}...*\n*└─ CD after: {cd}*',
-        'bot_not_a_bot': '❌ *This is not a bot!*\n\n*Bot method only works with bots.*\n*The bot username must end with* `bot`\n*Example:* `@example_bot`',
+        'bot_not_a_bot': '❌ *This is not a bot!*\n\n*Bot method only works with bots.*\n*The bot username must end with* bot\n*Example:* *@example_bot*',
         'cd_5min': '5 minutes',
         'cd_1hour': '1 hour',
         'channel_launching': '📢 *Launched reports on channel {target}...*',
@@ -806,26 +806,26 @@ _T = {
         'tida_wrong_target': '❌ *Use buttons to select target type*',
         'tida_private_link': '_(private/closed link)_',
         'tida_session_expired': '❌ *Data expired, start over*',
-        'code_launching': '📱 *Launching code method...*\n*└─ Number:* `{phone}`\n\n_This will take 1-2 minutes_',
-        'code_invalid_phone': '❌ *Enter a valid phone number!*\n`+79991234567`',
+        'code_launching': '📱 *Launching code method...*\n*└─ Number:* {phone}\n\n_This will take 1-2 minutes_',
+        'code_invalid_phone': '❌ *Enter a valid phone number!*\n+79991234567',
         'bank_invalid': '❌ *Enter a valid phone number or card number!*',
         'session_method_prompt': '💀 *Session Takedown*\n\nEnter victim\'s *username*:',
-        'session_method_phone_prompt': '📱 Enter victim\'s *phone number*:\n`+79991234567`',
+        'session_method_phone_prompt': '📱 Enter victim\'s *phone number*:\n+79991234567',
         'session_method_invalid': '❌ *Invalid username!*',
         'trap_cancelled': '❌ *Trap method cancelled.*',
         'trap_session_expired': '❌ *Session expired. Start over.*',
-        'trap_enter_victim': '🎯 *Enter victim\'s @username:*\n\n`@username`',
+        'trap_enter_victim': '🎯 *Enter victim\'s @username:*\n\n*@username*',
         'bank_select_caption': '🏦 *Card Block under 115-FZ*\n\n*└─ Select a bank:*',
         'bank_tbank': 'T-Bank',
         'bank_alfa': 'Alfa Bank',
         'bank_sber': 'Sber Bank',
         'bank_ozon': 'Ozon Bank',
-        'bank_enter_card': '🏦 *{bank}*\n\n*└─ Enter target\'s phone number or card number:*\n\n`+79991234567` or `4276 1234 5678 9012`',
-        'code_method_caption': '📱 *Code Spam*\n\n*└─ Enter target\'s phone number:*\n\n`+79991234567`',
+        'bank_enter_card': '🏦 *{bank}*\n\n*└─ Enter target\'s phone number or card number:*\n\n+79991234567 or 4276 1234 5678 9012',
+        'code_method_caption': '📱 *Code Spam*\n\n*└─ Enter target\'s phone number:*\n\n+79991234567',
 
         # ─── Mirrors ─────────────────────────────────────────────────────────
         'mirror_token_cancel': '❌ *Token input cancelled.*',
-        'mirror_token_invalid': '❌ *Invalid token format!*\n*Example:* `1234567890:ABCdef...`',
+        'mirror_token_invalid': '❌ *Invalid token format!*\n*Example:* 1234567890:ABCdef...',
         'mirror_token_exists': '❌ *This token is already registered!*',
         'mirror_token_checking': '⏳ *Checking token...*',
         'mirror_token_bad': '❌ *Invalid token or bot does not exist!*\n*Check and try again.*',
@@ -868,7 +868,7 @@ _T = {
 
         # ─── DSA AI ──────────────────────────────────────────────────────
         'ai_generating_dsa': '⏳ *Generating complaint text via AI...*',
-        'dsa_ai_result': '🤖 *AI generated complaint text:*\n\n`{text}`\n\n*Use this text or write your own?*',
+        'dsa_ai_result': '🤖 *AI generated complaint text:*\n\n{text}\n\n*Use this text or write your own?*',
 
         # ─── Trap ────────────────────────────────────────────────────────
         'trap_creating': '🪤 *Trap method*\n\n*Creating bot...*',

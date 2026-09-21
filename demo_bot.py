@@ -323,7 +323,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
         _captcha[uid] = answer
         await CaptchaFSM.code.set()
         await bot.send_message(uid,
-            f"🤖 *Докажи что ты не бот:*\n\n`{question} = ?`",
+            f"🤖 *Докажи что ты не бот:*\n\n{question} = ?",
             parse_mode='Markdown')
         return
 
@@ -349,7 +349,7 @@ async def check_captcha(message: types.Message, state: FSMContext):
         question, answer = _gen_captcha()
         _captcha[uid] = answer
         await bot.send_message(uid,
-            f"❌ *Неверно. Попробуй снова:*\n\n`{question} = ?`",
+            f"❌ *Неверно. Попробуй снова:*\n\n{question} = ?",
             parse_mode='Markdown')
 
 
@@ -425,10 +425,10 @@ async def cb_hub(call: types.CallbackQuery, state: FSMContext):
         sub_until = (datetime.now() + timedelta(days=9999)).strftime("%Y-%m-%d")
         text = (
             f"👤 *Профиль*\n"
-            f"*├─ ID:* `{uid}`\n"
-            f"*├─ Подписка:* ✅ Активна до `{sub_until}`\n"
+            f"*├─ ID:* {uid}\n"
+            f"*├─ Подписка:* ✅ Активна до {sub_until}\n"
             f"*├─ Премиум:* 👑 Да\n"
-            f"*└─ Репорты:* `∞`"
+            f"*└─ Репорты:* ∞"
         )
         m = types.InlineKeyboardMarkup(row_width=1)
         m.add(
@@ -644,7 +644,7 @@ async def cb_hub(call: types.CallbackQuery, state: FSMContext):
 
         hint = "@username или ссылка на пост/канал"
         await bot.send_message(uid,
-            f"📎 *{method_name}*\n\n*Введи цель:*\n`{hint}`",
+            f"📎 *{method_name}*\n\n*Введи цель:*\n{hint}",
             parse_mode='Markdown',
             reply_markup=types.InlineKeyboardMarkup().add(
                 types.InlineKeyboardButton('❌ Отмена', callback_data=f'panel_{panel_type}')

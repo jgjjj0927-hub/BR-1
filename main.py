@@ -63,7 +63,7 @@ async def _log_admin_action(uid: int, username: str, action: str):
 			await bot.send_message(
 				bot_logs,
 				f"👁 *Действие суб-админа*\n"
-				f"*└─ ID:* `{uid}` (`@{username}`)\n"
+				f"*└─ ID:* {uid} (*@{username}*)\n"
 				f"*└─ Действие:* {action}",
 				parse_mode="Markdown"
 			)
@@ -508,14 +508,14 @@ async def admin(message):
 				mails_count = 0
 			text = (
 				"🤖 *Админ меню:*\n\n📊 *Статистика:*\n"
-				f"*├─👥 Всего пользователей:* `{users_count}`\n"
-				f"*├─💳 С подпиской:* `{subscribers_count}`\n"
-				f"*├─🎯 С репортами:* `{reports_users_count}`\n"
-				f"*├─🪞 Зеркал:* `{mirrors_count}`\n"
-				f"*├─🕒 Сессий в ботнете:* `{sessions_count}`\n"
-				f"*├─👑 Сессий в премиум ботнете:* `{sessions_count_prem}`\n"
-				f"*├─🌐 Web-Reports:* `{report_count333}`\n"
-				f"*└─✉️ Почт добавлено:* `{mails_count}`\n\n"
+				f"*├─👥 Всего пользователей:* {users_count}\n"
+				f"*├─💳 С подпиской:* {subscribers_count}\n"
+				f"*├─🎯 С репортами:* {reports_users_count}\n"
+				f"*├─🪞 Зеркал:* {mirrors_count}\n"
+				f"*├─🕒 Сессий в ботнете:* {sessions_count}\n"
+				f"*├─👑 Сессий в премиум ботнете:* {sessions_count_prem}\n"
+				f"*├─🌐 Web-Reports:* {report_count333}\n"
+				f"*└─✉️ Почт добавлено:* {mails_count}\n\n"
 				"*/promo PROMOCODE DAYS ACTIVATIONS* - создать промокод\n"
 				"*/on* - включить бота | */off* - выключить бота\n"
 				"*/addwl ID* - добавить в вайтлист\n"
@@ -525,7 +525,7 @@ async def admin(message):
 			)
 			await bot.send_message(message.chat.id, text, reply_markup=keyboards.admin_markup, parse_mode="Markdown")
 		except Exception as e:
-			await bot.send_message(message.chat.id, f"❌ Ошибка: `{str(e)[:200]}`", parse_mode="Markdown")
+			await bot.send_message(message.chat.id, f"❌ Ошибка: {str(e)[:200]}", parse_mode="Markdown")
 
 @dp.message_handler(commands=['addwl'])
 async def addwl(message: types.Message):
@@ -555,8 +555,8 @@ async def addtargetwl(message: types.Message):
 		return
 	pattern = parts[1].lstrip('@').lower()
 	await db.add_target_whitelist(pattern, message.from_user.id)
-	await message.answer(f"✅ *`@{pattern}` добавлен в белый список целей!*\n*└─ Жалобы на цели начинающиеся с* `{pattern}` *будут заблокированы.*", parse_mode=ParseMode.MARKDOWN)
-	await bot.send_message(bot_logs, f"🛡 *Белый список целей:* `@{pattern}` *добавлен* `{message.from_user.id}`", parse_mode=ParseMode.MARKDOWN)
+	await message.answer(f"✅ **@{pattern}* добавлен в белый список целей!*\n*└─ Жалобы на цели начинающиеся с* {pattern} *будут заблокированы.*", parse_mode=ParseMode.MARKDOWN)
+	await bot.send_message(bot_logs, f"🛡 *Белый список целей:* *@{pattern}* *добавлен* {message.from_user.id}", parse_mode=ParseMode.MARKDOWN)
 
 @dp.message_handler(commands=['rmtargetwl'])
 async def rmtargetwl(message: types.Message):
@@ -569,8 +569,8 @@ async def rmtargetwl(message: types.Message):
 		return
 	pattern = parts[1].lstrip('@').lower()
 	await db.remove_target_whitelist(pattern)
-	await message.answer(f"🗑 *`@{pattern}` удалён из белого списка целей!*", parse_mode=ParseMode.MARKDOWN)
-	await bot.send_message(bot_logs, f"🗑 *Белый список целей:* `@{pattern}` *удалён* `{message.from_user.id}`", parse_mode=ParseMode.MARKDOWN)
+	await message.answer(f"🗑 **@{pattern}* удалён из белого списка целей!*", parse_mode=ParseMode.MARKDOWN)
+	await bot.send_message(bot_logs, f"🗑 *Белый список целей:* *@{pattern}* *удалён* {message.from_user.id}", parse_mode=ParseMode.MARKDOWN)
 
 @dp.message_handler(commands=['listtargetwl'])
 async def listtargetwl(message: types.Message):
@@ -583,7 +583,7 @@ async def listtargetwl(message: types.Message):
 		return
 	lines = ["📋 *Белый список целей:*\n"]
 	for p in patterns:
-		lines.append(f"• `@{p}`")
+		lines.append(f"• *@{p}*")
 	await message.answer("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
 
 # ─── Подписки / оплата ────────────────────────────────────────────────────────
@@ -737,7 +737,7 @@ async def case_sbp_paid_callback(callback_query: types.CallbackQuery):
 		)
 		await bot.send_message(
 			bot_logs,
-			f"🛒 `{uid}` (`@{username}`) заявил оплату кейса через СБП — проверить и выдать!",
+			f"🛒 {uid} (*@{username}*) заявил оплату кейса через СБП — проверить и выдать!",
 			parse_mode="Markdown"
 		)
 	except Exception as e:
@@ -795,7 +795,7 @@ async def check_status_callback(callback_query: types.CallbackQuery):
 		if sub_type != "premupgrade":
 			new_date = (now_msk() + timedelta(days=int(sub_days))).strftime("%Y-%m-%d %H:%M:%S")
 			await db.set_subscribe(user_id, new_date)
-			await bot.send_message(bot_logs, f"💳 *Оплата подписки* `{user_id}` *до* `{new_date}`", parse_mode="Markdown")
+			await bot.send_message(bot_logs, f"💳 *Оплата подписки* {user_id} *до* {new_date}", parse_mode="Markdown")
 			# Реферальный бонус — 10% от дней подписки рефереру
 			referrer_id = await db.get_referrer_id(user_id)
 			if referrer_id:
@@ -811,7 +811,7 @@ async def check_status_callback(callback_query: types.CallbackQuery):
 				)
 		else:
 			await db.set_premium(user_id, 1)
-			await bot.send_message(bot_logs, f"💳 *Premium* `{user_id}`", parse_mode="Markdown")
+			await bot.send_message(bot_logs, f"💳 *Premium* {user_id}", parse_mode="Markdown")
 	except Exception as e:
 		print(f"check_status_callback: {e}")
 
@@ -828,9 +828,9 @@ async def promo_cmd(message: Message):
 	code, days, activations = parts[1], int(parts[2]), int(parts[3])
 	try:
 		await db.create_promo(code, days, activations)
-		await message.answer(f"💎 Создан промокод `{code}` на {days} дней, {activations} активаций", parse_mode="Markdown")
+		await message.answer(f"💎 Создан промокод {code} на {days} дней, {activations} активаций", parse_mode="Markdown")
 	except Exception:
-		await message.answer(f"❗️ Промокод `{code}` уже существует!", parse_mode="Markdown")
+		await message.answer(f"❗️ Промокод {code} уже существует!", parse_mode="Markdown")
 
 # ─── /start с капчей ──────────────────────────────────────────────────────────
 
@@ -969,18 +969,18 @@ async def handle_lang_select(call: types.CallbackQuery, state: FSMContext):
 
 PROBIV_HELP = (
     "*\U0001f575️ Пробив — поиск по открытым базам*\n\n"
-    "\U0001f464 `/fio` Иванов Иван Иванович 1985\n"
-    "\U0001f4f1 `/num` 79277231370\n"
-    "\U0001f4e7 `/email` user@gmail.com\n"
-    "\U0001f511 `/nick` username123\n"
-    "\U0001f510 `/pass` qwerty123\n"
-    "\U0001faaa `/snils` 12345678901\n"
-    "\U0001f3e6 `/inn` 582801503237\n"
-    "\U0001f697 `/car` А123ВС77 или VIN\n"
-    "\U0001f310 `/ip` 8.8.8.8\n"
-    "\U0001f499 `/vk` 123456789\n"
-    "\U0001f3b5 `/tt` username\n"
-    "\U0001f3e0 `/adr` Москва, ул. Ленина 1\n\n"
+    "\U0001f464 /fio Иванов Иван Иванович 1985\n"
+    "\U0001f4f1 /num 79277231370\n"
+    "\U0001f4e7 /email user@gmail.com\n"
+    "\U0001f511 /nick username123\n"
+    "\U0001f510 /pass qwerty123\n"
+    "\U0001faaa /snils 12345678901\n"
+    "\U0001f3e6 /inn 582801503237\n"
+    "\U0001f697 /car А123ВС77 или VIN\n"
+    "\U0001f310 /ip 8.8.8.8\n"
+    "\U0001f499 /vk 123456789\n"
+    "\U0001f3b5 /tt username\n"
+    "\U0001f3e0 /adr Москва, ул. Ленина 1\n\n"
     "✏️ *Введи команду:*"
 )
 
@@ -1099,13 +1099,13 @@ async def probiv_query(message: types.Message, state: FSMContext):
 		if raw.lower().startswith(cmd + ' ') or raw.lower() == cmd:
 			value = raw[len(cmd):].strip()
 			if not value:
-				await message.answer(f"❌ *Укажи значение после команды `{cmd}`*", parse_mode="Markdown")
+				await message.answer(f"❌ *Укажи значение после команды {cmd}*", parse_mode="Markdown")
 				return
 			query = transform(value)
 			break
 	if query is None:
 		await message.answer(
-			"❌ *Неизвестная команда.*\n\nИспользуй формат: `/num 79991234567`",
+			"❌ *Неизвестная команда.*\n\nИспользуй формат: /num 79991234567",
 			parse_mode="Markdown"
 		)
 		return
@@ -1177,8 +1177,8 @@ async def probiv_query(message: types.Message, state: FSMContext):
 		await bot.send_message(
 			bot_logs,
 			f"🕵️ *Пробив*\n"
-			f"👤 `@{_log_uname_p}` (`{_log_uid_p}`) | {premium_tag}\n"
-			f"📥 Запрос: `{masked}`\n"
+			f"👤 *@{_log_uname_p}* ({_log_uid_p}) | {premium_tag}\n"
+			f"📥 Запрос: {masked}\n"
 			f"📊 Найдено: *{len(results)}* совпадений",
 			parse_mode="Markdown"
 		)
@@ -1297,7 +1297,7 @@ async def _dsa_launch(uid: int, bot_instance, fsm_data: dict, state):
 			pass
 	except Exception as e:
 		print(f"[DSA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка DSA:* `{str(e)[:100]}`',
+		await _bot.send_message(uid, f'❌ *Ошибка DSA:* {str(e)[:100]}',
 			parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror:
@@ -1432,7 +1432,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_top_lines = ["\n\n🏆 *Топ рейтинг недели:*"]
 			if _top3:
 				for _ri, _rrow in enumerate(_top3, 1):
-					_runame = f"`@{_rrow['username']}`" if _rrow['username'] else f"ID {_rrow['user_id']}"
+					_runame = f"*@{_rrow['username']}*" if _rrow['username'] else f"ID {_rrow['user_id']}"
 					_top_lines.append(f"{_MEDALS[_ri]} {_runame} — {_rrow['total']} репортов → {_PRIZES[_ri]}⭐")
 			else:
 				_top_lines.append("_Пока нет репортов — стань первым!_")
@@ -1460,18 +1460,18 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					mails_count = 0
 				_adm_text = (
 					"🤖 *Админ меню:*\n\n📊 *Статистика:*\n"
-					f"*├─👥 Всего пользователей:* `{users_count}`\n"
-					f"*├─💳 С подпиской:* `{subscribers_count}`\n"
-					f"*├─🎯 С репортами:* `{reports_users_count}`\n"
-					f"*├─🪞 Зеркал:* `{mirrors_count}`\n"
-					f"*├─🕒 Сессий в ботнете:* `{sessions_count}`\n"
-					f"*├─👑 Сессий в премиум ботнете:* `{sessions_count_prem}`\n"
-					f"*├─🌐 Web-Reports:* `{report_count333}`\n"
-					f"*└─✉️ Почт добавлено:* `{mails_count}`"
+					f"*├─👥 Всего пользователей:* {users_count}\n"
+					f"*├─💳 С подпиской:* {subscribers_count}\n"
+					f"*├─🎯 С репортами:* {reports_users_count}\n"
+					f"*├─🪞 Зеркал:* {mirrors_count}\n"
+					f"*├─🕒 Сессий в ботнете:* {sessions_count}\n"
+					f"*├─👑 Сессий в премиум ботнете:* {sessions_count_prem}\n"
+					f"*├─🌐 Web-Reports:* {report_count333}\n"
+					f"*└─✉️ Почт добавлено:* {mails_count}"
 				)
 				await bot_instance.send_message(call.message.chat.id, _adm_text, reply_markup=keyboards.admin_markup, parse_mode="Markdown")
 			except Exception as _e:
-				await bot_instance.send_message(call.message.chat.id, f"❌ Ошибка: `{str(_e)[:200]}`", parse_mode="Markdown")
+				await bot_instance.send_message(call.message.chat.id, f"❌ Ошибка: {str(_e)[:200]}", parse_mode="Markdown")
 
 		elif d == 'profile_history' or d.startswith('profile_history_p_'):
 			_PAGE_SIZE = 10
@@ -1635,7 +1635,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_lines = [f"🏆 *Рейтинг недели* ({_week_label})\n"]
 			if _top3:
 				for _i, _row in enumerate(_top3, 1):
-					_uname = f"`@{_row['username']}`" if _row['username'] else f"ID {_row['user_id']}"
+					_uname = f"*@{_row['username']}*" if _row['username'] else f"ID {_row['user_id']}"
 					_lines.append(f"{_MEDALS[_i]} {_uname} — {_row['total']} репортов")
 			else:
 				_lines.append("_Пока нет репортов — стань первым!_")
@@ -1766,7 +1766,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					uid, call.from_user.username or '', platform, link
 				)
 				sub_id = _row['id']
-			uname_str = f"`@{call.from_user.username}`" if call.from_user.username else f"ID {uid}"
+			uname_str = f"*@{call.from_user.username}*" if call.from_user.username else f"ID {uid}"
 			try:
 				await bot_instance.send_message(
 					MEDIA_ADMIN_ID,
@@ -1837,7 +1837,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await MediaFSM.waiting_approve_comment.set()
 			await bot_instance.send_message(
 				call.message.chat.id,
-				f"✅ Одобрение заявки #{sub_id}\n\nОтправь комментарий и сумму выплаты в одном сообщении.\nНапример: `Отличное видео! $5`"
+				f"✅ Одобрение заявки #{sub_id}\n\nОтправь комментарий и сумму выплаты в одном сообщении.\nНапример: Отличное видео! $5"
 			)
 			await bot_instance.answer_callback_query(call.id)
 
@@ -1875,10 +1875,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					time_left = expires - now_dt
 					h = max(0, int(time_left.total_seconds() // 3600))
 					mins = max(0, int((time_left.total_seconds() % 3600) // 60))
-					lines.append(f"{status_icon} `{m['target'][:45]}` — {h}ч {mins}м осталось")
+					lines.append(f"{status_icon} {m['target'][:45]} — {h}ч {mins}м осталось")
 				else:
 					status_icon = "🔴" if m['status'] == 'dead' else "⚫"
-					lines.append(f"{status_icon} `{m['target'][:45]}` — завершён")
+					lines.append(f"{status_icon} {m['target'][:45]} — завершён")
 
 			total = len(lines)
 			total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
@@ -1980,7 +1980,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(
 				uid,
 				f"🔍 *Мониторинг запущен!*\n\n"
-				f"🎯 *Цель:* `{target}`\n"
+				f"🎯 *Цель:* {target}\n"
 				f"⏱ *Срок:* {hours} часов\n"
 				f"🟢 *Статус:* Живой\n\n"
 				f"_Вы получите уведомление если цель будет снесена_",
@@ -1989,11 +1989,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 			_is_hid_mon = await db.get_is_hidden(uid)
 			_log_uid_mon = "скрыт" if _is_hid_mon else str(uid)
-			_log_uname_mon = "скрыт" if _is_hid_mon else f"`@{username}`"
+			_log_uname_mon = "скрыт" if _is_hid_mon else f"*@{username}*"
 			await bot.send_message(
 				bot_logs,
-				f"🔍 *Новый монитор* `{_log_uid_mon}` ({_log_uname_mon})\n"
-				f"*Цель:* `{target}` на {hours}ч",
+				f"🔍 *Новый монитор* {_log_uid_mon} ({_log_uname_mon})\n"
+				f"*Цель:* {target} на {hours}ч",
 				parse_mode="Markdown"
 			)
 		elif d == 'add_subsribe' and uid in admins:
@@ -2108,7 +2108,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				sub_str = "✅ активна" if isinstance(sub, datetime) and sub > now else "❌ нет"
 				prem = "👑" if u['premium'] else ""
 				free = f"🎯{u['free_reports']}" if u['free_reports'] > 0 else ""
-				lines.append(f"`{uid_u}` — {sub_str} {prem}{free}")
+				lines.append(f"{uid_u} — {sub_str} {prem}{free}")
 
 			text = "\n".join(lines)
 
@@ -2138,7 +2138,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			lines = [f"🪞 *Зеркала* (стр. {page+1}/{total_pages}, всего: {total})\n"]
 			for m in page_mirrors:
-				lines.append(f"`{m['bot_username']}` — `{m['user_id']}`\n`{m['token']}`\n")
+				lines.append(f"{m['bot_username']} — {m['user_id']}\n{m['token']}\n")
 
 			nav = types.InlineKeyboardMarkup(row_width=2)
 			btns = []
@@ -2189,7 +2189,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption=(
 					f"👥 *Реферальная система*\n\n"
 					f"*└─ Ваших рефералов: {ref_count}*\n\n"
-					f"📎 *Ваша ссылка:*\n`{ref_link}`\n\n"
+					f"📎 *Ваша ссылка:*\n{ref_link}\n\n"
 					f"*За каждые 10 рефералов — 1 день подписки*\n"
 					f"*Также вы получаете 10% от покупки подписки вашим рефералом*"
 				),
@@ -2220,12 +2220,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 						caption=(
 							f"👥 *Реферальная система*\n\n"
 							f"*└─ Ваших рефералов: {remaining}*\n\n"
-							f"📎 *Ваша ссылка:*\n`https://t.me/{bot_uname}?start=ref_{uid}`\n\n"
+							f"📎 *Ваша ссылка:*\nhttps://t.me/{bot_uname}?start=ref_{uid}\n\n"
 							f"*✅ Успешно обменяно 10 рефералов на 1 день подписки!*"
 						),
 						parse_mode="Markdown", reply_markup=keyboards.get_referral_markup(_user_lang)
 					)
-					await bot.send_message(bot_logs, f"🔄 `{uid}` обменял 10 рефералов на 1 день", parse_mode="Markdown")
+					await bot.send_message(bot_logs, f"🔄 {uid} обменял 10 рефералов на 1 день", parse_mode="Markdown")
 
 		# ─── Бесплатно / Зеркала (старый alias, редирект в mirrors_menu) ────────
 		elif d == 'free_menu':
@@ -2246,7 +2246,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				"*2.* Напиши /newbot\n"
 				"*3.* Придумай имя и username боту\n"
 				"*4.* Скопируй токен и отправь его сюда:\n\n"
-				"*Формат:* `1234567890:ABCdef...`",
+				"*Формат:* 1234567890:ABCdef...",
 				parse_mode="Markdown"
 			)
 			state_proxy = dp_instance.current_state(chat=uid, user=uid)
@@ -2267,7 +2267,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			shown = _random.sample(mirrors, min(5, total_mirrors))
 			lines = [f"🪞 *Ваши зеркала* (показано 5 из {total_mirrors}):\n"]
 			for i, m in enumerate(shown, 1):
-				lines.append(f"*{i}.* `{m['bot_username']}`")
+				lines.append(f"*{i}.* {m['bot_username']}")
 			refresh_markup = types.InlineKeyboardMarkup(row_width=1)
 			refresh_markup.add(
 				types.InlineKeyboardButton("🔄 Обновить", callback_data='mirror_list'),
@@ -2295,7 +2295,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			shown = _random.sample(active_mirrors, min(5, len(active_mirrors)))
 			lines = ["🪞 *Зеркала Brown V2*\n\n*└─ 5 случайных рабочих зеркал:*\n"]
 			for m in shown:
-				lines.append(f"• `{m['bot_username']}`")
+				lines.append(f"• {m['bot_username']}")
 			refresh_markup = types.InlineKeyboardMarkup(row_width=1)
 			refresh_markup.add(
 				types.InlineKeyboardButton("🔄 Обновить", callback_data='public_mirrors'),
@@ -2415,7 +2415,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
-			await bot.send_message(bot_logs, f"🎡 `{uid}` крутил колесо — {log_text}", parse_mode="Markdown")
+			await bot.send_message(bot_logs, f"🎡 {uid} крутил колесо — {log_text}", parse_mode="Markdown")
 
 		# ─── Кейсы ─────────────────────────────────────────────────────────────
 		elif d == 'case_menu':
@@ -2513,7 +2513,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				return
 			await db.add_case(uid, invoice_id)
 			count = await db.get_unopened_cases(uid)
-			await bot.send_message(bot_logs, f"🎁 `{uid}` (`@{username}`) купил кейс", parse_mode="Markdown")
+			await bot.send_message(bot_logs, f"🎁 {uid} (*@{username}*) купил кейс", parse_mode="Markdown")
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
@@ -2593,7 +2593,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			count = await db.get_unopened_cases(uid)
 			await bot.send_message(bot_logs,
-				f"🎁 `{uid}` (`@{username}`) открыл кейс → {log_prize}",
+				f"🎁 {uid} (*@{username}*) открыл кейс → {log_prize}",
 				parse_mode="Markdown")
 			markup = types.InlineKeyboardMarkup(row_width=1)
 			if count > 0:
@@ -2836,7 +2836,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if uid not in admins:
 				last_used_tida[uid] = now_msk()
 			await _bot.send_message(uid,
-				f'🟣 *Запускаю TIDA на* `{tida_link}`*...*',
+				f'🟣 *Запускаю TIDA на* {tida_link}*...*',
 				parse_mode="Markdown")
 			try:
 				await main_tida(tida_link, tida_text, uid, tida_username, notify_bot=_bot)
@@ -2846,7 +2846,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await _offer_monitor(_bot, uid, tida_link, premium, subscribe)
 			except Exception as e:
 				print(f"[TIDA-AI] ОШИБКА: {e}", flush=True)
-				await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+				await _bot.send_message(uid, f'❌ *Ошибка TIDA:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 			finally:
 				_tida_pending.pop(uid, None)
 
@@ -2956,7 +2956,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption=(
 					"📄 *Telegraph снос*\n\n"
 					"*└─ Введите ссылку на статью:*\n\n"
-					"`https://telegra.ph/...`"
+					"https://telegra.ph/..."
 				),
 				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
@@ -2984,7 +2984,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				except Exception as e: print(f"[HISTORY] telegraph-cb log error: {e}", flush=True)
 			except Exception as e:
 				print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
-				await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+				await _bot.send_message(uid, f'❌ *Ошибка:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 			finally:
 				if _is_mirror_bot:
 					try:
@@ -3068,9 +3068,9 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption=(
 					"🌐 *Универсальный метод*\n\n"
 					"*└─ Отправьте ссылку на цель:*\n\n"
-					"`https://t.me/username/123`\n"
-					"`https://t.me/username`\n"
-					"`@username`"
+					"https://t.me/username/123\n"
+					"https://t.me/username\n"
+					"*@username*"
 				),
 				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
@@ -3091,7 +3091,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption=(
 					"👤 *\[ТЕСТ\] Profile Report*\n\n"
 					"*└─ Введите @username или ссылку:*\n\n"
-					"`@username` или `https://t\.me/username`"
+					"*@username* или https://t\.me/username"
 				),
 				parse_mode="MarkdownV2", reply_markup=panel_back_markup
 			)
@@ -3159,7 +3159,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					call.message.chat.id, call.message.message_id,
 					caption=(
 						f"🔗 *Логгер*\n\n"
-						f"*Ваша ссылка:*\n`{link}`\n\n"
+						f"*Ваша ссылка:*\n{link}\n\n"
 						f"*└─ Отправьте её жертве*\n"
 						f"*└─ Как только кто\\-то перейдёт — вам придёт уведомление*"
 					),
@@ -3274,7 +3274,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_hm', _user_lang, h=h, m=m), parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await bot_instance.send_message(
 				call.message.chat.id,
-				"⚡️ *Стрессер*\n\n*└─ Введите @username бота или ссылку:*\n`@username` или `https://t.me/botname`",
+				"⚡️ *Стрессер*\n\n*└─ Введите @username бота или ссылку:*\n*@username* или https://t.me/botname",
 				parse_mode="Markdown"
 			)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitStressFSM.link.state)
@@ -3311,7 +3311,7 @@ async def send_web_reports(message: types.Message, state: FSMContext):
 	try:
 		_log_uid, _log_uname = await _log_display(uid, username)
 		await bot.send_document(bot_logs, types.InputFile(log_path),
-			caption=f"📈 *Веб*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid} (`@{_log_uname}`)", parse_mode="Markdown")
+			caption=f"📈 *Веб*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid} (*@{_log_uname}*)", parse_mode="Markdown")
 	except Exception: pass
 	try: os.remove(log_path)
 	except Exception: pass
@@ -3355,7 +3355,7 @@ async def start_bulk_email(message: types.Message, state: FSMContext):
 			caption=t('mail_result_caption', _mail_lang, success=success, error=error), parse_mode="Markdown", reply_markup=main_menu)
 		_log_uid_m, _log_uname_m = await _log_display(message.from_user.id, message.from_user.username or "None")
 		await bot.send_document(bot_logs, types.InputFile(log_path),
-			caption=f"📈 *Почты*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid_m} (`@{_log_uname_m}`)", parse_mode="Markdown")
+			caption=f"📈 *Почты*\n🟢 {success}\n🔴 {error}\n👤 {_log_uid_m} (*@{_log_uname_m}*)", parse_mode="Markdown")
 	except Exception as e: print(e)
 	try: os.remove(log_path)
 	except Exception: pass
@@ -3411,7 +3411,7 @@ async def botnet_step1_normal(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, t('botnet_invalid_link', lang), parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	except Exception as e:
 		print(f"[BOTNET] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка ботнета:* {str(e)[:100]}', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
 		botnet_set_bot(bot)
 		if _is_mirror_bot:
@@ -3453,7 +3453,7 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid, t('botnet_invalid_link', lang), parse_mode=ParseMode.MARKDOWN)
 	except Exception as e:
 		print(f"[PREM] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* {str(e)[:100]}', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
 		botnet_set_bot2(bot)
 		if _is_mirror_bot:
@@ -3515,7 +3515,7 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 	await bot.send_message(
 		uid,
 		f"✅ *Зеркало создано!*\n\n"
-		f"🤖 *Бот:* `{bot_username_new}`\n"
+		f"🤖 *Бот:* {bot_username_new}\n"
 		f"📊 *Всего зеркал: {mirror_count}*"
 		f"{bonus_msg}",
 		parse_mode="Markdown", reply_markup=main_menu
@@ -3523,9 +3523,9 @@ async def mirror_token_received(message: types.Message, state: FSMContext):
 	await bot.send_message(
 		bot_logs,
 		f"🪞 *Новое зеркало*\n"
-		f"*└─ Пользователь:* `{uid}`\n"
-		f"*└─ Бот:* `{bot_username_new}`\n"
-		f"*└─ Всего зеркал:* `{mirror_count}`",
+		f"*└─ Пользователь:* {uid}\n"
+		f"*└─ Бот:* {bot_username_new}\n"
+		f"*└─ Всего зеркал:* {mirror_count}",
 		parse_mode="Markdown"
 	)
 
@@ -3624,7 +3624,7 @@ async def bot_snos_step1(message: types.Message, state: FSMContext):
 		import traceback
 		print(f"[BOT-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		traceback.print_exc()
-		await _bot.send_message(uid, f'❌ *Ошибка бот-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка бот-метода:* {str(e)[:100]}', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -3708,7 +3708,7 @@ async def channel_step1(message: types.Message, state: FSMContext):
 			pass
 	except Exception as e:
 		print(f"[CH-SNOS] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка канал-метода:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка канал-метода:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -3735,7 +3735,7 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 		last_used_aureport[uid] = now_msk()
 
 	await _bot.send_message(uid,
-		f'🇦🇺 *Запускаю AU Report на* `{raw}`*...*\n*└─ Это может занять некоторое время*',
+		f'🇦🇺 *Запускаю AU Report на* {raw}*...*\n*└─ Это может занять некоторое время*',
 		parse_mode="Markdown")
 
 	try:
@@ -3752,7 +3752,7 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 			pass
 	except Exception as e:
 		print(f"[AUREPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка AU Report:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка AU Report:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -3776,7 +3776,7 @@ async def telegraph_step1(message: types.Message, state: FSMContext):
 	if "telegra.ph" not in raw and "teletype.in" not in raw:
 		await _bot.send_message(uid,
 			"❌ *Неверная ссылка!*\n\n"
-			"*Пример:* `https://telegra.ph/название`",
+			"*Пример:* https://telegra.ph/название",
 			parse_mode="Markdown", reply_markup=panel_back_markup)
 		if _is_mirror_bot:
 			try:
@@ -3825,8 +3825,8 @@ async def telegraph_step1(message: types.Message, state: FSMContext):
 	# Показываем сгенерированный текст
 	await _bot.send_message(uid,
 		f"📄 *Telegraph снос*\n\n"
-		f"*Тема:* `{subject}`\n\n"
-		f"*Текст:*\n`{body}`\n\n"
+		f"*Тема:* {subject}\n\n"
+		f"*Текст:*\n{body}\n\n"
 		f"*Отправить на:* abuse / support / dmca @telegram.org\n"
 		f"*Писем:* 12 (4 отправителя × 3 адреса)",
 		parse_mode="Markdown",
@@ -3868,7 +3868,7 @@ async def telegraph_custom_text(message: types.Message, state: FSMContext):
 		except Exception as e: print(f"[HISTORY] telegraph log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[TELEGRAPH] ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -3891,7 +3891,7 @@ async def dsa_step1(message: types.Message, state: FSMContext):
 
 	await _bot.send_message(uid,
 		f'🇪🇺 *DSA Report*\n\n'
-		f'*Цель:* `{raw}`\n\n'
+		f'*Цель:* {raw}\n\n'
 		f'*Выберите причину жалобы:*',
 		parse_mode="Markdown",
 		reply_markup=keyboards.dsa_reason_markup)
@@ -3977,7 +3977,7 @@ async def tida_step1(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid,
 			f"🤖 *ИИ проанализировал сообщение:*\n\n"
 			f"🎯 *Цель:* {target_label}\n\n"
-			f"`{generated}`\n\n"
+			f"{generated}\n\n"
 			f"*Использовать этот текст?*",
 			parse_mode="Markdown",
 			reply_markup=keyboards.tida_text_confirm_markup())
@@ -3996,7 +3996,7 @@ async def tida_step1(message: types.Message, state: FSMContext):
 		await _bot.send_message(uid,
 			f"🟣 *TIDA*\n\n"
 			f"🎯 *Цель:* {target_label} {type_info}\n"
-			f"🔗 `{raw}`\n\n"
+			f"🔗 {raw}\n\n"
 			f"*Как хотите составить текст жалобы?*",
 			parse_mode="Markdown",
 			reply_markup=markup)
@@ -4033,7 +4033,7 @@ async def tida_step2(message: types.Message, state: FSMContext):
 		last_used_tida[uid] = now_msk()
 
 	await _bot.send_message(uid,
-		f'🟣 *Запускаю TIDA на* `{target_link}`*...*\n*└─ Это может занять некоторое время*',
+		f'🟣 *Запускаю TIDA на* {target_link}*...*\n*└─ Это может занять некоторое время*',
 		parse_mode="Markdown")
 
 	try:
@@ -4042,7 +4042,7 @@ async def tida_step2(message: types.Message, state: FSMContext):
 		except Exception as e: print(f"[HISTORY] tida log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[TIDA] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка TIDA:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка TIDA:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -4085,7 +4085,7 @@ async def tida_ai_desc_step(message: types.Message, state: FSMContext):
 		generated = "This resource violates Telegram's Terms of Service. Requesting immediate action."
 
 	await _bot.send_message(uid,
-		f"🤖 *ИИ сгенерировал текст жалобы:*\n\n`{generated}`\n\n*Использовать этот текст?*",
+		f"🤖 *ИИ сгенерировал текст жалобы:*\n\n{generated}\n\n*Использовать этот текст?*",
 		parse_mode="Markdown",
 		reply_markup=keyboards.tida_text_confirm_markup())
 
@@ -4130,7 +4130,7 @@ async def bank_step1(message: types.Message, state: FSMContext):
 		except Exception as e: print(f"[HISTORY] bank log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[BANK] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -4165,7 +4165,7 @@ async def code_step1(message: types.Message, state: FSMContext):
 		await main_code_snos(phone, uid, username, notify_bot=_bot)
 	except Exception as e:
 		print(f"[CODE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -4212,7 +4212,7 @@ async def support_step2(message: types.Message, state: FSMContext):
 	await state.finish()
 
 	if len(phone) < 7 or not any(c.isdigit() for c in phone):
-		await _bot.send_message(uid, '❌ *Некорректный номер телефона.*\nФормат: `+79991234567`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, '❌ *Некорректный номер телефона.*\nФормат: +79991234567', parse_mode="Markdown", reply_markup=main_menu)
 		if _is_mirror_bot:
 			try:
 				s = await _bot.get_session(); await s.close()
@@ -4242,7 +4242,7 @@ async def support_step2(message: types.Message, state: FSMContext):
 			pass
 	except Exception as e:
 		print(f"[SUPPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -4310,7 +4310,7 @@ async def domain_killer_step2(message: types.Message, state: FSMContext):
 		except Exception as e: print(f"[HISTORY] domain_killer log error: {e}", flush=True)
 	except Exception as e:
 		print(f"[DOMAIN_KILLER] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -4354,7 +4354,7 @@ async def trap_step1(message: types.Message, state: FSMContext):
 	_trap_sessions.pop(uid, None)
 
 	await _bot.send_message(uid,
-		f"🔄 *Передаю владельца `@{trap_data['bot_username']}` → `@{raw}`...*",
+		f"🔄 *Передаю владельца *@{trap_data['bot_username']}* → *@{raw}*...*",
 		parse_mode="Markdown")
 
 	try:
@@ -4368,7 +4368,7 @@ async def trap_step1(message: types.Message, state: FSMContext):
 		)
 	except Exception as e:
 		print(f"[TRAP] trap_step1 error: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка trap:* `{str(e)[:100]}`',
+		await _bot.send_message(uid, f'❌ *Ошибка trap:* {str(e)[:100]}',
 			parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
@@ -4396,7 +4396,7 @@ async def profile_step1(message: types.Message, state: FSMContext):
 
 	await _bot.send_message(
 		uid,
-		f'👤 *\[ТЕСТ\] Запускаю Profile Report на* `{raw}`*...*\n'
+		f'👤 *\[ТЕСТ\] Запускаю Profile Report на* {raw}*...*\n'
 		f'*└─ Метод: Spam → Defamation/Insult*',
 		parse_mode="Markdown"
 	)
@@ -4409,7 +4409,7 @@ async def profile_step1(message: types.Message, state: FSMContext):
 		import traceback
 		print(f"[PROFILE] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		traceback.print_exc()
-		await _bot.send_message(uid, f'❌ *Ошибка Profile-метода:* `{str(e)[:100]}`',
+		await _bot.send_message(uid, f'❌ *Ошибка Profile-метода:* {str(e)[:100]}',
 			parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
@@ -4468,7 +4468,7 @@ async def stress_step1(message: types.Message, state: FSMContext):
 		print(f"[STRESS] ОШИБКА: {e}", flush=True)
 		import traceback
 		traceback.print_exc()
-		await _bot.send_message(uid, f'❌ *Ошибка стрессера:* `{str(e)[:100]}`', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ *Ошибка стрессера:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -4513,11 +4513,11 @@ async def add_sub_uid(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден в базе.", parse_mode="Markdown")
+			await message.answer(f"❌ Пользователь {raw} не найден в базе.", parse_mode="Markdown")
 			await state.finish()
 			return
 		await state.update_data(user_id=target)
-		await message.answer(f"🎱 *ID найден:* `{target}`\n*Введите количество дней:*", parse_mode=ParseMode.MARKDOWN)
+		await message.answer(f"🎱 *ID найден:* {target}\n*Введите количество дней:*", parse_mode=ParseMode.MARKDOWN)
 		await state.set_state(AddSubscribeFSM.days.state)
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
@@ -4530,13 +4530,13 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 		new_date = (now_msk() + timedelta(days=int(message.text))).strftime("%Y-%m-%d %H:%M:%S")
 		await db.set_subscribe(target, new_date)
 		await state.finish()
-		await _notify_user(target, f"🎱 *Подписка обновлена до* `{new_date}`", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
-		await message.answer(f"🎱 *Готово! Подписка выдана* `{target}` *до* `{new_date}`", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* `{target}` до `{new_date}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
+		await _notify_user(target, f"🎱 *Подписка обновлена до* {new_date}", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
+		await message.answer(f"🎱 *Готово! Подписка выдана* {target} *до* {new_date}", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* {target} до {new_date} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ Введите число дней (например: 7).")
 	except Exception as e:
-		await message.answer(f"❌ Ошибка: `{str(e)[:100]}`", parse_mode="Markdown")
+		await message.answer(f"❌ Ошибка: {str(e)[:100]}", parse_mode="Markdown")
 		await state.finish()
 
 @dp.message_handler(state=ClearSubscribeFSM.user_id)
@@ -4545,12 +4545,12 @@ async def clear_sub_uid(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+			await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_subscribe(target, "1999-01-01 00:00:00", force=True)
 		await state.finish()
 		await _notify_user(target, "*🎱 Подписка сброшена.*", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
-		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎱 *Сброшена подписка* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
+		await message.answer(f"*🎱 Сброшено у* {target}*!*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎱 *Сброшена подписка* {target} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -4560,14 +4560,14 @@ async def add_prem_uid(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+			await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_premium(target, 1)
 		await state.finish()
 		await _notify_user(target, "*👑 Вам выдан Premium.*", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
-		await message.answer(f"*🎱 Премиум выдан* `{target}`*!*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"👑 *Выдан премиум* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
+		await message.answer(f"*🎱 Премиум выдан* {target}*!*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"👑 *Выдан премиум* {target} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
 	except Exception as e:
-		await message.answer(f"❌ Ошибка: `{str(e)[:100]}`", parse_mode="Markdown")
+		await message.answer(f"❌ Ошибка: {str(e)[:100]}", parse_mode="Markdown")
 		await state.finish()
 
 @dp.message_handler(state=ClearPremFSM.user_id)
@@ -4576,12 +4576,12 @@ async def clear_prem_uid(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+			await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.set_premium(target, 0)
 		await state.finish()
 		await _notify_user(target, "*🎱 Премиум сброшен.*", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
-		await message.answer(f"*🎱 Сброшено у* `{target}`*!*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"👑 *Сброшен премиум* `{target}` | *Админ:* `{message.from_user.id}`", parse_mode="Markdown")
+		await message.answer(f"*🎱 Сброшено у* {target}*!*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"👑 *Сброшен премиум* {target} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -4656,11 +4656,11 @@ async def enter_promo(message: types.Message, state: FSMContext):
 		markup = types.InlineKeyboardMarkup()
 		markup.add(types.InlineKeyboardButton("✅ Проверить", callback_data='promo_check_name'))
 		await message.answer(
-			"*❌ Для активации промокода добавьте* `@Brrown_V2bot` *в своё имя или фамилию в Telegram!*\n\n"
+			"*❌ Для активации промокода добавьте* *@Brrown_V2bot* *в своё имя или фамилию в Telegram!*\n\n"
 			"*Как это сделать:*\n"
 			"*1. Зайди в настройки Telegram*\n"
 			"*2. Изменить профиль → Имя или Фамилия*\n"
-			"*3. Добавь* `@Brrown_V2bot` *и сохрани*\n\n"
+			"*3. Добавь* *@Brrown_V2bot* *и сохрани*\n\n"
 			"*После изменения нажми кнопку ниже:*",
 			parse_mode="Markdown",
 			reply_markup=markup
@@ -4690,17 +4690,17 @@ async def enter_promo(message: types.Message, state: FSMContext):
 	if promo_type == 'premium':
 		await db.set_premium(uid, 1)
 		await message.answer(f"*✅ Промокод активирован!*\n*👑 Вам выдан Premium навсегда!*", parse_mode='Markdown')
-		await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — 👑 Премиум", parse_mode='Markdown')
+		await bot.send_message(bot_logs, f"🎁 {uid} активировал промокод {code} — 👑 Премиум", parse_mode='Markdown')
 	elif promo_type == 'reports':
 		reports_count = days  # в поле days хранится кол-во репортов
 		await db.add_free_reports(uid, reports_count)
 		await message.answer(f"*✅ Промокод активирован!*\n*🎯 Вам начислено: {reports_count} бесплатных репортов!*", parse_mode='Markdown')
-		await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — 🎯 {reports_count} репортов", parse_mode='Markdown')
+		await bot.send_message(bot_logs, f"🎁 {uid} активировал промокод {code} — 🎯 {reports_count} репортов", parse_mode='Markdown')
 	else:
 		new_date = (now_msk() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
 		await db.set_subscribe(uid, new_date)
 		await message.answer(f"*✅ Промокод активирован!*\n*Ваш подарок: {days} дней!*", parse_mode='Markdown')
-		await bot.send_message(bot_logs, f"🎁 `{uid}` активировал промокод `{code}` — {days} дней", parse_mode='Markdown')
+		await bot.send_message(bot_logs, f"🎁 {uid} активировал промокод {code} — {days} дней", parse_mode='Markdown')
 
 # ─── Блокировка/разблокировка (админ) ────────────────────────────────────────
 
@@ -4710,11 +4710,11 @@ async def admin_block_user(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+			await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.block_user(target)
 		await state.finish()
 		await message.answer(f"🚫 *Пользователь {target} заблокирован.*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🚫 *Заблокирован* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🚫 *Заблокирован* {target} *админом* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -4724,11 +4724,11 @@ async def admin_unblock_user(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+			await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.unblock_user(target)
 		await state.finish()
 		await message.answer(f"✅ *Пользователь {target} разблокирован.*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"✅ *Разблокирован* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"✅ *Разблокирован* {target} *админом* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -4738,19 +4738,19 @@ async def admin_check_user_fsm(message: types.Message, state: FSMContext):
 	raw = message.text.strip()
 	uid_target = await db.resolve_user(raw)
 	if not uid_target:
-		await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown")
+		await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown")
 		return
 	user = await db.get_user(uid_target)
 	if not user:
-		await message.answer(f"❌ Пользователь `{uid_target}` не найден в БД.", parse_mode="Markdown")
+		await message.answer(f"❌ Пользователь {uid_target} не найден в БД.", parse_mode="Markdown")
 		return
 
 	now = datetime.now()
 	sub_dt = user.get("subscribe")
 	if sub_dt and sub_dt.year > 2000 and sub_dt > now:
-		sub_str = f"✅ до `{sub_dt.strftime('%d.%m.%Y %H:%M')}`"
+		sub_str = f"✅ до {sub_dt.strftime('%d.%m.%Y %H:%M')}"
 	elif sub_dt and sub_dt.year > 2000:
-		sub_str = f"❌ истекла `{sub_dt.strftime('%d.%m.%Y %H:%M')}`"
+		sub_str = f"❌ истекла {sub_dt.strftime('%d.%m.%Y %H:%M')}"
 	else:
 		sub_str = "❌ нет"
 
@@ -4769,19 +4769,19 @@ async def admin_check_user_fsm(message: types.Message, state: FSMContext):
 	if manual: badges.append("🤝 Ручное")
 	badges_str = "  •  ".join(badges) if badges else "—"
 
-	uname_str = f"`@{username_str}` " if username_str else ""
+	uname_str = f"*@{username_str}* " if username_str else ""
 	text = (
-		f"👤 *Пользователь {uname_str}*`{uid_target}`\n\n"
+		f"👤 *Пользователь {uname_str}*{uid_target}\n\n"
 		f"*├─ Статусы:* {badges_str}\n"
 		f"*├─ Подписка:* {sub_str}\n"
-		f"*├─ Язык:* `{lang.upper()}`\n"
-		f"*├─ Бесплат. репортов:* `{free_reports}`\n"
-		f"*├─ Рефералов:* `{referral_count}`\n"
+		f"*├─ Язык:* {lang.upper()}\n"
+		f"*├─ Бесплат. репортов:* {free_reports}\n"
+		f"*├─ Рефералов:* {referral_count}\n"
 	)
 	if referrer_id:
 		referrer = await db.get_user(referrer_id)
 		ref_uname = referrer.get("username") if referrer else None
-		ref_str = f"`@{ref_uname}` `{referrer_id}`" if ref_uname else f"`{referrer_id}`"
+		ref_str = f"*@{ref_uname}* {referrer_id}" if ref_uname else f"{referrer_id}"
 		text += f"*├─ Пригласил:* {ref_str}\n"
 
 	try:
@@ -4792,7 +4792,7 @@ async def admin_check_user_fsm(message: types.Message, state: FSMContext):
 				"SELECT target_url, method, success_count, created_at FROM attack_log WHERE user_id=$1 ORDER BY created_at DESC LIMIT 3",
 				uid_target
 			)
-		text += f"*└─ Оплат:* `{invoices or 0}`\n"
+		text += f"*└─ Оплат:* {invoices or 0}\n"
 	except Exception:
 		reports = []
 		text += f"*└─ Оплат:* нет данных\n"
@@ -4801,7 +4801,7 @@ async def admin_check_user_fsm(message: types.Message, state: FSMContext):
 		text += "\n📋 *Последние репорты:*\n"
 		for r in reports:
 			dt_str = r["created_at"].strftime("%d.%m %H:%M")
-			text += f"*•* `{r['method']}` → `{r['target_url'][:40]}` ✅`{r['success_count']}` _{dt_str}_\n"
+			text += f"*•* {r['method']} → {r['target_url'][:40]} ✅{r['success_count']} _{dt_str}_\n"
 	else:
 		text += "\n📋 *Репортов нет*"
 
@@ -4813,11 +4813,11 @@ async def admin_send_msg_target(message: types.Message, state: FSMContext):
 	raw = message.text.strip()
 	uid_target = await db.resolve_user(raw)
 	if not uid_target:
-		await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown")
+		await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown")
 		await state.finish()
 		return
 	await state.update_data(send_target=uid_target)
-	await message.answer(f"✉️ *Цель:* `{uid_target}`\n*└─ Введите текст сообщения:*", parse_mode="Markdown")
+	await message.answer(f"✉️ *Цель:* {uid_target}\n*└─ Введите текст сообщения:*", parse_mode="Markdown")
 	await state.set_state(AdminSendMsgFSM.text.state)
 
 @dp.message_handler(state=AdminSendMsgFSM.text)
@@ -4833,13 +4833,13 @@ async def admin_send_msg_text(message: types.Message, state: FSMContext):
 			await _mirror_bots[token].send_message(uid_target, text)
 		else:
 			await bot.send_message(uid_target, text)
-		await message.answer(f"✅ *Сообщение отправлено* `{uid_target}`", parse_mode="Markdown")
+		await message.answer(f"✅ *Сообщение отправлено* {uid_target}", parse_mode="Markdown")
 		await bot.send_message(bot_logs,
-			f"✉️ *Личное сообщение*\n👤 *От админа:* `{message.from_user.id}` (`@{message.from_user.username or 'None'}`)\n"
-			f"🎯 *Кому:* `{uid_target}`\n📝 *Текст:* {text[:300]}",
+			f"✉️ *Личное сообщение*\n👤 *От админа:* {message.from_user.id} (*@{message.from_user.username or 'None'}*)\n"
+			f"🎯 *Кому:* {uid_target}\n📝 *Текст:* {text[:300]}",
 			parse_mode="Markdown")
 	except Exception as e:
-		await message.answer(f"❌ Не удалось отправить: `{e}`", parse_mode="Markdown")
+		await message.answer(f"❌ Не удалось отправить: {e}", parse_mode="Markdown")
 
 @dp.message_handler(state=DeleteUserFSM.user_id)
 async def admin_delete_user(message: types.Message, state: FSMContext):
@@ -4847,11 +4847,11 @@ async def admin_delete_user(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+			await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown"); await state.finish(); return
 		await db.delete_user(target)
 		await state.finish()
 		await message.answer(f"🗑 *Пользователь {target} удалён из базы.*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🗑 *Удалён из БД* `{target}` *админом* `{message.from_user.id}`", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🗑 *Удалён из БД* {target} *админом* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -4866,13 +4866,13 @@ async def create_promo_code(message: types.Message, state: FSMContext):
 	promo_type = data.get('promo_type', 'normal')
 	if promo_type == 'premium':
 		# Для премиума дни не нужны — сразу к активациям
-		await message.answer(f"👑 *Код:* `{code}`\n\n*Введите количество активаций:*", parse_mode="Markdown")
+		await message.answer(f"👑 *Код:* {code}\n\n*Введите количество активаций:*", parse_mode="Markdown")
 		await CreatePromoFSM.activations.set()
 	elif promo_type == 'reports':
-		await message.answer(f"🎯 *Код:* `{code}`\n\n*Введите количество бесплатных репортов:*", parse_mode="Markdown")
+		await message.answer(f"🎯 *Код:* {code}\n\n*Введите количество бесплатных репортов:*", parse_mode="Markdown")
 		await CreatePromoFSM.days.set()
 	else:
-		await message.answer(f"💎 *Код:* `{code}`\n\n*Введите количество дней подписки:*", parse_mode="Markdown")
+		await message.answer(f"💎 *Код:* {code}\n\n*Введите количество дней подписки:*", parse_mode="Markdown")
 		await CreatePromoFSM.days.set()
 
 @dp.message_handler(state=CreatePromoFSM.days)
@@ -4882,7 +4882,7 @@ async def create_promo_days(message: types.Message, state: FSMContext):
 		if days <= 0:
 			raise ValueError
 		await state.update_data(days=days)
-		await message.answer(f"💎 *Дней:* `{days}`\n\n*Введите количество активаций:*", parse_mode="Markdown")
+		await message.answer(f"💎 *Дней:* {days}\n\n*Введите количество активаций:*", parse_mode="Markdown")
 		await CreatePromoFSM.activations.set()
 	except ValueError:
 		await message.answer("❌ Введите число больше 0.")
@@ -4903,30 +4903,30 @@ async def create_promo_activations(message: types.Message, state: FSMContext):
 			if promo_type == 'premium':
 				await message.answer(
 					f"✅ *Премиум промокод создан!*\n\n"
-					f"👑 *Код:* `{code}`\n"
-					f"🔢 *Активаций:* `{activations}`\n"
+					f"👑 *Код:* {code}\n"
+					f"🔢 *Активаций:* {activations}\n"
 					f"*└─ Выдаёт: Премиум навсегда*",
 					parse_mode="Markdown")
 			elif promo_type == 'reports':
 				reports_count = days  # в поле days хранится кол-во репортов
 				await message.answer(
 					f"✅ *Промокод на репорты создан!*\n\n"
-					f"🎯 *Код:* `{code}`\n"
-					f"🎯 *Репортов:* `{reports_count}`\n"
-					f"🔢 *Активаций:* `{activations}`",
+					f"🎯 *Код:* {code}\n"
+					f"🎯 *Репортов:* {reports_count}\n"
+					f"🔢 *Активаций:* {activations}",
 					parse_mode="Markdown")
 			else:
 				await message.answer(
 					f"✅ *Промокод создан!*\n\n"
-					f"💎 *Код:* `{code}`\n"
-					f"📅 *Дней:* `{days}`\n"
-					f"🔢 *Активаций:* `{activations}`",
+					f"💎 *Код:* {code}\n"
+					f"📅 *Дней:* {days}\n"
+					f"🔢 *Активаций:* {activations}",
 					parse_mode="Markdown")
 			await bot.send_message(bot_logs,
-				f"💎 *Создан промокод* `{code}` ({'👑 Премиум' if promo_type == 'premium' else ('🎯 ' + str(days) + ' репортов') if promo_type == 'reports' else f'📅 {days} дней'}), {activations} акт. *администратором* `{message.from_user.id}`",
+				f"💎 *Создан промокод* {code} ({'👑 Премиум' if promo_type == 'premium' else ('🎯 ' + str(days) + ' репортов') if promo_type == 'reports' else f'📅 {days} дней'}), {activations} акт. *администратором* {message.from_user.id}",
 				parse_mode="Markdown")
 		except Exception:
-			await message.answer(f"❗️ *Промокод* `{code}` *уже существует!*", parse_mode="Markdown")
+			await message.answer(f"❗️ *Промокод* {code} *уже существует!*", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ Введите число больше 0.")
 
@@ -4936,9 +4936,9 @@ async def admin_add_reports_uid(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+			await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown"); await state.finish(); return
 		await state.update_data(user_id=target)
-		await message.answer(f"🎯 *ID:* `{target}`\n*Сколько репортов выдать?*", parse_mode="Markdown")
+		await message.answer(f"🎯 *ID:* {target}\n*Сколько репортов выдать?*", parse_mode="Markdown")
 		await AdminAddReportsFSM.amount.set()
 	except ValueError:
 		await message.answer("❌ Ошибка.")
@@ -4953,8 +4953,8 @@ async def admin_add_reports_amount(message: types.Message, state: FSMContext):
 		await db.add_free_reports(target, amount)
 		await state.finish()
 		current = await db.get_free_reports(target)
-		await message.answer(f"✅ *Выдано {amount} репортов* `{target}`\n*Итого: {current}*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎯 *+{amount} репортов* `{target}` *от админа* `{message.from_user.id}`", parse_mode="Markdown")
+		await message.answer(f"✅ *Выдано {amount} репортов* {target}\n*Итого: {current}*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎯 *+{amount} репортов* {target} *от админа* {message.from_user.id}", parse_mode="Markdown")
 		try:
 			await bot.send_message(target, f"🎯 *Вам выдано {amount} бесплатных репортов!*\n*Итого: {current}*", parse_mode="Markdown")
 		except Exception:
@@ -4963,7 +4963,7 @@ async def admin_add_reports_amount(message: types.Message, state: FSMContext):
 		await message.answer("❌ Введите число.")
 		await state.finish()
 	except Exception as e:
-		await message.answer(f"❌ Ошибка: `{str(e)[:100]}`", parse_mode="Markdown")
+		await message.answer(f"❌ Ошибка: {str(e)[:100]}", parse_mode="Markdown")
 		await state.finish()
 
 @dp.message_handler(state=AdminRemoveReportsFSM.user_id)
@@ -4972,9 +4972,9 @@ async def admin_remove_reports_uid(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown"); await state.finish(); return
+			await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown"); await state.finish(); return
 		await state.update_data(user_id=target)
-		await message.answer(f"🎯 *ID:* `{target}`\n*Сколько репортов забрать?*", parse_mode="Markdown")
+		await message.answer(f"🎯 *ID:* {target}\n*Сколько репортов забрать?*", parse_mode="Markdown")
 		await AdminRemoveReportsFSM.amount.set()
 	except Exception:
 		await message.answer("❌ Ошибка.")
@@ -4990,8 +4990,8 @@ async def admin_remove_reports_amount(message: types.Message, state: FSMContext)
 		new_amount = max(0, current - amount)
 		await db.set_free_reports(target, new_amount)
 		await state.finish()
-		await message.answer(f"✅ *Забрано {amount} репортов* `{target}`\n*Осталось: {new_amount}*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎯 *-{amount} репортов* `{target}` *от админа* `{message.from_user.id}`", parse_mode="Markdown")
+		await message.answer(f"✅ *Забрано {amount} репортов* {target}\n*Осталось: {new_amount}*", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎯 *-{amount} репортов* {target} *от админа* {message.from_user.id}", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ Введите число.")
 		await state.finish()
@@ -5004,11 +5004,11 @@ async def admin_add_case_uid(message: types.Message, state: FSMContext):
 		raw = message.text.strip()
 		target = await db.resolve_user(raw)
 		if not target:
-			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown")
+			await message.answer(f"❌ Пользователь {raw} не найден.", parse_mode="Markdown")
 			await state.finish()
 			return
 		await state.update_data(user_id=target)
-		await message.answer(f"🎁 *ID:* `{target}`\n*Сколько кейсов выдать?*", parse_mode="Markdown")
+		await message.answer(f"🎁 *ID:* {target}\n*Сколько кейсов выдать?*", parse_mode="Markdown")
 		await AdminAddCaseFSM.amount.set()
 	except Exception:
 		await message.answer("❌ Ошибка.")
@@ -5025,8 +5025,8 @@ async def admin_add_case_amount(message: types.Message, state: FSMContext):
 		for _ in range(amount):
 			await db.add_case(target)
 		await state.finish()
-		await message.answer(f"✅ *Выдано {amount} кейс(ов)* пользователю `{target}`", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎁 *+{amount} кейс(ов)* `{target}` *от админа* `{message.from_user.id}`", parse_mode="Markdown")
+		await message.answer(f"✅ *Выдано {amount} кейс(ов)* пользователю {target}", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"🎁 *+{amount} кейс(ов)* {target} *от админа* {message.from_user.id}", parse_mode="Markdown")
 		try:
 			await bot.send_message(target,
 				f"🎁 *Вам выдано {amount} кейс(ов)!*\n*└─ Откройте их в разделе «🎁 Кейс» в главном меню*",
@@ -5037,7 +5037,7 @@ async def admin_add_case_amount(message: types.Message, state: FSMContext):
 		await message.answer("❌ Введите число больше 0.")
 		await state.finish()
 	except Exception as e:
-		await message.answer(f"❌ Ошибка: `{str(e)[:100]}`", parse_mode="Markdown")
+		await message.answer(f"❌ Ошибка: {str(e)[:100]}", parse_mode="Markdown")
 		await state.finish()
 
 # ─── Запуск ───────────────────────────────────────────────────────────────────
@@ -5053,11 +5053,11 @@ async def _trap_create(uid: int, username: str, bot_token_instance: str):
 				"bot_username": result["bot_username"],
 			}
 		else:
-			await _bot.send_message(uid, f'❌ *Ошибка trap:* `{result.get("error","")}`',
+			await _bot.send_message(uid, f'❌ *Ошибка trap:* {result.get("error","")}',
 				parse_mode="Markdown", reply_markup=main_menu)
 	except Exception as e:
 		print(f"[TRAP] _trap_create error: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка trap:* `{str(e)[:100]}`',
+		await _bot.send_message(uid, f'❌ *Ошибка trap:* {str(e)[:100]}',
 			parse_mode="Markdown", reply_markup=main_menu)
 
 
@@ -5188,7 +5188,7 @@ async def _weekly_leaderboard_loop():
 			_lines = [f"🏆 *Итоги рейтинга* ({_week_label})\n"]
 			if _top3:
 				for _i, _row in enumerate(_top3, 1):
-					_uname = f"`@{_row['username']}`" if _row['username'] else f"ID {_row['user_id']}"
+					_uname = f"*@{_row['username']}*" if _row['username'] else f"ID {_row['user_id']}"
 					_prize = _PRIZES[_i]
 					_lines.append(f"{_MEDALS[_i]} {_uname} — {_row['total']} репортов → *{_prize} ⭐*")
 				_lines.append("\n_Stars будут зачислены победителям в течение 24ч_")
@@ -5302,7 +5302,7 @@ async def admin_login_action(call: types.CallbackQuery):
                 "INSERT INTO admin_blocklist (ip) VALUES ($1) ON CONFLICT (ip) DO NOTHING", row["ip"]
             )
             await conn.execute("UPDATE admin_logins SET status='blocked' WHERE id=$1", login_id)
-            suffix = "\n\n🚫 *Заблокировано*\nIP `" + row["ip"] + "` занесён в чёрный список навсегда"
+            suffix = "\n\n🚫 *Заблокировано*\nIP " + row["ip"] + " занесён в чёрный список навсегда"
     finally:
         await conn.close()
     orig = call.message.text or ""
@@ -5416,7 +5416,7 @@ async def media_confirmed(call: types.CallbackQuery, state: FSMContext):
         sub_id = row['id']
 
     pname = PLATFORM_NAMES.get(platform, platform)
-    uname_str = f"`@{username}`" if username else f"ID {uid}"
+    uname_str = f"*@{username}*" if username else f"ID {uid}"
 
     # Notify admin
     try:
@@ -5490,7 +5490,7 @@ async def media_admin_approve(call: types.CallbackQuery, state: FSMContext):
     await call.message.reply(
         f"✅ Одобрение заявки #{sub_id}\n\n"
         "Отправь комментарий и сумму выплаты в одном сообщении.\n"
-        "Например: `Отличное видео! $5`"
+        "Например: Отличное видео! $5"
     )
     await call.answer()
 
@@ -5604,14 +5604,14 @@ async def universal_step_link(message: types.Message, state: FSMContext):
 
 	if parsed["type"] == TYPE_INVALID:
 		await _bot.send_message(uid,
-			f"❌ *Неверная ссылка*\n`{parsed['error']}`\n\nПопробуйте ещё раз:",
+			f"❌ *Неверная ссылка*\n{parsed['error']}\n\nПопробуйте ещё раз:",
 			parse_mode="Markdown", reply_markup=main_menu)
 		return
 
 	if parsed["type"] == TYPE_PRIVATE_CHANNEL:
 		await state.finish()
 		await _bot.send_message(uid,
-			"❌ *Приватные ссылки* `t.me/c/...` *не поддерживаются*",
+			"❌ *Приватные ссылки* t.me/c/... *не поддерживаются*",
 			parse_mode="Markdown", reply_markup=main_menu)
 		return
 
@@ -5623,7 +5623,7 @@ async def universal_step_link(message: types.Message, state: FSMContext):
 		await state.finish()
 		await _bot.delete_message(uid, wait_msg.message_id)
 		await _bot.send_message(uid,
-			f"❌ *Ссылка недействительна*\n`{parsed.get('error', 'Не найдено')}`",
+			f"❌ *Ссылка недействительна*\n{parsed.get('error', 'Не найдено')}",
 			parse_mode="Markdown", reply_markup=main_menu)
 		return
 
@@ -5643,7 +5643,7 @@ async def universal_step_link(message: types.Message, state: FSMContext):
 		ltype = link_type_labels.get(parsed["type"], "")
 		await _bot.send_message(uid,
 			f"✅ *Ссылка принята* — {ltype}\n"
-			f"`{parsed['normalized']}`\n\n"
+			f"{parsed['normalized']}\n\n"
 			"*└─ Опишите нарушение для TIDA-жалобы:*\n"
 			"_(1-2 предложения на английском / русском)_",
 			parse_mode="Markdown", reply_markup=main_menu)
@@ -5652,7 +5652,7 @@ async def universal_step_link(message: types.Message, state: FSMContext):
 	# Без TIDA — сразу запуск
 	await state.finish()
 	status_msg = await _bot.send_message(uid,
-		f"⚙️ *Универсальный метод* — `{parsed['normalized']}`\n\n⏳ Запускаю...",
+		f"⚙️ *Универсальный метод* — {parsed['normalized']}\n\n⏳ Запускаю...",
 		parse_mode="Markdown")
 	cd_state = {
 		"user": uid, "admins": admins, "no_kd": no_kd,
@@ -5679,7 +5679,7 @@ async def universal_step_tida_text(message: types.Message, state: FSMContext):
 	await state.finish()
 
 	status_msg = await _bot.send_message(uid,
-		f"⚙️ *Универсальный метод* — `{parsed.get('normalized', '')}`\n\n⏳ Запускаю...",
+		f"⚙️ *Универсальный метод* — {parsed.get('normalized', '')}\n\n⏳ Запускаю...",
 		parse_mode="Markdown")
 	cd_state = {
 		"user": uid, "admins": admins, "no_kd": no_kd,

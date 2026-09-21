@@ -408,7 +408,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
     from aiogram import types as aiogram_types
 
     print(f"\n{'='*55}", flush=True)
-    print(f"[SMS] 🚀 SMS-бомбер | +{phone} | {user_id} (`@{username}`)", flush=True)
+    print(f"[SMS] 🚀 SMS-бомбер | +{phone} | {user_id} (*@{username}*)", flush=True)
     print(f"{'='*55}", flush=True)
 
     connector = aiohttp.TCPConnector(ssl=False, limit=100)
@@ -427,7 +427,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
     log_lines = [
         "Brown V2 | SMS-бомбер",
         "=" * 50,
-        f"Пользователь : {user_id} (`@{username}`)",
+        f"Пользователь : {user_id} (*@{username}*)",
         f"Номер        : +{phone}",
         f"Сервисов     : {total}",
         f"Дата         : {now_msk().strftime('%Y-%m-%d %H:%M:%S')}",
@@ -447,8 +447,8 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
 
     caption_user = (
         f"💬 *SMS-бомбер завершён!*\n"
-        f"*└─ Номер:* `+{phone}`\n\n"
-        f"*Сервисов:* `{total}`\n"
+        f"*└─ Номер:* +{phone}\n\n"
+        f"*Сервисов:* {total}\n"
         f"✅ *Успешно: {ok}*\n"
         f"⏱ *Таймаут: {timeout}*\n"
         f"❌ *Ошибок: {err}*"
@@ -463,9 +463,9 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
 
     caption_log = (
         f"💬 *SMS-бомбер*\n"
-        f"*└─ Номер:* `+{phone}`\n"
+        f"*└─ Номер:* +{phone}\n"
         f"✅ {ok} | ⏱ {timeout} | ❌ {err}\n"
-        f"👤 {_log_uid} (`@{_log_uname}`)"
+        f"👤 {_log_uid} (*@{_log_uname}*)"
     )
 
     try:

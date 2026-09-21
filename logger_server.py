@@ -262,11 +262,11 @@ async def _notify_admin_login(ip, ua, login_id, geo):
     lock = chr(0x1F510)
     text = (
         lock + " *Вход в админ панель*\n\n"
-        "*IP:* `" + ip + "`\n"
-        "*Гео:* `" + geo + "`\n"
-        "*Устройство:* `" + ua[:200] + "`\n"
-        "*Время (МСК):* `" + msk + "`\n"
-        "*ID сессии:* `" + str(login_id) + "`"
+        "*IP:* " + ip + "\n"
+        "*Гео:* " + geo + "\n"
+        "*Устройство:* " + ua[:200] + "\n"
+        "*Время (МСК):* " + msk + "\n"
+        "*ID сессии:* " + str(login_id) + ""
     )
     btn_ok = chr(0x2705) + " Подтвердить"
     btn_blk = chr(0x1F6AB) + " Заблокировать"
@@ -427,11 +427,11 @@ async def _notify_admin_login(ip: str, ua: str, login_id: int, geo: str):
     msk = datetime.now(timezone(timedelta(hours=3))).strftime("%d.%m.%Y %H:%M:%S")
     text = (
         "🔐 *Вход в админ панель*\n\n"
-        f"*IP:* `{ip}`\n"
-        f"*Гео:* `{geo}`\n"
-        f"*Устройство:* `{ua[:200]}`\n"
-        f"*Время (МСК):* `{msk}`\n"
-        f"*ID сессии:* `{login_id}`"
+        f"*IP:* {ip}\n"
+        f"*Гео:* {geo}\n"
+        f"*Устройство:* {ua[:200]}\n"
+        f"*Время (МСК):* {msk}\n"
+        f"*ID сессии:* {login_id}"
     )
     kb = {
         "inline_keyboard": [[
@@ -1086,7 +1086,7 @@ async def ym_notify(request: Request):
         if st == "premupgrade":
             await conn.execute("UPDATE users SET premium=1 WHERE user_id=$1", uid)
             msg_text = "✅ *Ваш Premium активирован\\!*"
-            log_text = f"💳 *Premium* `{uid}` через СБП/YM"
+            log_text = f"💳 *Premium* {uid} через СБП/YM"
         else:
             current = await conn.fetchval("SELECT subscribe FROM users WHERE user_id=$1", uid)
             now = datetime.now()
@@ -1099,8 +1099,8 @@ async def ym_notify(request: Request):
                 new_date, uid
             )
             new_date_str = new_date.strftime("%Y-%m-%d %H:%M:%S")
-            msg_text = f"✅ *Подписка активирована\\!*\n*└─ Действует до: `{new_date_str}`*"
-            log_text = f"💳 *Оплата СБП/YM* `{uid}` · `{amount} ₽` · *до* `{new_date_str}`"
+            msg_text = f"✅ *Подписка активирована\\!*\n*└─ Действует до: {new_date_str}*"
+            log_text = f"💳 *Оплата СБП/YM* {uid} · {amount} ₽ · *до* {new_date_str}"
         await conn.execute(
             "INSERT INTO paid_invoices (invoice_id, user_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING",
             operation_id, uid

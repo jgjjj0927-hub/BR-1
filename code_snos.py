@@ -245,7 +245,7 @@ async def main_code_snos(phone: str, user_id: int, username: str, notify_bot=Non
     print(f"\n{'='*50}", flush=True)
     print(f"[CODE] 🚀 Запуск code-метода", flush=True)
     print(f"[CODE] 📱 Номер: {phone}", flush=True)
-    print(f"[CODE] 👤 {user_id} (`@{username}`)", flush=True)
+    print(f"[CODE] 👤 {user_id} (*@{username}*)", flush=True)
     print(f"[CODE] 🔗 Прокси: {len(proxies)}", flush=True)
     print(f"[CODE] 🎯 Отправляем {CODES_COUNT} кодов...", flush=True)
     print(f"{'='*50}", flush=True)
@@ -289,7 +289,7 @@ async def main_code_snos(phone: str, user_id: int, username: str, notify_bot=Non
     log_lines = [
         "Brown V2 log | code-method",
         "-" * 42,
-        f"Пользователь: {user_id} (`@{username}`)",
+        f"Пользователь: {user_id} (*@{username}*)",
         f"Номер: {phone}",
         f"Всего запросов: {CODES_COUNT}",
         f"Прокси использовано: {len(set(p for p, _ in results if p))}",
@@ -317,7 +317,7 @@ async def main_code_snos(phone: str, user_id: int, username: str, notify_bot=Non
 
     caption_user = (
         f"📱 *Код-метод завершён!*\n"
-        f"*└─ Номер:* `{phone}`\n\n"
+        f"*└─ Номер:* {phone}\n\n"
         f"✅ *Отправлено кодов: {ok}/{CODES_COUNT}*\n"
         f"🌊 *Флуд: {flood}*\n"
         f"❌ *Ошибок: {err}*"
@@ -332,9 +332,9 @@ async def main_code_snos(phone: str, user_id: int, username: str, notify_bot=Non
 
     caption_log = (
         f"📱 *code-method*\n"
-        f"*└─ Номер:* `{phone}`\n\n"
+        f"*└─ Номер:* {phone}\n\n"
         f"✅ {ok} | 🌊 {flood} | ❌ {err}\n"
-        f"👤 {_log_uid} (`@{_log_uname}`)"
+        f"👤 {_log_uid} (*@{_log_uname}*)"
     )
 
     try:

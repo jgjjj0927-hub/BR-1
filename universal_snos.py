@@ -209,10 +209,10 @@ async def validate_link(parsed: dict) -> dict:
         try:
             entity = await asyncio.wait_for(client.get_entity(uname), timeout=10)
         except asyncio.TimeoutError:
-            logger.warning(f"[UNIVERSAL] get_entity timeout для `@{uname}`")
+            logger.warning(f"[UNIVERSAL] get_entity timeout для *@{uname}*")
             return {**parsed, "valid": True}
         except (UsernameNotOccupiedError, UsernameInvalidError):
-            return {**parsed, "valid": False, "error": f"`@{uname}` не существует"}
+            return {**parsed, "valid": False, "error": f"*@{uname}* не существует"}
         except ChannelPrivateError:
             return {**parsed, "valid": False, "error": "Канал приватный"}
         except Exception as e:
@@ -329,7 +329,7 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
 
     elif link_type == TYPE_BOT:
         tasks_info = [
-            ("🤖 Бот-метод",   lambda: main_bot_snos(f"`@{uname}`", "personal", user, username, norm, silent=True, notify_bot=_nb), "bot_snos"),
+            ("🤖 Бот-метод",   lambda: main_bot_snos(f"*@{uname}*", "personal", user, username, norm, silent=True, notify_bot=_nb), "bot_snos"),
             ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True, _bot=_nb), "dsa"),
             ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True, notify_bot=_nb), "aureport"),
             ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True, notify_bot=_nb), "tida"),
@@ -368,7 +368,7 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
     def _status_text() -> str:
         done = sum(1 for v in results.values() if v != "⏳")
         pct = round(done / total * 100) if total else 100
-        lines = [f"⚙️ *Универсальный метод*\n`{norm}`\n"]
+        lines = [f"⚙️ *Универсальный метод*\n{norm}\n"]
         if done < total:
             eta = _eta(done)
             eta_str = f" — {eta}" if eta else ""
@@ -376,7 +376,7 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
         for label, _, _ in tasks_info:
             mark = results.get(label, "⏳")
             rd = results_data.get(label)
-            stat = f" `{rd[0]}/{rd[1]}`" if rd else ""
+            stat = f" {rd[0]}/{rd[1]}" if rd else ""
             lines.append(f"{mark} {label}{stat}")
         ok = sum(1 for v in results.values() if v == "✅")
         fail = sum(1 for v in results.values() if v == "❌")
@@ -444,7 +444,7 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
     for label, _, _ in tasks_info:
         mark = results.get(label, "❌")
         rd = results_data.get(label)
-        stat = f" `{rd[0]}/{rd[1]}`" if rd else ""
+        stat = f" {rd[0]}/{rd[1]}" if rd else ""
         lines_user.append(f"{mark} {label}{stat}")
     caption_user = "\n".join(lines_user)
 
@@ -456,11 +456,11 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
     except Exception:
         _log_uid, _log_uname = str(user), username
 
-    lines_log = [f"🌐 *Универсальный метод*\n\n🎯 *Цель:* {norm_escaped}\n👤 *Пользователь:* {_log_uid} (`@{_log_uname}`)\n🕐 *Время:* {now_str}\n"]
+    lines_log = [f"🌐 *Универсальный метод*\n\n🎯 *Цель:* {norm_escaped}\n👤 *Пользователь:* {_log_uid} (*@{_log_uname}*)\n🕐 *Время:* {now_str}\n"]
     for label, _, _ in tasks_info:
         mark = results.get(label, "❌")
         rd = results_data.get(label)
-        stat = f" `{rd[0]}/{rd[1]}`" if rd else ""
+        stat = f" {rd[0]}/{rd[1]}" if rd else ""
         lines_log.append(f"{mark} {label}{stat}")
     caption_log = "\n".join(lines_log)
 

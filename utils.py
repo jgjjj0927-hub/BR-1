@@ -54,7 +54,7 @@ class ProgressBar:
         eta = self._eta(done)
         eta_str = f" — {eta}" if eta else ""
         header = f"{self._title}\n" if self._title else ""
-        return f"{header}{bar} *{pct}%*{eta_str}\n`{done}/{self._total}` сессий"
+        return f"{header}{bar} *{pct}%*{eta_str}\n{done}/{self._total} сессий"
 
     def _eta(self, done: int) -> str:
         if done == 0:
