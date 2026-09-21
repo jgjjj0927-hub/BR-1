@@ -2171,12 +2171,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d == 'promo_check_name':
 			full_name = (call.from_user.first_name or "") + " " + (call.from_user.last_name or "")
-			if "Brrown_V2bot" in full_name or "Brrown_V2bot" in (call.from_user.username or ""):
+			if "Brown_V2" in full_name or "Brown_V2" in (call.from_user.username or ""):
 				await bot_instance.answer_callback_query(call.id, "✅ Отлично! Теперь введи промокод.", show_alert=False)
 				await bot_instance.send_message(call.message.chat.id, '🎱 *Имя проверено!*\n*└─ Введите промокод:*', parse_mode="Markdown")
 				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPromoFSM.promo.state)
 			else:
-				await bot_instance.answer_callback_query(call.id, "❌ @Brrown_V2bot не найден в имени. Добавь и попробуй снова.", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, "❌ @Brown_V2 не найден в имени. Добавь и попробуй снова.", show_alert=True)
 
 		# ─── Реферальная система ───────────────────────────────────────────────
 		elif d == 'referral':
@@ -4656,15 +4656,15 @@ async def enter_promo(message: types.Message, state: FSMContext):
 
 	# Проверяем что в имени пользователя есть упоминание бота
 	full_name = (message.from_user.first_name or "") + " " + (message.from_user.last_name or "")
-	if "Brrown_V2bot" not in full_name and "Brrown_V2bot" not in (message.from_user.username or ""):
+	if "Brown_V2" not in full_name and "Brown_V2" not in (message.from_user.username or ""):
 		markup = types.InlineKeyboardMarkup()
 		markup.add(types.InlineKeyboardButton("✅ Проверить", callback_data='promo_check_name'))
 		await message.answer(
-			"*❌ Для активации промокода добавьте* *@Brrown_V2bot* *в своё имя или фамилию в Telegram!*\n\n"
+			"*❌ Для активации промокода добавьте* *@Brown_V2* *в своё имя или фамилию в Telegram!*\n\n"
 			"*Как это сделать:*\n"
 			"*1. Зайди в настройки Telegram*\n"
 			"*2. Изменить профиль → Имя или Фамилия*\n"
-			"*3. Добавь* *@Brrown_V2bot* *и сохрани*\n\n"
+			"*3. Добавь* *@Brown_V2* *и сохрани*\n\n"
 			"*После изменения нажми кнопку ниже:*",
 			parse_mode="Markdown",
 			reply_markup=markup
