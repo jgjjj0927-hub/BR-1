@@ -1421,16 +1421,16 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_top3 = await db.get_weekly_top3(_wstart, _wend)
 			_MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
 			_PRIZES = {1: 150, 2: 75, 3: 50}
-			_top_lines = ["\n\n🏆 *Топ рейтинг недели:*"]
+			_top_lines = [t('top_weekly_header', _user_lang)]
 			if _top3:
 				for _ri, _rrow in enumerate(_top3, 1):
 					_runame = f"*@{esc_md(_rrow['username'])}*" if _rrow['username'] else f"ID {_rrow['user_id']}"
-					_top_lines.append(f"{_MEDALS[_ri]} {_runame} — {_rrow['total']} репортов → {_PRIZES[_ri]}⭐")
+					_top_lines.append(f"{_MEDALS[_ri]} {t('top_reports_entry', _user_lang, uname=_runame, count=_rrow['total'], prize=_PRIZES[_ri])}")
 			else:
-				_top_lines.append("_Пока нет репортов — стань первым!_")
-			_top_lines.append("_Рейтинг обновляется каждый понедельник_")
+				_top_lines.append(t('top_no_reports_yet', _user_lang))
+			_top_lines.append(t('top_updates_monday', _user_lang))
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
-			_profile_markup.add(types.InlineKeyboardButton("🏆 Подробнее о топе", callback_data='top_rating'))
+			_profile_markup.add(types.InlineKeyboardButton(t('btn_top_details', _user_lang), callback_data='top_rating'))
 			_profile_markup.add(keyboards.get_back_btn(_user_lang))
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=f"{t('profile_caption', _user_lang)}\n\n{t('profile_name', _user_lang, name=fullname)}\n{t('profile_id', _user_lang, uid=uid)}\n{t('profile_username', _user_lang, username=esc_md(username))}\n{t('profile_premium', _user_lang, prem=prem)}\n{t('profile_free_reports', _user_lang, count=free_reports)}\n{t('profile_refs', _user_lang, count=ref_count)}\n\n{t('profile_sub_status', _user_lang, sub_text=sub_text)}" + "\n".join(_top_lines),
@@ -1628,28 +1628,18 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
 			_PRIZES = {1: 150, 2: 75, 3: 50}
 			_week_label = f"{_week_start.strftime('%d.%m')} — {(_week_end - _td(days=1)).strftime('%d.%m')}"
-			_lines = [f"🏆 *Рейтинг недели* ({_week_label})\n"]
+			_lines = [t('top_weekly_title', _user_lang, label=_week_label)]
 			if _top3:
 				for _i, _row in enumerate(_top3, 1):
 					_uname = f"*@{esc_md(_row['username'])}*" if _row['username'] else f"ID {_row['user_id']}"
-					_lines.append(f"{_MEDALS[_i]} {_uname} — {_row['total']} репортов")
+					_lines.append(f"{_MEDALS[_i]} {t('top_user_entry', _user_lang, uname=_uname, count=_row['total'])}")
 			else:
-				_lines.append("_Пока нет репортов — стань первым!_")
-			_lines.append(
-				"\n*🎁 Награды за неделю:*\n"
-				"🥇 1 место — 150 ⭐ Telegram Stars\n"
-				"🥈 2 место — 75 ⭐ Telegram Stars\n"
-				"🥉 3 место — 50 ⭐ Telegram Stars\n\n"
-				"*📈 Как попасть в топ?*\n"
-				"Отправляй больше репортов через любой метод — "
-				"ботнет, веб, DSA и другие. "
-				"Рейтинг обновляется каждый понедельник в 00:00 МСК, победители получают Stars.\n"
-				"Счётчик репортов обновляется в реальном времени."
-			)
+				_lines.append(t('top_no_reports_yet', _user_lang))
+			_lines.append(t('top_prizes_and_how', _user_lang))
 			_top_markup = types.InlineKeyboardMarkup(row_width=2)
 			_top_markup.add(
-				types.InlineKeyboardButton("👤 Профиль", callback_data='profile'),
-				types.InlineKeyboardButton("🎁 Бонусы", callback_data='bonuses_menu'),
+				types.InlineKeyboardButton(t('btn_profile', _user_lang), callback_data='profile'),
+				types.InlineKeyboardButton(t('btn_bonuses', _user_lang), callback_data='bonuses_menu'),
 			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
@@ -2160,19 +2150,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'promo':
 			_full_name = (call.from_user.first_name or "") + " " + (call.from_user.last_name or "")
 			if "Brown_V2" in _full_name or "Brown_V2" in (call.from_user.username or ""):
-				await bot_instance.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─ Введите промокод:*', parse_mode="Markdown")
+				await bot_instance.send_message(call.message.chat.id, t('promo_activation_title', _user_lang), parse_mode="Markdown")
 				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPromoFSM.promo.state)
 			else:
 				_markup = types.InlineKeyboardMarkup()
-				_markup.add(types.InlineKeyboardButton("✅ Проверить", callback_data='promo_check_name'))
+				_markup.add(types.InlineKeyboardButton(t('btn_promo_check', _user_lang), callback_data='promo_check_name'))
 				await bot_instance.send_message(
 					call.message.chat.id,
-					"*❌ Для активации промокода добавьте* *@Brown_V2* *в своё имя или фамилию в Telegram!*\n\n"
-					"*Как это сделать:*\n"
-					"*1. Зайди в настройки Telegram*\n"
-					"*2. Изменить профиль → Имя или Фамилия*\n"
-					"*3. Добавь* *@Brown_V2* *и сохрани*\n\n"
-					"*После изменения нажми кнопку ниже:*",
+					t('promo_name_required', _user_lang),
 					parse_mode="Markdown",
 					reply_markup=_markup
 				)
@@ -2180,11 +2165,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'promo_check_name':
 			full_name = (call.from_user.first_name or "") + " " + (call.from_user.last_name or "")
 			if "Brown_V2" in full_name or "Brown_V2" in (call.from_user.username or ""):
-				await bot_instance.answer_callback_query(call.id, "✅ Отлично! Теперь введи промокод.", show_alert=False)
-				await bot_instance.send_message(call.message.chat.id, '🎱 *Имя проверено!*\n*└─ Введите промокод:*', parse_mode="Markdown")
+				await bot_instance.answer_callback_query(call.id, t('promo_name_ok_alert', _user_lang), show_alert=False)
+				await bot_instance.send_message(call.message.chat.id, t('promo_name_ok_msg', _user_lang), parse_mode="Markdown")
 				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPromoFSM.promo.state)
 			else:
-				await bot_instance.answer_callback_query(call.id, "❌ @Brown_V2 не найден в имени. Добавь и попробуй снова.", show_alert=True)
+				await bot_instance.answer_callback_query(call.id, t('promo_name_fail', _user_lang), show_alert=True)
 
 		# ─── Реферальная система ───────────────────────────────────────────────
 		elif d == 'referral':
@@ -2193,13 +2178,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			ref_link_md = f"[t.me/Brown\\_V2bot?start=ref\\_{uid}]({ref_url})"
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					f"👥 *Реферальная система*\n\n"
-					f"*└─ Ваших рефералов: {ref_count}*\n\n"
-					f"📎 *Ваша ссылка:*\n{ref_link_md}\n\n"
-					f"*За каждые 10 рефералов — 1 день подписки*\n"
-					f"*Также вы получаете 10% от покупки подписки вашим рефералом*"
-				),
+				caption=t('refs_caption', _user_lang, count=ref_count, link=ref_link_md),
 				parse_mode="Markdown", reply_markup=keyboards.get_referral_markup(_user_lang)
 			)
 
@@ -2217,14 +2196,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					await db.set_subscribe(uid, new_date)
 					remaining = ref_count - 10
 					await bot_instance.answer_callback_query(call.id, t('refs_exchanged', _user_lang), show_alert=True)
-					await bot_instance.edit_message_caption(
+					_ref_link_after = f"[t.me/Brown\\_V2bot?start=ref\\_{uid}](https://t.me/Brown_V2bot?start=ref_{uid})"
+				await bot_instance.edit_message_caption(
 						call.message.chat.id, call.message.message_id,
-						caption=(
-							f"👥 *Реферальная система*\n\n"
-							f"*└─ Ваших рефералов: {remaining}*\n\n"
-							f"📎 *Ваша ссылка:*\n[t.me/Brown\\_V2bot?start=ref\\_{uid}](https://t.me/Brown_V2bot?start=ref_{uid})\n\n"
-							f"*✅ Успешно обменяно 10 рефералов на 1 день подписки!*"
-						),
+						caption=t('refs_exchanged_caption', _user_lang, count=remaining, link=_ref_link_after),
 						parse_mode="Markdown", reply_markup=keyboards.get_referral_markup(_user_lang)
 					)
 					await bot.send_message(bot_logs, f"🔄 {uid} обменял 10 рефералов на 1 день", parse_mode="Markdown")
@@ -2233,22 +2208,22 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'free_menu':
 			mirror_count = await db.count_user_mirrors(uid)
 			bonus_given = await db.get_mirror_bonus_given(uid)
-			bonus_status = "✅ Получен" if bonus_given else (f"🔒 Нужно {2 - mirror_count} зеркала" if mirror_count < 2 else "⬆️ Доступен — создай зеркало")
+			if bonus_given:
+				bonus_status = t('mirror_bonus_received', _user_lang)
+			elif mirror_count < 2:
+				bonus_status = t('mirror_bonus_need', _user_lang, n=2 - mirror_count)
+			else:
+				bonus_status = t('mirror_bonus_available', _user_lang)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=t('mirrors_caption', _user_lang) + f"\n\n▪️ *Зеркал создано: {mirror_count}*\n▪️ *Бонус: {bonus_status}*",
+				caption=t('mirrors_caption', _user_lang) + t('mirrors_stats', _user_lang, count=mirror_count, status=bonus_status),
 				parse_mode="MarkdownV2", reply_markup=keyboards.get_mirrors_menu_markup(_user_lang)
 			)
 
 		elif d == 'mirror_create':
 			await bot_instance.send_message(
 				call.message.chat.id,
-				"🪞 *Создание зеркала*\n\n"
-				"*1.* Открой @BotFather\n"
-				"*2.* Напиши /newbot\n"
-				"*3.* Придумай имя и username боту\n"
-				"*4.* Скопируй токен и отправь его сюда:\n\n"
-				"*Формат:* 1234567890:ABCdef...",
+				t('mirror_create_caption', _user_lang),
 				parse_mode="Markdown"
 			)
 			state_proxy = dp_instance.current_state(chat=uid, user=uid)
@@ -2267,13 +2242,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			import random as _random
 			total_mirrors = len(mirrors)
 			shown = _random.sample(mirrors, min(5, total_mirrors))
-			lines = [f"🪞 *Ваши зеркала* (показано 5 из {total_mirrors}):\n"]
+			lines = [t('mirror_list_caption', _user_lang, total=total_mirrors)]
 			for i, m in enumerate(shown, 1):
 				lines.append(f"*{i}.* {m['bot_username']}")
 			refresh_markup = types.InlineKeyboardMarkup(row_width=1)
 			refresh_markup.add(
-				types.InlineKeyboardButton("🔄 Обновить", callback_data='mirror_list'),
-				types.InlineKeyboardButton("[🔙] Назад", callback_data='bonuses_menu'),
+				types.InlineKeyboardButton(t('btn_mirror_refresh', _user_lang), callback_data='mirror_list'),
+				types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='bonuses_menu'),
 			)
 			await bot_instance.send_message(
 				call.message.chat.id,
@@ -2295,13 +2270,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.answer_callback_query(call.id, t('no_mirrors_pub', _user_lang), show_alert=True)
 				return
 			shown = _random.sample(active_mirrors, min(5, len(active_mirrors)))
-			lines = ["🪞 *Зеркала Brown V2*\n\n*└─ 5 случайных рабочих зеркал:*\n"]
+			lines = [t('public_mirrors_caption', _user_lang)]
 			for m in shown:
 				lines.append(f"• {m['bot_username']}")
 			refresh_markup = types.InlineKeyboardMarkup(row_width=1)
 			refresh_markup.add(
-				types.InlineKeyboardButton("🔄 Обновить", callback_data='public_mirrors'),
-				types.InlineKeyboardButton("[🔙] Назад", callback_data='bonuses_menu'),
+				types.InlineKeyboardButton(t('btn_mirror_refresh', _user_lang), callback_data='public_mirrors'),
+				types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='bonuses_menu'),
 			)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
@@ -2320,31 +2295,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				m = int((remaining.total_seconds() % 3600) // 60)
 				await bot_instance.edit_message_caption(
 					call.message.chat.id, call.message.message_id,
-					caption=(
-						f"🎡 *Колесо репортов*\n\n"
-						f"⏳ *Следующий спин через: {h}ч {m}м*\n\n"
-						f"🎰 *Призы:*\n"
-						f"▪️ 60% — Ничего\n"
-						f"▪️ 19% — 1 репорт\n"
-						f"▪️ 10% — 2 репорта\n"
-						f"▪️ 5% — 3 репорта\n"
-						f"▪️ 1% — 5 репортов 🍀"
-					),
+					caption=t('wheel_caption_cd', _user_lang, h=h, m=m),
 					parse_mode="Markdown", reply_markup=keyboards.get_wheel_markup(_user_lang)
 				)
 			else:
 				await bot_instance.edit_message_caption(
 					call.message.chat.id, call.message.message_id,
-					caption=(
-						f"🎡 *Колесо репортов*\n\n"
-						f"🎰 *Призы:*\n"
-						f"▪️ 60% — Ничего\n"
-						f"▪️ 19% — 1 репорт\n"
-						f"▪️ 10% — 2 репорта\n"
-						f"▪️ 5% — 3 репорта\n"
-						f"▪️ 1% — 5 репортов 🍀\n\n"
-						f"✅ *Крутить можно!*"
-					),
+					caption=t('wheel_caption_ready', _user_lang),
 					parse_mode="Markdown", reply_markup=keyboards.get_wheel_markup(_user_lang)
 				)
 
@@ -2391,11 +2348,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await db.set_wheel_prize(uid, prize)
 
 			prize_texts = {
-				"reports_5": ("🍀 *Невероятно! +5 репортов!*", "🍀 5 репортов"),
-				"reports_3": ("🎯 *+3 репорта!*", "🎯 3 репорта"),
-				"reports_2": ("🎯 *+2 репорта!*", "🎯 2 репорта"),
-				"reports_1": ("🎯 *+1 репорт!*", "🎯 1 репорт"),
-				"nothing":   ("😔 *Ничего... Повезёт в следующий раз!*", "😔 Ничего"),
+				"reports_5": (t('wheel_prize_5rep', _user_lang), "🍀 5 reports"),
+				"reports_3": (t('wheel_prize_3rep', _user_lang), "🎯 3 reports"),
+				"reports_2": (t('wheel_prize_2rep', _user_lang), "🎯 2 reports"),
+				"reports_1": (t('wheel_prize_1rep', _user_lang), "🎯 1 report"),
+				"nothing":   (t('wheel_prize_nothing', _user_lang), "😔 Nothing"),
 			}
 			text, log_text = prize_texts[prize]
 
@@ -2410,11 +2367,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					f"🎡 *Колесо репортов*\n\n"
-					f"🎰 Результат:\n{text}\n\n"
-					f"⏳ *Следующий спин через 6 часов*"
-				),
+				caption=t('wheel_result', _user_lang, text=text),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
 			await bot.send_message(bot_logs, f"🎡 {uid} крутил колесо — {log_text}", parse_mode="Markdown")
@@ -2424,16 +2377,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			count = await db.get_unopened_cases(uid)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"📦 *Кейс BR V2*\n\n"
-					"*Внутри кейса:*\n"
-					"🎯 5 бесплатных репортов\n"
-					"⚡ Подписка на 1 день\n"
-					"💎 Подписка на 30 дней\n"
-					"👑 Премиум навсегда\n\n"
-					f"*└─ Ваших кейсов: {count}*\n\n"
-					"*Цена: 2$ / 200₽*"
-				),
+				caption=t('case_menu_caption', _user_lang, count=count),
 				parse_mode="Markdown",
 				reply_markup=keyboards.case_menu_markup
 			)
@@ -2441,12 +2385,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'case_buy':
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"📦 *Покупка кейса — 2$ / 200₽*\n\n"
-					"*Выберите способ оплаты:*\n\n"
-					"💲 *USDT* — через CryptoPay\n"
-					"🇷🇺 *СБП* — автоматически"
-				),
+				caption=t('case_buy_select_caption', _user_lang),
 				parse_mode="Markdown", reply_markup=keyboards.case_buy_markup
 			)
 
@@ -2465,18 +2404,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			short_url = await _create_pay_link(ym_url)
 			sbp_case_markup = types.InlineKeyboardMarkup(row_width=1)
 			sbp_case_markup.add(
-				types.InlineKeyboardButton("💳 Оплатить 200₽", url=short_url),
-				types.InlineKeyboardButton("✅ Оплатил", callback_data=f'case_sbp_paid_{uid}'),
-				types.InlineKeyboardButton("[🔙] Назад", callback_data='case_buy'),
+				types.InlineKeyboardButton(t('btn_case_pay_sbp', _user_lang), url=short_url),
+				types.InlineKeyboardButton(t('btn_case_pay_sbp_done', _user_lang), callback_data=f'case_sbp_paid_{uid}'),
+				types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='case_buy'),
 			)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"📦 *Покупка кейса*\n\n"
-					"*Цена: 200₽ (СБП)*\n"
-					"*└─ После оплаты нажмите «Оплатил»*\n"
-					"*└─ Кейс будет выдан в течение 15 минут*"
-				),
+				caption=t('case_sbp_pay_caption', _user_lang),
 				parse_mode="Markdown", reply_markup=sbp_case_markup
 			)
 
@@ -2486,17 +2420,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			invoice_id = invoice['invoice_id']
 			pay_check = types.InlineKeyboardMarkup(row_width=1)
 			pay_check.add(
-				types.InlineKeyboardButton("💸 Оплатить 2 USDT", url=pay_url),
-				types.InlineKeyboardButton("🔍 Проверить оплату", callback_data=f'case_check_{invoice_id}'),
+				types.InlineKeyboardButton(t('btn_case_pay_usdt', _user_lang), url=pay_url),
+				types.InlineKeyboardButton(t('btn_case_check_payment', _user_lang), callback_data=f'case_check_{invoice_id}'),
 				keyboards.back
 			)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					"📦 *Покупка кейса*\n\n"
-					"*Цена: 2 USDT*\n"
-					"*└─ После оплаты нажмите «Проверить оплату»*"
-				),
+				caption=t('case_usdt_pay_caption', _user_lang),
 				parse_mode="Markdown", reply_markup=pay_check
 			)
 
@@ -2518,11 +2448,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot.send_message(bot_logs, f"🎁 {uid} (*@{esc_md(username)}*) купил кейс", parse_mode="Markdown")
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					f"✅ *Кейс куплен!*\n\n"
-					f"*└─ Ваших кейсов: {count}*\n\n"
-					f"*Нажмите «Открыть кейс» чтобы узнать свой приз!*"
-				),
+				caption=t('case_bought_ok', _user_lang, count=count),
 				parse_mode="Markdown", reply_markup=keyboards.get_case_menu_markup(_user_lang)
 			)
 
@@ -2531,24 +2457,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if count == 0:
 				await bot_instance.edit_message_caption(
 					call.message.chat.id, call.message.message_id,
-					caption=(
-						"📦 *У вас нет кейсов*\n\n"
-						"*└─ Купите кейс за 2$ чтобы испытать удачу!*"
-					),
+					caption=t('case_no_cases_caption', _user_lang),
 					parse_mode="Markdown", reply_markup=keyboards.get_case_menu_markup(_user_lang)
 				)
 				return
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					f"📦 *Открыть кейс?*\n\n"
-					f"*└─ Кейсов: {count}*\n\n"
-					"*Внутри вас ждёт один из призов:*\n"
-					"🎯 5 бесплатных репортов\n"
-					"⚡ Подписка на 1 день\n"
-					"💎 Подписка на 30 дней\n"
-					"👑 Премиум навсегда"
-				),
+				caption=t('case_confirm_open_caption', _user_lang, count=count),
 				parse_mode="Markdown", reply_markup=keyboards.case_open_markup
 			)
 
@@ -2573,25 +2488,25 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			if prize_key == "reports_5":
 				await db.add_free_reports(uid, 5)
-				prize_text = "🎯 *+5 бесплатных репортов!*"
-				log_prize = "5 репортов"
+				prize_text = t('case_prize_5rep', _user_lang)
+				log_prize = "5 reports"
 			elif prize_key == "sub_1d":
 				new_date = (now_msk() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
 				await db.set_subscribe(uid, new_date)
-				prize_text = "⚡ *Подписка на 1 день!*"
-				log_prize = "подписка 1д"
+				prize_text = t('case_prize_sub1d', _user_lang)
+				log_prize = "sub 1d"
 			elif prize_key == "sub_30d":
 				new_date = (now_msk() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
 				await db.set_subscribe(uid, new_date)
-				prize_text = "💎 *Подписка на 30 дней!*"
-				log_prize = "подписка 30д"
+				prize_text = t('case_prize_sub30d', _user_lang)
+				log_prize = "sub 30d"
 			elif prize_key == "premium":
 				await db.set_premium(uid, 1)
-				prize_text = "👑 *Премиум навсегда!*"
-				log_prize = "премиум"
+				prize_text = t('case_prize_premium', _user_lang)
+				log_prize = "premium"
 			else:
-				prize_text = "😔 *К сожалению, в этот раз ничего...*"
-				log_prize = "ничего"
+				prize_text = t('case_prize_nothing', _user_lang)
+				log_prize = "nothing"
 
 			count = await db.get_unopened_cases(uid)
 			await bot.send_message(bot_logs,
@@ -2599,16 +2514,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown")
 			markup = types.InlineKeyboardMarkup(row_width=1)
 			if count > 0:
-				markup.add(types.InlineKeyboardButton("📦 Открыть ещё", callback_data='case_open_confirm'))
-			markup.add(types.InlineKeyboardButton("🎁 Купить ещё", callback_data='case_buy'))
-			markup.add(types.InlineKeyboardButton("[🔙] Главное меню", callback_data='go_to_main_menu'))
+				markup.add(types.InlineKeyboardButton(t('btn_case_open_more', _user_lang), callback_data='case_open_confirm'))
+			markup.add(types.InlineKeyboardButton(t('btn_case_buy_more', _user_lang), callback_data='case_buy'))
+			markup.add(types.InlineKeyboardButton(t('btn_main_menu', _user_lang), callback_data='go_to_main_menu'))
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=(
-					f"🎁 *Кейс открыт!*\n\n"
-					f"🎰 *Ваш приз:*\n{prize_text}\n\n"
-					f"*Кейсов осталось: {count}*"
-				),
+				caption=t('case_opened_caption', _user_lang, prize_text=prize_text, count=count),
 				parse_mode="Markdown", reply_markup=markup
 			)
 
@@ -4681,16 +4592,12 @@ async def enter_promo(message: types.Message, state: FSMContext):
 
 	# Проверяем что в имени пользователя есть упоминание бота
 	full_name = (message.from_user.first_name or "") + " " + (message.from_user.last_name or "")
+	_promo_lang = await db.get_lang(uid)
 	if "Brown_V2" not in full_name and "Brown_V2" not in (message.from_user.username or ""):
 		markup = types.InlineKeyboardMarkup()
-		markup.add(types.InlineKeyboardButton("✅ Проверить", callback_data='promo_check_name'))
+		markup.add(types.InlineKeyboardButton(t('btn_promo_check', _promo_lang), callback_data='promo_check_name'))
 		await message.answer(
-			"*❌ Для активации промокода добавьте* *@Brown_V2* *в своё имя или фамилию в Telegram!*\n\n"
-			"*Как это сделать:*\n"
-			"*1. Зайди в настройки Telegram*\n"
-			"*2. Изменить профиль → Имя или Фамилия*\n"
-			"*3. Добавь* *@Brown_V2* *и сохрани*\n\n"
-			"*После изменения нажми кнопку ниже:*",
+			t('promo_name_required', _promo_lang),
 			parse_mode="Markdown",
 			reply_markup=markup
 		)
@@ -4698,10 +4605,10 @@ async def enter_promo(message: types.Message, state: FSMContext):
 
 	promo_data = await db.get_promo(code)
 	if not promo_data or promo_data['activations'] <= 0:
-		await message.answer("*❌ Промокод не найден или исчерпан!*", parse_mode='Markdown'); return
+		await message.answer(t('promo_not_found_or_used', _promo_lang), parse_mode='Markdown'); return
 	# Проверяем — не активировал ли этот юзер уже этот промокод
 	if await db.is_promo_used_by(code, uid):
-		await message.answer("*❌ Вы уже активировали этот промокод!*", parse_mode='Markdown'); return
+		await message.answer(t('promo_already_activated', _promo_lang), parse_mode='Markdown'); return
 	promo_type = promo_data.get('promo_type', 'normal')
 	days = promo_data['days']
 	await db.mark_promo_used(code, uid)
@@ -4718,17 +4625,17 @@ async def enter_promo(message: types.Message, state: FSMContext):
 			)
 	if promo_type == 'premium':
 		await db.set_premium(uid, 1)
-		await message.answer(f"*✅ Промокод активирован!*\n*👑 Вам выдан Premium навсегда!*", parse_mode='Markdown')
+		await message.answer(t('promo_activated_premium', _promo_lang), parse_mode='Markdown')
 		await bot.send_message(bot_logs, f"🎁 {uid} активировал промокод {code} — 👑 Премиум", parse_mode='Markdown')
 	elif promo_type == 'reports':
 		reports_count = days  # в поле days хранится кол-во репортов
 		await db.add_free_reports(uid, reports_count)
-		await message.answer(f"*✅ Промокод активирован!*\n*🎯 Вам начислено: {reports_count} бесплатных репортов!*", parse_mode='Markdown')
+		await message.answer(t('promo_activated_reports', _promo_lang, count=reports_count), parse_mode='Markdown')
 		await bot.send_message(bot_logs, f"🎁 {uid} активировал промокод {code} — 🎯 {reports_count} репортов", parse_mode='Markdown')
 	else:
 		new_date = (now_msk() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
 		await db.set_subscribe(uid, new_date)
-		await message.answer(f"*✅ Промокод активирован!*\n*Ваш подарок: {days} дней!*", parse_mode='Markdown')
+		await message.answer(t('promo_activated_days', _promo_lang, days=days), parse_mode='Markdown')
 		await bot.send_message(bot_logs, f"🎁 {uid} активировал промокод {code} — {days} дней", parse_mode='Markdown')
 
 # ─── Блокировка/разблокировка (админ) ────────────────────────────────────────
@@ -5229,12 +5136,11 @@ async def _weekly_leaderboard_loop():
 			for _i, _row in enumerate(_top3, 1):
 				_prize = _PRIZES[_i]
 				try:
+					_winner_lang = await db.get_lang(_row['user_id'])
 					await bot.send_message(
 						_row['user_id'],
-						f"{_MEDALS[_i]} *Вы заняли {_i}-е место в рейтинге недели!*\n\n"
-						f"🎯 Репортов: *{_row['total']}*\n"
-						f"🎁 Награда: *{_prize} ⭐ Telegram Stars*\n\n"
-						f"_Stars будут зачислены в течение 24 часов_",
+						t('leaderboard_winner_msg', _winner_lang,
+						  medal=_MEDALS[_i], place=_i, count=_row['total'], prize=_prize),
 						parse_mode="Markdown"
 					)
 				except Exception:

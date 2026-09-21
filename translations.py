@@ -445,6 +445,165 @@ _T = {
         # ─── Stress ──────────────────────────────────────────────────────
         'stress_no_sub': '❌ *Нужна подписка для использования стрессера!*',
         'stress_launching': '⚡️ *Запускаем стрессер на {target}...*',
+
+        # ─── Profile leaderboard snippet ─────────────────────────────────────
+        'top_weekly_header': '\n\n🏆 *Топ рейтинг недели:*',
+        'top_reports_entry': '{uname} — {count} репортов → {prize}⭐',
+        'top_no_reports_yet': '_Пока нет репортов — стань первым!_',
+        'top_updates_monday': '_Рейтинг обновляется каждый понедельник_',
+        'btn_top_details': '🏆 Подробнее о топе',
+
+        # ─── Top rating full page ─────────────────────────────────────────────
+        'top_weekly_title': '🏆 *Рейтинг недели* ({label})\n',
+        'top_user_entry': '{uname} — {count} репортов',
+        'top_prizes_and_how': (
+            '\n*🎁 Награды за неделю:*\n'
+            '🥇 1 место — 150 ⭐ Telegram Stars\n'
+            '🥈 2 место — 75 ⭐ Telegram Stars\n'
+            '🥉 3 место — 50 ⭐ Telegram Stars\n\n'
+            '*📈 Как попасть в топ?*\n'
+            'Отправляй больше репортов через любой метод — '
+            'ботнет, веб, DSA и другие. '
+            'Рейтинг обновляется каждый понедельник в 00:00 МСК, победители получают Stars.\n'
+            'Счётчик репортов обновляется в реальном времени.'
+        ),
+
+        # ─── Wheel ────────────────────────────────────────────────────────────
+        'wheel_caption_cd': (
+            '🎡 *Колесо репортов*\n\n'
+            '⏳ *Следующий спин через: {h}ч {m}м*\n\n'
+            '🎰 *Призы:*\n'
+            '▪️ 60% — Ничего\n'
+            '▪️ 19% — 1 репорт\n'
+            '▪️ 10% — 2 репорта\n'
+            '▪️ 5% — 3 репорта\n'
+            '▪️ 1% — 5 репортов 🍀'
+        ),
+        'wheel_caption_ready': (
+            '🎡 *Колесо репортов*\n\n'
+            '🎰 *Призы:*\n'
+            '▪️ 60% — Ничего\n'
+            '▪️ 19% — 1 репорт\n'
+            '▪️ 10% — 2 репорта\n'
+            '▪️ 5% — 3 репорта\n'
+            '▪️ 1% — 5 репортов 🍀\n\n'
+            '✅ *Крутить можно!*'
+        ),
+        'wheel_result': '🎡 *Колесо репортов*\n\n🎰 Результат:\n{text}\n\n⏳ *Следующий спин через 6 часов*',
+        'wheel_prize_5rep': '🍀 *Невероятно! +5 репортов!*',
+        'wheel_prize_3rep': '🎯 *+3 репорта!*',
+        'wheel_prize_2rep': '🎯 *+2 репорта!*',
+        'wheel_prize_1rep': '🎯 *+1 репорт!*',
+        'wheel_prize_nothing': '😔 *Ничего... Повезёт в следующий раз!*',
+
+        # ─── Cases ────────────────────────────────────────────────────────────
+        'case_menu_caption': (
+            '📦 *Кейс BR V2*\n\n'
+            '*Внутри кейса:*\n'
+            '🎯 5 бесплатных репортов\n'
+            '⚡ Подписка на 1 день\n'
+            '💎 Подписка на 30 дней\n'
+            '👑 Премиум навсегда\n\n'
+            '*└─ Ваших кейсов: {count}*\n\n'
+            '*Цена: 2$ / 200₽*'
+        ),
+        'case_buy_select_caption': (
+            '📦 *Покупка кейса — 2$ / 200₽*\n\n'
+            '*Выберите способ оплаты:*\n\n'
+            '💲 *USDT* — через CryptoPay\n'
+            '🇷🇺 *СБП* — автоматически'
+        ),
+        'case_sbp_pay_caption': (
+            '📦 *Покупка кейса*\n\n'
+            '*Цена: 200₽ (СБП)*\n'
+            '*└─ После оплаты нажмите «Оплатил»*\n'
+            '*└─ Кейс будет выдан в течение 15 минут*'
+        ),
+        'case_usdt_pay_caption': (
+            '📦 *Покупка кейса*\n\n'
+            '*Цена: 2 USDT*\n'
+            '*└─ После оплаты нажмите «Проверить оплату»*'
+        ),
+        'case_bought_ok': (
+            '✅ *Кейс куплен!*\n\n'
+            '*└─ Ваших кейсов: {count}*\n\n'
+            '*Нажмите «Открыть кейс» чтобы узнать свой приз!*'
+        ),
+        'case_no_cases_caption': '📦 *У вас нет кейсов*\n\n*└─ Купите кейс за 2$ чтобы испытать удачу!*',
+        'case_confirm_open_caption': (
+            '📦 *Открыть кейс?*\n\n'
+            '*└─ Кейсов: {count}*\n\n'
+            '*Внутри вас ждёт один из призов:*\n'
+            '🎯 5 бесплатных репортов\n'
+            '⚡ Подписка на 1 день\n'
+            '💎 Подписка на 30 дней\n'
+            '👑 Премиум навсегда'
+        ),
+        'case_opened_caption': '🎁 *Кейс открыт!*\n\n🎰 *Ваш приз:*\n{prize_text}\n\n*Кейсов осталось: {count}*',
+        'case_prize_5rep': '🎯 *+5 бесплатных репортов!*',
+        'case_prize_sub1d': '⚡ *Подписка на 1 день!*',
+        'case_prize_sub30d': '💎 *Подписка на 30 дней!*',
+        'case_prize_premium': '👑 *Премиум навсегда!*',
+        'case_prize_nothing': '😔 *К сожалению, в этот раз ничего...*',
+        'btn_case_open_more': '📦 Открыть ещё',
+        'btn_case_buy_more': '🎁 Купить ещё',
+        'btn_case_pay_sbp': '💳 Оплатить 200₽',
+        'btn_case_pay_sbp_done': '✅ Оплатил',
+        'btn_case_pay_usdt': '💸 Оплатить 2 USDT',
+        'btn_case_check_payment': '🔍 Проверить оплату',
+
+        # ─── Referral caption ─────────────────────────────────────────────────
+        'refs_caption': (
+            '👥 *Реферальная система*\n\n'
+            '*└─ Ваших рефералов: {count}*\n\n'
+            '📎 *Ваша ссылка:*\n{link}\n\n'
+            '*За каждые 10 рефералов — 1 день подписки*\n'
+            '*Также вы получаете 10% от покупки подписки вашим рефералом*'
+        ),
+        'refs_exchanged_caption': (
+            '👥 *Реферальная система*\n\n'
+            '*└─ Ваших рефералов: {count}*\n\n'
+            '📎 *Ваша ссылка:*\n{link}\n\n'
+            '*✅ Успешно обменяно 10 рефералов на 1 день подписки!*'
+        ),
+
+        # ─── Mirrors menu ─────────────────────────────────────────────────────
+        'mirrors_stats': '\n\n▪️ *Зеркал создано: {count}*\n▪️ *Бонус: {status}*',
+        'mirror_bonus_received': '✅ Получен',
+        'mirror_bonus_need': '🔒 Нужно {n} зеркала',
+        'mirror_bonus_available': '⬆️ Доступен — создай зеркало',
+        'mirror_list_caption': '🪞 *Ваши зеркала* (показано 5 из {total}):\n',
+        'btn_mirror_refresh': '🔄 Обновить',
+        'public_mirrors_caption': '🪞 *Зеркала Brown V2*\n\n*└─ 5 случайных рабочих зеркал:*\n',
+        'mirror_create_caption': (
+            '🪞 *Создание зеркала*\n\n'
+            '*1.* Открой @BotFather\n'
+            '*2.* Напиши /newbot\n'
+            '*3.* Придумай имя и username боту\n'
+            '*4.* Скопируй токен и отправь его сюда:\n\n'
+            '*Формат:* 1234567890:ABCdef...'
+        ),
+
+        # ─── Promo activation ─────────────────────────────────────────────────
+        'promo_activation_title': '🎱 *Активация промокода*\n*└─ Введите промокод:*',
+        'promo_name_required': (
+            '*❌ Для активации промокода добавьте* *@Brown_V2* *в своё имя или фамилию в Telegram!*\n\n'
+            '*Как это сделать:*\n'
+            '*1. Зайди в настройки Telegram*\n'
+            '*2. Изменить профиль → Имя или Фамилия*\n'
+            '*3. Добавь* *@Brown_V2* *и сохрани*\n\n'
+            '*После изменения нажми кнопку ниже:*'
+        ),
+        'btn_promo_check': '✅ Проверить',
+        'promo_name_ok_alert': '✅ Отлично! Теперь введи промокод.',
+        'promo_name_ok_msg': '🎱 *Имя проверено!*\n*└─ Введите промокод:*',
+        'promo_name_fail': '❌ @Brown_V2 не найден в имени. Добавь и попробуй снова.',
+        'promo_activated_premium': '*✅ Промокод активирован!*\n*👑 Вам выдан Premium навсегда!*',
+        'promo_activated_reports': '*✅ Промокод активирован!*\n*🎯 Вам начислено: {count} бесплатных репортов!*',
+        'promo_activated_days': '*✅ Промокод активирован!*\n*Ваш подарок: {days} дней!*',
+        'promo_not_found_or_used': '*❌ Промокод не найден или исчерпан!*',
+        'promo_already_activated': '*❌ Вы уже активировали этот промокод!*',
+        'leaderboard_winner_msg': '{medal} *Вы заняли {place}-е место в рейтинге недели!*\n\n🎯 Репортов: *{count}*\n🎁 Награда: *{prize} ⭐ Telegram Stars*\n\n_Stars будут зачислены в течение 24 часов_',
     },
     'en': {
         # ─── General ─────────────────────────────────────────────────────────
@@ -892,6 +1051,164 @@ _T = {
         # ─── Stress ──────────────────────────────────────────────────────
         'stress_no_sub': '❌ *Subscription required to use stresser!*',
         'stress_launching': '⚡️ *Launching stresser on {target}...*',
+
+        # ─── Profile leaderboard snippet ─────────────────────────────────────
+        'top_weekly_header': '\n\n🏆 *Top Weekly Rating:*',
+        'top_reports_entry': '{uname} — {count} reports → {prize}⭐',
+        'top_no_reports_yet': '_No reports yet — be the first!_',
+        'top_updates_monday': '_Rating updates every Monday_',
+        'btn_top_details': '🏆 Top Details',
+
+        # ─── Top rating full page ─────────────────────────────────────────────
+        'top_weekly_title': '🏆 *Weekly Ranking* ({label})\n',
+        'top_user_entry': '{uname} — {count} reports',
+        'top_prizes_and_how': (
+            '\n*🎁 Weekly Rewards:*\n'
+            '🥇 1st place — 150 ⭐ Telegram Stars\n'
+            '🥈 2nd place — 75 ⭐ Telegram Stars\n'
+            '🥉 3rd place — 50 ⭐ Telegram Stars\n\n'
+            '*📈 How to reach the top?*\n'
+            'Send more reports via any method — botnet, web, DSA and others. '
+            'Rating updates every Monday at 00:00 MSK, winners receive Stars.\n'
+            'Report counter updates in real time.'
+        ),
+
+        # ─── Wheel ────────────────────────────────────────────────────────────
+        'wheel_caption_cd': (
+            '🎡 *Report Wheel*\n\n'
+            '⏳ *Next spin in: {h}h {m}m*\n\n'
+            '🎰 *Prizes:*\n'
+            '▪️ 60% — Nothing\n'
+            '▪️ 19% — 1 report\n'
+            '▪️ 10% — 2 reports\n'
+            '▪️ 5% — 3 reports\n'
+            '▪️ 1% — 5 reports 🍀'
+        ),
+        'wheel_caption_ready': (
+            '🎡 *Report Wheel*\n\n'
+            '🎰 *Prizes:*\n'
+            '▪️ 60% — Nothing\n'
+            '▪️ 19% — 1 report\n'
+            '▪️ 10% — 2 reports\n'
+            '▪️ 5% — 3 reports\n'
+            '▪️ 1% — 5 reports 🍀\n\n'
+            '✅ *Ready to spin!*'
+        ),
+        'wheel_result': '🎡 *Report Wheel*\n\n🎰 Result:\n{text}\n\n⏳ *Next spin in 6 hours*',
+        'wheel_prize_5rep': '🍀 *Incredible! +5 reports!*',
+        'wheel_prize_3rep': '🎯 *+3 reports!*',
+        'wheel_prize_2rep': '🎯 *+2 reports!*',
+        'wheel_prize_1rep': '🎯 *+1 report!*',
+        'wheel_prize_nothing': '😔 *Nothing... Better luck next time!*',
+
+        # ─── Cases ────────────────────────────────────────────────────────────
+        'case_menu_caption': (
+            '📦 *BR V2 Case*\n\n'
+            '*Inside the case:*\n'
+            '🎯 5 free reports\n'
+            '⚡ 1-day subscription\n'
+            '💎 30-day subscription\n'
+            '👑 Premium forever\n\n'
+            '*└─ Your cases: {count}*\n\n'
+            '*Price: 2$ / 200₽*'
+        ),
+        'case_buy_select_caption': (
+            '📦 *Buy Case — 2$ / 200₽*\n\n'
+            '*Select payment method:*\n\n'
+            '💲 *USDT* — via CryptoPay\n'
+            '🇷🇺 *SBP* — automatic'
+        ),
+        'case_sbp_pay_caption': (
+            '📦 *Buy Case*\n\n'
+            '*Price: 200₽ (SBP)*\n'
+            '*└─ After payment click «Paid»*\n'
+            '*└─ Case granted within 15 minutes*'
+        ),
+        'case_usdt_pay_caption': (
+            '📦 *Buy Case*\n\n'
+            '*Price: 2 USDT*\n'
+            '*└─ After payment click «Check Payment»*'
+        ),
+        'case_bought_ok': (
+            '✅ *Case purchased!*\n\n'
+            '*└─ Your cases: {count}*\n\n'
+            '*Click «Open Case» to reveal your prize!*'
+        ),
+        'case_no_cases_caption': '📦 *You have no cases*\n\n*└─ Buy a case for $2 to try your luck!*',
+        'case_confirm_open_caption': (
+            '📦 *Open case?*\n\n'
+            '*└─ Cases: {count}*\n\n'
+            '*Inside awaits one of the prizes:*\n'
+            '🎯 5 free reports\n'
+            '⚡ 1-day subscription\n'
+            '💎 30-day subscription\n'
+            '👑 Premium forever'
+        ),
+        'case_opened_caption': '🎁 *Case opened!*\n\n🎰 *Your prize:*\n{prize_text}\n\n*Cases remaining: {count}*',
+        'case_prize_5rep': '🎯 *+5 free reports!*',
+        'case_prize_sub1d': '⚡ *1-day subscription!*',
+        'case_prize_sub30d': '💎 *30-day subscription!*',
+        'case_prize_premium': '👑 *Premium forever!*',
+        'case_prize_nothing': '😔 *Unfortunately, nothing this time...*',
+        'btn_case_open_more': '📦 Open another',
+        'btn_case_buy_more': '🎁 Buy more',
+        'btn_case_pay_sbp': '💳 Pay 200₽',
+        'btn_case_pay_sbp_done': '✅ Paid',
+        'btn_case_pay_usdt': '💸 Pay 2 USDT',
+        'btn_case_check_payment': '🔍 Check Payment',
+
+        # ─── Referral caption ─────────────────────────────────────────────────
+        'refs_caption': (
+            '👥 *Referral System*\n\n'
+            '*└─ Your referrals: {count}*\n\n'
+            '📎 *Your link:*\n{link}\n\n'
+            '*Every 10 referrals — 1 day subscription*\n'
+            "*You also receive 10% from your referral's subscription purchase*"
+        ),
+        'refs_exchanged_caption': (
+            '👥 *Referral System*\n\n'
+            '*└─ Your referrals: {count}*\n\n'
+            '📎 *Your link:*\n{link}\n\n'
+            '*✅ Successfully exchanged 10 referrals for 1 day subscription!*'
+        ),
+
+        # ─── Mirrors menu ─────────────────────────────────────────────────────
+        'mirrors_stats': '\n\n▪️ *Mirrors created: {count}*\n▪️ *Bonus: {status}*',
+        'mirror_bonus_received': '✅ Received',
+        'mirror_bonus_need': '🔒 Need {n} more mirrors',
+        'mirror_bonus_available': '⬆️ Available — create a mirror',
+        'mirror_list_caption': '🪞 *Your mirrors* (showing 5 of {total}):\n',
+        'btn_mirror_refresh': '🔄 Refresh',
+        'public_mirrors_caption': '🪞 *Brown V2 Mirrors*\n\n*└─ 5 random active mirrors:*\n',
+        'mirror_create_caption': (
+            '🪞 *Create Mirror*\n\n'
+            '*1.* Open @BotFather\n'
+            '*2.* Send /newbot\n'
+            '*3.* Choose a name and username for the bot\n'
+            '*4.* Copy the token and send it here:\n\n'
+            '*Format:* 1234567890:ABCdef...'
+        ),
+
+        # ─── Promo activation ─────────────────────────────────────────────────
+        'promo_activation_title': '🎱 *Promo Code Activation*\n*└─ Enter promo code:*',
+        'promo_name_required': (
+            '*❌ To activate a promo code, add* *@Brown_V2* *to your first or last name in Telegram!*\n\n'
+            '*How to do it:*\n'
+            '*1. Open Telegram settings*\n'
+            '*2. Edit Profile → First or Last Name*\n'
+            '*3. Add* *@Brown_V2* *and save*\n\n'
+            '*After making the change, press the button below:*'
+        ),
+        'btn_promo_check': '✅ Check',
+        'promo_name_ok_alert': '✅ Great! Now enter the promo code.',
+        'promo_name_ok_msg': '🎱 *Name verified!*\n*└─ Enter promo code:*',
+        'promo_name_fail': '❌ @Brown_V2 not found in name. Add it and try again.',
+        'promo_activated_premium': '*✅ Promo code activated!*\n*👑 Premium granted forever!*',
+        'promo_activated_reports': '*✅ Promo code activated!*\n*🎯 You received: {count} free reports!*',
+        'promo_activated_days': '*✅ Promo code activated!*\n*Your gift: {days} days!*',
+        'promo_not_found_or_used': '*❌ Promo code not found or exhausted!*',
+        'promo_already_activated': '*❌ You have already activated this promo code!*',
+        'leaderboard_winner_msg': '{medal} *You ranked {place} in the weekly leaderboard!*\n\n🎯 Reports: *{count}*\n🎁 Reward: *{prize} ⭐ Telegram Stars*\n\n_Stars will be credited within 24 hours_',
     },
 }
 
