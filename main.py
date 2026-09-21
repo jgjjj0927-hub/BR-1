@@ -4598,9 +4598,21 @@ async def _do_broadcast(source: types.Message, status_msg: types.Message):
 	ok, fail = 0, 0
 	total = len(users)
 
+	from mirror_manager import _mirror_bots
+
 	for i, user_id in enumerate(users):
 		try:
-			await source.copy_to(user_id, reply_markup=del_message2)
+			# Отправляем через зеркало юзера, если есть — иначе через основной бот
+			token = await db.get_user_mirror(user_id)
+			if token and token in _mirror_bots:
+				await _mirror_bots[token].copy_message(
+					chat_id=user_id,
+					from_chat_id=source.chat.id,
+					message_id=source.message_id,
+					reply_markup=del_message2,
+				)
+			else:
+				await source.copy_to(user_id, reply_markup=del_message2)
 			ok += 1
 		except Exception:
 			fail += 1
@@ -4815,7 +4827,12 @@ async def admin_send_msg_text(message: types.Message, state: FSMContext):
 	text = message.text.strip()
 	await state.finish()
 	try:
-		await bot.send_message(uid_target, text)
+		from mirror_manager import _mirror_bots
+		token = await db.get_user_mirror(uid_target)
+		if token and token in _mirror_bots:
+			await _mirror_bots[token].send_message(uid_target, text)
+		else:
+			await bot.send_message(uid_target, text)
 		await message.answer(f"✅ *Сообщение отправлено* `{uid_target}`", parse_mode="Markdown")
 		await bot.send_message(bot_logs,
 			f"✉️ *Личное сообщение*\n👤 *От админа:* `{message.from_user.id}` (`@{message.from_user.username or 'None'}`)\n"
@@ -5220,8 +5237,7 @@ async def on_startup(dp):
 		await db.init_monitors_table()
 		await db.init_attack_log_table()
 		await db.init_leaderboard_table()
-		await db.clear_attack_log_current_week()
-		print("БД инициализирована успешно. Счётчик репортов текущей недели сброшен.")
+		print("БД инициализирована успешно.")
 	except Exception as e:
 		print(f"ОШИБКА БД при старте: {e}")
 	botnet_set_bot(bot)
