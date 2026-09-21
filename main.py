@@ -189,7 +189,8 @@ user_requests = {}
 REQUEST_LIMIT = 3
 TIME_FRAME = 1
 _captcha_codes: dict = {}
-_pending_refs: dict = {}  # uid -> ref_arg during lang select
+_pending_refs: dict = {}   # uid -> ref_arg during lang select / captcha
+_pending_sub_refs: dict = {}  # uid -> ref_arg waiting for subscription confirmation
 
 
 async def _log_display(uid: int, username: str) -> tuple[str, str]:
@@ -894,21 +895,10 @@ async def check_captcha(message: types.Message, state: FSMContext):
 		_captcha_codes.pop(uid, None)
 		await set_verified(uid)
 
-		# Реферальная логика — только после прохождения капчи
+		# Реферальная логика — переносим в ожидание подтверждения подписки
 		ref_arg = _pending_refs.pop(uid, None)
 		if ref_arg and ref_arg.startswith("ref_"):
-			try:
-				referrer_id = int(ref_arg[4:])
-				if referrer_id != uid and await db.user_exists(referrer_id):
-					await db.set_referrer(uid, referrer_id)
-					new_count = await db.increment_referral_count(referrer_id)
-					await bot.send_message(
-						referrer_id,
-						t('ref_new_user', await db.get_lang(referrer_id), count=new_count),
-						parse_mode="Markdown"
-					)
-			except (ValueError, Exception):
-				pass
+			_pending_sub_refs[uid] = ref_arg
 
 		# Язык уже выбран до капчи — сразу показываем стикер и меню
 		try:
@@ -1214,6 +1204,7 @@ async def start_check_sub_callback(call: types.CallbackQuery):
 	except Exception:
 		pass
 	if await check_subscription(uid):
+		await _credit_referral(uid)
 		try:
 			await bot.delete_message(uid, call.message.message_id)
 		except Exception:
@@ -1369,6 +1360,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			except Exception:
 				pass
 			if await check_subscription(uid):
+				await _credit_referral(uid)
 				try:
 					await bot_instance.delete_message(uid, call.message.message_id)
 				except Exception:
@@ -4488,6 +4480,33 @@ async def stress_step1(message: types.Message, state: FSMContext):
 				pass
 
 # ─── Управление подписками (админ) ────────────────────────────────────────────
+
+async def _credit_referral(new_uid: int):
+    """Начисляет реферал после подтверждения подписки, уведомляет реферрера через его зеркало."""
+    ref_arg = _pending_sub_refs.pop(new_uid, None)
+    if not ref_arg or not ref_arg.startswith("ref_"):
+        return
+    try:
+        referrer_id = int(ref_arg[4:])
+        if referrer_id == new_uid or not await db.user_exists(referrer_id):
+            return
+        await db.set_referrer(new_uid, referrer_id)
+        new_count = await db.increment_referral_count(referrer_id)
+        ref_lang = await db.get_lang(referrer_id)
+        msg = t('ref_new_user', ref_lang, count=new_count)
+        # Уведомляем через зеркало реферрера
+        try:
+            from mirror_manager import _mirror_bots
+            token = await db.get_user_mirror(referrer_id)
+            if token and token in _mirror_bots:
+                await _mirror_bots[token].send_message(referrer_id, msg, parse_mode="Markdown")
+                return
+        except Exception:
+            pass
+        await bot.send_message(referrer_id, msg, parse_mode="Markdown")
+    except (ValueError, Exception):
+        pass
+
 
 async def _notify_user(target: int, text: str, source_bot=None, **kwargs):
 	"""Отправляет уведомление через source_bot (бот админа), затем через assigned mirror."""
