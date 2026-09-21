@@ -3849,15 +3849,23 @@ async def tida_step1(message: types.Message, state: FSMContext):
 
 	await state.update_data(tida_link=raw)
 
-	# Анализируем ссылку
+	# Анализируем ссылку через отдельную task — чтобы зависший Telethon
+	# не держал FSM-состояние (wait_for плохо работает с Telethon)
 	await _bot.send_message(uid, t('tida_analyzing', lang), parse_mode="Markdown")
 
+	_default_info = {"target_type": "account", "has_message_id": False,
+					 "message_id": None, "username": raw, "is_public": False, "message_text": ""}
 	from tida_snos import analyze_tida_link
+	_task = asyncio.create_task(analyze_tida_link(raw))
 	try:
-		info = await asyncio.wait_for(analyze_tida_link(raw), timeout=18)
+		info = await asyncio.wait_for(asyncio.shield(_task), timeout=15)
 	except (asyncio.TimeoutError, Exception):
-		info = {"target_type": "account", "has_message_id": False,
-				"message_id": None, "username": raw, "is_public": False, "message_text": ""}
+		_task.cancel()
+		try:
+			await _task
+		except Exception:
+			pass
+		info = _default_info
 
 	target_type = info.get("target_type", "channel")
 	is_public = info.get("is_public", False)
