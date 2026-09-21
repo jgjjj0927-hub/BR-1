@@ -2166,8 +2166,24 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.send_message(call.message.chat.id, '🎯 *Отзыв репортов*\n*└─ Введите ID пользователя:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminRemoveReportsFSM.user_id.state)
 		elif d == 'promo':
-			await bot_instance.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─Введите промокод:*', parse_mode="Markdown")
-			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPromoFSM.promo.state)
+			_full_name = (call.from_user.first_name or "") + " " + (call.from_user.last_name or "")
+			if "Brown_V2" in _full_name or "Brown_V2" in (call.from_user.username or ""):
+				await bot_instance.send_message(call.message.chat.id, '🎱 *Активация промокода*\n*└─ Введите промокод:*', parse_mode="Markdown")
+				await dp_instance.current_state(chat=uid, user=uid).set_state(WaitPromoFSM.promo.state)
+			else:
+				_markup = types.InlineKeyboardMarkup()
+				_markup.add(types.InlineKeyboardButton("✅ Проверить", callback_data='promo_check_name'))
+				await bot_instance.send_message(
+					call.message.chat.id,
+					"*❌ Для активации промокода добавьте* *@Brown_V2* *в своё имя или фамилию в Telegram!*\n\n"
+					"*Как это сделать:*\n"
+					"*1. Зайди в настройки Telegram*\n"
+					"*2. Изменить профиль → Имя или Фамилия*\n"
+					"*3. Добавь* *@Brown_V2* *и сохрани*\n\n"
+					"*После изменения нажми кнопку ниже:*",
+					parse_mode="Markdown",
+					reply_markup=_markup
+				)
 
 		elif d == 'promo_check_name':
 			full_name = (call.from_user.first_name or "") + " " + (call.from_user.last_name or "")
