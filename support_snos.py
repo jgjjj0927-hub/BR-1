@@ -417,16 +417,15 @@ class SupportProgress:
         total = self._n
         # Финальная строка итога
         result_line = f"\n✅ *{ok_count}/{total}* обращений принято" if ok_count else f"\n❌ Все обращения отклонены *{total}/{total}*"
-        if not self._msg_id:
-            return result_line
 
-        text = self._render(finished=True) + result_line
-        try:
-            await self._bot.edit_message_text(
-                text, self._uid, self._msg_id, parse_mode="Markdown"
-            )
-        except Exception:
-            pass
+        if self._msg_id:
+            text = self._render(finished=True) + result_line
+            try:
+                await self._bot.edit_message_text(
+                    text, self._uid, self._msg_id, parse_mode="Markdown"
+                )
+            except Exception:
+                pass
 
         return (
             f"🎫 *Снос Сессий завершён*\n"
