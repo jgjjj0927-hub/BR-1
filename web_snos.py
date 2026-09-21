@@ -22,7 +22,7 @@ def generatemail():
     last_name = random.choice(last_names)
     year = random.choice(years)
     domain = random.choice(domains)
-    return f"{name}.{last_name}.{year}`@{domain}`"
+    return f"{name}.{last_name}.{year}@{domain}"
 
 LOGS_DIR = "logs"
 

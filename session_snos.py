@@ -153,7 +153,7 @@ def _proxy_url(raw: str) -> str:
     parts = raw.split(":")
     if len(parts) == 4:
         host, port, user, pwd = parts
-        return f"socks5://{user}:{pwd}`@{host}`:{port}"
+        return f"socks5://{user}:{pwd}@{host}:{port}"
     elif len(parts) == 2:
         return f"socks5://{raw}"
     return raw
@@ -172,7 +172,7 @@ def _rand_email() -> str:
     names = ["ivan", "alex", "dmitry", "sergey", "mike", "andrey", "pavel"]
     domains = ["gmail.com", "yahoo.com", "outlook.com", "mail.ru", "protonmail.com"]
     n = random.choice(names) + str(random.randint(10, 9999))
-    return f"{n}`@{random.choice(domains)}`"
+    return f"{n}@{random.choice(domains)}"
 
 
 # ─── Шаг 1: парсинг жертвы ────────────────────────────────────────────────────

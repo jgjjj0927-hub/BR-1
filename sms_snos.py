@@ -27,7 +27,7 @@ def set_bot_sms(b):
 
 def _rand_email():
     chars = string.ascii_lowercase
-    return f"{''.join(random.choices(chars, k=9))}`@{''.join(random.choices(chars, k=5))}`.ru"
+    return f"{''.join(random.choices(chars, k=9))}@{''.join(random.choices(chars, k=5))}.ru"
 
 
 async def _do_req(session: aiohttp.ClientSession, name: str, method: str, url: str, **kwargs) -> tuple:
