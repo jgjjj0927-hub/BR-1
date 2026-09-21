@@ -18,7 +18,7 @@ from telethon.errors import UsernameNotOccupiedError, UsernameInvalidError, Chan
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk
+from utils import now_msk, esc_md
 
 logger = logging.getLogger(__name__)
 
@@ -209,10 +209,10 @@ async def validate_link(parsed: dict) -> dict:
         try:
             entity = await asyncio.wait_for(client.get_entity(uname), timeout=10)
         except asyncio.TimeoutError:
-            logger.warning(f"[UNIVERSAL] get_entity timeout для *@{uname}*")
+            logger.warning(f"[UNIVERSAL] get_entity timeout для *@{esc_md(uname)}*")
             return {**parsed, "valid": True}
         except (UsernameNotOccupiedError, UsernameInvalidError):
-            return {**parsed, "valid": False, "error": f"*@{uname}* не существует"}
+            return {**parsed, "valid": False, "error": f"*@{esc_md(uname)}* не существует"}
         except ChannelPrivateError:
             return {**parsed, "valid": False, "error": "Канал приватный"}
         except Exception as e:
@@ -329,7 +329,7 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
 
     elif link_type == TYPE_BOT:
         tasks_info = [
-            ("🤖 Бот-метод",   lambda: main_bot_snos(f"*@{uname}*", "personal", user, username, norm, silent=True, notify_bot=_nb), "bot_snos"),
+            ("🤖 Бот-метод",   lambda: main_bot_snos(f"*@{esc_md(uname)}*", "personal", user, username, norm, silent=True, notify_bot=_nb), "bot_snos"),
             ("🇪🇺 DSA",        lambda: main_dsa_snos(norm, user, username, dsa_reason, dsa_sub, dsa_text, silent=True, _bot=_nb), "dsa"),
             ("🔍 AU Report",   lambda: main_aureport(norm, user, username, silent=True, notify_bot=_nb), "aureport"),
             ("🎵 TIDA",        lambda: main_tida(norm, dsa_text, user, username, silent=True, notify_bot=_nb), "tida"),
@@ -456,7 +456,7 @@ async def run_universal(parsed: dict, tida_text: str, user: int, username: str,
     except Exception:
         _log_uid, _log_uname = str(user), username
 
-    lines_log = [f"🌐 *Универсальный метод*\n\n🎯 *Цель:* {norm_escaped}\n👤 *Пользователь:* {_log_uid} (*@{_log_uname}*)\n🕐 *Время:* {now_str}\n"]
+    lines_log = [f"🌐 *Универсальный метод*\n\n🎯 *Цель:* {norm_escaped}\n👤 *Пользователь:* {_log_uid} (*@{esc_md(_log_uname)}*)\n🕐 *Время:* {now_str}\n"]
     for label, _, _ in tasks_info:
         mark = results.get(label, "❌")
         rd = results_data.get(label)

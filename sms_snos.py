@@ -27,7 +27,7 @@ def set_bot_sms(b):
 
 def _rand_email():
     chars = string.ascii_lowercase
-    return f"{''.join(random.choices(chars, k=9))}@{''.join(random.choices(chars, k=5))}.ru"
+    return f"{''.join(random.choices(chars, k=9))}@{esc_md(''.join(random.choices(chars, k=5)))}.ru"
 
 
 async def _do_req(session: aiohttp.ClientSession, name: str, method: str, url: str, **kwargs) -> tuple:
@@ -465,7 +465,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
         f"💬 *SMS-бомбер*\n"
         f"*└─ Номер:* +{phone}\n"
         f"✅ {ok} | ⏱ {timeout} | ❌ {err}\n"
-        f"👤 {_log_uid} (*@{_log_uname}*)"
+        f"👤 {_log_uid} (*@{esc_md(_log_uname)}*)"
     )
 
     try:

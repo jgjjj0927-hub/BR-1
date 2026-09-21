@@ -164,7 +164,7 @@ async def run_gateways():
             except Exception:
                 await asyncio.sleep(3)
         await asyncio.sleep(1)
-        print(f"[GATEWAY] #{i} *@{me.username}* запущен", flush=True)
+        print(f"[GATEWAY] #{i} *@{esc_md(me.username)}* запущен", flush=True)
         tasks.append(asyncio.ensure_future(gdp.start_polling(timeout=20)))
 
     if not tasks:

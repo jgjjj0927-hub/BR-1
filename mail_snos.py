@@ -150,7 +150,7 @@ def load_mails(file_path="mails.txt"):
 def mask_email(email):
     local, domain = email.split("@")
     masked_local = (local[0] + "***") if len(local) >= 2 else "*"
-    return f"{masked_local}@{domain}"
+    return f"{masked_local}@{esc_md(domain)}"
 
 
 def generate_log_filename():

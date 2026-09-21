@@ -200,7 +200,7 @@ async def _check_one(key: str, data: dict):
     # Ник изменился
     if snap["username"] and current["username"] and current["username"] != snap["username"]:
         triggers.append(
-            f"👤 Ник: *@{snap['username']}* → *@{current['username']}*"
+            f"👤 Ник: *@{esc_md(snap['username'])}* → *@{esc_md(current['username'])}*"
         )
 
     # Биография изменилась / исчезла

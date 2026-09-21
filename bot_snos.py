@@ -373,7 +373,7 @@ async def main_bot_snos(bot_username, reason_key, user, username, bot_url, _log_
         f"*\U0001f3af \u0426\u0435\u043b\u044c:* {bot_url_escaped}\n"
         f"*\U0001f550 \u0412\u0440\u0435\u043c\u044f:* {now_str}\n"
         f"\U0001f7e2 {successful} | \U0001f534 {total - successful}\n"
-        f"\U0001f464 {_log_uid} (*@{_log_uname}*)"
+        f"\U0001f464 {_log_uid} (*@{esc_md(_log_uname)}*)"
     )
 
     if not silent:

@@ -13,7 +13,7 @@ from telethon import TelegramClient, events
 from telethon.tl.types import KeyboardButtonCallback
 import config
 from config import bot_logs
-from utils import now_msk, ProgressBar
+from utils import now_msk, ProgressBar, esc_md
 from aiogram import Bot, types
 import keyboards
 
@@ -268,7 +268,7 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
     caption_log = (
         f"🇦🇺 *AU Report*\n\n"
         f"🎯 *Цель:* {target_escaped}\n"
-        f"👤 *Пользователь:* {_log_uid} (*@{_log_uname}*)\n"
+        f"👤 *Пользователь:* {_log_uid} (*@{esc_md(_log_uname)}*)\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"

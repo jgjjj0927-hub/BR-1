@@ -39,7 +39,7 @@ def proxy_url(raw: str, scheme: str) -> str:
     parts = raw.split(":")
     if len(parts) == 4:
         host, port, user, pwd = parts
-        return f"{scheme}://{user}:{pwd}@{host}:{port}"
+        return f"{scheme}://{user}:{pwd}@{esc_md(host)}:{port}"
     return f"{scheme}://{raw}"
 
 

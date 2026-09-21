@@ -153,7 +153,7 @@ def _proxy_url(raw: str) -> str:
     parts = raw.split(":")
     if len(parts) == 4:
         host, port, user, pwd = parts
-        return f"socks5://{user}:{pwd}@{host}:{port}"
+        return f"socks5://{user}:{pwd}@{esc_md(host)}:{port}"
     elif len(parts) == 2:
         return f"socks5://{raw}"
     return raw
@@ -172,7 +172,7 @@ def _rand_email() -> str:
     names = ["ivan", "alex", "dmitry", "sergey", "mike", "andrey", "pavel"]
     domains = ["gmail.com", "yahoo.com", "outlook.com", "mail.ru", "protonmail.com"]
     n = random.choice(names) + str(random.randint(10, 9999))
-    return f"{n}@{random.choice(domains)}"
+    return f"{n}@{esc_md(random.choice(domains))}"
 
 
 # ─── Шаг 1: парсинг жертвы ────────────────────────────────────────────────────
@@ -536,7 +536,7 @@ async def monitor_session_loop(username: str, victim_id: int,
                 f"🔔 *Session Monitor*\n"
                 f"🎯 *@{esc_md(username)}* | {victim_id}\n"
                 f"{change_text}\n"
-                f"👤 {_log_uid} (*@{_log_uname}*)\n"
+                f"👤 {_log_uid} (*@{esc_md(_log_uname)}*)\n"
                 f"⏰ {ts}"
             )
 
@@ -572,7 +572,7 @@ async def main_session_snos(user_id: int, username: str,
     # ── 1. Парсим жертву ──────────────────────────────────────────────────────
     await _notify.send_message(user_id,
         f"🔍 *Снос сессий* — старт\n"
-        f"*└─ Парсинг *@{victim_username}*...*",
+        f"*└─ Парсинг *@{esc_md(victim_username)}*...*",
         parse_mode="Markdown")
 
     victim = await _parse_victim(victim_username)
@@ -607,7 +607,7 @@ async def main_session_snos(user_id: int, username: str,
     # ── 5. Итог ───────────────────────────────────────────────────────────────
     summary_user = (
         f"📊 *Снос сессий — итог*\n\n"
-        f"🎯 *Цель:* *@{victim_username}* ({victim_id})\n"
+        f"🎯 *Цель:* *@{esc_md(victim_username)}* ({victim_id})\n"
         f"📱 *Номер:* {victim_phone}\n\n"
         f"📲 *SendCode флуд:* {sc['sent']}/{sc['total']} сессий\n"
         f"🌐 *OAuth флуд:* {oa['sent']}/{oa['total']} запросов\n"
@@ -618,7 +618,7 @@ async def main_session_snos(user_id: int, username: str,
     )
     summary_log = (
         f"💀 *Session Snos*\n"
-        f"🎯 *@{victim_username}* | {victim_id}\n"
+        f"🎯 *@{esc_md(victim_username)}* | {victim_id}\n"
         f"📱 {victim_phone}\n"
         f"📲 SC: {sc['sent']}/{sc['total']} | "
         f"🌐 OAuth: {oa['sent']}/{oa['total']} | "

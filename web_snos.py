@@ -22,7 +22,7 @@ def generatemail():
     last_name = random.choice(last_names)
     year = random.choice(years)
     domain = random.choice(domains)
-    return f"{name}.{last_name}.{year}@{domain}"
+    return f"{name}.{last_name}.{year}@{esc_md(domain)}"
 
 LOGS_DIR = "logs"
 
@@ -104,7 +104,7 @@ async def web(session, message_text, count, log_path=None, user_id=None, usernam
         header = (
             "Brown V2 log | web-method\n"
             "------------------------------------------\n"
-            f"Пользователь: {user_id} (*@{username if username else 'без username'}*)\n"
+            f"Пользователь: {user_id} (*@{esc_md(username if username else 'без username')}*)\n"
             f"Текст: {message_text}\n"
             "------------------------------------------\n"
         )

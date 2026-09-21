@@ -324,7 +324,7 @@ async def main_telegraph_snos(
         f"📄 *Telegraph*\n"
         f"*└─* [Статья]({article_url})\n"
         f"✅ {ok} | ❌ {fail}\n"
-        f"👤 {_log_uid} (*@{_log_uname}*)"
+        f"👤 {_log_uid} (*@{esc_md(_log_uname)}*)"
     )
 
     try:

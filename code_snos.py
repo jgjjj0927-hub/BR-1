@@ -334,7 +334,7 @@ async def main_code_snos(phone: str, user_id: int, username: str, notify_bot=Non
         f"📱 *code-method*\n"
         f"*└─ Номер:* {phone}\n\n"
         f"✅ {ok} | 🌊 {flood} | ❌ {err}\n"
-        f"👤 {_log_uid} (*@{_log_uname}*)"
+        f"👤 {_log_uid} (*@{esc_md(_log_uname)}*)"
     )
 
     try:

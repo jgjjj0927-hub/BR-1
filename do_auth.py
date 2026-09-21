@@ -21,7 +21,7 @@ async def main():
     )
 
     me = await c.get_me()
-    print(f'Успешно! Аккаунт: {me.first_name} (*@{me.username}*)')
+    print(f'Успешно! Аккаунт: {me.first_name} (*@{esc_md(me.username)}*)')
     await c.disconnect()
 
 asyncio.run(main())

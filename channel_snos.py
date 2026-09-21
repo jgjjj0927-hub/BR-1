@@ -432,7 +432,7 @@ async def main_channel_snos(channel_username, reason_key, user, username, messag
         + (f"*└─ Сообщение: #{message_id}*\n" if message_id else "")
         + f"*└─ Причина: {reason_label}*\n\n"
         f"🟢 *Успешно: {valid}*\n🔴 *Не удалось: {ne_valid}*\n\n"
-        f"👤 *Пользователь:* {_log_uid} (*@{_log_uname}*)"
+        f"👤 *Пользователь:* {_log_uid} (*@{esc_md(_log_uname)}*)"
     )
 
     if not silent:
