@@ -17,7 +17,7 @@ import config
 from config import bot_logs
 from aiogram import Bot, types
 import keyboards
-from utils import now_msk, ProgressBar, esc_md
+from utils import now_msk, ProgressBar
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,7 @@ async def analyze_tida_link(link: str) -> dict:
             return result
 
         try:
-            entity = await asyncio.wait_for(client.get_entity(username), timeout=10)
+            entity = await client.get_entity(username)
             from telethon.tl.types import (Channel, Chat, User,
                                             InputPeerChannel, InputPeerChat)
 
@@ -343,11 +343,6 @@ def _get_proxy():
     return proxies[0] if proxies else None
 
 
-# Глобальный blacklist прокси заблокированных по региону (сбрасывается при каждом запуске main_tida)
-_blocked_proxies: set = set()
-_blocked_lock = asyncio.Lock()
-
-
 
 
 async def _create_client(session_path: str, proxy=None):
@@ -383,27 +378,19 @@ async def _create_client(session_path: str, proxy=None):
         return None
 
 
-async def _send_one_report(client, bot_entity, target: str, custom_text: str, report_num: int) -> tuple[bool, bool]:
-    """Возвращает (success, region_blocked)."""
+async def _send_one_report(client, bot_entity, target: str, custom_text: str, report_num: int) -> bool:
     done = asyncio.Event()
     step = 0
     success = False
-    region_blocked = False
     session_name = os.path.basename(client.session.filename)
 
     @client.on(events.NewMessage(from_users=bot_entity.id))
     async def handler(event):
-        nonlocal step, success, region_blocked
+        nonlocal step, success
         text = event.message.message.strip().lower()
         markup = event.message.reply_markup
 
         logger.info(f"[TIDA] [{session_name}] [{report_num}] 📨 TIDABOT: step={step} | text={text[:120]!r}")
-
-        if "not available in your region" in text:
-            logger.warning(f"[TIDA] [{session_name}] [{report_num}] 🌍 Регион заблокирован — нужен другой прокси")
-            region_blocked = True
-            done.set()
-            return
 
         if ("please enter a t.me" in text or "enter the link" in text or "enter a link" in text or "t.me link" in text) and step == 0:
             await asyncio.sleep(0.3)
@@ -413,31 +400,9 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
 
         elif ("select the reason" in text or "choose the reason" in text or "reason for" in text or "select a reason" in text) and step == 1:
             await asyncio.sleep(0.3)
-            clicked = False
-            if markup and markup.rows:
-                # Try to find NCII button; fallback to first button
-                target_btn = None
-                for row in markup.rows:
-                    for btn in row.buttons:
-                        bl = btn.text.lower()
-                        if any(k in bl for k in ("non-consensual", "intimate", "ncii", "privacy")):
-                            target_btn = btn
-                            break
-                    if target_btn:
-                        break
-                if target_btn is None and markup.rows:
-                    target_btn = markup.rows[0].buttons[0] if markup.rows[0].buttons else None
-                if target_btn and isinstance(target_btn, KeyboardButtonCallback):
-                    try:
-                        await event.message.click(data=target_btn.data)
-                        clicked = True
-                        logger.info(f"[TIDA] [{session_name}] [{report_num}] Причина нажата (кнопка: {target_btn.text!r})")
-                    except Exception as _e:
-                        logger.warning(f"[TIDA] [{session_name}] [{report_num}] click error: {_e}")
-            if not clicked:
-                await client.send_message(bot_entity, "Non-consensual intimate image sharing")
-                logger.info(f"[TIDA] [{session_name}] [{report_num}] Причина отправлена (текст)")
+            await client.send_message(bot_entity, "Non-consensual intimate image sharing")
             step = 2
+            logger.info(f"[TIDA] [{session_name}] [{report_num}] Причина отправлена")
 
         elif ("why the content is illegal" in text or "describe" in text or "explain" in text or "provide details" in text or "additional information" in text) and step == 2:
             await asyncio.sleep(0.3)
@@ -447,55 +412,24 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
 
         elif ("documentation" in text or "evidence" in text or "attach" in text or "upload" in text or "skip" in text) and step == 3:
             await asyncio.sleep(0.3)
-            clicked = False
-            if markup and markup.rows:
-                target_btn = None
-                for row in markup.rows:
-                    for btn in row.buttons:
-                        bl = btn.text.lower()
-                        if any(k in bl for k in ("skip", "proceed", "without", "no doc", "continue")):
-                            target_btn = btn
-                            break
-                    if target_btn:
-                        break
-                # Fallback: last button in last row (usually skip/continue)
-                if target_btn is None and markup.rows:
-                    last_row = markup.rows[-1]
-                    if last_row.buttons:
-                        target_btn = last_row.buttons[-1]
-                if target_btn and isinstance(target_btn, KeyboardButtonCallback):
-                    try:
-                        await event.message.click(data=target_btn.data)
-                        clicked = True
-                        logger.info(f"[TIDA] [{session_name}] [{report_num}] Документация пропущена (кнопка: {target_btn.text!r})")
-                    except Exception as _e:
-                        logger.warning(f"[TIDA] [{session_name}] [{report_num}] click error: {_e}")
-            if not clicked:
-                await client.send_message(bot_entity, "Proceed without documentation")
-                logger.info(f"[TIDA] [{session_name}] [{report_num}] Документация пропущена (текст)")
+            await client.send_message(bot_entity, "Proceed without documentation")
             step = 4
+            logger.info(f"[TIDA] [{session_name}] [{report_num}] Документация пропущена")
 
         elif "by submitting this report" in text and step == 4:
             await asyncio.sleep(0.3)
-            clicked = False
             if markup and markup.rows:
                 for row in markup.rows:
                     for btn in row.buttons:
-                        bl = btn.text.lower()
-                        if any(k in bl for k in ("confirm", "submit", "yes", "send")):
+                        if "confirm" in btn.text.lower():
                             if isinstance(btn, KeyboardButtonCallback):
-                                try:
-                                    await event.message.click(data=btn.data)
-                                    clicked = True
-                                    step = 5
-                                    logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (кнопка: {btn.text!r})")
-                                    return
-                                except Exception as _e:
-                                    logger.warning(f"[TIDA] [{session_name}] [{report_num}] confirm click error: {_e}")
-            if not clicked:
-                await client.send_message(bot_entity, "Confirm")
-                step = 5
-                logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (текст)")
+                                await client.request(btn.click(bot_entity))
+                                step = 5
+                                logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (кнопка)")
+                                return
+            await client.send_message(bot_entity, "Confirm")
+            step = 5
+            logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (текст)")
 
         elif "thank you for your report" in text:
             success = True
@@ -519,7 +453,7 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
         logger.warning(f"[TIDA] [{session_name}] [{report_num}] ⏳ Таймаут")
 
     client.remove_event_handler(handler)
-    return success, region_blocked
+    return success
 
 
 async def _single_session_flow(session_path: str, target: str, custom_text: str,
@@ -528,35 +462,19 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
     if tida_peer_ref is None:
         tida_peer_ref = [None]
 
-    # Собираем кандидатов: сначала назначенный прокси, потом остальные (без заблокированных)
-    proxies_pool = list(all_proxies) if all_proxies else []
-    random.shuffle(proxies_pool)
-    # Назначенный прокси — первый
-    if proxy and proxy in proxies_pool:
-        proxies_pool.remove(proxy)
-        proxies_pool.insert(0, proxy)
-    elif proxy and proxy not in proxies_pool:
-        proxies_pool.insert(0, proxy)
+    MAX_PROXY_RETRIES = min(2, len(all_proxies)) if all_proxies else 1
+    used_proxies = set()
+    current_proxy = proxy
 
-    tried = set()
-    candidates = proxies_pool if proxies_pool else [None]
-
-    for attempt, current_proxy in enumerate(candidates):
-        proxy_key = current_proxy[1] if current_proxy else "нет"
-        if proxy_key in tried:
-            continue
-
-        # Пропускаем прокси известные как заблокированные по региону
-        async with _blocked_lock:
-            if proxy_key in _blocked_proxies:
-                logger.info(f"[TIDA] [{session_name}] Пропускаю заблокированный прокси {proxy_key}")
-                continue
-
-        tried.add(proxy_key)
-
+    for attempt in range(MAX_PROXY_RETRIES):
         client = await _create_client(session_path, current_proxy)
         if not client:
-            logger.warning(f"[TIDA] [{session_name}] Не удалось подключиться через {proxy_key}, пробую следующий прокси")
+            # Попробуй другой прокси
+            if all_proxies:
+                remaining = [p for i, p in enumerate(all_proxies) if i not in used_proxies]
+                if remaining:
+                    current_proxy = random.choice(remaining)
+                    used_proxies.add(all_proxies.index(current_proxy))
             continue
 
         try:
@@ -572,28 +490,26 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
                     await client.disconnect()
                     return False
 
-            logger.info(f"[TIDA] [{session_name}] Попытка {attempt + 1} | прокси: {proxy_key}")
-            success, region_blocked = await _send_one_report(client, bot_entity, target, custom_text, attempt + 1)
+            logger.info(f"[TIDA] [{session_name}] Попытка {attempt + 1}/{MAX_PROXY_RETRIES} | прокси: {current_proxy[1] if current_proxy else 'нет'}")
+            success = await _send_one_report(client, bot_entity, target, custom_text, attempt + 1)
 
             if success:
                 return True
 
-            if region_blocked:
-                # Добавляем в глобальный blacklist и НЕ переключаемся на другой прокси
-                # (переключение вызывает "two different IPs" ошибку для того же session файла)
-                async with _blocked_lock:
-                    _blocked_proxies.add(proxy_key)
-                logger.warning(f"[TIDA] [{session_name}] Прокси {proxy_key} заблокирован по региону → в blacklist")
-                return False
-            else:
-                logger.warning(f"[TIDA] [{session_name}] Неудача (не регион) на прокси {proxy_key}")
+            # CREATE_REPORT_FAILED — меняем прокси и пробуем снова
+            if all_proxies and attempt + 1 < MAX_PROXY_RETRIES:
+                proxy_list = list(range(len(all_proxies)))
+                remaining = [i for i in proxy_list if i not in used_proxies]
+                if remaining:
+                    idx = random.choice(remaining)
+                    used_proxies.add(idx)
+                    current_proxy = all_proxies[idx]
+                    logger.info(f"[TIDA] [{session_name}] Меняем прокси → {current_proxy[1]}")
+                else:
+                    logger.warning(f"[TIDA] [{session_name}] Все прокси исчерпаны")
+                    return False
 
         except Exception as e:
-            err_str = str(e)
-            if "two different IP" in err_str or "authorization key" in err_str.lower():
-                # Сессия уже подключена с другого IP — не переключаем прокси
-                logger.warning(f"[TIDA] [{session_name}] Конфликт IP сессии, пропускаю")
-                return False
             logger.error(f"[TIDA] [{session_name}] Ошибка: {e}")
         finally:
             try:
@@ -601,20 +517,15 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
             except Exception:
                 pass
 
-    logger.warning(f"[TIDA] [{session_name}] Все незаблокированные прокси исчерпаны")
     return False
 
 
 async def main_tida(target_link: str, custom_text: str, user: int, username: str, _log_user=None, silent: bool = False, notify_bot=None):
-    global _blocked_proxies
     _notify = notify_bot or bot
-    # Сбрасываем blacklist прокси при каждом новом запуске
-    async with _blocked_lock:
-        _blocked_proxies = set()
     sessions = _get_sessions()
     if not sessions:
         await _notify.send_message(user,
-            "❌ *Нет сессий для TIDA!*\n*Положи .session файлы в папку* tida_sessions/",
+            "❌ *Нет сессий для TIDA!*\n*Положи .session файлы в папку* `tida_sessions/`",
             parse_mode="Markdown", reply_markup=keyboards.main_menu)
         return
 
@@ -692,7 +603,7 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
         f"🟣 *TIDA*\n\n"
         f"🎯 *Цель:* {target_escaped}\n"
         f"🗒️ *Текст:* {custom_text[:100]}{'...' if len(custom_text) > 100 else ''}\n"
-        f"👤 *Пользователь:* {_log_uid} (*@{esc_md(_log_uname)}*)\n"
+        f"👤 *Пользователь:* {_log_uid} (@{_log_uname})\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {total - successful}*"
