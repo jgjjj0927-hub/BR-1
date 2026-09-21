@@ -1490,9 +1490,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				'channel': '📢 Канал',
 				'dsa': '⚖️ DSA',
 				'telegraph': '📡 Telegraph',
-				'tida': '🎵 TikTok',
+				'tida': '🟣 TIDA',
 				'aureport': '🔍 Аурепорт',
 				'profile': '👤 Профиль',
+				'support': '💀 Снос сессий',
+				'bank': '🏦 Блокировка карты',
+				'domain_killer': '🔪 Domain Killer',
+				'stress': '⚡️ Стрессер',
 			}
 			_total = await db.get_attack_history_count(uid)
 			history = await db.get_attack_history(uid, limit=_PAGE_SIZE, offset=_hist_offset)
