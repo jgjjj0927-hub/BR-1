@@ -413,9 +413,31 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
 
         elif ("select the reason" in text or "choose the reason" in text or "reason for" in text or "select a reason" in text) and step == 1:
             await asyncio.sleep(0.3)
-            await client.send_message(bot_entity, "Non-consensual intimate image sharing")
+            clicked = False
+            if markup and markup.rows:
+                # Try to find NCII button; fallback to first button
+                target_btn = None
+                for row in markup.rows:
+                    for btn in row.buttons:
+                        bl = btn.text.lower()
+                        if any(k in bl for k in ("non-consensual", "intimate", "ncii", "privacy")):
+                            target_btn = btn
+                            break
+                    if target_btn:
+                        break
+                if target_btn is None and markup.rows:
+                    target_btn = markup.rows[0].buttons[0] if markup.rows[0].buttons else None
+                if target_btn and isinstance(target_btn, KeyboardButtonCallback):
+                    try:
+                        await event.message.click(data=target_btn.data)
+                        clicked = True
+                        logger.info(f"[TIDA] [{session_name}] [{report_num}] Причина нажата (кнопка: {target_btn.text!r})")
+                    except Exception as _e:
+                        logger.warning(f"[TIDA] [{session_name}] [{report_num}] click error: {_e}")
+            if not clicked:
+                await client.send_message(bot_entity, "Non-consensual intimate image sharing")
+                logger.info(f"[TIDA] [{session_name}] [{report_num}] Причина отправлена (текст)")
             step = 2
-            logger.info(f"[TIDA] [{session_name}] [{report_num}] Причина отправлена")
 
         elif ("why the content is illegal" in text or "describe" in text or "explain" in text or "provide details" in text or "additional information" in text) and step == 2:
             await asyncio.sleep(0.3)
@@ -425,24 +447,55 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
 
         elif ("documentation" in text or "evidence" in text or "attach" in text or "upload" in text or "skip" in text) and step == 3:
             await asyncio.sleep(0.3)
-            await client.send_message(bot_entity, "Proceed without documentation")
+            clicked = False
+            if markup and markup.rows:
+                target_btn = None
+                for row in markup.rows:
+                    for btn in row.buttons:
+                        bl = btn.text.lower()
+                        if any(k in bl for k in ("skip", "proceed", "without", "no doc", "continue")):
+                            target_btn = btn
+                            break
+                    if target_btn:
+                        break
+                # Fallback: last button in last row (usually skip/continue)
+                if target_btn is None and markup.rows:
+                    last_row = markup.rows[-1]
+                    if last_row.buttons:
+                        target_btn = last_row.buttons[-1]
+                if target_btn and isinstance(target_btn, KeyboardButtonCallback):
+                    try:
+                        await event.message.click(data=target_btn.data)
+                        clicked = True
+                        logger.info(f"[TIDA] [{session_name}] [{report_num}] Документация пропущена (кнопка: {target_btn.text!r})")
+                    except Exception as _e:
+                        logger.warning(f"[TIDA] [{session_name}] [{report_num}] click error: {_e}")
+            if not clicked:
+                await client.send_message(bot_entity, "Proceed without documentation")
+                logger.info(f"[TIDA] [{session_name}] [{report_num}] Документация пропущена (текст)")
             step = 4
-            logger.info(f"[TIDA] [{session_name}] [{report_num}] Документация пропущена")
 
         elif "by submitting this report" in text and step == 4:
             await asyncio.sleep(0.3)
+            clicked = False
             if markup and markup.rows:
                 for row in markup.rows:
                     for btn in row.buttons:
-                        if "confirm" in btn.text.lower():
+                        bl = btn.text.lower()
+                        if any(k in bl for k in ("confirm", "submit", "yes", "send")):
                             if isinstance(btn, KeyboardButtonCallback):
-                                await client.request(btn.click(bot_entity))
-                                step = 5
-                                logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (кнопка)")
-                                return
-            await client.send_message(bot_entity, "Confirm")
-            step = 5
-            logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (текст)")
+                                try:
+                                    await event.message.click(data=btn.data)
+                                    clicked = True
+                                    step = 5
+                                    logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (кнопка: {btn.text!r})")
+                                    return
+                                except Exception as _e:
+                                    logger.warning(f"[TIDA] [{session_name}] [{report_num}] confirm click error: {_e}")
+            if not clicked:
+                await client.send_message(bot_entity, "Confirm")
+                step = 5
+                logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (текст)")
 
         elif "thank you for your report" in text:
             success = True
