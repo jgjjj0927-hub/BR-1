@@ -2197,7 +2197,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					remaining = ref_count - 10
 					await bot_instance.answer_callback_query(call.id, t('refs_exchanged', _user_lang), show_alert=True)
 					_ref_link_after = f"[t.me/Brown\\_V2bot?start=ref\\_{uid}](https://t.me/Brown_V2bot?start=ref_{uid})"
-				await bot_instance.edit_message_caption(
+					await bot_instance.edit_message_caption(
 						call.message.chat.id, call.message.message_id,
 						caption=t('refs_exchanged_caption', _user_lang, count=remaining, link=_ref_link_after),
 						parse_mode="Markdown", reply_markup=keyboards.get_referral_markup(_user_lang)
