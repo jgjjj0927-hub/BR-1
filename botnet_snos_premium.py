@@ -9,7 +9,7 @@ from aiogram import Bot, types
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk, ProgressBar
+from utils import now_msk, ProgressBar, esc_md
 
 reasons = [
     b'2',  # Child abuse
@@ -1205,7 +1205,7 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
 
     print(f"\n{'='*50}", flush=True)
     print(f"[PREM] 🚀 Запуск премиум-ботнета", flush=True)
-    print(f"[PREM] 👤 Пользователь: {user} (*@{username}*)", flush=True)
+    print(f"[PREM] 👤 Пользователь: {user} (*@{esc_md(username)}*)", flush=True)
     print(f"[PREM] 🔗 Ссылка: {message_url}", flush=True)
     _sessions = _get_sessions()
     print(f"[PREM] 📦 Сессий загружено: {len(_sessions)}", flush=True)
@@ -1237,7 +1237,7 @@ async def main2(chat_username, message_id, user, username, message_url, _log_use
     log_lines = [
         "Brown V2 log | botnet-method [PREMIUM]",
         "-" * 42,
-        f"Пользователь: {user} (*@{username}*)",
+        f"Пользователь: {user} (*@{esc_md(username)}*)",
         f"Ссылка: {message_url}",
         "-" * 42
     ]

@@ -4,6 +4,7 @@ import requests
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 import config as _cfg
+from utils import esc_md
 
 scriptDir = os.path.dirname(os.path.abspath(__file__))
 apiId = int(_cfg.AUREPORT_API_ID)
@@ -576,7 +577,7 @@ async def main_support(
         if _hidden:
             sender_line = "└─ Отправитель: @скрыт"
         else:
-            sender_line = f"└─ Отправитель: *@{username}* {uid}"
+            sender_line = f"└─ Отправитель: *@{esc_md(username)}* {uid}"
         await _log_channel(f"{log_text}\n{sender_line}")
 
     return bool(ok_count)

@@ -20,7 +20,7 @@ from aiogram import types
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk
+from utils import now_msk, esc_md
 
 logger = logging.getLogger(__name__)
 
@@ -338,7 +338,7 @@ async def main_profile_snos(target_link: str, user: int, username: str, notify_b
     log_lines = [
         'Brown V2 log | profile-method [ТЕСТ]',
         '-' * 42,
-        f'Пользователь: {user} (*@{username}*)',
+        f'Пользователь: {user} (*@{esc_md(username)}*)',
         f'Цель: *@{target}*',
         f'Маршрут: Другое -> Прочее -> текст',
         f'Время: {now_str}',

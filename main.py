@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pyCryptoPayAPI import pyCryptoPayAPI
 import config
 import keyboards
-from utils import now_msk
+from utils import now_msk, esc_md
 import time
 import os
 import random
@@ -63,7 +63,7 @@ async def _log_admin_action(uid: int, username: str, action: str):
 			await bot.send_message(
 				bot_logs,
 				f"👁 *Действие суб-админа*\n"
-				f"*└─ ID:* {uid} (*@{username}*)\n"
+				f"*└─ ID:* {uid} (*@{esc_md(username)}*)\n"
 				f"*└─ Действие:* {action}",
 				parse_mode="Markdown"
 			)
@@ -737,7 +737,7 @@ async def case_sbp_paid_callback(callback_query: types.CallbackQuery):
 		)
 		await bot.send_message(
 			bot_logs,
-			f"🛒 {uid} (*@{username}*) заявил оплату кейса через СБП — проверить и выдать!",
+			f"🛒 {uid} (*@{esc_md(username)}*) заявил оплату кейса через СБП — проверить и выдать!",
 			parse_mode="Markdown"
 		)
 	except Exception as e:
@@ -1993,7 +1993,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 			_is_hid_mon = await db.get_is_hidden(uid)
 			_log_uid_mon = "скрыт" if _is_hid_mon else str(uid)
-			_log_uname_mon = "скрыт" if _is_hid_mon else f"*@{username}*"
+			_log_uname_mon = "скрыт" if _is_hid_mon else f"*@{esc_md(username)}*"
 			await bot.send_message(
 				bot_logs,
 				f"🔍 *Новый монитор* {_log_uid_mon} ({_log_uname_mon})\n"
@@ -2522,7 +2522,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				return
 			await db.add_case(uid, invoice_id)
 			count = await db.get_unopened_cases(uid)
-			await bot.send_message(bot_logs, f"🎁 {uid} (*@{username}*) купил кейс", parse_mode="Markdown")
+			await bot.send_message(bot_logs, f"🎁 {uid} (*@{esc_md(username)}*) купил кейс", parse_mode="Markdown")
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
@@ -2602,7 +2602,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			count = await db.get_unopened_cases(uid)
 			await bot.send_message(bot_logs,
-				f"🎁 {uid} (*@{username}*) открыл кейс → {log_prize}",
+				f"🎁 {uid} (*@{esc_md(username)}*) открыл кейс → {log_prize}",
 				parse_mode="Markdown")
 			markup = types.InlineKeyboardMarkup(row_width=1)
 			if count > 0:
@@ -5425,7 +5425,7 @@ async def media_confirmed(call: types.CallbackQuery, state: FSMContext):
         sub_id = row['id']
 
     pname = PLATFORM_NAMES.get(platform, platform)
-    uname_str = f"*@{username}*" if username else f"ID {uid}"
+    uname_str = f"*@{esc_md(username)}*" if username else f"ID {uid}"
 
     # Notify admin
     try:

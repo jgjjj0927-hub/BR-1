@@ -9,7 +9,7 @@ from aiogram import Bot, types
 import config
 from config import bot_logs
 import keyboards
-from utils import now_msk, ProgressBar
+from utils import now_msk, ProgressBar, esc_md
 from report_texts import GENERAL_TEXTS as reasons_texts
 
 reasons = [
@@ -234,7 +234,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
                 await main_bot.send_message(bot_logs,
                     f"⚠️ *Попытка снести цель из белого списка!*\n"
                     f"*└─ Цель:* {chat_username}\n"
-                    f"*└─ Пользователь:* {user} (*@{username}*)\n"
+                    f"*└─ Пользователь:* {user} (*@{esc_md(username)}*)\n"
                     f"*└─ Метод:* Ботнет",
                     parse_mode="Markdown")
             except Exception:
@@ -249,7 +249,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
 
     print(f"\n{'='*50}", flush=True)
     print(f"[BOTNET] 🚀 Запуск ботнета", flush=True)
-    print(f"[BOTNET] 👤 Пользователь: {user} (*@{username}*)", flush=True)
+    print(f"[BOTNET] 👤 Пользователь: {user} (*@{esc_md(username)}*)", flush=True)
     print(f"[BOTNET] 🔗 Ссылка: {message_url}", flush=True)
     _sessions = _get_sessions()
     print(f"[BOTNET] 📦 Сессий загружено: {len(_sessions)}", flush=True)
@@ -282,7 +282,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
     log_lines = [
         "Brown V2 log | botnet-method",
         "-" * 42,
-        f"Пользователь: {user} (*@{username}*)",
+        f"Пользователь: {user} (*@{esc_md(username)}*)",
         f"Ссылка: {message_url}",
         "-" * 42
     ]

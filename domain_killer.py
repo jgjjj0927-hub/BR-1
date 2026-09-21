@@ -16,7 +16,7 @@ from pathlib import Path
 import aiohttp
 
 import config
-from utils import now_msk
+from utils import now_msk, esc_md
 
 logger = logging.getLogger(__name__)
 
@@ -320,7 +320,7 @@ async def main_domain_killer(
             if _hidden:
                 sender_line = "👤 @скрыт"
             else:
-                sender_line = f"👤 *@{username}* {uid}"
+                sender_line = f"👤 *@{esc_md(username)}* {uid}"
             await log_bot.send_message(
                 log_channel_id,
                 (

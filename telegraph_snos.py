@@ -19,7 +19,7 @@ from pathlib import Path
 import aiohttp
 
 import config
-from utils import now_msk
+from utils import now_msk, esc_md
 from mail_snos import spin_text, spin_subject
 
 logger = logging.getLogger(__name__)
@@ -245,7 +245,7 @@ async def main_telegraph_snos(
     import keyboards
     from aiogram import types as aiogram_types
 
-    print(f"\n[TELEGRAPH] 🚀 Старт | {article_url} | {user_id} (*@{username}*)", flush=True)
+    print(f"\n[TELEGRAPH] 🚀 Старт | {article_url} | {user_id} (*@{esc_md(username)}*)", flush=True)
 
     if custom_text and custom_subject:
         subject = custom_subject

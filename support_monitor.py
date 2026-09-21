@@ -17,7 +17,7 @@ from telethon.tl.types import UserStatusOffline, UserStatusLastWeek, UserStatusL
 from telethon.errors import FloodWaitError
 
 import config
-from utils import now_msk
+from utils import now_msk, esc_md
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ async def _snapshot(username: str, session_path: str) -> Optional[dict]:
         try:
             entity = await client.get_entity(username)
         except Exception as e:
-            logger.warning(f"[SUPP_MON] get_entity {username}: {e}")
+            logger.warning(f"[SUPP_MON] get_entity {esc_md(username)}: {e}")
             await client.disconnect()
             return None
 
@@ -107,12 +107,12 @@ async def _snapshot(username: str, session_path: str) -> Optional[dict]:
         }
 
     except FloodWaitError as e:
-        logger.warning(f"[SUPP_MON] FloodWait {e.seconds}s for {username}")
+        logger.warning(f"[SUPP_MON] FloodWait {e.seconds}s for {esc_md(username)}")
         try: await client.disconnect()
         except Exception: pass
         return None
     except Exception as e:
-        logger.warning(f"[SUPP_MON] snapshot error {username}: {e}")
+        logger.warning(f"[SUPP_MON] snapshot error {esc_md(username)}: {e}")
         try: await client.disconnect()
         except Exception: pass
         return None
@@ -133,10 +133,10 @@ async def add_support_monitor(
 
     snap = await _snapshot(username, session_path)
     if not snap:
-        logger.warning(f"[SUPP_MON] Не удалось получить снимок для {username}")
+        logger.warning(f"[SUPP_MON] Не удалось получить снимок для {esc_md(username)}")
         return
 
-    key = f"{user_id}:{username}"
+    key = f"{user_id}:{esc_md(username)}"
     async with _lock:
         _monitors[key] = {
             "target":            username,
@@ -147,7 +147,7 @@ async def add_support_monitor(
             "started_at":        now_msk(),
         }
 
-    logger.info(f"[SUPP_MON] ✅ Мониторинг запущен: *@{username}* → uid {user_id}")
+    logger.info(f"[SUPP_MON] ✅ Мониторинг запущен: *@{esc_md(username)}* → uid {user_id}")
 
     # Уведомляем пользователя
     try:
@@ -155,7 +155,7 @@ async def add_support_monitor(
             user_id,
             (
                 f"🔍 *Мониторинг запущен*\n\n"
-                f"🎯 Цель: *@{username}*\n"
+                f"🎯 Цель: *@{esc_md(username)}*\n"
                 f"📸 Аватарок: {snap['photo_count']}\n\n"
                 f"_Уведомлю при вероятном сносе сессий (до 38ч)._"
             ),
@@ -235,7 +235,7 @@ async def _check_one(key: str, data: dict):
                 user_id,
                 (
                     f"🔪 *Вероятный снос сессий*\n\n"
-                    f"🎯 Цель: *@{username}*\n\n"
+                    f"🎯 Цель: *@{esc_md(username)}*\n\n"
                     f"{trigger_text}\n\n"
                     f"_Мониторинг завершён._"
                 ),
@@ -254,14 +254,14 @@ async def _check_one(key: str, data: dict):
                 _hidden = False
 
             inv = data.get("invoker_username", str(user_id))
-            sender = "@скрыт" if _hidden else f"*@{inv}* {user_id}"
+            sender = "@скрыт" if _hidden else f"*@{esc_md(inv)}* {user_id}"
 
             await _bot.send_message(
                 _bot_logs,
                 (
                     f"🔪 *Снос Сессий — Вероятный снос*\n"
                     f"👤 {sender}\n"
-                    f"🎯 Цель: *@{username}*\n\n"
+                    f"🎯 Цель: *@{esc_md(username)}*\n\n"
                     f"{trigger_text}"
                 ),
                 parse_mode="Markdown",

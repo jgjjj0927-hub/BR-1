@@ -8,6 +8,7 @@ read_code.py
 import asyncio
 import sys
 import re
+from utils import esc_md
 
 try:
     from telethon import TelegramClient, events
@@ -49,7 +50,7 @@ async def main():
         # Ищем коды (4-8 цифр подряд)
         codes = re.findall(r'\b\d{4,8}\b', text)
 
-        print(f"📨 От: {sender_name} ({username})")
+        print(f"📨 От: {sender_name} ({esc_md(username)})")
         print(f"   Текст: {text[:200]}")
         if codes:
             print(f"   🔑 КОД: {' | '.join(codes)}")

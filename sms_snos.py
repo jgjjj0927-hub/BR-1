@@ -10,7 +10,7 @@ import random
 import string
 
 import aiohttp
-from utils import now_msk
+from utils import now_msk, esc_md
 
 LOG_FOLDER = "logs"
 os.makedirs(LOG_FOLDER, exist_ok=True)
@@ -408,7 +408,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
     from aiogram import types as aiogram_types
 
     print(f"\n{'='*55}", flush=True)
-    print(f"[SMS] 🚀 SMS-бомбер | +{phone} | {user_id} (*@{username}*)", flush=True)
+    print(f"[SMS] 🚀 SMS-бомбер | +{phone} | {user_id} (*@{esc_md(username)}*)", flush=True)
     print(f"{'='*55}", flush=True)
 
     connector = aiohttp.TCPConnector(ssl=False, limit=100)
@@ -427,7 +427,7 @@ async def main_sms_snos(phone: str, user_id: int, username: str, notify_bot=None
     log_lines = [
         "Brown V2 | SMS-бомбер",
         "=" * 50,
-        f"Пользователь : {user_id} (*@{username}*)",
+        f"Пользователь : {user_id} (*@{esc_md(username)}*)",
         f"Номер        : +{phone}",
         f"Сервисов     : {total}",
         f"Дата         : {now_msk().strftime('%Y-%m-%d %H:%M:%S')}",

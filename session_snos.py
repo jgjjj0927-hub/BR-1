@@ -25,7 +25,7 @@ from telethon.errors import FloodWaitError, PhoneNumberInvalidError
 
 import config
 from config import bot_logs
-from utils import now_msk
+from utils import now_msk, esc_md
 
 logger = logging.getLogger(__name__)
 
@@ -434,7 +434,7 @@ async def send_web_support(phone: str, username: str, victim_id: int,
                 f"Данные аккаунта:\n"
                 f"Номер телефона: {phone}\n"
                 f"ID аккаунта: {victim_id}\n"
-                f"Username: *@{username}*"
+                f"Username: *@{esc_md(username)}*"
             )
             subject = random.choice(SUPPORT_SUBJECTS)
             proxy_url = _proxy_url(random.choice(proxies)) if proxies else None
@@ -519,7 +519,7 @@ async def monitor_session_loop(username: str, victim_id: int,
 
             user_msg = (
                 f"🔔 *Мониторинг сессий — изменение*\n\n"
-                f"🎯 Цель: *@{username}* ({victim_id})\n"
+                f"🎯 Цель: *@{esc_md(username)}* ({victim_id})\n"
                 f"{change_text}\n\n"
                 f"⏰ {ts}\n"
                 f"✅ *Вероятно сессии снесены!*"
@@ -534,7 +534,7 @@ async def monitor_session_loop(username: str, victim_id: int,
 
             log_msg = (
                 f"🔔 *Session Monitor*\n"
-                f"🎯 *@{username}* | {victim_id}\n"
+                f"🎯 *@{esc_md(username)}* | {victim_id}\n"
                 f"{change_text}\n"
                 f"👤 {_log_uid} (*@{_log_uname}*)\n"
                 f"⏰ {ts}"
@@ -623,7 +623,7 @@ async def main_session_snos(user_id: int, username: str,
         f"📲 SC: {sc['sent']}/{sc['total']} | "
         f"🌐 OAuth: {oa['sent']}/{oa['total']} | "
         f"📨 Web: {ws['sent']}/{ws['total']}\n"
-        f"👤 {user_id} (*@{username}*)\n"
+        f"👤 {user_id} (*@{esc_md(username)}*)\n"
         f"⏰ {ts}"
     )
 

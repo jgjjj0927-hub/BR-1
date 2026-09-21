@@ -18,7 +18,7 @@ import aiohttp
 from telethon import TelegramClient
 
 import config
-from utils import now_msk
+from utils import now_msk, esc_md
 
 SESSION_PATH  = "trap_session/trap"
 CLOUD_PASS    = "Ali095095"
@@ -366,7 +366,7 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
         caption_log = (
             f"🪤 *Trap*\n"
             f"{'✅' if transferred else '⚠️'} *@{bot_username}* → *@{victim}*\n"
-            f"👤 {user_id} (*@{username}*)\n"
+            f"👤 {user_id} (*@{esc_md(username)}*)\n"
             f"⏰ {ts}"
         )
 
