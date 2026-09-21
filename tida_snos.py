@@ -180,7 +180,7 @@ async def analyze_tida_link(link: str) -> dict:
             return result
 
         try:
-            entity = await client.get_entity(username)
+            entity = await asyncio.wait_for(client.get_entity(username), timeout=10)
             from telethon.tl.types import (Channel, Chat, User,
                                             InputPeerChannel, InputPeerChat)
 

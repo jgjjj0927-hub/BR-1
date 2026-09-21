@@ -3853,7 +3853,11 @@ async def tida_step1(message: types.Message, state: FSMContext):
 	await _bot.send_message(uid, t('tida_analyzing', lang), parse_mode="Markdown")
 
 	from tida_snos import analyze_tida_link
-	info = await analyze_tida_link(raw)
+	try:
+		info = await asyncio.wait_for(analyze_tida_link(raw), timeout=18)
+	except (asyncio.TimeoutError, Exception):
+		info = {"target_type": "account", "has_message_id": False,
+				"message_id": None, "username": raw, "is_public": False, "message_text": ""}
 
 	target_type = info.get("target_type", "channel")
 	is_public = info.get("is_public", False)
