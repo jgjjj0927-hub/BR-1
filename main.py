@@ -2197,13 +2197,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		# ─── Реферальная система ───────────────────────────────────────────────
 		elif d == 'referral':
 			ref_count = await db.get_referral_count(uid)
-			# Получаем username текущего бота для реферальной ссылки
-			try:
-				me = await bot_instance.get_me()
-				bot_uname = me.username
-			except Exception:
-				bot_uname = bot_username[1:]
-			ref_link = f"https://t.me/{bot_uname}?start=ref_{uid}"
+			ref_link = f"https://t.me/Brown_V2bot?start=ref_{uid}"
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=(
@@ -2230,17 +2224,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					await db.set_subscribe(uid, new_date)
 					remaining = ref_count - 10
 					await bot_instance.answer_callback_query(call.id, t('refs_exchanged', _user_lang), show_alert=True)
-					try:
-						me = await bot_instance.get_me()
-						bot_uname = me.username
-					except Exception:
-						bot_uname = bot_username[1:]
 					await bot_instance.edit_message_caption(
 						call.message.chat.id, call.message.message_id,
 						caption=(
 							f"👥 *Реферальная система*\n\n"
 							f"*└─ Ваших рефералов: {remaining}*\n\n"
-							f"📎 *Ваша ссылка:*\nhttps://t.me/{bot_uname}?start=ref_{uid}\n\n"
+							f"📎 *Ваша ссылка:*\nhttps://t.me/Brown_V2bot?start=ref_{uid}\n\n"
 							f"*✅ Успешно обменяно 10 рефералов на 1 день подписки!*"
 						),
 						parse_mode="Markdown", reply_markup=keyboards.get_referral_markup(_user_lang)
