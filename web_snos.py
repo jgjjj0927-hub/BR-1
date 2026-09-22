@@ -76,7 +76,7 @@ async def web(session, message_text, count, log_path=None, user_id=None, usernam
 
     print(f"\n{'='*50}", flush=True)
     print(f"[WEB] 🚀 Запуск веб-жалоб", flush=True)
-    print(f"[WEB] 👤 Пользователь: {user_id} (*@{esc_md(username)}*)", flush=True)
+    print(f"[WEB] 👤 Пользователь: {user_id} (*@{username}*)", flush=True)
     print(f"[WEB] 📝 Текст: {message_text[:80]}{'...' if len(message_text) > 80 else ''}", flush=True)
     print(f"[WEB] 📊 Количество жалоб: {count}", flush=True)
     print(f"{'='*50}", flush=True)
@@ -104,7 +104,7 @@ async def web(session, message_text, count, log_path=None, user_id=None, usernam
         header = (
             "Brown V2 log | web-method\n"
             "------------------------------------------\n"
-            f"Пользователь: {user_id} (*@{esc_md(username if username else 'без username')}*)\n"
+            f"Пользователь: {user_id} (*@{username if username else 'без username'}*)\n"
             f"Текст: {message_text}\n"
             "------------------------------------------\n"
         )

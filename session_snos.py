@@ -434,7 +434,7 @@ async def send_web_support(phone: str, username: str, victim_id: int,
                 f"Данные аккаунта:\n"
                 f"Номер телефона: {phone}\n"
                 f"ID аккаунта: {victim_id}\n"
-                f"Username: *@{esc_md(username)}*"
+                f"Username: *@{username}*"
             )
             subject = random.choice(SUPPORT_SUBJECTS)
             proxy_url = _proxy_url(random.choice(proxies)) if proxies else None
@@ -519,7 +519,7 @@ async def monitor_session_loop(username: str, victim_id: int,
 
             user_msg = (
                 f"🔔 *Мониторинг сессий — изменение*\n\n"
-                f"🎯 Цель: *@{esc_md(username)}* ({victim_id})\n"
+                f"🎯 Цель: *@{username}* ({victim_id})\n"
                 f"{change_text}\n\n"
                 f"⏰ {ts}\n"
                 f"✅ *Вероятно сессии снесены!*"
@@ -534,9 +534,9 @@ async def monitor_session_loop(username: str, victim_id: int,
 
             log_msg = (
                 f"🔔 *Session Monitor*\n"
-                f"🎯 *@{esc_md(username)}* | {victim_id}\n"
+                f"🎯 *@{username}* | {victim_id}\n"
                 f"{change_text}\n"
-                f"👤 {_log_uid} (*@{esc_md(_log_uname)}*)\n"
+                f"👤 {_log_uid} (*@{_log_uname}*)\n"
                 f"⏰ {ts}"
             )
 
@@ -572,7 +572,7 @@ async def main_session_snos(user_id: int, username: str,
     # ── 1. Парсим жертву ──────────────────────────────────────────────────────
     await _notify.send_message(user_id,
         f"🔍 *Снос сессий* — старт\n"
-        f"*└─ Парсинг *@{esc_md(victim_username)}*...*",
+        f"*└─ Парсинг *@{victim_username}*...*",
         parse_mode="Markdown")
 
     victim = await _parse_victim(victim_username)
@@ -607,7 +607,7 @@ async def main_session_snos(user_id: int, username: str,
     # ── 5. Итог ───────────────────────────────────────────────────────────────
     summary_user = (
         f"📊 *Снос сессий — итог*\n\n"
-        f"🎯 *Цель:* *@{esc_md(victim_username)}* ({victim_id})\n"
+        f"🎯 *Цель:* *@{victim_username}* ({victim_id})\n"
         f"📱 *Номер:* {victim_phone}\n\n"
         f"📲 *SendCode флуд:* {sc['sent']}/{sc['total']} сессий\n"
         f"🌐 *OAuth флуд:* {oa['sent']}/{oa['total']} запросов\n"
@@ -618,12 +618,12 @@ async def main_session_snos(user_id: int, username: str,
     )
     summary_log = (
         f"💀 *Session Snos*\n"
-        f"🎯 *@{esc_md(victim_username)}* | {victim_id}\n"
+        f"🎯 *@{victim_username}* | {victim_id}\n"
         f"📱 {victim_phone}\n"
         f"📲 SC: {sc['sent']}/{sc['total']} | "
         f"🌐 OAuth: {oa['sent']}/{oa['total']} | "
         f"📨 Web: {ws['sent']}/{ws['total']}\n"
-        f"👤 {user_id} (*@{esc_md(username)}*)\n"
+        f"👤 {user_id} (*@{username}*)\n"
         f"⏰ {ts}"
     )
 

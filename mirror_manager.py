@@ -155,7 +155,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         pattern = parts[1].lstrip('@').lower()
         await db.add_target_whitelist(pattern, message.from_user.id)
         await mirror_bot.send_message(message.chat.id,
-            f"✅ **@{esc_md(pattern)}* добавлен в белый список целей!*", parse_mode="Markdown")
+            f"✅ **@{pattern}* добавлен в белый список целей!*", parse_mode="Markdown")
 
     @dp.message_handler(commands=['rmtargetwl'])
     async def mirror_rmtargetwl(message: types.Message):
@@ -168,7 +168,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         pattern = parts[1].lstrip('@').lower()
         await db.remove_target_whitelist(pattern)
         await mirror_bot.send_message(message.chat.id,
-            f"🗑 **@{esc_md(pattern)}* удалён из белого списка!*", parse_mode="Markdown")
+            f"🗑 **@{pattern}* удалён из белого списка!*", parse_mode="Markdown")
 
     @dp.message_handler(commands=['listtargetwl'])
     async def mirror_listtargetwl(message: types.Message):
@@ -178,7 +178,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         if not patterns:
             await mirror_bot.send_message(message.chat.id, "📋 *Белый список целей пуст.*", parse_mode="Markdown")
             return
-        lines = ["📋 *Белый список целей:*\n"] + [f"• *@{esc_md(p)}*" for p in patterns]
+        lines = ["📋 *Белый список целей:*\n"] + [f"• *@{p}*" for p in patterns]
         await mirror_bot.send_message(message.chat.id, "\n".join(lines), parse_mode="Markdown")
 
     async def _send_and_pin_site_msg(uid: int):
