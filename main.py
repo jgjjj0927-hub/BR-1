@@ -694,6 +694,7 @@ async def pay_sbp_callback(callback_query: types.CallbackQuery):
 			f"&targets={targets}"
 			f"&sum={amount_rub}"
 			f"&label={label}"
+			f"&successURL=https://br-v2.com/pay/success"
 		)
 		short_url = await _create_pay_link(ym_url)
 		sbp_markup = types.InlineKeyboardMarkup(row_width=1)
@@ -714,14 +715,39 @@ async def pay_sbp_callback(callback_query: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sbp_paid_'), state='*')
 async def sbp_paid_callback(callback_query: types.CallbackQuery):
 	try:
-		await bot.answer_callback_query(callback_query.id)
-		_lang = await db.get_lang(callback_query.from_user.id)
-		await bot.send_message(
-			callback_query.from_user.id,
-			t('pay_sub_pending', _lang),
-			parse_mode="MarkdownV2"
-		)
+		import aiohttp as _aiohttp
+		uid = callback_query.from_user.id
+		_lang = await db.get_lang(uid)
+		async with _aiohttp.ClientSession() as _s:
+			async with _s.get(
+				f'http://127.0.0.1:8080/api/check_pay/{uid}',
+				timeout=_aiohttp.ClientTimeout(total=5)
+			) as resp:
+				data = await resp.json()
+		if data.get('paid'):
+			await bot.answer_callback_query(callback_query.id)
+			sub_until = data.get('sub_until') or '—'
+			sub_esc = sub_until.replace('.', '\\.').replace(':', '\\:').replace('-', '\\-')
+			await bot.send_message(
+				uid,
+				f"✅ *Оплата подтверждена\\!*\n\n"
+				f"🎉 *Подписка активирована*\n"
+				f"*└─ Действует до: {sub_esc}*\n\n"
+				f"💬 Вопросы — @BrownV2Support",
+				parse_mode="MarkdownV2"
+			)
+			try:
+				await bot.delete_message(callback_query.message.chat.id, callback_query.message.message_id)
+			except Exception:
+				pass
+		else:
+			await bot.answer_callback_query(
+				callback_query.id,
+				text="⏳ Оплата не найдена. Подождите 1–2 мин и нажмите снова.",
+				show_alert=True
+			)
 	except Exception as e:
+		await bot.answer_callback_query(callback_query.id)
 		print(f"sbp_paid_callback: {e}")
 
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('case_sbp_paid_'), state='*')
@@ -2400,6 +2426,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				f"&targets={targets}"
 				f"&sum=200"
 				f"&label={label}"
+				f"&successURL=https://br-v2.com/pay/success"
 			)
 			short_url = await _create_pay_link(ym_url)
 			sbp_case_markup = types.InlineKeyboardMarkup(row_width=1)
