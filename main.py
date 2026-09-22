@@ -206,7 +206,7 @@ async def send_and_pin_site_msg(uid: int):
 	try:
 		msg = await bot.send_message(
 			uid,
-			"🔗 *Бот удален?* — [br\-v2\.top](https://br-v2.com)",
+			"🔗 *Бот удален?* — [br\-v2\.com](https://br-v2.com)",
 			parse_mode="MarkdownV2",
 			disable_web_page_preview=False
 		)
