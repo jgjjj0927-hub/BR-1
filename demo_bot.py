@@ -458,7 +458,7 @@ async def cb_hub(call: types.CallbackQuery, state: FSMContext):
         )
         m = types.InlineKeyboardMarkup(row_width=1)
         m.add(
-            types.InlineKeyboardButton('📖 Мануал', url='https://br-v2.top/manual'),
+            types.InlineKeyboardButton('📖 Мануал', url='https://br-v2.com/manual'),
             types.InlineKeyboardButton(t('btn_back', lang), callback_data='back'),
         )
         try:
@@ -633,7 +633,7 @@ async def cb_hub(call: types.CallbackQuery, state: FSMContext):
             )
             m = types.InlineKeyboardMarkup(row_width=1)
             m.add(
-                types.InlineKeyboardButton('📖 Читать мануал', url='https://br-v2.top/manual'),
+                types.InlineKeyboardButton('📖 Читать мануал', url='https://br-v2.com/manual'),
                 types.InlineKeyboardButton(t('btn_back', lang), callback_data='panel_regular'),
             )
             try:

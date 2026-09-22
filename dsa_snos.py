@@ -508,7 +508,7 @@ async def main_dsa_snos(target_link: str, user: int, username: str,
         f"🎯 *Цель:* {target_escaped}\n"
         f"📋 *Причина:* {reason_escaped}"
         + (f" → {sub_label}" if sub_label else "") + "\n"
-        f"👤 *Пользователь:* {_log_uid} (*@{esc_md(_log_uname)}*)\n"
+        f"👤 *Пользователь:* {_log_uid} (*@{_log_uname}*)\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
         f"🔴 *Не удалось: {failed}*"

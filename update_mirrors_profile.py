@@ -11,8 +11,8 @@ from telethon.tl.functions.photos import UploadProfilePhotoRequest
 import config, db
 
 NAME       = "Brown V2"
-DESC       = "Наш сайт - br-v2.top"
-SHORT_DESC = "Наш сайт - br-v2.top"
+DESC       = "Наш сайт - br-v2.com"
+SHORT_DESC = "Наш сайт - br-v2.com"
 MAIN_TOK   = sys.argv[1] if len(sys.argv) > 1 else config.TOKEN
 API_ID     = int(config.AUREPORT_API_ID)
 API_HASH   = config.AUREPORT_API_HASH

@@ -33,7 +33,8 @@ _YM_SUB_DAYS = {
     "30": 30,
     "60": 60,
     "forever": 999,
-    "premupgrade": 0,  # premium flag, not days
+    "premupgrade": 0,
+    "test": 1,
 }
 
 logging.basicConfig(level=logging.INFO)
@@ -160,7 +161,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://br-v2.top", "https://www.br-v2.top"],
+    allow_origins=["https://br-v2.com", "https://www.br-v2.com"],
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
@@ -270,7 +271,7 @@ async def _notify_admin_login(ip, ua, login_id, geo):
     )
     btn_ok = chr(0x2705) + " Подтвердить"
     btn_blk = chr(0x1F6AB) + " Заблокировать"
-    base = "https://br-v2.top/api/admin/confirm-action/" + str(login_id)
+    base = "https://br-v2.com/api/admin/confirm-action/" + str(login_id)
     key = ADMIN_TOKEN
     kb = {
         "inline_keyboard": [[
@@ -435,8 +436,8 @@ async def _notify_admin_login(ip: str, ua: str, login_id: int, geo: str):
     )
     kb = {
         "inline_keyboard": [[
-            {"text": "✅ Подтвердить", "url": f"https://br-v2.top/api/admin/confirm-action/{login_id}?action=ok&key={ADMIN_TOKEN}"},
-            {"text": "🚫 Заблокировать", "url": f"https://br-v2.top/api/admin/confirm-action/{login_id}?action=block&key={ADMIN_TOKEN}"}
+            {"text": "✅ Подтвердить", "url": f"https://br-v2.com/api/admin/confirm-action/{login_id}?action=ok&key={ADMIN_TOKEN}"},
+            {"text": "🚫 Заблокировать", "url": f"https://br-v2.com/api/admin/confirm-action/{login_id}?action=block&key={ADMIN_TOKEN}"}
         ]]
     }
     async with aiohttp.ClientSession() as s:
@@ -926,7 +927,7 @@ async def create_link(owner_id: str, request: Request, token: str = ""):
             "INSERT INTO logger_links (token, owner_id, bot_token) VALUES ($1, $2, $3)",
             link_token, owner_int, bot_tok
         )
-    url = f"https://br-v2.top/l/{link_token}"
+    url = f"https://br-v2.com/l/{link_token}"
     log.info(f"logger link created: owner={owner_id} token={link_token}")
     return {"url": url}
 
@@ -1127,7 +1128,116 @@ async def ym_notify(request: Request):
             log.warning(f"[ym-notify] bot_logs notify failed: {e}")
 
     log.info(f"[ym-notify] granted sub={st} days={sub_days} uid={uid} op={operation_id}")
-    return {"ok": True}
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content={"ok": True}, headers={"Cache-Control": "no-store, no-cache"})
+
+
+@app.get("/api/check_pay/{user_id}")
+async def check_pay(user_id: int):
+    async with pool.acquire() as conn:
+        paid = await conn.fetchval(
+            "SELECT invoice_id FROM paid_invoices WHERE user_id=$1 AND created_at > NOW() - INTERVAL '2 hours' LIMIT 1",
+            user_id
+        )
+        sub_until = await conn.fetchval(
+            "SELECT subscribe FROM users WHERE user_id=$1", user_id
+        )
+        premium = await conn.fetchval(
+            "SELECT premium FROM users WHERE user_id=$1", user_id
+        )
+    sub_str = sub_until.strftime("%d.%m.%Y %H:%M") if sub_until else None
+    return {"paid": paid is not None, "sub_until": sub_str, "premium": bool(premium)}
+
+
+@app.get("/pay/success")
+async def pay_success():
+    from fastapi.responses import HTMLResponse
+    html = """<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BR V2 · Оплата прошла</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#04040e;--card:rgba(12,11,28,0.94);--accent:#7c5cfc;--accent-2:#a78bff;--green:#22d3a5;--green-dim:rgba(34,211,165,.15);--text:#f0edff;--sub:#6d6a90;--border:rgba(124,92,252,.22);--shine:rgba(255,255,255,.06)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;overflow-x:hidden;position:relative}
+.orb{position:fixed;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0;animation:drift 14s ease-in-out infinite alternate}
+.orb-1{width:500px;height:500px;top:-150px;left:-100px;background:radial-gradient(circle,rgba(34,211,165,.18) 0%,transparent 70%)}
+.orb-2{width:400px;height:400px;bottom:-100px;right:-80px;background:radial-gradient(circle,rgba(124,92,252,.2) 0%,transparent 70%);animation-delay:-7s}
+@keyframes drift{from{transform:translate(0,0)}to{transform:translate(30px,20px)}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:28px;box-shadow:0 0 0 1px var(--shine) inset,0 60px 120px -40px rgba(0,0,0,.9),0 0 80px -20px rgba(124,92,252,.1);padding:48px 40px 44px;max-width:460px;width:100%;position:relative;z-index:1;animation:fadeUp .6s cubic-bezier(.22,1,.36,1) both}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(34,211,165,.8),transparent);border-radius:28px 28px 0 0}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.check-wrap{width:80px;height:80px;margin:0 auto 28px;background:var(--green-dim);border:1.5px solid rgba(34,211,165,.4);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:popIn .5s cubic-bezier(.34,1.56,.64,1) .2s both}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.check-wrap svg{width:36px;height:36px}
+.title{font-family:'Outfit',sans-serif;font-size:28px;font-weight:900;text-align:center;letter-spacing:-.5px;margin-bottom:8px}
+.title span{color:var(--green)}
+.subtitle{text-align:center;color:var(--sub);font-size:15px;line-height:1.55;margin-bottom:32px}
+.divider{border:none;border-top:1px solid rgba(124,92,252,.12);margin:0 0 28px}
+.info-row{display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(34,211,165,.06);border:1px solid rgba(34,211,165,.15);border-radius:14px;margin-bottom:12px}
+.info-icon{font-size:20px;flex-shrink:0}
+.info-text{font-size:14px;color:var(--text);line-height:1.45}
+.info-text strong{display:block;font-weight:600;margin-bottom:2px}
+.info-text span{color:var(--sub);font-size:13px}
+.links{display:flex;flex-direction:column;gap:10px;margin-top:28px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:14px;font-size:14px;font-weight:600;text-decoration:none;transition:opacity .2s}
+.btn-main{background:linear-gradient(135deg,var(--accent),#5a32dc);color:#fff;box-shadow:0 4px 20px -6px rgba(124,92,252,.6)}
+.btn-ghost{background:rgba(124,92,252,.08);border:1px solid var(--border);color:var(--accent-2)}
+.btn:hover{opacity:.85}
+.logo{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:32px}
+.logo-box{width:36px;height:36px;background:linear-gradient(135deg,rgba(124,92,252,.3),rgba(90,50,220,.2));border:1px solid rgba(124,92,252,.4);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.logo-box svg{width:18px;height:18px}
+.logo-name{font-family:'Outfit',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.3px}
+.logo-name span{color:var(--accent-2)}
+</style>
+</head>
+<body>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="card">
+  <div class="logo">
+    <div class="logo-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#a78bff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    </div>
+    <div class="logo-name">Brown<span> V2</span></div>
+  </div>
+  <div class="check-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#22d3a5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <div class="title">Оплата <span>прошла!</span></div>
+  <div class="subtitle">Подписка активирована автоматически.<br>Вернитесь в бота — всё уже готово.</div>
+  <hr class="divider">
+  <div class="info-row">
+    <div class="info-icon">⚡</div>
+    <div class="info-text"><strong>Мгновенная активация</strong><span>Подписка добавлена на ваш аккаунт</span></div>
+  </div>
+  <div class="info-row">
+    <div class="info-icon">🔒</div>
+    <div class="info-text"><strong>Платёж защищён</strong><span>Транзакция проведена через СБП</span></div>
+  </div>
+  <div class="links">
+    <a class="btn btn-main" href="https://t.me/BrownV2Bot">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 6.498c-.97.385-.966 1.6.007 1.972l3.857 1.411 1.584 5.12c.213.663 1.032.854 1.504.36l2.18-2.303 4.258 3.261c.648.498 1.585.131 1.727-.664l2.916-14.5c.195-1.01-.82-1.818-1.511-1.37z"/></svg>
+      Открыть бота
+    </a>
+    <a class="btn btn-ghost" href="https://t.me/BrownV2Support">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Поддержка
+    </a>
+    <a class="btn btn-ghost" href="https://br-v2.com">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      Сайт
+    </a>
+  </div>
+</div>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
 
 if __name__ == "__main__":

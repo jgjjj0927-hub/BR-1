@@ -483,7 +483,7 @@ async def main_support(
         return False
 
     ctx = {
-        "handle": f"*@{esc_md(username_resolved)}*" if username_resolved else f"id{tgId}",
+        "handle": f"*@{username_resolved}*" if username_resolved else f"id{tgId}",
         "id": tgId,
         "target": target,
     }
@@ -577,7 +577,7 @@ async def main_support(
         if _hidden:
             sender_line = "└─ Отправитель: @скрыт"
         else:
-            sender_line = f"└─ Отправитель: *@{esc_md(username)}* {uid}"
+            sender_line = f"└─ Отправитель: *@{username}* {uid}"
         await _log_channel(f"{log_text}\n{sender_line}")
 
     return bool(ok_count)
