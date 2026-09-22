@@ -45,7 +45,7 @@ async def process_bank_report(bank_key: str, card_data: str, user: int, username
         f"🏦 *БЛОКИРОВКА КАРТЫ*\n\n"
         f"*└─ Банк:* {bank_name}\n"
         f"*└─ Данные:* {card_data}\n"
-        f"*└─ Пользователь:* {user} (*@{username}*)"
+        f"*└─ Пользователь:* {user} (*@{esc_md(username)}*)"
     )
 
     try:

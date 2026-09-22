@@ -155,7 +155,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         pattern = parts[1].lstrip('@').lower()
         await db.add_target_whitelist(pattern, message.from_user.id)
         await mirror_bot.send_message(message.chat.id,
-            f"✅ **@{pattern}* добавлен в белый список целей!*", parse_mode="Markdown")
+            f"✅ **@{esc_md(pattern)}* добавлен в белый список целей!*", parse_mode="Markdown")
 
     @dp.message_handler(commands=['rmtargetwl'])
     async def mirror_rmtargetwl(message: types.Message):
@@ -168,7 +168,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         pattern = parts[1].lstrip('@').lower()
         await db.remove_target_whitelist(pattern)
         await mirror_bot.send_message(message.chat.id,
-            f"🗑 **@{pattern}* удалён из белого списка!*", parse_mode="Markdown")
+            f"🗑 **@{esc_md(pattern)}* удалён из белого списка!*", parse_mode="Markdown")
 
     @dp.message_handler(commands=['listtargetwl'])
     async def mirror_listtargetwl(message: types.Message):
@@ -178,14 +178,14 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         if not patterns:
             await mirror_bot.send_message(message.chat.id, "📋 *Белый список целей пуст.*", parse_mode="Markdown")
             return
-        lines = ["📋 *Белый список целей:*\n"] + [f"• *@{p}*" for p in patterns]
+        lines = ["📋 *Белый список целей:*\n"] + [f"• *@{esc_md(p)}*" for p in patterns]
         await mirror_bot.send_message(message.chat.id, "\n".join(lines), parse_mode="Markdown")
 
     async def _send_and_pin_site_msg(uid: int):
         try:
             msg = await mirror_bot.send_message(
                 uid,
-                "🔗 *Бот удален?* — [br\-v2\.com](https://br-v2.com)",
+                "🔗 *Бот удален?* — [br\-v2\.top](https://br-v2.top)",
                 parse_mode="MarkdownV2",
                 disable_web_page_preview=False
             )
@@ -305,7 +305,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                     timeout=_aiohttp.ClientTimeout(total=5)
                 ) as resp:
                     data = await resp.json()
-                    return f"https://br-v2.com/pay/{data['token']}"
+                    return f"https://br-v2.top/pay/{data['token']}"
         except Exception:
             return ym_url
 

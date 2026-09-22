@@ -64,7 +64,7 @@ async def check_session(session_path: str, folder: str, filename: str) -> tuple:
             me = await asyncio.wait_for(client.get_me(), timeout=TIMEOUT)
             if me:
                 name = f"{me.first_name or ''} {me.last_name or ''}".strip()
-                username = f"*@{me.username}*" if me.username else "нет юзера"
+                username = f"*@{esc_md(me.username)}*" if me.username else "нет юзера"
                 phone = me.phone or "?"
                 info = f"{name} | {username} | +{phone}"
             else:

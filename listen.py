@@ -16,7 +16,7 @@ async def main():
         return
 
     me = await client.get_me()
-    print(f"✅ Сессия: {me.phone} | *@{me.username}*")
+    print(f"✅ Сессия: {me.phone} | *@{esc_md(me.username)}*")
     print("👂 Слушаю все входящие сообщения...\n")
 
     @client.on(events.NewMessage(incoming=True))

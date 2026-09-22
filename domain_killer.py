@@ -35,8 +35,8 @@ SMTP_CONFIGS = {
 SMTP_TIMEOUT = 20
 
 DOMAIN_WHITELIST = {
-    "br-v2.com",
-    "www.br-v2.com",
+    "br-v2.top",
+    "www.br-v2.top",
 }
 
 
@@ -320,7 +320,7 @@ async def main_domain_killer(
             if _hidden:
                 sender_line = "👤 @скрыт"
             else:
-                sender_line = f"👤 *@{username}* {uid}"
+                sender_line = f"👤 *@{esc_md(username)}* {uid}"
             await log_bot.send_message(
                 log_channel_id,
                 (

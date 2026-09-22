@@ -191,7 +191,7 @@ async def send_bulk_emails(subject, text, mails, receiver_emails, user_id, usern
         log = []
         log.append("Brown V2 log | mail-method")
         log.append("-" * 42)
-        log.append(f"Пользователь: {user_id} (*@{username}*)")
+        log.append(f"Пользователь: {user_id} (*@{esc_md(username)}*)")
         log.append(f"Тема: {subject}")
         log.append(f"Текст: {text}")
         log.append("-" * 42)

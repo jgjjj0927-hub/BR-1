@@ -148,7 +148,7 @@ async def _report_one_session(session, chat_username, message_id, message_url, w
                     user_entity = await client.get_entity(msg.from_id)
                     target_ref[0] = msg.from_id.user_id
                     target_ref[1] = user_entity.username or "Нет username"
-                    print(f"[BOTNET] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, *@{target_ref[1]}*", flush=True)
+                    print(f"[BOTNET] [{session}] 🎯 Таргет определён: ID={target_ref[0]}, *@{esc_md(target_ref[1])}*", flush=True)
                     if target_ref[0] in whitelist:
                         print(f"[BOTNET] [{session}] 🍕 WHITELIST — таргет в белом списке", flush=True)
                         return "WHITELIST", None
@@ -234,7 +234,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
                 await main_bot.send_message(bot_logs,
                     f"⚠️ *Попытка снести цель из белого списка!*\n"
                     f"*└─ Цель:* {chat_username}\n"
-                    f"*└─ Пользователь:* {user} (*@{username}*)\n"
+                    f"*└─ Пользователь:* {user} (*@{esc_md(username)}*)\n"
                     f"*└─ Метод:* Ботнет",
                     parse_mode="Markdown")
             except Exception:
@@ -249,7 +249,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
 
     print(f"\n{'='*50}", flush=True)
     print(f"[BOTNET] 🚀 Запуск ботнета", flush=True)
-    print(f"[BOTNET] 👤 Пользователь: {user} (*@{username}*)", flush=True)
+    print(f"[BOTNET] 👤 Пользователь: {user} (*@{esc_md(username)}*)", flush=True)
     print(f"[BOTNET] 🔗 Ссылка: {message_url}", flush=True)
     _sessions = _get_sessions()
     print(f"[BOTNET] 📦 Сессий загружено: {len(_sessions)}", flush=True)
@@ -282,7 +282,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
     log_lines = [
         "Brown V2 log | botnet-method",
         "-" * 42,
-        f"Пользователь: {user} (*@{username}*)",
+        f"Пользователь: {user} (*@{esc_md(username)}*)",
         f"Ссылка: {message_url}",
         "-" * 42
     ]
@@ -334,7 +334,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
 
     print(f"\n[BOTNET] {'='*50}", flush=True)
     print(f"[BOTNET] 🏁 Итоги:", flush=True)
-    print(f"[BOTNET] 🎯 Таргет: ID={TARGET}, *@{target_username}*", flush=True)
+    print(f"[BOTNET] 🎯 Таргет: ID={TARGET}, *@{esc_md(target_username)}*", flush=True)
     print(f"[BOTNET] ✅ Доставлено: {valid}", flush=True)
     print(f"[BOTNET] ❌ Не доставлено: {ne_valid}", flush=True)
     print(f"[BOTNET] 🌊 Флудов: {flood}", flush=True)
@@ -343,7 +343,7 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
     log_lines.append("-" * 42)
     log_lines.append("[TARGET]")
     log_lines.append(f"ID: {TARGET}")
-    log_lines.append(f"USERNAME: *@{target_username}*")
+    log_lines.append(f"USERNAME: *@{esc_md(target_username)}*")
     log_lines.append("-" * 42)
     log_lines.append(f"Успешно: {valid}")
     log_lines.append(f"Неуспешно: {ne_valid}")
@@ -371,9 +371,9 @@ async def main(chat_username, message_id, user, username, message_url, _log_user
 
     caption_log = (
         f"📈 *Бот завершил работу*\n* └─📂 Метод: B0tN3t-method*\n\n"
-        f"🎯 *Таргет*\n*└─ ID: {TARGET}*\n*└─ USERNAME: *@{target_username}**\n\n"
+        f"🎯 *Таргет*\n*└─ ID: {TARGET}*\n*└─ USERNAME: *@{esc_md(target_username)}**\n\n"
         f"🟢 *Успешно отправлено: {valid}*\n🔴 *Не удалось отправить: {ne_valid}*\n\n"
-        f"⛓️‍💥 *Ссылка:* [тык]({message_url})\n👤 *Пользователь:* {_log_uid} (*@{_log_uname}*)"
+        f"⛓️‍💥 *Ссылка:* [тык]({message_url})\n👤 *Пользователь:* {_log_uid} (*@{esc_md(_log_uname)}*)"
     )
 
     if not silent:
