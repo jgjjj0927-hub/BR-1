@@ -33,7 +33,8 @@ _YM_SUB_DAYS = {
     "30": 30,
     "60": 60,
     "forever": 999,
-    "premupgrade": 0,  # premium flag, not days
+    "premupgrade": 0,
+    "test": 1,
 }
 
 logging.basicConfig(level=logging.INFO)

@@ -492,6 +492,31 @@ async def status(message: types.Message):
 		text = "🟢 *Включен!*" if bot_status == 1 else "🔴 *Выключен!*"
 		await bot.send_message(message.chat.id, text, parse_mode=ParseMode.MARKDOWN)
 
+@dp.message_handler(commands=['testpay'])
+async def testpay(message: types.Message):
+	if message.from_user.id not in admins:
+		return
+	import urllib.parse as _urlparse
+	uid = message.from_user.id
+	label = f"sub_{uid}_test"
+	targets = _urlparse.quote("TEST BR V2 1rub", safe='')
+	ym_url = (
+		f"https://yoomoney.ru/quickpay/confirm.xml"
+		f"?receiver={_YM_WALLET}"
+		f"&quickpay-form=shop"
+		f"&targets={targets}"
+		f"&sum=1"
+		f"&label={label}"
+		f"&successURL=https://br-v2.com/pay/success"
+	)
+	short_url = await _create_pay_link(ym_url)
+	await message.answer(
+		f"🧪 *Тест СБП — 1 рубль*\n\n[Оплатить]({short_url})\n\nПосле оплаты выдастся 1 день подписки\\.",
+		parse_mode="MarkdownV2",
+		disable_web_page_preview=True
+	)
+
+
 @dp.message_handler(commands=['admin'])
 async def admin(message):
 	if message.from_user.id in admins:
@@ -596,6 +621,7 @@ _SUB_MAP = {
 	"30":         ("8",  "30",  "sub_30d",     "700"),
 	"60":         ("12", "60",  "sub_60d",     "1100"),
 	"premupgrade":("5",  "1",   "sub_premium", "400"),
+	"test":       ("0",  "1",   "sub_1d",      "1"),
 }
 _YM_WALLET = "4100118677444773"
 _TON_ADDRESS = "UQDeT6tcvKiwrR_fCa0ORJ_OOKPQbnvbzyB8l1YXzXK0iLCf"
