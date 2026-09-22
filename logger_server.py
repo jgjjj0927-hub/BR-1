@@ -1127,7 +1127,8 @@ async def ym_notify(request: Request):
             log.warning(f"[ym-notify] bot_logs notify failed: {e}")
 
     log.info(f"[ym-notify] granted sub={st} days={sub_days} uid={uid} op={operation_id}")
-    return {"ok": True}
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content={"ok": True}, headers={"Cache-Control": "no-store, no-cache"})
 
 
 @app.get("/api/check_pay/{user_id}")
