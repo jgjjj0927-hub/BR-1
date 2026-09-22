@@ -505,13 +505,13 @@ async def testpay(message: types.Message):
 		f"?receiver={_YM_WALLET}"
 		f"&quickpay-form=shop"
 		f"&targets={targets}"
-		f"&sum=1"
+		f"&sum=2"
 		f"&label={label}"
 		f"&successURL=https://br-v2.com/pay/success"
 	)
 	short_url = await _create_pay_link(ym_url)
 	await message.answer(
-		f"🧪 *Тест СБП — 1 рубль*\n\n[Оплатить]({short_url})\n\nПосле оплаты выдастся 1 день подписки\\.",
+		f"🧪 *Тест СБП — 2 рубля*\n\n[Оплатить]({short_url})\n\nПосле оплаты выдастся 1 день подписки\\.",
 		parse_mode="MarkdownV2",
 		disable_web_page_preview=True
 	)
