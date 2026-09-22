@@ -206,7 +206,7 @@ async def send_and_pin_site_msg(uid: int):
 	try:
 		msg = await bot.send_message(
 			uid,
-			"🔗 *Бот удален?* — [br\-v2\.top](https://br-v2.top)",
+			"🔗 *Бот удален?* — [br\-v2\.top](https://br-v2.com)",
 			parse_mode="MarkdownV2",
 			disable_web_page_preview=False
 		)
@@ -668,7 +668,7 @@ async def _create_pay_link(ym_url: str) -> str:
 				timeout=_aiohttp.ClientTimeout(total=5)
 			) as resp:
 				data = await resp.json()
-				return f"https://br-v2.top/pay/{data['token']}"
+				return f"https://br-v2.com/pay/{data['token']}"
 	except Exception:
 		return ym_url
 
@@ -1599,11 +1599,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			dyn_info_markup = types.InlineKeyboardMarkup(row_width=2)
 			dyn_info_markup.add(
 				types.InlineKeyboardButton("📺 Канал (1 мин)", url=channel_invite),
-				types.InlineKeyboardButton("📄 Мануал", url='https://br-v2.top/manual'),
+				types.InlineKeyboardButton("📄 Мануал", url='https://br-v2.com/manual'),
 			)
 			dyn_info_markup.add(
-				types.InlineKeyboardButton("🌐 Сайт", url='https://br-v2.top'),
-				types.InlineKeyboardButton("❓ FAQ", url='https://br-v2.top/faq'),
+				types.InlineKeyboardButton("🌐 Сайт", url='https://br-v2.com'),
+				types.InlineKeyboardButton("❓ FAQ", url='https://br-v2.com/faq'),
 			)
 			dyn_info_markup.add(
 				types.InlineKeyboardButton("👑 Владелец", url='https://t.me/TariSmit'),

@@ -284,7 +284,7 @@ def tida_text_confirm_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
 def manual_confirm_step1(method: str, lang: str = 'ru') -> types.InlineKeyboardMarkup:
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton(t('manual_read_btn', lang), url='https://br-v2.top/manual'),
+        types.InlineKeyboardButton(t('manual_read_btn', lang), url='https://br-v2.com/manual'),
         types.InlineKeyboardButton(t('manual_confirm_btn', lang), callback_data=f'manual_step2_{method}'),
         get_panel_back_btn(lang),
     )
@@ -473,7 +473,7 @@ pay_method = get_pay_method_markup('ru')
 def get_info_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=1)
     m.add(
-        types.InlineKeyboardButton(t('btn_info_manual', lang), url='https://br-v2.top/manual'),
+        types.InlineKeyboardButton(t('btn_info_manual', lang), url='https://br-v2.com/manual'),
         get_back_btn(lang),
     )
     return m

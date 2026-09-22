@@ -35,8 +35,8 @@ SMTP_CONFIGS = {
 SMTP_TIMEOUT = 20
 
 DOMAIN_WHITELIST = {
-    "br-v2.top",
-    "www.br-v2.top",
+    "br-v2.com",
+    "www.br-v2.com",
 }
 
 

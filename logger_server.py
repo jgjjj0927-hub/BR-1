@@ -160,7 +160,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://br-v2.top", "https://www.br-v2.top"],
+    allow_origins=["https://br-v2.com", "https://www.br-v2.com"],
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
@@ -270,7 +270,7 @@ async def _notify_admin_login(ip, ua, login_id, geo):
     )
     btn_ok = chr(0x2705) + " Подтвердить"
     btn_blk = chr(0x1F6AB) + " Заблокировать"
-    base = "https://br-v2.top/api/admin/confirm-action/" + str(login_id)
+    base = "https://br-v2.com/api/admin/confirm-action/" + str(login_id)
     key = ADMIN_TOKEN
     kb = {
         "inline_keyboard": [[
@@ -435,8 +435,8 @@ async def _notify_admin_login(ip: str, ua: str, login_id: int, geo: str):
     )
     kb = {
         "inline_keyboard": [[
-            {"text": "✅ Подтвердить", "url": f"https://br-v2.top/api/admin/confirm-action/{login_id}?action=ok&key={ADMIN_TOKEN}"},
-            {"text": "🚫 Заблокировать", "url": f"https://br-v2.top/api/admin/confirm-action/{login_id}?action=block&key={ADMIN_TOKEN}"}
+            {"text": "✅ Подтвердить", "url": f"https://br-v2.com/api/admin/confirm-action/{login_id}?action=ok&key={ADMIN_TOKEN}"},
+            {"text": "🚫 Заблокировать", "url": f"https://br-v2.com/api/admin/confirm-action/{login_id}?action=block&key={ADMIN_TOKEN}"}
         ]]
     }
     async with aiohttp.ClientSession() as s:
@@ -926,7 +926,7 @@ async def create_link(owner_id: str, request: Request, token: str = ""):
             "INSERT INTO logger_links (token, owner_id, bot_token) VALUES ($1, $2, $3)",
             link_token, owner_int, bot_tok
         )
-    url = f"https://br-v2.top/l/{link_token}"
+    url = f"https://br-v2.com/l/{link_token}"
     log.info(f"logger link created: owner={owner_id} token={link_token}")
     return {"url": url}
 

@@ -185,7 +185,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         try:
             msg = await mirror_bot.send_message(
                 uid,
-                "🔗 *Бот удален?* — [br\-v2\.top](https://br-v2.top)",
+                "🔗 *Бот удален?* — [br\-v2\.top](https://br-v2.com)",
                 parse_mode="MarkdownV2",
                 disable_web_page_preview=False
             )
@@ -305,7 +305,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                     timeout=_aiohttp.ClientTimeout(total=5)
                 ) as resp:
                     data = await resp.json()
-                    return f"https://br-v2.top/pay/{data['token']}"
+                    return f"https://br-v2.com/pay/{data['token']}"
         except Exception:
             return ym_url
 
