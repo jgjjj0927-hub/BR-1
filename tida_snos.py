@@ -9,6 +9,7 @@ import asyncio
 import logging
 import os
 import random
+import re as _re
 import socks
 import aiohttp
 from telethon import TelegramClient, events
@@ -265,6 +266,24 @@ async def fetch_tida_message_text(link: str) -> str:
 TIDA_DIR = "tida_sessions"
 os.makedirs(TIDA_DIR, exist_ok=True)
 
+EMAIL = "tida@snoser.su"
+MAIL_BOT = "Mail_IBot"
+
+_code_queue: asyncio.Queue = None
+_email_lock: asyncio.Lock = None
+
+def _get_code_queue():
+    global _code_queue
+    if _code_queue is None:
+        _code_queue = asyncio.Queue()
+    return _code_queue
+
+def _get_email_lock():
+    global _email_lock
+    if _email_lock is None:
+        _email_lock = asyncio.Lock()
+    return _email_lock
+
 bot = None
 main_bot = None
 
@@ -378,11 +397,20 @@ async def _create_client(session_path: str, proxy=None):
         return None
 
 
-async def _send_one_report(client, bot_entity, target: str, custom_text: str, report_num: int) -> bool:
+async def _send_one_report(client, bot_entity, mail_entity, target: str, custom_text: str, report_num: int) -> bool:
     done = asyncio.Event()
     step = 0
     success = False
     session_name = os.path.basename(client.session.filename)
+    code_queue = _get_code_queue()
+
+    @client.on(events.NewMessage(from_users=mail_entity.id if mail_entity else -1))
+    async def mail_handler(event):
+        text = event.message.message or ""
+        m = _re.search(r'\b(\d{6})\b', text)
+        if m:
+            logger.info(f"[TIDA] [{session_name}] [{report_num}] 📧 Код получен: {m.group(1)}")
+            await code_queue.put(m.group(1))
 
     @client.on(events.NewMessage(from_users=bot_entity.id))
     async def handler(event):
@@ -431,13 +459,34 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
             step = 5
             logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (текст)")
 
-        elif "thank you for your report" in text:
+        elif "please enter your email" in text and step == 5:
+            await asyncio.sleep(0.3)
+            await client.send_message(bot_entity, EMAIL)
+            step = 6
+            logger.info(f"[TIDA] [{session_name}] [{report_num}] Email отправлен, жду код...")
+
+        elif ("sent a" in text and "code" in text or "verification code" in text) and step == 6:
+            try:
+                code = await asyncio.wait_for(code_queue.get(), timeout=60)
+                await asyncio.sleep(0.5)
+                await client.send_message(bot_entity, code)
+                step = 7
+                logger.info(f"[TIDA] [{session_name}] [{report_num}] Код отправлен: {code}")
+            except asyncio.TimeoutError:
+                logger.warning(f"[TIDA] [{session_name}] [{report_num}] ⏳ Код не пришёл за 60с")
+                done.set()
+
+        elif "thank you for your report" in text or "report has been submitted" in text or "report received" in text:
             success = True
             done.set()
             logger.info(f"[TIDA] [{session_name}] [{report_num}] ✅ Успешно!")
 
         elif "create_report_failed" in text or "failed" in text:
             logger.warning(f"[TIDA] [{session_name}] [{report_num}] ❌ CREATE_REPORT_FAILED — нужен другой прокси")
+            done.set()
+
+        elif ("invalid" in text or "not found" in text or "incorrect" in text or "expired" in text) and step >= 5:
+            logger.warning(f"[TIDA] [{session_name}] [{report_num}] ❌ Ошибка верификации")
             done.set()
 
         elif "invalid" in text or "not found" in text:
@@ -448,11 +497,12 @@ async def _send_one_report(client, bot_entity, target: str, custom_text: str, re
     logger.info(f"[TIDA] [{session_name}] [{report_num}] /start отправлен")
 
     try:
-        await asyncio.wait_for(done.wait(), timeout=30)
+        await asyncio.wait_for(done.wait(), timeout=120)
     except asyncio.TimeoutError:
         logger.warning(f"[TIDA] [{session_name}] [{report_num}] ⏳ Таймаут")
 
     client.remove_event_handler(handler)
+    client.remove_event_handler(mail_handler)
     return success
 
 
@@ -490,8 +540,16 @@ async def _single_session_flow(session_path: str, target: str, custom_text: str,
                     await client.disconnect()
                     return False
 
+            try:
+                mail_entity = await client.get_entity(MAIL_BOT)
+            except Exception:
+                mail_entity = None
+                logger.warning(f"[TIDA] [{session_name}] Mail_IBot недоступен — email-шаг может не пройти")
+
             logger.info(f"[TIDA] [{session_name}] Попытка {attempt + 1}/{MAX_PROXY_RETRIES} | прокси: {current_proxy[1] if current_proxy else 'нет'}")
-            success = await _send_one_report(client, bot_entity, target, custom_text, attempt + 1)
+            lock = _get_email_lock()
+            async with lock:
+                success = await _send_one_report(client, bot_entity, mail_entity, target, custom_text, attempt + 1)
 
             if success:
                 return True
