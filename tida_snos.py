@@ -466,6 +466,10 @@ async def _send_one_report(client, bot_entity, mail_entity, target: str, custom_
             logger.info(f"[TIDA] [{session_name}] [{report_num}] Email отправлен, жду код...")
 
         elif ("sent a" in text and "code" in text or "verification code" in text) and step == 6:
+            # Drain stale codes before waiting for the fresh one
+            while not code_queue.empty():
+                stale = code_queue.get_nowait()
+                logger.info(f"[TIDA] [{session_name}] [{report_num}] 🗑️ Сброс устаревшего кода: {stale}")
             try:
                 code = await asyncio.wait_for(code_queue.get(), timeout=60)
                 await asyncio.sleep(0.5)
