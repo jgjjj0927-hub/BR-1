@@ -238,10 +238,8 @@ async def _single_session_flow(session_path: str, target: str, session_email: st
         logger.info(f"[AUREPORT] [{session_name}] Бот найден | email: {session_email}")
 
         success1 = await _send_one_report(client, bot_entity, session_email, target, 1)
-        await asyncio.sleep(1)
-        success2 = await _send_one_report(client, bot_entity, session_email, target, 2)
 
-        return success1 or success2
+        return success1
     except Exception as e:
         logger.error(f"[AUREPORT] [{session_name}] Ошибка: {e}")
         return False
