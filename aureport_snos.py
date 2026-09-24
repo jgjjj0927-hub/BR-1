@@ -6,10 +6,10 @@ AU Report метод — жалобы через @AuReportBot.
 """
 
 import asyncio
+import json
 import logging
 import os
 import random
-import re as _re
 from telethon import TelegramClient, events
 from telethon.tl.types import KeyboardButtonCallback
 import config
@@ -23,25 +23,33 @@ logger = logging.getLogger(__name__)
 AUREPORT_DIR = "aureport_sessions"
 os.makedirs(AUREPORT_DIR, exist_ok=True)
 
-EMAIL = "tida@snoser.su"
-MAIL_BOT = "Mail_IBot"
+MAIL_DOMAIN = "br-v2.com"
+CODES_DIR = "/tmp/mailcodes"
+os.makedirs(CODES_DIR, exist_ok=True)
 
-# Shared code queue: the session that owns tida@snoser.su feeds codes here;
-# reports waiting for a code consume them one-by-one under _email_lock.
-_code_queue: asyncio.Queue = None
-_email_lock: asyncio.Lock = None
 
-def _get_code_queue():
-    global _code_queue
-    if _code_queue is None:
-        _code_queue = asyncio.Queue()
-    return _code_queue
-
-def _get_email_lock():
-    global _email_lock
-    if _email_lock is None:
-        _email_lock = asyncio.Lock()
-    return _email_lock
+async def _wait_for_code_file(session_email: str, timeout: int = 60) -> str | None:
+    """Poll /tmp/mailcodes/<email> until mailpipe.py writes a fresh code or timeout."""
+    fname = session_email.replace("@", "_at_").replace("/", "_")
+    code_file = os.path.join(CODES_DIR, fname)
+    # Remove stale file before waiting
+    try:
+        os.remove(code_file)
+    except FileNotFoundError:
+        pass
+    loop = asyncio.get_event_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        if os.path.exists(code_file):
+            try:
+                with open(code_file) as f:
+                    data = json.load(f)
+                os.remove(code_file)
+                return data["code"]
+            except Exception:
+                pass
+        await asyncio.sleep(1)
+    return None
 
 bot = None
 main_bot = None
@@ -124,20 +132,11 @@ async def _create_client(session_path: str, proxy=None):
         return None
 
 
-async def _send_one_report(client, bot_entity, mail_entity, target: str, report_num: int) -> bool:
+async def _send_one_report(client, bot_entity, session_email: str, target: str, report_num: int) -> bool:
     done = asyncio.Event()
     step = 0
     success = False
     session_name = os.path.basename(client.session.filename)
-    code_queue = _get_code_queue()
-
-    @client.on(events.NewMessage(from_users=mail_entity.id if mail_entity else -1))
-    async def mail_handler(event):
-        text = event.message.message or ""
-        m = _re.search(r'\b(\d{6})\b', text)
-        if m:
-            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] 📧 Код получен: {m.group(1)}")
-            await code_queue.put(m.group(1))
 
     @client.on(events.NewMessage(from_users=bot_entity.id))
     async def handler(event):
@@ -189,22 +188,18 @@ async def _send_one_report(client, bot_entity, mail_entity, target: str, report_
 
         elif "please enter your email" in text and step == 5:
             await asyncio.sleep(0.3)
-            await client.send_message(bot_entity, EMAIL)
+            await client.send_message(bot_entity, session_email)
             step = 6
-            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Email отправлен, жду код...")
+            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Email отправлен ({session_email}), жду код...")
 
         elif ("sent a" in text and "code" in text or "verification code" in text) and step == 6:
-            # Bot confirmed email sent; drain stale codes then wait for the fresh one
-            while not code_queue.empty():
-                stale = code_queue.get_nowait()
-                logger.info(f"[AUREPORT] [{session_name}] [{report_num}] 🗑️ Сброс устаревшего кода: {stale}")
-            try:
-                code = await asyncio.wait_for(code_queue.get(), timeout=60)
+            code = await _wait_for_code_file(session_email, timeout=60)
+            if code:
                 await asyncio.sleep(0.5)
                 await client.send_message(bot_entity, code)
                 step = 7
                 logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Код отправлен: {code}")
-            except asyncio.TimeoutError:
+            else:
                 logger.warning(f"[AUREPORT] [{session_name}] [{report_num}] ⏳ Код не пришёл за 60с")
                 done.set()
 
@@ -229,11 +224,10 @@ async def _send_one_report(client, bot_entity, mail_entity, target: str, report_
         logger.warning(f"[AUREPORT] [{session_name}] [{report_num}] ⏳ Таймаут")
 
     client.remove_event_handler(handler)
-    client.remove_event_handler(mail_handler)
     return success
 
 
-async def _single_session_flow(session_path: str, target: str, proxy=None) -> bool:
+async def _single_session_flow(session_path: str, target: str, session_email: str, proxy=None) -> bool:
     session_name = os.path.basename(session_path)
     client = await _create_client(session_path, proxy)
     if not client:
@@ -241,20 +235,11 @@ async def _single_session_flow(session_path: str, target: str, proxy=None) -> bo
 
     try:
         bot_entity = await client.get_entity("AuReportBot")
-        try:
-            mail_entity = await client.get_entity(MAIL_BOT)
-        except Exception:
-            mail_entity = None
-            logger.warning(f"[AUREPORT] [{session_name}] Mail_IBot недоступен — email-шаг может не пройти")
+        logger.info(f"[AUREPORT] [{session_name}] Бот найден | email: {session_email}")
 
-        logger.info(f"[AUREPORT] [{session_name}] Бот найден, запускаем репорты")
-        lock = _get_email_lock()
-
-        async with lock:
-            success1 = await _send_one_report(client, bot_entity, mail_entity, target, 1)
+        success1 = await _send_one_report(client, bot_entity, session_email, target, 1)
         await asyncio.sleep(1)
-        async with lock:
-            success2 = await _send_one_report(client, bot_entity, mail_entity, target, 2)
+        success2 = await _send_one_report(client, bot_entity, session_email, target, 2)
 
         return success1 or success2
     except Exception as e:
@@ -300,7 +285,8 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
     async def _run(i, session_path):
         async with _sem:
             proxy = _parse_proxy(proxies[i % len(proxies)]) if proxies else None
-            result = await _single_session_flow(session_path, target, proxy)
+            session_email = f"s{i:03d}@{MAIL_DOMAIN}"
+            result = await _single_session_flow(session_path, target, session_email, proxy)
             done_ref[0] += 1
             await pb.update(done_ref[0])
             return result
