@@ -17,11 +17,22 @@ os.makedirs(CODES_DIR, exist_ok=True)
 raw = sys.stdin.buffer.read()
 msg = email.message_from_bytes(raw)
 
-to_addr = msg.get("To", "").lower().strip().strip("<>").strip()
-# Strip display name if present: "Name <addr>" -> "addr"
-m = re.search(r'<([^>]+)>', to_addr)
-if m:
-    to_addr = m.group(1).strip()
+def _extract_addr(header_val):
+    if not header_val:
+        return ""
+    header_val = header_val.strip()
+    m = re.search(r'<([^>]+)>', header_val)
+    if m:
+        return m.group(1).strip().lower()
+    return header_val.strip("<>").strip().lower()
+
+# Try headers in order of reliability
+to_addr = (
+    _extract_addr(msg.get("X-Original-To")) or
+    _extract_addr(msg.get("Delivered-To")) or
+    _extract_addr(msg.get("To")) or
+    ""
+)
 
 body = ""
 if msg.is_multipart():
