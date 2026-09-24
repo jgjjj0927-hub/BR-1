@@ -28,6 +28,7 @@ def _extract_addr(header_val):
 
 # Try headers in order of reliability
 to_addr = (
+    os.environ.get("RECIPIENT", "").lower().strip() or
     _extract_addr(msg.get("X-Original-To")) or
     _extract_addr(msg.get("Delivered-To")) or
     _extract_addr(msg.get("To")) or
