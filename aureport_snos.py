@@ -209,6 +209,10 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
             done.set()
             logger.info(f"[AUREPORT] [{session_name}] [{report_num}] ✅ Успешно!")
 
+        elif "not available in your region" in text or "too many attempts" in text:
+            logger.warning(f"[AUREPORT] [{session_name}] [{report_num}] ⛔ Регион/лимит — пропускаем сессию")
+            done.set()
+
         elif ("invalid" in text or "not found" in text or "incorrect" in text or "expired" in text) and step >= 5:
             logger.warning(f"[AUREPORT] [{session_name}] [{report_num}] ❌ Ошибка верификации")
             done.set()

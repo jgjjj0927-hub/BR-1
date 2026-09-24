@@ -482,6 +482,10 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
             done.set()
             logger.info(f"[TIDA] [{session_name}] [{report_num}] ✅ Успешно!")
 
+        elif "not available in your region" in text or "too many attempts" in text:
+            logger.warning(f"[TIDA] [{session_name}] [{report_num}] ⛔ Регион/лимит — пропускаем сессию")
+            done.set()
+
         elif "create_report_failed" in text or "failed" in text:
             logger.warning(f"[TIDA] [{session_name}] [{report_num}] ❌ CREATE_REPORT_FAILED — нужен другой прокси")
             done.set()
