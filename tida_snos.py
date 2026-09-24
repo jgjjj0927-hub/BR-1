@@ -605,7 +605,7 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
 
     total = len(sessions)
 
-    # Ротация: берём один аккаунт по очереди, остальные отдыхают
+    # Ротация сессий: берём один аккаунт по очереди
     rotation_file = os.path.join(TIDA_DIR, ".rotation_index")
     try:
         with open(rotation_file) as f:
@@ -620,13 +620,26 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     except Exception:
         pass
 
+    # Ротация email: независимый счётчик, каждый запуск — новый email
+    email_counter_file = os.path.join(TIDA_DIR, ".email_counter")
+    try:
+        with open(email_counter_file) as f:
+            email_idx = int(f.read().strip())
+    except Exception:
+        email_idx = 0
+    try:
+        with open(email_counter_file, "w") as f:
+            f.write(str(email_idx + 1))
+    except Exception:
+        pass
+
     logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Ротация: {rot_idx} ({os.path.basename(active_session)}) | Прокси: {len(all_proxies)}")
 
     tida_peer_ref = [None]
     pb = ProgressBar(_notify, user, total=total, title="🎵 *TIDA*", silent=silent)
     await pb.start()
 
-    session_email = f"s{rot_idx:03d}@{MAIL_DOMAIN}"
+    session_email = f"td{email_idx:04d}@{MAIL_DOMAIN}"
     real_result = await _single_session_flow(
         active_session, target, custom_text,
         random.choice(all_proxies) if all_proxies else None,

@@ -273,7 +273,7 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
     proxies = _load_proxies()
     total = len(sessions)
 
-    # Ротация: берём один аккаунт по очереди, остальные отдыхают
+    # Ротация сессий: берём один аккаунт по очереди
     rotation_file = os.path.join(AUREPORT_DIR, ".rotation_index")
     try:
         with open(rotation_file) as f:
@@ -282,11 +282,22 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
         rot_idx = 0
     rot_idx = rot_idx % total
     active_session = sessions[rot_idx]
-    active_proxy_idx = rot_idx
-    # Сохраняем следующий индекс
     try:
         with open(rotation_file, "w") as f:
             f.write(str((rot_idx + 1) % total))
+    except Exception:
+        pass
+
+    # Ротация email: независимый счётчик, каждый запуск — новый email
+    email_counter_file = os.path.join(AUREPORT_DIR, ".email_counter")
+    try:
+        with open(email_counter_file) as f:
+            email_idx = int(f.read().strip())
+    except Exception:
+        email_idx = 0
+    try:
+        with open(email_counter_file, "w") as f:
+            f.write(str(email_idx + 1))
     except Exception:
         pass
 
@@ -295,8 +306,8 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
     pb = ProgressBar(_notify, user, total=total, title="🔍 *AU Report*", silent=silent)
     await pb.start()
 
-    proxy = _parse_proxy(proxies[active_proxy_idx % len(proxies)]) if proxies else None
-    session_email = f"s{rot_idx:03d}@{MAIL_DOMAIN}"
+    proxy = _parse_proxy(proxies[rot_idx % len(proxies)]) if proxies else None
+    session_email = f"au{email_idx:04d}@{MAIL_DOMAIN}"
     real_result = await _single_session_flow(active_session, target, session_email, proxy)
 
     # Визуально показываем все сессии как выполненные
