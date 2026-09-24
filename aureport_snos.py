@@ -348,7 +348,20 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
             await asyncio.sleep(0.05)
 
     await pb.finish()
-    successful = total if real_result else total - 1
+
+    if not real_result:
+        logger.warning(f"[AUREPORT] ❌ Все {total} аккаунтов не смогли отправить жалобу")
+        if not silent:
+            try:
+                await _notify.send_message(
+                    user,
+                    f"🇦🇺 *AU Report*\n\n❌ *Не удалось отправить жалобу ни с одного аккаунта\\!*\n🎯 *Цель:* {target.replace('_', chr(92)+'_')}",
+                    parse_mode="Markdown", reply_markup=keyboards.main_menu)
+            except Exception as e:
+                logger.error(f"[AUREPORT] Ошибка отправки ошибки пользователю: {e}")
+        return (0, total)
+
+    successful = total
 
     logger.info(f"[AUREPORT] 🏁 Итог: {successful}/{total}")
 
