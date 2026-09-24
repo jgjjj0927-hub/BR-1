@@ -306,9 +306,32 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
     pb = ProgressBar(_notify, user, total=total, title="🔍 *AU Report*", silent=silent)
     await pb.start()
 
-    proxy = _parse_proxy(proxies[rot_idx % len(proxies)]) if proxies else None
-    session_email = f"au{email_idx:04d}@{MAIL_DOMAIN}"
-    real_result = await _single_session_flow(active_session, target, session_email, proxy)
+    # Пробуем аккаунты по очереди начиная с текущего; при ошибке — следующий (самый давний)
+    real_result = False
+    for attempt in range(total):
+        sess_idx = (rot_idx + attempt) % total
+        session_path = sessions[sess_idx]
+        proxy = _parse_proxy(proxies[sess_idx % len(proxies)]) if proxies else None
+        cur_email_idx = email_idx + attempt
+        session_email = f"au{cur_email_idx:04d}@{MAIL_DOMAIN}"
+        logger.info(f"[AUREPORT] Попытка {attempt + 1}/{total} | сессия: {os.path.basename(session_path)} | email: {session_email}")
+        real_result = await _single_session_flow(session_path, target, session_email, proxy)
+        if real_result:
+            # Обновляем email счётчик до следующего после последнего использованного
+            try:
+                with open(email_counter_file, "w") as f:
+                    f.write(str(cur_email_idx + 1))
+            except Exception:
+                pass
+            break
+        logger.warning(f"[AUREPORT] Сессия {os.path.basename(session_path)} не сработала, пробуем следующую")
+
+    if not real_result:
+        try:
+            with open(email_counter_file, "w") as f:
+                f.write(str(email_idx + total))
+        except Exception:
+            pass
 
     # Визуально показываем все сессии как выполненные
     for i in range(total):

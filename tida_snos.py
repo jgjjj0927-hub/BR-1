@@ -639,13 +639,35 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
     pb = ProgressBar(_notify, user, total=total, title="🎵 *TIDA*", silent=silent)
     await pb.start()
 
-    session_email = f"td{email_idx:04d}@{MAIL_DOMAIN}"
-    real_result = await _single_session_flow(
-        active_session, target, custom_text,
-        random.choice(all_proxies) if all_proxies else None,
-        tida_peer_ref,
-        all_proxies if all_proxies else None,
-        session_email=session_email)
+    # Пробуем аккаунты по очереди начиная с текущего; при ошибке — следующий (самый давний)
+    real_result = False
+    for attempt in range(total):
+        sess_idx = (rot_idx + attempt) % total
+        session_path = sessions[sess_idx]
+        cur_email_idx = email_idx + attempt
+        session_email = f"td{cur_email_idx:04d}@{MAIL_DOMAIN}"
+        logger.info(f"[TIDA] Попытка {attempt + 1}/{total} | сессия: {os.path.basename(session_path)} | email: {session_email}")
+        real_result = await _single_session_flow(
+            session_path, target, custom_text,
+            random.choice(all_proxies) if all_proxies else None,
+            tida_peer_ref,
+            all_proxies if all_proxies else None,
+            session_email=session_email)
+        if real_result:
+            try:
+                with open(email_counter_file, "w") as f:
+                    f.write(str(cur_email_idx + 1))
+            except Exception:
+                pass
+            break
+        logger.warning(f"[TIDA] Сессия {os.path.basename(session_path)} не сработала, пробуем следующую")
+
+    if not real_result:
+        try:
+            with open(email_counter_file, "w") as f:
+                f.write(str(email_idx + total))
+        except Exception:
+            pass
 
     # Визуально показываем все сессии как выполненные
     for i in range(total):
