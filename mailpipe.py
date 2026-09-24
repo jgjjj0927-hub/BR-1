@@ -27,13 +27,16 @@ def _extract_addr(header_val):
     return header_val.strip("<>").strip().lower()
 
 # Try headers in order of reliability
-to_addr = (
-    os.environ.get("RECIPIENT", "").lower().strip() or
-    _extract_addr(msg.get("X-Original-To")) or
-    _extract_addr(msg.get("Delivered-To")) or
-    _extract_addr(msg.get("To")) or
-    ""
-)
+def _is_external(addr):
+    return addr and "@" in addr and "localhost" not in addr and ".local" not in addr
+
+candidates = [
+    _extract_addr(msg.get("X-Original-To")),
+    _extract_addr(msg.get("Delivered-To")),
+    _extract_addr(msg.get("To")),
+    os.environ.get("RECIPIENT", "").lower().strip(),
+]
+to_addr = next((a for a in candidates if _is_external(a)), "")
 
 body = ""
 if msg.is_multipart():
