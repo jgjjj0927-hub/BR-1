@@ -220,10 +220,6 @@ async def main():
     if choice == "y":
         deleted = 0
         for path, folder, filename, status, info in bad_list:
-            # Таймаут и ошибки НЕ удаляем автоматически — только явно невалидные
-            if status == "error":
-                print(f"  ⏭  Пропускаю (таймаут/ошибка): {folder}/{filename}")
-                continue
             session_file = path + ".session"
             journal_file = path + ".session-journal"
             try:
