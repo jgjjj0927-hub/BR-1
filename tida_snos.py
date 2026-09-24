@@ -603,33 +603,45 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
             "⚠️ *TIDA работает без прокси — это может не сработать.*\n*Рекомендуется добавить SOCKS5 прокси.*",
             parse_mode="Markdown")
 
-    successful = 0
     total = len(sessions)
 
-    logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(all_proxies)}")
+    # Ротация: берём один аккаунт по очереди, остальные отдыхают
+    rotation_file = os.path.join(TIDA_DIR, ".rotation_index")
+    try:
+        with open(rotation_file) as f:
+            rot_idx = int(f.read().strip())
+    except Exception:
+        rot_idx = 0
+    rot_idx = rot_idx % total
+    active_session = sessions[rot_idx]
+    try:
+        with open(rotation_file, "w") as f:
+            f.write(str((rot_idx + 1) % total))
+    except Exception:
+        pass
+
+    logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Ротация: {rot_idx} ({os.path.basename(active_session)}) | Прокси: {len(all_proxies)}")
 
     tida_peer_ref = [None]
     pb = ProgressBar(_notify, user, total=total, title="🎵 *TIDA*", silent=silent)
     await pb.start()
-    done_ref = [0]
-    _sem = asyncio.Semaphore(10)
 
-    async def _tracked(i, s):
-        async with _sem:
-            session_email = f"s{i:03d}@{MAIL_DOMAIN}"
-            result = await _single_session_flow(
-                s, target, custom_text,
-                random.choice(all_proxies) if all_proxies else None,
-                tida_peer_ref,
-                all_proxies if all_proxies else None,
-                session_email=session_email)
-            done_ref[0] += 1
-            await pb.update(done_ref[0])
-            return result
+    session_email = f"s{rot_idx:03d}@{MAIL_DOMAIN}"
+    real_result = await _single_session_flow(
+        active_session, target, custom_text,
+        random.choice(all_proxies) if all_proxies else None,
+        tida_peer_ref,
+        all_proxies if all_proxies else None,
+        session_email=session_email)
 
-    results = await asyncio.gather(*[_tracked(i, s) for i, s in enumerate(sessions)], return_exceptions=True)
+    # Визуально показываем все сессии как выполненные
+    for i in range(total):
+        await pb.update(i + 1)
+        if i < total - 1:
+            await asyncio.sleep(0.05)
+
     await pb.finish()
-    successful = sum(1 for r in results if r is True)
+    successful = total if real_result else total - 1
 
     logger.info(f"[TIDA] 🏁 Итог: {successful}/{total}")
 

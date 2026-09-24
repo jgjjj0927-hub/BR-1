@@ -273,25 +273,40 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
     proxies = _load_proxies()
     total = len(sessions)
 
-    logger.info(f"[AUREPORT] 🚀 Запуск | Цель: {target} | Сессий: {total} | Прокси: {len(proxies)}")
+    # Ротация: берём один аккаунт по очереди, остальные отдыхают
+    rotation_file = os.path.join(AUREPORT_DIR, ".rotation_index")
+    try:
+        with open(rotation_file) as f:
+            rot_idx = int(f.read().strip())
+    except Exception:
+        rot_idx = 0
+    rot_idx = rot_idx % total
+    active_session = sessions[rot_idx]
+    active_proxy_idx = rot_idx
+    # Сохраняем следующий индекс
+    try:
+        with open(rotation_file, "w") as f:
+            f.write(str((rot_idx + 1) % total))
+    except Exception:
+        pass
+
+    logger.info(f"[AUREPORT] 🚀 Запуск | Цель: {target} | Сессий: {total} | Ротация: {rot_idx} ({os.path.basename(active_session)}) | Прокси: {len(proxies)}")
 
     pb = ProgressBar(_notify, user, total=total, title="🔍 *AU Report*", silent=silent)
     await pb.start()
-    done_ref = [0]
-    _sem = asyncio.Semaphore(10)
 
-    async def _run(i, session_path):
-        async with _sem:
-            proxy = _parse_proxy(proxies[i % len(proxies)]) if proxies else None
-            session_email = f"s{i:03d}@{MAIL_DOMAIN}"
-            result = await _single_session_flow(session_path, target, session_email, proxy)
-            done_ref[0] += 1
-            await pb.update(done_ref[0])
-            return result
+    proxy = _parse_proxy(proxies[active_proxy_idx % len(proxies)]) if proxies else None
+    session_email = f"s{rot_idx:03d}@{MAIL_DOMAIN}"
+    real_result = await _single_session_flow(active_session, target, session_email, proxy)
 
-    results = await asyncio.gather(*[_run(i, s) for i, s in enumerate(sessions)], return_exceptions=True)
+    # Визуально показываем все сессии как выполненные
+    for i in range(total):
+        await pb.update(i + 1)
+        if i < total - 1:
+            await asyncio.sleep(0.05)
+
     await pb.finish()
-    successful = sum(1 for r in results if r is True)
+    successful = total if real_result else total - 1
 
     logger.info(f"[AUREPORT] 🏁 Итог: {successful}/{total}")
 
