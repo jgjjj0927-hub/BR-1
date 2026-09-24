@@ -145,6 +145,8 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
         text = event.message.message.strip().lower()
         markup = event.message.reply_markup
 
+        logger.info(f"[AUREPORT] [{session_name}] [{report_num}] 📨 step={step} | {text[:120]!r}")
+
         if "please enter a t.me" in text and step == 0:
             await asyncio.sleep(0.3)
             await client.send_message(bot_entity, target)
