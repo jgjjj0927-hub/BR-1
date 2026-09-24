@@ -32,11 +32,7 @@ async def _wait_for_code_file(session_email: str, timeout: int = 60) -> str | No
     """Poll /tmp/mailcodes/<email> until mailpipe.py writes a fresh code or timeout."""
     fname = session_email.replace("@", "_at_").replace("/", "_")
     code_file = os.path.join(CODES_DIR, fname)
-    # Remove stale file before waiting
-    try:
-        os.remove(code_file)
-    except FileNotFoundError:
-        pass
+    started_at = time.time()
     loop = asyncio.get_event_loop()
     deadline = loop.time() + timeout
     while loop.time() < deadline:
@@ -44,8 +40,13 @@ async def _wait_for_code_file(session_email: str, timeout: int = 60) -> str | No
             try:
                 with open(code_file) as f:
                     data = json.load(f)
-                os.remove(code_file)
-                return data["code"]
+                # принимаем только код записанный после начала ожидания
+                if data.get("ts", 0) >= started_at - 2:
+                    os.remove(code_file)
+                    return data["code"]
+                else:
+                    # устаревший файл — удаляем и ждём новый
+                    os.remove(code_file)
             except Exception:
                 pass
         await asyncio.sleep(1)

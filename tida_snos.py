@@ -11,6 +11,7 @@ import logging
 import os
 import random
 import socks
+import time
 import aiohttp
 from telethon import TelegramClient, events
 from telethon.tl.types import KeyboardButtonCallback
@@ -274,10 +275,7 @@ os.makedirs(CODES_DIR, exist_ok=True)
 async def _wait_for_code_file(session_email: str, timeout: int = 60) -> str | None:
     fname = session_email.replace("@", "_at_").replace("/", "_")
     code_file = os.path.join(CODES_DIR, fname)
-    try:
-        os.remove(code_file)
-    except FileNotFoundError:
-        pass
+    started_at = time.time()
     loop = asyncio.get_event_loop()
     deadline = loop.time() + timeout
     while loop.time() < deadline:
@@ -285,8 +283,11 @@ async def _wait_for_code_file(session_email: str, timeout: int = 60) -> str | No
             try:
                 with open(code_file) as f:
                     data = json.load(f)
-                os.remove(code_file)
-                return data["code"]
+                if data.get("ts", 0) >= started_at - 2:
+                    os.remove(code_file)
+                    return data["code"]
+                else:
+                    os.remove(code_file)
             except Exception:
                 pass
         await asyncio.sleep(1)
