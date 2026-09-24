@@ -283,7 +283,7 @@ async def _wait_for_code_file(session_email: str, timeout: int = 60) -> str | No
             try:
                 with open(code_file) as f:
                     data = json.load(f)
-                if data.get("ts", 0) >= started_at - 2:
+                if data.get("ts", 0) >= started_at - 60:
                     os.remove(code_file)
                     return data["code"]
                 else:
