@@ -4535,8 +4535,8 @@ async def _credit_referral(new_uid: int):
 
 
 async def _notify_user(target: int, text: str, source_bot=None, **kwargs):
-	"""Отправляет уведомление через source_bot (бот админа), затем через assigned mirror."""
-	# 1. Через того же бота, от которого пришла команда админа
+	"""Отправляет уведомление через source_bot, затем через assigned mirror, затем через основной бот, затем любое зеркало."""
+	# 1. Через того же бота, от которого пришла команда админа (если это не основной бот)
 	if source_bot is not None and source_bot is not bot:
 		try:
 			await source_bot.send_message(target, text, **kwargs)
@@ -4552,7 +4552,13 @@ async def _notify_user(target: int, text: str, source_bot=None, **kwargs):
 			return
 	except Exception:
 		pass
-	# 3. Через любое живое зеркало
+	# 3. Через основной бот (пользователь мог последний раз использовать именно его)
+	try:
+		await bot.send_message(target, text, **kwargs)
+		return
+	except Exception:
+		pass
+	# 4. Через любое живое зеркало
 	try:
 		from mirror_manager import _mirror_bots
 		if _mirror_bots:
