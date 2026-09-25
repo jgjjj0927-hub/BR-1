@@ -4,7 +4,7 @@ import { useLang } from '../App';
 import { FeatureIcon } from '../components/Icons';
 import { api, Mirror, Review } from '../api';
 
-const BOT = 'https://t.me/Botv2wwwbot';
+const BOT = 'https://t.me/Brown_V2';
 const SUPPORT = 'https://t.me/BR_V2_Support';
 
 const T = {

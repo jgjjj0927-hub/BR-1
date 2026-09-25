@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLang } from '../App';
 import { Promo as PromoType } from '../api';
 
-const BOT = 'https://t.me/Botv2wwwbot';
+const BOT = 'https://t.me/Brown_V2';
 
 const T = {
   ru: {

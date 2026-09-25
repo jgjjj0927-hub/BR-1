@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLang } from '../App';
 
 const SUPPORT = 'https://t.me/BR_V2_Support';
-const BOT = 'https://t.me/Botv2wwwbot';
+const BOT = 'https://t.me/Brown_V2';
 const OWNER = 'https://t.me/TariSmit';
 const CHANNEL = 'https://t.me/+3u8scLryHxdmNDUy';
 
