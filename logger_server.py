@@ -49,6 +49,13 @@ _sse_queues: set = set()
 
 async def init_site_tables(conn):
     await conn.execute("""
+        CREATE TABLE IF NOT EXISTS tg_market_pending (
+            user_id BIGINT PRIMARY KEY,
+            operation_id TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    await conn.execute("""
         CREATE TABLE IF NOT EXISTS site_mirrors (
             id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
@@ -1063,6 +1070,21 @@ async def ym_notify(request: Request):
         else:
             log.info(f"[ym-notify] sha1 OK op={operation_id}")
 
+    # label format: market_{user_id} → TG Market purchase
+    if label.startswith("market_"):
+        try:
+            uid = int(label.split("_")[1])
+        except (IndexError, ValueError):
+            return {"ok": True}
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO tg_market_pending (user_id, operation_id)
+                VALUES ($1, $2)
+                ON CONFLICT (user_id) DO UPDATE SET operation_id=$2, created_at=NOW()
+            """, uid, operation_id)
+        log.info(f"[ym-notify] market payment from {uid} op={operation_id}")
+        return {"ok": True}
+
     # label format: sub_{user_id}_{sub_type}
     if not label.startswith("sub_"):
         return {"ok": True}
@@ -1130,6 +1152,20 @@ async def ym_notify(request: Request):
     log.info(f"[ym-notify] granted sub={st} days={sub_days} uid={uid} op={operation_id}")
     from fastapi.responses import JSONResponse
     return JSONResponse(content={"ok": True}, headers={"Cache-Control": "no-store, no-cache"})
+
+
+@app.get("/api/check_market_pay/{user_id}")
+async def check_market_pay(user_id: int):
+    """Проверяет оплату TG Маркета через СБП/YM. Одноразово — удаляет запись после подтверждения."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT operation_id FROM tg_market_pending WHERE user_id=$1 AND created_at > NOW() - INTERVAL '2 hours'",
+            user_id
+        )
+        if row:
+            await conn.execute("DELETE FROM tg_market_pending WHERE user_id=$1", user_id)
+            return {"paid": True}
+    return {"paid": False}
 
 
 @app.get("/api/check_pay/{user_id}")

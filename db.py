@@ -115,6 +115,18 @@ async def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS tg_market_orders (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                session_file TEXT,
+                phone TEXT,
+                invoice_id TEXT,
+                payment_method TEXT DEFAULT 'sbp',
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
         # Добавляем last_bot_token если нет (для существующих БД)
         try:
             await conn.execute("ALTER TABLE mirror_assignments ADD COLUMN IF NOT EXISTS last_bot_token TEXT DEFAULT '__main__'")
@@ -1452,6 +1464,62 @@ async def get_mirror_user_count(mirror_token: str) -> int:
         return await conn.fetchval(
             "SELECT COUNT(*) FROM mirror_assignments WHERE mirror_token = $1", mirror_token
         ) or 0
+
+
+# ─── TG Маркет ────────────────────────────────────────────────────────────────
+
+async def create_market_order(user_id: int, payment_method: str) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO tg_market_orders (user_id, payment_method) VALUES ($1, $2) RETURNING id",
+            user_id, payment_method
+        )
+        return row["id"]
+
+
+async def fulfill_market_order(order_id: int, session_file: str, phone: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE tg_market_orders SET session_file=$1, phone=$2, status='paid' WHERE id=$3",
+            session_file, phone, order_id
+        )
+
+
+async def get_market_order(order_id: int) -> dict | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM tg_market_orders WHERE id=$1", order_id)
+        return dict(row) if row else None
+
+
+async def get_user_active_market_order(user_id: int) -> dict | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM tg_market_orders WHERE user_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 1",
+            user_id
+        )
+        return dict(row) if row else None
+
+
+async def set_market_order_invoice(order_id: int, invoice_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE tg_market_orders SET invoice_id=$1 WHERE id=$2",
+            invoice_id, order_id
+        )
+
+
+async def get_market_order_by_invoice(invoice_id: str) -> dict | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM tg_market_orders WHERE invoice_id=$1", invoice_id
+        )
+        return dict(row) if row else None
 
 
 # ─── Предупреждения ───────────────────────────────────────────────────────────

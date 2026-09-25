@@ -2628,6 +2628,200 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=markup
 			)
 
+		elif d == 'tg_market':
+			import tg_market as _tgm
+			_avail = _tgm.get_available_count()
+			_mkt_mkp = types.InlineKeyboardMarkup(row_width=1)
+			if _avail > 0:
+				_mkt_mkp.add(types.InlineKeyboardButton('🛍 Купить аккаунт — 49₽ / $1', callback_data='tg_market_buy'))
+			else:
+				_mkt_mkp.add(types.InlineKeyboardButton('❌ Нет доступных аккаунтов', callback_data='tg_market'))
+			_mkt_mkp.add(types.InlineKeyboardButton('[🔙] Назад', callback_data='go_to_main_menu'))
+			_mkt_caption = (
+				f"🛒 *TG Маркет*\n\n"
+				f"Здесь можно приобрести Telegram-аккаунт\\.\n"
+				f"📦 *Доступно аккаунтов:* {_avail}\n\n"
+				f"💵 *Цена:* 49 ₽ / $1 USDT\n"
+				f"После оплаты вы получите номер телефона\\.\n"
+				f"Введите его в Telegram, получите SMS — и нажмите «📲 Получить код»\\."
+			)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=_mkt_caption, parse_mode="MarkdownV2", reply_markup=_mkt_mkp)
+			except Exception:
+				await bot_instance.send_message(uid, _mkt_caption, parse_mode="MarkdownV2", reply_markup=_mkt_mkp)
+
+		elif d == 'tg_market_buy':
+			_buy_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_buy_mkp.add(
+				types.InlineKeyboardButton('💳 СБП — 49 ₽', callback_data='tg_market_sbp'),
+				types.InlineKeyboardButton('💎 USDT — $1', callback_data='tg_market_crypto'),
+				types.InlineKeyboardButton('[🔙] Назад', callback_data='tg_market'),
+			)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption='🛒 *TG Маркет*\n\nВыберите способ оплаты:',
+					parse_mode="Markdown", reply_markup=_buy_mkp)
+			except Exception:
+				await bot_instance.send_message(uid, '🛒 *TG Маркет*\n\nВыберите способ оплаты:',
+					parse_mode="Markdown", reply_markup=_buy_mkp)
+
+		elif d == 'tg_market_sbp':
+			import urllib.parse as _urlparse
+			import tg_market as _tgm
+			if _tgm.get_available_count() == 0:
+				await bot_instance.answer_callback_query(call.id, '❌ Нет доступных аккаунтов', show_alert=True)
+				return
+			_order_id = await db.create_market_order(uid, 'sbp')
+			label = f"market_{uid}"
+			targets = _urlparse.quote("TG Маркет BR V2", safe='')
+			ym_url = (
+				f"https://yoomoney.ru/quickpay/confirm.xml"
+				f"?receiver={_YM_WALLET}"
+				f"&quickpay-form=shop"
+				f"&targets={targets}"
+				f"&sum=49"
+				f"&label={label}"
+				f"&successURL=https://br-v2.com/pay/success"
+			)
+			short_url = await _create_pay_link(ym_url)
+			_sbp_mkt_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_sbp_mkt_mkp.add(
+				types.InlineKeyboardButton('💳 Оплатить СБП', url=short_url),
+				types.InlineKeyboardButton('✅ Я оплатил', callback_data=f'tg_market_sbp_paid_{_order_id}'),
+				types.InlineKeyboardButton('[🔙] Назад', callback_data='tg_market_buy'),
+			)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption='🛒 *TG Маркет — СБП*\n\nНажмите кнопку для оплаты 49 ₽ через СБП\\.\nПосле оплаты нажмите «✅ Я оплатил»\\.',
+					parse_mode="MarkdownV2", reply_markup=_sbp_mkt_mkp)
+			except Exception:
+				await bot_instance.send_message(uid,
+					'🛒 *TG Маркет — СБП*\n\nНажмите кнопку для оплаты 49 ₽ через СБП\\.\nПосле оплаты нажмите «✅ Я оплатил»\\.',
+					parse_mode="MarkdownV2", reply_markup=_sbp_mkt_mkp)
+
+		elif d.startswith('tg_market_sbp_paid_'):
+			import tg_market as _tgm
+			import aiohttp as _aiohttp
+			_order_id = int(d.replace('tg_market_sbp_paid_', ''))
+			async with _aiohttp.ClientSession() as _ms:
+				async with _ms.get(f'http://127.0.0.1:8080/api/check_market_pay/{uid}',
+					timeout=_aiohttp.ClientTimeout(total=5)) as _mr:
+					_mpay = await _mr.json()
+			if not _mpay.get('paid'):
+				await bot_instance.answer_callback_query(call.id, '❌ Оплата не найдена. Попробуйте позже.', show_alert=True)
+				return
+			_sess_file, _phone = _tgm.pick_session()
+			if not _sess_file or not _phone:
+				await bot_instance.answer_callback_query(call.id, '❌ Нет доступных аккаунтов. Обратитесь в поддержку.', show_alert=True)
+				return
+			_tgm.archive_session(_sess_file)
+			await db.fulfill_market_order(_order_id, _sess_file, _phone)
+			await bot.send_message(bot_logs, f"🛒 TG Маркет: {uid} (@{username}) купил аккаунт {_phone} (СБП)", parse_mode="Markdown")
+			_code_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_code_mkp.add(types.InlineKeyboardButton('📲 Получить код', callback_data=f'market_get_code_{_order_id}'))
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f'✅ *Оплата подтверждена\\!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже\\.',
+					parse_mode="MarkdownV2", reply_markup=_code_mkp)
+			except Exception:
+				await bot_instance.send_message(uid,
+					f'✅ *Оплата подтверждена\\!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже\\.',
+					parse_mode="MarkdownV2", reply_markup=_code_mkp)
+
+		elif d == 'tg_market_crypto':
+			import tg_market as _tgm
+			if _tgm.get_available_count() == 0:
+				await bot_instance.answer_callback_query(call.id, '❌ Нет доступных аккаунтов', show_alert=True)
+				return
+			_order_id = await db.create_market_order(uid, 'usdt')
+			invoice = await asyncio.to_thread(crypto.create_invoice, asset='USDT', amount=1)
+			pay_url = invoice['pay_url']
+			invoice_id = invoice['invoice_id']
+			await db.set_market_order_invoice(_order_id, str(invoice_id))
+			_crypto_mkt_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_crypto_mkt_mkp.add(
+				types.InlineKeyboardButton('💎 Оплатить $1 USDT', url=pay_url),
+				types.InlineKeyboardButton('🔄 Проверить оплату', callback_data=f'tg_market_check_{invoice_id}_{_order_id}'),
+				types.InlineKeyboardButton('[🔙] Назад', callback_data='tg_market_buy'),
+			)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption='🛒 *TG Маркет — USDT*\n\nОплатите $1 USDT через CryptoBot\\.\nПосле оплаты нажмите «🔄 Проверить оплату»\\.',
+					parse_mode="MarkdownV2", reply_markup=_crypto_mkt_mkp)
+			except Exception:
+				await bot_instance.send_message(uid,
+					'🛒 *TG Маркет — USDT*\n\nОплатите $1 USDT через CryptoBot\\.\nПосле оплаты нажмите «🔄 Проверить оплату»\\.',
+					parse_mode="MarkdownV2", reply_markup=_crypto_mkt_mkp)
+
+		elif d.startswith('tg_market_check_'):
+			import tg_market as _tgm
+			_parts = d.replace('tg_market_check_', '').rsplit('_', 1)
+			_inv_id = _parts[0]
+			_order_id = int(_parts[1])
+			_existing = await db.get_market_order(_order_id)
+			if _existing and _existing['status'] == 'fulfilled':
+				await bot_instance.answer_callback_query(call.id, '✅ Аккаунт уже выдан!', show_alert=True)
+				return
+			try:
+				inv = await asyncio.to_thread(crypto.get_invoices, invoice_ids=_inv_id)
+				if inv['items'][0]['status'] != 'paid':
+					await bot_instance.answer_callback_query(call.id, '❌ Оплата ещё не поступила.', show_alert=True)
+					return
+			except Exception:
+				await bot_instance.answer_callback_query(call.id, '❌ Ошибка проверки. Попробуйте позже.', show_alert=True)
+				return
+			_sess_file, _phone = _tgm.pick_session()
+			if not _sess_file or not _phone:
+				await bot_instance.answer_callback_query(call.id, '❌ Нет доступных аккаунтов. Обратитесь в поддержку.', show_alert=True)
+				return
+			_tgm.archive_session(_sess_file)
+			await db.fulfill_market_order(_order_id, _sess_file, _phone)
+			await bot.send_message(bot_logs, f"🛒 TG Маркет: {uid} (@{username}) купил аккаунт {_phone} (USDT)", parse_mode="Markdown")
+			_code_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_code_mkp.add(types.InlineKeyboardButton('📲 Получить код', callback_data=f'market_get_code_{_order_id}'))
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=f'✅ *Оплата подтверждена\\!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже\\.',
+					parse_mode="MarkdownV2", reply_markup=_code_mkp)
+			except Exception:
+				await bot_instance.send_message(uid,
+					f'✅ *Оплата подтверждена\\!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже\\.',
+					parse_mode="MarkdownV2", reply_markup=_code_mkp)
+
+		elif d.startswith('market_get_code_'):
+			import tg_market as _tgm
+			_order_id = int(d.replace('market_get_code_', ''))
+			_order = await db.get_market_order(_order_id)
+			if not _order or _order['user_id'] != uid:
+				await bot_instance.answer_callback_query(call.id, '❌ Заказ не найден.', show_alert=True)
+				return
+			_sess_file = _order.get('session_file')
+			_phone = _order.get('phone')
+			if not _sess_file:
+				await bot_instance.answer_callback_query(call.id, '❌ Сессия не найдена.', show_alert=True)
+				return
+			await bot_instance.answer_callback_query(call.id, '⏳ Получаю код...')
+			_code = await _tgm.get_auth_code(_sess_file)
+			_retry_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_retry_mkp.add(types.InlineKeyboardButton('🔄 Получить ещё раз', callback_data=f'market_get_code_{_order_id}'))
+			if _code:
+				_msg = (
+					f'📲 *Код авторизации:* `{_code}`\n'
+					f'🔑 *Облачный пароль:* `BrownV2`'
+				)
+			else:
+				_msg = (
+					f'⚠️ *Код не найден*\n'
+					f'SMS ещё не дошло — попробуйте ещё раз через минуту\\.\n'
+					f'🔑 *Облачный пароль:* `BrownV2`'
+				)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=_msg, parse_mode="MarkdownV2", reply_markup=_retry_mkp)
+			except Exception:
+				await bot_instance.send_message(uid, _msg, parse_mode="MarkdownV2", reply_markup=_retry_mkp)
+
 		elif d == 'admin_add_case' and uid in admins:
 			await _log_admin_action(uid, username, "Нажал «Выдать кейс»")
 			await bot_instance.send_message(uid,

@@ -89,7 +89,10 @@ def get_menu(is_admin: bool = False, lang: str = 'ru') -> types.InlineKeyboardMa
         types.InlineKeyboardButton(t('btn_probiv', lang), callback_data='probiv'),
         types.InlineKeyboardButton(t('btn_shop', lang), callback_data='shop'),
     )
-    m.add(types.InlineKeyboardButton(t('btn_settings', lang), callback_data='settings_menu'))
+    m.add(
+        types.InlineKeyboardButton(t('btn_settings', lang), callback_data='settings_menu'),
+        types.InlineKeyboardButton('🛒 TG Маркет', callback_data='tg_market'),
+    )
     if is_admin:
         m.add(types.InlineKeyboardButton(t('btn_admin', lang), callback_data='admin_panel'))
     m.add(types.InlineKeyboardButton(t('btn_support', lang), url='https://t.me/BR_V2_support'))
