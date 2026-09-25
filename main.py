@@ -2639,17 +2639,17 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_mkt_mkp.add(types.InlineKeyboardButton('[🔙] Назад', callback_data='go_to_main_menu'))
 			_mkt_caption = (
 				f"🛒 *TG Маркет*\n\n"
-				f"Здесь можно приобрести Telegram-аккаунт\\.\n"
+				f"Здесь можно приобрести Telegram аккаунт.\n"
 				f"📦 *Доступно аккаунтов:* {_avail}\n\n"
 				f"💵 *Цена:* 49 ₽ / $1 USDT\n"
-				f"После оплаты вы получите номер телефона\\.\n"
-				f"Введите его в Telegram, получите SMS — и нажмите «📲 Получить код»\\."
+				f"После оплаты вы получите номер телефона.\n"
+				f"Введите его в Telegram, получите SMS и нажмите «📲 Получить код»."
 			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=_mkt_caption, parse_mode="MarkdownV2", reply_markup=_mkt_mkp)
+					caption=_mkt_caption, parse_mode="Markdown", reply_markup=_mkt_mkp)
 			except Exception:
-				await bot_instance.send_message(uid, _mkt_caption, parse_mode="MarkdownV2", reply_markup=_mkt_mkp)
+				await bot_instance.send_message(uid, _mkt_caption, parse_mode="Markdown", reply_markup=_mkt_mkp)
 
 		elif d == 'tg_market_buy':
 			_buy_mkp = types.InlineKeyboardMarkup(row_width=1)
@@ -2693,12 +2693,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption='🛒 *TG Маркет — СБП*\n\nНажмите кнопку для оплаты 49 ₽ через СБП\\.\nПосле оплаты нажмите «✅ Я оплатил»\\.',
-					parse_mode="MarkdownV2", reply_markup=_sbp_mkt_mkp)
+					caption='🛒 *TG Маркет — СБП*\n\nНажмите кнопку для оплаты 49 ₽ через СБП.\nПосле оплаты нажмите «✅ Я оплатил».',
+					parse_mode="Markdown", reply_markup=_sbp_mkt_mkp)
 			except Exception:
 				await bot_instance.send_message(uid,
-					'🛒 *TG Маркет — СБП*\n\nНажмите кнопку для оплаты 49 ₽ через СБП\\.\nПосле оплаты нажмите «✅ Я оплатил»\\.',
-					parse_mode="MarkdownV2", reply_markup=_sbp_mkt_mkp)
+					'🛒 *TG Маркет — СБП*\n\nНажмите кнопку для оплаты 49 ₽ через СБП.\nПосле оплаты нажмите «✅ Я оплатил».',
+					parse_mode="Markdown", reply_markup=_sbp_mkt_mkp)
 
 		elif d.startswith('tg_market_sbp_paid_'):
 			import tg_market as _tgm
@@ -2722,12 +2722,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_code_mkp.add(types.InlineKeyboardButton('📲 Получить код', callback_data=f'market_get_code_{_order_id}'))
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'✅ *Оплата подтверждена\\!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже\\.',
-					parse_mode="MarkdownV2", reply_markup=_code_mkp)
+					caption=f'✅ *Оплата подтверждена!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже.',
+					parse_mode="Markdown", reply_markup=_code_mkp)
 			except Exception:
 				await bot_instance.send_message(uid,
-					f'✅ *Оплата подтверждена\\!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже\\.',
-					parse_mode="MarkdownV2", reply_markup=_code_mkp)
+					f'✅ *Оплата подтверждена!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже.',
+					parse_mode="Markdown", reply_markup=_code_mkp)
 
 		elif d == 'tg_market_crypto':
 			import tg_market as _tgm
@@ -2747,12 +2747,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption='🛒 *TG Маркет — USDT*\n\nОплатите $1 USDT через CryptoBot\\.\nПосле оплаты нажмите «🔄 Проверить оплату»\\.',
-					parse_mode="MarkdownV2", reply_markup=_crypto_mkt_mkp)
+					caption='🛒 *TG Маркет — USDT*\n\nОплатите $1 USDT через CryptoBot.\nПосле оплаты нажмите «🔄 Проверить оплату».',
+					parse_mode="Markdown", reply_markup=_crypto_mkt_mkp)
 			except Exception:
 				await bot_instance.send_message(uid,
-					'🛒 *TG Маркет — USDT*\n\nОплатите $1 USDT через CryptoBot\\.\nПосле оплаты нажмите «🔄 Проверить оплату»\\.',
-					parse_mode="MarkdownV2", reply_markup=_crypto_mkt_mkp)
+					'🛒 *TG Маркет — USDT*\n\nОплатите $1 USDT через CryptoBot.\nПосле оплаты нажмите «🔄 Проверить оплату».',
+					parse_mode="Markdown", reply_markup=_crypto_mkt_mkp)
 
 		elif d.startswith('tg_market_check_'):
 			import tg_market as _tgm
@@ -2782,12 +2782,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			_code_mkp.add(types.InlineKeyboardButton('📲 Получить код', callback_data=f'market_get_code_{_order_id}'))
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=f'✅ *Оплата подтверждена\\!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже\\.',
-					parse_mode="MarkdownV2", reply_markup=_code_mkp)
+					caption=f'✅ *Оплата подтверждена!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже.',
+					parse_mode="Markdown", reply_markup=_code_mkp)
 			except Exception:
 				await bot_instance.send_message(uid,
-					f'✅ *Оплата подтверждена\\!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже\\.',
-					parse_mode="MarkdownV2", reply_markup=_code_mkp)
+					f'✅ *Оплата подтверждена!*\n\n📱 *Номер телефона:* `{_phone}`\n\nВведите этот номер в Telegram, получите SMS с кодом, затем нажмите кнопку ниже.',
+					parse_mode="Markdown", reply_markup=_code_mkp)
 
 		elif d.startswith('market_get_code_'):
 			import tg_market as _tgm
@@ -2813,14 +2813,14 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			else:
 				_msg = (
 					f'⚠️ *Код не найден*\n'
-					f'SMS ещё не дошло — попробуйте ещё раз через минуту\\.\n'
+					f'SMS ещё не дошло — попробуйте ещё раз через минуту.\n'
 					f'🔑 *Облачный пароль:* `BrownV2`'
 				)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=_msg, parse_mode="MarkdownV2", reply_markup=_retry_mkp)
+					caption=_msg, parse_mode="Markdown", reply_markup=_retry_mkp)
 			except Exception:
-				await bot_instance.send_message(uid, _msg, parse_mode="MarkdownV2", reply_markup=_retry_mkp)
+				await bot_instance.send_message(uid, _msg, parse_mode="Markdown", reply_markup=_retry_mkp)
 
 		elif d == 'admin_add_case' and uid in admins:
 			await _log_admin_action(uid, username, "Нажал «Выдать кейс»")
