@@ -4784,34 +4784,38 @@ _ASN_NAMES = {
 async def _detect_protection(ip: str, domain: str) -> str:
 	"""Возвращает строку с названием защиты или '' если не обнаружена."""
 	detected = set()
+	host = domain or ip
 
-	# 1. Проверяем HTTP-заголовки
-	for url in (f"https://{domain or ip}", f"http://{domain or ip}"):
+	async def _check_http(url: str):
 		try:
 			async with aiohttp.ClientSession() as s:
-				async with s.get(url, timeout=aiohttp.ClientTimeout(total=5),
+				async with s.get(url, timeout=aiohttp.ClientTimeout(total=3),
 								 allow_redirects=False, ssl=False) as r:
 					hdrs = {k.lower(): v.lower() for k, v in r.headers.items()}
 					for name, hdr, val in _PROTECTION_SIGS:
-						if hdr in hdrs:
-							if val is None or val in hdrs[hdr]:
-								detected.add(name)
-			break
+						if hdr in hdrs and (val is None or val in hdrs[hdr]):
+							detected.add(name)
 		except Exception:
-			continue
+			pass
 
-	# 2. ASN lookup через ipinfo.io
-	try:
-		async with aiohttp.ClientSession() as s:
-			async with s.get(f"https://ipinfo.io/{ip}/org",
-							 timeout=aiohttp.ClientTimeout(total=4), ssl=False) as r:
-				org = await r.text()
-				for asn, name in _ASN_NAMES.items():
-					if f"AS{asn}" in org or asn in org:
-						detected.add(name)
-	except Exception:
-		pass
+	async def _check_asn():
+		try:
+			async with aiohttp.ClientSession() as s:
+				async with s.get(f"https://ipinfo.io/{ip}/org",
+								 timeout=aiohttp.ClientTimeout(total=3), ssl=False) as r:
+					org = await r.text()
+					for asn, name in _ASN_NAMES.items():
+						if f"AS{asn}" in org:
+							detected.add(name)
+		except Exception:
+			pass
 
+	await asyncio.gather(
+		_check_http(f"https://{host}"),
+		_check_http(f"http://{host}"),
+		_check_asn(),
+		return_exceptions=True,
+	)
 	return ", ".join(sorted(detected)) if detected else ""
 
 
@@ -4924,7 +4928,7 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 	prot_task = asyncio.ensure_future(_detect_protection(ip, raw if raw != ip else ""))
 	port_results = await asyncio.gather(*port_tasks, return_exceptions=True)
 	try:
-		protection = await asyncio.wait_for(prot_task, timeout=7)
+		protection = await asyncio.wait_for(prot_task, timeout=4)
 	except Exception:
 		protection = ""
 
