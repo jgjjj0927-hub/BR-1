@@ -372,12 +372,12 @@ class WaitDsaFSM(StatesGroup):
 	link = State()
 	reason = State()
 	sub_reason = State()
+	text = State()
 	text_confirm = State()
 
 class WarnUserFSM(StatesGroup):
 	user_id = State()
 	reason = State()
-	text = State()
 
 class WaitTelegraphFSM(StatesGroup):
 	link = State()          # ввод ссылки
