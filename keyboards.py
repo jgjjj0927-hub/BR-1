@@ -170,7 +170,6 @@ def get_functions(lang: str = 'ru') -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton(t('btn_logger_method', lang), callback_data='logger_method'),
     )
     m.add(types.InlineKeyboardButton('⚡ L4 Стрессер', callback_data='l4_method'))
-    m.add(types.InlineKeyboardButton('🛠 Сетевые инструменты', callback_data='net_tools'))
     m.add(types.InlineKeyboardButton(t('btn_back', lang), callback_data='functions'))
     return m
 
