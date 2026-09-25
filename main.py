@@ -645,7 +645,7 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 		method_markup = types.InlineKeyboardMarkup(row_width=1)
 		method_markup.add(
 			types.InlineKeyboardButton("CryptoBot", callback_data=f'pay_crypto_{st}'),
-			types.InlineKeyboardButton("🇷🇺 СБП", callback_data=f'pay_sbp_{st}'),
+			types.InlineKeyboardButton("🇷🇺 СБП — написать в поддержку", url='https://t.me/BR_V2_Support'),
 			types.InlineKeyboardButton("TonKeeper", callback_data=f'pay_ton_{st}'),
 			keyboards.back,
 		)
@@ -705,41 +705,20 @@ async def _create_pay_link(ym_url: str) -> str:
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_sbp_'), state='*')
 async def pay_sbp_callback(callback_query: types.CallbackQuery):
 	try:
-		import urllib.parse as _urlparse
-		user_id = callback_query.from_user.id
-		if not await check_user_in_db(user_id):
-			return
-		st = callback_query.data[len('pay_sbp_'):]
-		if st not in _SUB_MAP:
-			return
-		_lang = await db.get_lang(user_id)
-		amount_usd, sub_days, pidor_key, amount_rub = _SUB_MAP[st]
-		pidor = t(pidor_key, _lang)
-		label = f"sub_{user_id}_{st}"
-		targets = _urlparse.quote(f"Subscription BR V2 {pidor}", safe='')
-		ym_url = (
-			f"https://yoomoney.ru/quickpay/confirm.xml"
-			f"?receiver={_YM_WALLET}"
-			f"&quickpay-form=shop"
-			f"&targets={targets}"
-			f"&sum={amount_rub}"
-			f"&label={label}"
-			f"&successURL=https://br-v2.com/pay/success"
-		)
-		short_url = await _create_pay_link(ym_url)
-		sbp_markup = types.InlineKeyboardMarkup(row_width=1)
-		sbp_markup.add(
-			types.InlineKeyboardButton(t('pay_btn_card', _lang), url=short_url),
-			types.InlineKeyboardButton(t('pay_btn_paid', _lang), callback_data=f'sbp_paid_{st}'),
+		_sup_mkp = types.InlineKeyboardMarkup(row_width=1)
+		_sup_mkp.add(
+			types.InlineKeyboardButton('✍️ Написать в поддержку', url='https://t.me/BR_V2_Support'),
 			keyboards.back,
 		)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption=t('shop_buy_rub', _lang, item=pidor, amount=amount_rub),
-			parse_mode="MarkdownV2", reply_markup=sbp_markup
+			caption="⚠️ *СБП временно недоступен*\n\nДля покупки подписки напишите в поддержку — @BR\\_V2\\_Support\nМы оформим вручную в течение нескольких минут\\.",
+			parse_mode="MarkdownV2", reply_markup=_sup_mkp
 		)
+		await bot.answer_callback_query(callback_query.id)
 	except Exception as e:
+		await bot.answer_callback_query(callback_query.id)
 		print(f"pay_sbp_callback: {e}")
 
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sbp_paid_'), state='*')
@@ -2494,29 +2473,15 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 
 		elif d == 'case_buy_sbp':
-			import urllib.parse as _urlparse
-			label = f"case_{uid}"
-			targets = _urlparse.quote("Кейс BR V2", safe='')
-			ym_url = (
-				f"https://yoomoney.ru/quickpay/confirm.xml"
-				f"?receiver={_YM_WALLET}"
-				f"&quickpay-form=shop"
-				f"&targets={targets}"
-				f"&sum=200"
-				f"&label={label}"
-				f"&successURL=https://br-v2.com/pay/success"
-			)
-			short_url = await _create_pay_link(ym_url)
-			sbp_case_markup = types.InlineKeyboardMarkup(row_width=1)
-			sbp_case_markup.add(
-				types.InlineKeyboardButton(t('btn_case_pay_sbp', _user_lang), url=short_url),
-				types.InlineKeyboardButton(t('btn_case_pay_sbp_done', _user_lang), callback_data=f'case_sbp_paid_{uid}'),
+			_sbp_off_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_sbp_off_mkp.add(
+				types.InlineKeyboardButton('✍️ Написать в поддержку', url='https://t.me/BR_V2_Support'),
 				types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='case_buy'),
 			)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption=t('case_sbp_pay_caption', _user_lang),
-				parse_mode="Markdown", reply_markup=sbp_case_markup
+				caption="⚠️ *СБП временно недоступен*\n\nДля покупки кейса напишите в поддержку — @BR\\_V2\\_Support\nОформим вручную в течение нескольких минут.",
+				parse_mode="Markdown", reply_markup=_sbp_off_mkp
 			)
 
 		elif d == 'case_buy_usdt':
@@ -2654,8 +2619,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 		elif d == 'tg_market_buy':
 			_buy_mkp = types.InlineKeyboardMarkup(row_width=1)
 			_buy_mkp.add(
-				types.InlineKeyboardButton('💳 СБП — 49 ₽', callback_data='tg_market_sbp'),
 				types.InlineKeyboardButton('💎 USDT — $1', callback_data='tg_market_crypto'),
+				types.InlineKeyboardButton('✍️ СБП — написать в поддержку', url='https://t.me/BR_V2_Support'),
 				types.InlineKeyboardButton('[🔙] Назад', callback_data='tg_market'),
 			)
 			try:
@@ -2667,38 +2632,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					parse_mode="Markdown", reply_markup=_buy_mkp)
 
 		elif d == 'tg_market_sbp':
-			import urllib.parse as _urlparse
-			import tg_market as _tgm
-			if _tgm.get_available_count() == 0:
-				await bot_instance.answer_callback_query(call.id, '❌ Нет доступных аккаунтов', show_alert=True)
-				return
-			_order_id = await db.create_market_order(uid, 'sbp')
-			label = f"market_{uid}"
-			targets = _urlparse.quote("TG Маркет BR V2", safe='')
-			ym_url = (
-				f"https://yoomoney.ru/quickpay/confirm.xml"
-				f"?receiver={_YM_WALLET}"
-				f"&quickpay-form=shop"
-				f"&targets={targets}"
-				f"&sum=49"
-				f"&label={label}"
-				f"&successURL=https://br-v2.com/pay/success"
-			)
-			short_url = await _create_pay_link(ym_url)
-			_sbp_mkt_mkp = types.InlineKeyboardMarkup(row_width=1)
-			_sbp_mkt_mkp.add(
-				types.InlineKeyboardButton('💳 Оплатить СБП', url=short_url),
-				types.InlineKeyboardButton('✅ Я оплатил', callback_data=f'tg_market_sbp_paid_{_order_id}'),
-				types.InlineKeyboardButton('[🔙] Назад', callback_data='tg_market_buy'),
-			)
-			try:
-				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption='🛒 *TG Маркет — СБП*\n\nНажмите кнопку для оплаты 49 ₽ через СБП.\nПосле оплаты нажмите «✅ Я оплатил».',
-					parse_mode="Markdown", reply_markup=_sbp_mkt_mkp)
-			except Exception:
-				await bot_instance.send_message(uid,
-					'🛒 *TG Маркет — СБП*\n\nНажмите кнопку для оплаты 49 ₽ через СБП.\nПосле оплаты нажмите «✅ Я оплатил».',
-					parse_mode="Markdown", reply_markup=_sbp_mkt_mkp)
+			await bot_instance.answer_callback_query(call.id, '⚠️ СБП временно недоступен. Напишите @BR_V2_Support', show_alert=True)
 
 		elif d.startswith('tg_market_sbp_paid_'):
 			import tg_market as _tgm
