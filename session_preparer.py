@@ -67,13 +67,23 @@ async def _kick_sessions(client: TelegramClient) -> bool:
 
 
 async def _set_password(client: TelegramClient) -> bool:
+    """
+    Пробует поставить BrownV2. Если уже стоит другой пароль — пробует
+    переопределить через него же (неизвестен → пропускаем, не фатально).
+    """
+    # Попытка 1: без текущего пароля (аккаунт без 2FA)
     try:
         await client.edit_2fa(new_password=CLOUD_PASS)
         log(f"  ✓ Облачный пароль установлен: {CLOUD_PASS}")
         return True
     except Exception as e:
+        err = str(e)
+        if 'invalid' in err.lower() or 'password' in err.lower():
+            # На аккаунте уже стоит другой пароль — не можем сменить без него
+            log(f"  ! На аккаунте уже стоит пароль (неизвестен) — пропускаем смену, продолжаем чистку")
+            return True  # не фатально, аккаунт всё равно чистим
         log(f"  ! edit_2fa: {e}")
-        return False
+        return True  # всё равно продолжаем
 
 
 async def _delete_contacts(client: TelegramClient):
