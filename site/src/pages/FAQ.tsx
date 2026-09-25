@@ -13,7 +13,7 @@ const T = {
     sub: 'Самые частые вопросы о Brown V2',
     faqs: [
       ['Что такое Brown V2?', 'Brown V2 — Telegram-бот для массовой подачи жалоб на аккаунты, боты, каналы и контент в Telegram. Использует несколько методов: ботнет, web-жалобы, email-рассылки, EU DSA, TIDA и другие.'],
-      ['Как начать пользоваться?', 'Откройте бота @Botv2wwwbot, пройдите капчу, подпишитесь на каналы, затем выберите нужный метод в меню. Для платных функций нужна подписка.'],
+      ['Как начать пользоваться?', 'Откройте бота @Brown_V2, пройдите капчу, подпишитесь на каналы, затем выберите нужный метод в меню. Для платных функций нужна подписка.'],
       ['Какие методы доступны без подписки?', 'Без подписки доступны бесплатные репорты (из колеса удачи или промокодов). С подпиской открываются все методы.'],
       ['Как оплатить подписку?', 'Через бота — оплата в USDT (криптовалюта). Через карту — написать @TariSmit. Цены указаны на странице Цены.'],
       ['Что такое Премиум?', 'Премиум — дополнение к базовой подписке, открывает эксклюзивные методы и улучшенные лимиты.\n\n🔓 Эксклюзивные методы (только Премиум):\n• 👑 Премиум-ботнет — в 2-3x выше доходимость через Telegram Premium аккаунты\n• 🌐 Universal метод — продвинутая универсальная атака\n• 💀 Снос сессий — сброс активных сессий цели\n• 🌍 Домен киллер — блокировка доменов цели\n\n📈 Улучшенные лимиты:\n• 5 мониторов одновременно (вместо 3 у базовой)\n• Мониторинг до 24ч (вместо 12ч у базовой)\n• Пробив — без ограничений (вместо 5 запросов/ч)\n• Приоритет в очереди отправки'],
@@ -38,7 +38,7 @@ const T = {
     sub: 'The most common questions about Brown V2',
     faqs: [
       ['What is Brown V2?', 'Brown V2 is a Telegram bot for mass reporting of accounts, bots, channels, and content on Telegram. It uses multiple methods: botnet, web reports, email campaigns, EU DSA, TIDA, and more.'],
-      ['How do I get started?', 'Open the bot @Botv2wwwbot, pass the captcha, subscribe to the channels, then choose the desired method from the menu. Paid methods require a subscription.'],
+      ['How do I get started?', 'Open the bot @Brown_V2, pass the captcha, subscribe to the channels, then choose the desired method from the menu. Paid methods require a subscription.'],
       ['What is available without a subscription?', 'Free reports (from the fortune wheel or promo codes) are available without a subscription. A subscription unlocks all methods.'],
       ['How do I pay for a subscription?', 'Through the bot — payment in USDT (crypto). By card — message @TariSmit. Prices are on the Prices page.'],
       ['What is Premium?', 'Premium is an add-on to your base subscription — unlocks exclusive methods and higher limits.\n\n🔓 Exclusive methods (Premium only):\n• 👑 Premium Botnet — 2-3x higher delivery via Telegram Premium accounts\n• 🌐 Universal method — advanced multi-vector attack\n• 💀 Session Knockdown — force-logout all active sessions of the target\n• 🌍 Domain Killer — block the target\'s domains\n\n📈 Upgraded limits:\n• 5 simultaneous monitors (instead of 3 on base)\n• Monitoring up to 24h (instead of 12h on base)\n• Lookup — unlimited queries (instead of 5/hour)\n• Priority in the send queue'],
