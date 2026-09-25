@@ -4856,18 +4856,6 @@ def _auto_select(open_ports: list) -> tuple:
 	return (best_port, preset_idx, reason)
 
 
-def _scan_port_sync(ip: str, port: int) -> bool:
-	import socket as _s
-	sock = _s.socket(_s.AF_INET, _s.SOCK_STREAM)
-	sock.settimeout(1.0)
-	try:
-		sock.connect((ip, port))
-		return True
-	except Exception:
-		return False
-	finally:
-		sock.close()
-
 
 @dp.message_handler(state=WaitL4FSM.target)
 async def l4_step_target(message: types.Message, state: FSMContext):
@@ -4895,26 +4883,32 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 	domain_str = f" (`{raw}`)" if raw != ip else ""
 	scan_msg = await _bot.send_message(
 		uid,
-		f"🎯 *Цель:* `{ip}`{domain_str}\n\n🔍 *Сканирую порты и проверяю защиту...*",
+		f"🎯 *Цель:* `{ip}`{domain_str}\n\n🔍 *Сканирую порты...*",
 		parse_mode="Markdown"
 	)
 
 	# Защита — мгновенно по IP-диапазонам (без сети)
 	protection = _detect_protection(ip)
 
-	# Сканируем порты через thread executor (надёжный OS-таймаут 1с на порт)
-	loop = asyncio.get_event_loop()
-	port_tasks = [
-		loop.run_in_executor(None, _scan_port_sync, ip, p)
-		for p, _ in _L4_SCAN_PORTS
-	]
+	# Сканируем через HackerTarget nmap API — они сканируют со своих серверов
+	import re as _re
+	_scan_map = {p: lbl for p, lbl in _L4_SCAN_PORTS}
+	open_ports = []
+	scan_error = False
 	try:
-		port_results = await asyncio.wait_for(
-			asyncio.gather(*port_tasks, return_exceptions=True), timeout=6
-		)
-	except asyncio.TimeoutError:
-		port_results = [False] * len(_L4_SCAN_PORTS)
-	open_ports = [(p, lbl) for (p, lbl), ok in zip(_L4_SCAN_PORTS, port_results) if ok is True]
+		async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as _sess:
+			async with _sess.get(f"https://api.hackertarget.com/nmap/?q={ip}") as _resp:
+				nmap_text = await _resp.text()
+		if "error" in nmap_text.lower() or "api count" in nmap_text.lower():
+			scan_error = True
+		else:
+			for _line in nmap_text.splitlines():
+				_m = _re.match(r'^(\d+)/(?:tcp|udp)\s+open', _line)
+				if _m:
+					_port = int(_m.group(1))
+					open_ports.append((_port, _scan_map.get(_port, f"port {_port}")))
+	except Exception:
+		scan_error = True
 
 	# Сохраняем список открытых портов для авто-выбора
 	await state.update_data(_l4_open_ports=[(p, lbl) for p, lbl in open_ports])
@@ -4948,6 +4942,8 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 		port_lines = "\n".join(f"• `{p}` — {lbl}" for p, lbl in open_ports)
 		for p, lbl in open_ports:
 			mkp.add(types.InlineKeyboardButton(f"{p} — {lbl}", callback_data=f"l4_port_{p}"))
+	elif scan_error:
+		port_lines = "⚠️ _Сканер недоступен — выберите порт вручную_"
 	else:
 		port_lines = "_Открытых портов не найдено_"
 
