@@ -23,6 +23,7 @@ BOT_TOKEN = os.getenv("TOKEN", "")
 NOTIFY_TOKEN = os.getenv("NOTIFY_TOKEN", "") or BOT_TOKEN  # токен зеркала для уведомлений
 NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,60693380,8701067595").split(",") if x.strip()]
 YM_SECRET = os.getenv("YM_SECRET", "uEyXCRwqs60eoUFLfvUI9cNt")
+YM_TOKEN = os.getenv("YM_TOKEN", "")   # YooMoney OAuth access token для API-проверки платежей
 BOT_LOGS = int(os.getenv("BOT_LOGS", "8316051968"))
 
 # sub type → days (mirrors _SUB_MAP in main.py)
@@ -42,6 +43,44 @@ log = logging.getLogger(__name__)
 
 # -- DB pool
 pool: asyncpg.Pool = None
+
+
+async def _ym_check_by_label(label: str) -> str | None:
+    """Проверяет YooMoney Operations History по label. Возвращает operation_id если платёж прошёл."""
+    if not YM_TOKEN:
+        return None
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(
+                "https://yoomoney.ru/api/operation-history",
+                headers={"Authorization": f"Bearer {YM_TOKEN}", "Content-Type": "application/x-www-form-urlencoded"},
+                data={"label": label, "type": "deposition", "records": "10"},
+                timeout=aiohttp.ClientTimeout(total=8),
+            ) as resp:
+                if resp.status != 200:
+                    log.warning(f"[ym-api] status {resp.status} for label {label}")
+                    return None
+                data = await resp.json()
+                for op in data.get("operations", []):
+                    if op.get("status") == "success":
+                        return str(op.get("operation_id", ""))
+    except Exception as e:
+        log.warning(f"[ym-api] check label={label}: {e}")
+    return None
+
+
+async def _tg_send(token: str, chat_id: int, text: str, parse_mode: str = "MarkdownV2") -> bool:
+    """Шлёт Telegram-сообщение. Возвращает True при успехе."""
+    try:
+        async with aiohttp.ClientSession() as s:
+            r = await s.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": text, "parse_mode": parse_mode},
+                timeout=aiohttp.ClientTimeout(total=5),
+            )
+            return (await r.json()).get("ok", False)
+    except Exception:
+        return False
 
 # -- SSE registry
 _sse_queues: set = set()
@@ -1083,6 +1122,14 @@ async def ym_notify(request: Request):
                 ON CONFLICT (user_id) DO UPDATE SET operation_id=$2, created_at=NOW()
             """, uid, operation_id)
         log.info(f"[ym-notify] market payment from {uid} op={operation_id}")
+        # Уведомить пользователя через основной бот
+        notify_text = "✅ *Оплата получена\\!*\n\nВернитесь в бота и нажмите кнопку *📲 Получить аккаунт* \\(или снова войдите в TG Маркет\\)\\."
+        user_tok = await _get_notify_token(uid)
+        sent = False
+        if BOT_TOKEN:
+            sent = await _tg_send(BOT_TOKEN, uid, notify_text)
+        if not sent and user_tok and user_tok != BOT_TOKEN:
+            await _tg_send(user_tok, uid, notify_text)
         return {"ok": True}
 
     # label format: sub_{user_id}_{sub_type}
@@ -1131,15 +1178,18 @@ async def ym_notify(request: Request):
 
     user_tok = await _get_notify_token(uid)
     main_tok = BOT_TOKEN or user_tok
+    # Шлём через основной бот первым, затем через зеркало как фолбэк
+    sent = False
+    if BOT_TOKEN:
+        sent = await _tg_send(BOT_TOKEN, uid, msg_text)
+        if not sent:
+            log.warning(f"[ym-notify] main bot notify failed uid={uid}")
+    if not sent and user_tok and user_tok != BOT_TOKEN:
+        ok = await _tg_send(user_tok, uid, msg_text)
+        if not ok:
+            log.warning(f"[ym-notify] mirror notify also failed uid={uid}")
+    # Лог-канал
     async with aiohttp.ClientSession() as s:
-        try:
-            await s.post(
-                f"https://api.telegram.org/bot{user_tok}/sendMessage",
-                json={"chat_id": uid, "text": msg_text, "parse_mode": "MarkdownV2"},
-                timeout=aiohttp.ClientTimeout(total=5)
-            )
-        except Exception as e:
-            log.warning(f"[ym-notify] user notify failed uid={uid}: {e}")
         try:
             await s.post(
                 f"https://api.telegram.org/bot{main_tok}/sendMessage",
@@ -1165,6 +1215,21 @@ async def check_market_pay(user_id: int):
         if row:
             await conn.execute("DELETE FROM tg_market_pending WHERE user_id=$1", user_id)
             return {"paid": True}
+
+    # --- Фолбэк: webhook не пришёл — проверяем через YooMoney API ---
+    if YM_TOKEN:
+        label = f"market_{user_id}"
+        op_id = await _ym_check_by_label(label)
+        if op_id:
+            # Проверяем что не выдавали уже этот op_id
+            async with pool.acquire() as conn:
+                already = await conn.fetchval(
+                    "SELECT 1 FROM tg_market_pending WHERE operation_id=$1", op_id
+                )
+                if not already:
+                    log.info(f"[check_market_pay-api] uid={user_id} op={op_id}")
+                    return {"paid": True}
+
     return {"paid": False}
 
 
@@ -1175,12 +1240,40 @@ async def check_pay(user_id: int):
             "SELECT invoice_id FROM paid_invoices WHERE user_id=$1 AND created_at > NOW() - INTERVAL '2 hours' LIMIT 1",
             user_id
         )
-        sub_until = await conn.fetchval(
-            "SELECT subscribe FROM users WHERE user_id=$1", user_id
-        )
-        premium = await conn.fetchval(
-            "SELECT premium FROM users WHERE user_id=$1", user_id
-        )
+        sub_until = await conn.fetchval("SELECT subscribe FROM users WHERE user_id=$1", user_id)
+        premium  = await conn.fetchval("SELECT premium FROM users WHERE user_id=$1", user_id)
+
+    # --- Фолбэк: webhook не пришёл — проверяем через YooMoney API ---
+    if not paid and YM_TOKEN:
+        for st, sub_days in _YM_SUB_DAYS.items():
+            label = f"sub_{user_id}_{st}"
+            op_id = await _ym_check_by_label(label)
+            if not op_id:
+                continue
+            # Нашли платёж — зачисляем
+            async with pool.acquire() as conn:
+                inserted = await conn.fetchval(
+                    "INSERT INTO paid_invoices (invoice_id, user_id, created_at) VALUES ($1,$2,NOW()) ON CONFLICT DO NOTHING RETURNING invoice_id",
+                    op_id, user_id
+                )
+                if not inserted:
+                    # уже есть — это старая оплата, не считаем
+                    continue
+                if st == "premupgrade":
+                    await conn.execute("UPDATE users SET premium=1 WHERE user_id=$1", user_id)
+                    premium = 1
+                else:
+                    now_dt = datetime.now()
+                    base = sub_until if sub_until and sub_until > now_dt else now_dt
+                    sub_until = base + timedelta(days=sub_days)
+                    await conn.execute(
+                        "UPDATE users SET subscribe=$1, sub_expiry_notified=FALSE WHERE user_id=$2",
+                        sub_until, user_id,
+                    )
+            paid = op_id
+            log.info(f"[check_pay-api] granted st={st} days={sub_days} uid={user_id} op={op_id}")
+            break
+
     sub_str = sub_until.strftime("%d.%m.%Y %H:%M") if sub_until else None
     return {"paid": paid is not None, "sub_until": sub_str, "premium": bool(premium)}
 
