@@ -115,6 +115,11 @@ async def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Добавляем last_bot_token если нет (для существующих БД)
+        try:
+            await conn.execute("ALTER TABLE mirror_assignments ADD COLUMN IF NOT EXISTS last_bot_token TEXT DEFAULT '__main__'")
+        except Exception:
+            pass
         # Фикс NULL значений для старых пользователей
         await conn.execute("UPDATE users SET premium = 0 WHERE premium IS NULL")
         await conn.execute("UPDATE users SET free_reports = 0 WHERE free_reports IS NULL")
@@ -1377,10 +1382,37 @@ async def touch_user_mirror(user_id: int, mirror_token: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO mirror_assignments (user_id, mirror_token, gateway_bot_id)
-            VALUES ($1, $2, 0)
-            ON CONFLICT (user_id) DO UPDATE SET mirror_token = $2, assigned_at = NOW()
+            INSERT INTO mirror_assignments (user_id, mirror_token, gateway_bot_id, last_bot_token)
+            VALUES ($1, $2, 0, $2)
+            ON CONFLICT (user_id) DO UPDATE SET mirror_token = $2, assigned_at = NOW(), last_bot_token = $2
         """, user_id, mirror_token)
+
+
+async def touch_user_main_bot(user_id: int):
+    """Фиксирует, что юзер последний раз взаимодействовал с основным ботом."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute("""
+                INSERT INTO mirror_assignments (user_id, mirror_token, gateway_bot_id, last_bot_token)
+                VALUES ($1, '', 0, '__main__')
+                ON CONFLICT (user_id) DO UPDATE SET last_bot_token = '__main__', assigned_at = NOW()
+            """, user_id)
+        except Exception:
+            pass
+
+
+async def get_user_last_bot(user_id: int) -> str:
+    """Возвращает '__main__' или токен зеркала — через что юзер писал последний раз."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            val = await conn.fetchval(
+                "SELECT last_bot_token FROM mirror_assignments WHERE user_id = $1", user_id
+            )
+            return val or '__main__'
+        except Exception:
+            return '__main__'
 
 
 async def get_free_mirror(exclude: str = None) -> str | None:

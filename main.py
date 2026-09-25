@@ -907,6 +907,7 @@ async def welcome(message: types.Message, state: FSMContext):
 	uid = message.chat.id
 	is_new = not await db.user_exists(uid)
 	await db.add_user(uid, message.from_user.username or '')
+	asyncio.ensure_future(db.touch_user_main_bot(uid))
 
 	if not await is_verified(uid):
 		# Сохраняем ref_arg до выбора языка
@@ -1276,6 +1277,7 @@ async def start_check_sub_callback(call: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda call: True, state='*')
 async def callback_inline(call: types.CallbackQuery, state: FSMContext):
+	asyncio.ensure_future(db.touch_user_main_bot(call.from_user.id))
 	await handle_callback(call, bot, dp, state)
 
 async def _dsa_generate_and_show(uid: int, bot_instance, dp_instance, state):
@@ -4535,7 +4537,9 @@ async def _credit_referral(new_uid: int):
 
 
 async def _notify_user(target: int, text: str, source_bot=None, **kwargs):
-	"""Отправляет уведомление через source_bot, затем через assigned mirror, затем через основной бот, затем любое зеркало."""
+	"""Отправляет уведомление через бот, которым юзер пользовался последним."""
+	from mirror_manager import _mirror_bots
+
 	# 1. Через того же бота, от которого пришла команда админа (если это не основной бот)
 	if source_bot is not None and source_bot is not bot:
 		try:
@@ -4543,28 +4547,45 @@ async def _notify_user(target: int, text: str, source_bot=None, **kwargs):
 			return
 		except Exception:
 			pass
-	# 2. Через зеркало, к которому привязан юзер
-	try:
-		from mirror_manager import _mirror_bots
-		token = await db.get_user_mirror(target)
-		if token and token in _mirror_bots:
-			await _mirror_bots[token].send_message(target, text, **kwargs)
+
+	# 2. Определяем через какой бот юзер взаимодействовал последний раз
+	last_bot_token = await db.get_user_last_bot(target)
+
+	if last_bot_token == '__main__':
+		# Пользователь последний раз использовал основной бот — пробуем его первым
+		try:
+			await bot.send_message(target, text, **kwargs)
 			return
-	except Exception:
-		pass
-	# 3. Через основной бот (пользователь мог последний раз использовать именно его)
+		except Exception:
+			pass
+		# Фолбэк — назначенное зеркало
+		try:
+			token = await db.get_user_mirror(target)
+			if token and token in _mirror_bots:
+				await _mirror_bots[token].send_message(target, text, **kwargs)
+				return
+		except Exception:
+			pass
+	else:
+		# Пользователь последний раз использовал зеркало — пробуем его первым
+		try:
+			if last_bot_token in _mirror_bots:
+				await _mirror_bots[last_bot_token].send_message(target, text, **kwargs)
+				return
+		except Exception:
+			pass
+		# Фолбэк — основной бот
+		try:
+			await bot.send_message(target, text, **kwargs)
+			return
+		except Exception:
+			pass
+
+	# 3. Последний шанс — любое живое зеркало
 	try:
-		await bot.send_message(target, text, **kwargs)
-		return
-	except Exception:
-		pass
-	# 4. Через любое живое зеркало
-	try:
-		from mirror_manager import _mirror_bots
 		if _mirror_bots:
 			live_bot = next(iter(_mirror_bots.values()))
 			await live_bot.send_message(target, text, **kwargs)
-			return
 	except Exception:
 		pass
 
