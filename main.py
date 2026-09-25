@@ -4891,29 +4891,7 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 	protection = _detect_protection(ip)
 
 	# Сканируем через HackerTarget nmap API — они сканируют со своих серверов
-	import re as _re
-	_scan_map = {p: lbl for p, lbl in _L4_SCAN_PORTS}
-	open_ports = []
-	scan_error = False
-	try:
-		async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as _sess:
-			async with _sess.get(f"https://api.hackertarget.com/nmap/?q={ip}") as _resp:
-				nmap_text = await _resp.text()
-		if "error" in nmap_text.lower() or "api count" in nmap_text.lower():
-			scan_error = True
-		else:
-			for _line in nmap_text.splitlines():
-				_m = _re.match(r'^(\d+)/(?:tcp|udp)\s+open', _line)
-				if _m:
-					_port = int(_m.group(1))
-					open_ports.append((_port, _scan_map.get(_port, f"port {_port}")))
-	except Exception:
-		scan_error = True
-
-	# Сохраняем список открытых портов для авто-выбора
-	await state.update_data(_l4_open_ports=[(p, lbl) for p, lbl in open_ports])
-
-	# Если защита — блокируем атаку
+	# Если защита — блокируем СРАЗУ, без сканирования
 	if protection:
 		await _bot.edit_message_text(
 			f"🎯 *Цель:* `{ip}`{domain_str}\n\n"
@@ -4931,6 +4909,29 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 		return
 
 	prot_line = "\n\n✅ *Защита не обнаружена*"
+
+	# Сканируем через HackerTarget nmap API — они сканируют со своих серверов
+	import re as _re
+	_scan_map = {p: lbl for p, lbl in _L4_SCAN_PORTS}
+	open_ports = []
+	scan_error = False
+	try:
+		async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as _sess:
+			async with _sess.get(f"https://api.hackertarget.com/nmap/?q={ip}") as _resp:
+				nmap_text = await _resp.text()
+		if "error" in nmap_text.lower() or "api count" in nmap_text.lower():
+			scan_error = True
+		else:
+			for _line in nmap_text.splitlines():
+				_m = _re.match(r'^(\d+)/(?:tcp|udp)\s+open', _line)
+				if _m:
+					_port = int(_m.group(1))
+					open_ports.append((_port, _scan_map.get(_port, f"port {_port}")))
+	except Exception:
+		scan_error = True
+
+	# Сохраняем список открытых портов для авто-выбора
+	await state.update_data(_l4_open_ports=[(p, lbl) for p, lbl in open_ports])
 
 	# Авто-выбор подсказка
 	auto_port, auto_preset_idx, auto_reason = _auto_select(open_ports)
