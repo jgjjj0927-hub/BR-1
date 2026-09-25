@@ -139,6 +139,11 @@ async def prepare_session(session_path: str) -> str:
     Возвращает RESULT_OK / RESULT_COOLDOWN / RESULT_ERROR.
     """
     session_no_ext = session_path[:-8] if session_path.endswith('.session') else session_path
+    # Снимаем readonly — Telethon пишет в SQLite при подключении
+    try:
+        os.chmod(session_path, 0o600)
+    except Exception as e:
+        log(f"  ! chmod: {e}")
     client = TelegramClient(session_no_ext, _API_ID, _API_HASH,
                             system_version="4.16.30-vxCUSTOM")
     try:
