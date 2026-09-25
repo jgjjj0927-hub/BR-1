@@ -45,16 +45,25 @@ def log(msg: str):
     print(f"[{ts}] {msg}", flush=True)
 
 
-async def _kick_sessions(client: TelegramClient):
+async def _kick_sessions(client: TelegramClient) -> bool:
+    """Возвращает True если кик прошёл успешно."""
     try:
         await client(ResetAuthorizationsRequest())
         log("  ✓ Лишние сессии завершены")
+        return True
     except FloodWaitError as e:
         log(f"  ! FloodWait {e.seconds}с при ResetAuthorizations — ждём")
         await asyncio.sleep(e.seconds)
-        await client(ResetAuthorizationsRequest())
+        try:
+            await client(ResetAuthorizationsRequest())
+            log("  ✓ Лишние сессии завершены (после FloodWait)")
+            return True
+        except Exception as e2:
+            log(f"  ! ResetAuthorizations (повтор): {e2}")
+            return False
     except Exception as e:
         log(f"  ! ResetAuthorizations: {e}")
+        return False
 
 
 async def _set_password(client: TelegramClient) -> bool:
@@ -120,9 +129,14 @@ async def _delete_dialogs(client: TelegramClient):
     log(f"  ✓ Диалоги обработаны: {ok} успешно, {err} ошибок")
 
 
-async def prepare_session(session_path: str) -> bool:
+RESULT_OK      = "ok"       # готово → TG market
+RESULT_COOLDOWN = "cooldown" # кик не удался → повторить через 10 мин
+RESULT_ERROR   = "error"    # не авторизован / крит. ошибка → TG Error
+
+
+async def prepare_session(session_path: str) -> str:
     """
-    Возвращает True если сессия подготовлена и готова к продаже.
+    Возвращает RESULT_OK / RESULT_COOLDOWN / RESULT_ERROR.
     """
     session_no_ext = session_path[:-8] if session_path.endswith('.session') else session_path
     client = TelegramClient(session_no_ext, _API_ID, _API_HASH,
@@ -131,42 +145,45 @@ async def prepare_session(session_path: str) -> bool:
         await client.connect()
 
         if not await client.is_user_authorized():
-            log("  ! Сессия не авторизована — пропускаем")
+            log("  ! Сессия не авторизована — в Error")
             await client.disconnect()
-            return False
+            return RESULT_ERROR
 
         me = await client.get_me()
         phone = getattr(me, 'phone', None) or '???'
         log(f"  · Аккаунт: +{phone} / {me.first_name or ''} {me.last_name or ''}".strip())
 
-        await _kick_sessions(client)
+        kick_ok = await _kick_sessions(client)
+        if not kick_ok:
+            log("  ! Кик не удался — КД 10 минут")
+            await client.disconnect()
+            return RESULT_COOLDOWN
+
         pwd_ok = await _set_password(client)
         if not pwd_ok:
-            # Если пароль не поставился — сессия не готова к продаже
             await client.disconnect()
-            return False
+            return RESULT_ERROR
 
         await _delete_contacts(client)
         await _delete_dialogs(client)
 
         await client.disconnect()
-        return True
+        return RESULT_OK
 
     except FloodWaitError as e:
-        log(f"  ! FloodWait {e.seconds}с на верхнем уровне")
+        log(f"  ! FloodWait {e.seconds}с на верхнем уровне — КД 10 минут")
         try:
             await client.disconnect()
         except Exception:
             pass
-        # Возвращаем False чтобы попробовать снова позже
-        return False
+        return RESULT_COOLDOWN
     except Exception as e:
         log(f"  ! Критическая ошибка: {e}")
         try:
             await client.disconnect()
         except Exception:
             pass
-        return False
+        return RESULT_ERROR
 
 
 async def main():
@@ -180,36 +197,53 @@ async def main():
     log(f"  Пароль:      {CLOUD_PASS}")
     log(f"  Опрос каждые {POLL_INTERVAL}с\n")
 
-    # Флуд-защита — помним когда последний раз сессия словила FloodWait
-    retry_after: dict[str, float] = {}
+    COOLDOWN_SECS = 600  # 10 минут
+
+    # filename → timestamp до которого не трогать
+    cooldown_until: dict[str, float] = {}
 
     while True:
         now = asyncio.get_event_loop().time()
         files = [
             f for f in os.listdir(SOON_DIR)
-            if f.endswith('.session') and now >= retry_after.get(f, 0)
+            if f.endswith('.session') and now >= cooldown_until.get(f, 0)
         ]
 
         if not files:
-            await asyncio.sleep(POLL_INTERVAL)
+            # Показываем сколько ждём под КД
+            on_cd = {f: cooldown_until[f] for f in cooldown_until if os.path.exists(os.path.join(SOON_DIR, f))}
+            if on_cd:
+                nearest = min(on_cd.values()) - now
+                log(f"[~] Все сессии под КД. Следующая через {int(nearest)}с")
+            else:
+                log(f"[~] Нет сессий в {SOON_DIR}/. Жду {POLL_INTERVAL}с...")
+            await asyncio.sleep(min(POLL_INTERVAL, 60))
             continue
 
         for filename in files:
             src = os.path.join(SOON_DIR, filename)
+            if not os.path.exists(src):
+                continue
             log(f"\n[→] {filename}")
-            ok = await prepare_session(src)
+            result = await prepare_session(src)
 
-            if ok:
+            if result == RESULT_OK:
                 dst = os.path.join(MARKET_DIR, filename)
                 shutil.move(src, dst)
                 log(f"  ✓ Готово → {MARKET_DIR}/{filename}")
-            else:
-                # Если файл ещё существует (не был перемещён внешне)
+                cooldown_until.pop(filename, None)
+
+            elif result == RESULT_COOLDOWN:
+                until = asyncio.get_event_loop().time() + COOLDOWN_SECS
+                cooldown_until[filename] = until
+                log(f"  ⏳ КД 10 мин — повтор в {datetime.fromtimestamp(until).strftime('%H:%M:%S')}")
+
+            else:  # RESULT_ERROR
                 if os.path.exists(src):
-                    # При FloodWait откладываем, при крит. ошибке — в Error
                     dst = os.path.join(ERROR_DIR, filename)
                     shutil.move(src, dst)
                     log(f"  ✗ Ошибка → {ERROR_DIR}/{filename}")
+                cooldown_until.pop(filename, None)
 
         await asyncio.sleep(5)
 
