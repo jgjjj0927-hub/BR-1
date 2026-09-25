@@ -4933,11 +4933,24 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 	# Сохраняем список открытых портов для авто-выбора
 	await state.update_data(_l4_open_ports=[(p, lbl) for p, lbl in open_ports])
 
-	# Строка защиты
+	# Если защита — блокируем атаку
 	if protection:
-		prot_line = f"\n\n⚠️ *Защита обнаружена:* {protection}\n_L4 атака может быть неэффективна_"
-	else:
-		prot_line = "\n\n✅ *Защита не обнаружена*"
+		await _bot.edit_message_text(
+			f"🎯 *Цель:* `{ip}`{domain_str}\n\n"
+			f"🛑 *Защита обнаружена:* {protection}\n\n"
+			f"L4 флуд поглощается на уровне провайдера защиты и не достигает реального сервера\\.\n"
+			f"Атака заблокирована\\.",
+			chat_id=uid,
+			message_id=scan_msg.message_id,
+			parse_mode="MarkdownV2",
+			reply_markup=types.InlineKeyboardMarkup().add(
+				types.InlineKeyboardButton("↩️ Назад", callback_data="functions")
+			)
+		)
+		await state.finish()
+		return
+
+	prot_line = "\n\n✅ *Защита не обнаружена*"
 
 	# Авто-выбор подсказка
 	auto_port, auto_preset_idx, auto_reason = _auto_select(open_ports)
