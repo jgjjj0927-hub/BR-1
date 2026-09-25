@@ -4856,13 +4856,17 @@ def _auto_select(open_ports: list) -> tuple:
 	return (best_port, preset_idx, reason)
 
 
-async def _scan_port(ip: str, port: int) -> bool:
+def _scan_port_sync(ip: str, port: int) -> bool:
+	import socket as _s
+	sock = _s.socket(_s.AF_INET, _s.SOCK_STREAM)
+	sock.settimeout(1.0)
 	try:
-		_, writer = await asyncio.wait_for(asyncio.open_connection(ip, port), timeout=0.7)
-		writer.close()
+		sock.connect((ip, port))
 		return True
-	except:
+	except Exception:
 		return False
+	finally:
+		sock.close()
 
 
 @dp.message_handler(state=WaitL4FSM.target)
@@ -4898,11 +4902,15 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 	# Защита — мгновенно по IP-диапазонам (без сети)
 	protection = _detect_protection(ip)
 
-	# Сканируем порты параллельно, жёсткий таймаут 5с на весь скан
-	port_tasks = [_scan_port(ip, p) for p, _ in _L4_SCAN_PORTS]
+	# Сканируем порты через thread executor (надёжный OS-таймаут 1с на порт)
+	loop = asyncio.get_event_loop()
+	port_tasks = [
+		loop.run_in_executor(None, _scan_port_sync, ip, p)
+		for p, _ in _L4_SCAN_PORTS
+	]
 	try:
 		port_results = await asyncio.wait_for(
-			asyncio.gather(*port_tasks, return_exceptions=True), timeout=5
+			asyncio.gather(*port_tasks, return_exceptions=True), timeout=6
 		)
 	except asyncio.TimeoutError:
 		port_results = [False] * len(_L4_SCAN_PORTS)
