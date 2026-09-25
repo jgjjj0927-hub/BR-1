@@ -106,6 +106,15 @@ async def init_db():
                 PRIMARY KEY (user_id, method)
             )
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS warnings (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                admin_id BIGINT NOT NULL,
+                reason TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
         # Фикс NULL значений для старых пользователей
         await conn.execute("UPDATE users SET premium = 0 WHERE premium IS NULL")
         await conn.execute("UPDATE users SET free_reports = 0 WHERE free_reports IS NULL")
@@ -1411,3 +1420,36 @@ async def get_mirror_user_count(mirror_token: str) -> int:
         return await conn.fetchval(
             "SELECT COUNT(*) FROM mirror_assignments WHERE mirror_token = $1", mirror_token
         ) or 0
+
+
+# ─── Предупреждения ───────────────────────────────────────────────────────────
+
+async def add_warning(user_id: int, admin_id: int, reason: str) -> int:
+    """Добавляет предупреждение. Возвращает новый счётчик предупреждений."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO warnings (user_id, admin_id, reason) VALUES ($1, $2, $3)",
+            user_id, admin_id, reason
+        )
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM warnings WHERE user_id = $1", user_id
+        )
+
+
+async def get_warning_count(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM warnings WHERE user_id = $1", user_id
+        ) or 0
+
+
+async def get_warnings(user_id: int, limit: int = 20, offset: int = 0) -> list:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, admin_id, reason, created_at FROM warnings WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+            user_id, limit, offset
+        )
+        return [dict(r) for r in rows]

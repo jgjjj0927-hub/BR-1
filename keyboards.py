@@ -119,6 +119,7 @@ def get_settings_markup(lang: str = 'ru', is_hidden: bool = False) -> types.Inli
         types.InlineKeyboardButton(t('profile_lang_btn', lang), callback_data='lang_change'),
         types.InlineKeyboardButton(hide_text, callback_data='profile_toggle_hidden'),
         types.InlineKeyboardButton(t('profile_history_btn', lang), callback_data='profile_history'),
+        types.InlineKeyboardButton('⚠️ История предупреждений' if lang == 'ru' else '⚠️ Warning History', callback_data='warn_history'),
         types.InlineKeyboardButton(t('btn_monitor', lang), callback_data='monitor_menu'),
         get_back_btn(lang),
     )
@@ -534,6 +535,8 @@ admin_markup.add(maintenance_btn)
 rotate_send_btn = types.InlineKeyboardButton("🔄 Изменить Send", callback_data='admin_rotate_send')
 manage_wallets_btn = types.InlineKeyboardButton("💼 Кошельки", callback_data='admin_manage_wallets')
 admin_markup.add(rotate_send_btn, manage_wallets_btn)
+warn_user_btn = types.InlineKeyboardButton("[⚠️] Выдать предупреждение", callback_data='admin_warn_user')
+admin_markup.add(warn_user_btn)
 
 shop_markup = types.InlineKeyboardMarkup(row_width=2)
 sub1 = types.InlineKeyboardButton("⚡️ 1 день", callback_data='sub_1')

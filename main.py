@@ -373,6 +373,10 @@ class WaitDsaFSM(StatesGroup):
 	reason = State()
 	sub_reason = State()
 	text_confirm = State()
+
+class WarnUserFSM(StatesGroup):
+	user_id = State()
+	reason = State()
 	text = State()
 
 class WaitTelegraphFSM(StatesGroup):
@@ -1481,11 +1485,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			else:
 				_top_lines.append(t('top_no_reports_yet', _user_lang))
 			_top_lines.append(t('top_updates_monday', _user_lang))
+			_warn_count = await db.get_warning_count(uid)
+			_warn_line = f"\n⚠️ *Предупреждений:* {_warn_count}/3" if _warn_count > 0 else ""
 			_profile_markup = types.InlineKeyboardMarkup(row_width=1)
 			_profile_markup.add(types.InlineKeyboardButton(t('btn_top_details', _user_lang), callback_data='top_rating'))
 			_profile_markup.add(keyboards.get_back_btn(_user_lang))
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-				caption=f"{t('profile_caption', _user_lang)}\n\n{t('profile_name', _user_lang, name=fullname)}\n{t('profile_id', _user_lang, uid=uid)}\n{t('profile_username', _user_lang, username=username)}\n{t('profile_premium', _user_lang, prem=prem)}\n{t('profile_free_reports', _user_lang, count=free_reports)}\n{t('profile_refs', _user_lang, count=ref_count)}\n\n{t('profile_sub_status', _user_lang, sub_text=sub_text)}" + "\n".join(_top_lines),
+				caption=f"{t('profile_caption', _user_lang)}\n\n{t('profile_name', _user_lang, name=fullname)}\n{t('profile_id', _user_lang, uid=uid)}\n{t('profile_username', _user_lang, username=username)}\n{t('profile_premium', _user_lang, prem=prem)}\n{t('profile_free_reports', _user_lang, count=free_reports)}\n{t('profile_refs', _user_lang, count=ref_count)}{_warn_line}\n\n{t('profile_sub_status', _user_lang, sub_text=sub_text)}" + "\n".join(_top_lines),
 				parse_mode="Markdown", reply_markup=_profile_markup)
 		elif d == 'admin_panel':
 			if uid not in admins:
@@ -1570,6 +1576,46 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_htxt, reply_markup=_hist_markup)
 			except Exception:
 				await bot_instance.edit_message_text(_htxt, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=_hist_markup)
+
+		elif d == 'warn_history' or d.startswith('warn_history_p_'):
+			_WARN_PAGE = 5
+			_warn_off = 0
+			if d.startswith('warn_history_p_'):
+				try:
+					_warn_off = int(d.split('warn_history_p_')[1])
+				except Exception:
+					_warn_off = 0
+			_warn_total = await db.get_warning_count(uid)
+			_warns = await db.get_warnings(uid, limit=_WARN_PAGE, offset=_warn_off)
+			if not _warns and _warn_off == 0:
+				_wtxt = "⚠️ *История предупреждений*\n\nПредупреждений нет."
+			else:
+				_wpage = _warn_off // _WARN_PAGE + 1
+				_wpages = max(1, (_warn_total + _WARN_PAGE - 1) // _WARN_PAGE)
+				_wtxt = f"⚠️ *История предупреждений* [{_wpage}/{_wpages}]\n\n"
+				for _w in _warns:
+					_wdt = _w['created_at'].strftime("%d.%m.%Y %H:%M") if _w['created_at'] else "—"
+					_wtxt += f"📅 {_wdt}\n📝 {_w['reason']}\n\n"
+			_wmkp = types.InlineKeyboardMarkup(row_width=2)
+			_wnav = []
+			if _warn_off > 0:
+				_wnav.append(types.InlineKeyboardButton("◀️ Назад", callback_data=f'warn_history_p_{max(0, _warn_off - _WARN_PAGE)}'))
+			if _warn_off + _WARN_PAGE < _warn_total:
+				_wnav.append(types.InlineKeyboardButton("Вперёд ▶️", callback_data=f'warn_history_p_{_warn_off + _WARN_PAGE}'))
+			if _wnav:
+				_wmkp.add(*_wnav)
+			_wmkp.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='settings_menu'))
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=_wtxt, parse_mode="Markdown", reply_markup=_wmkp)
+			except Exception:
+				await bot_instance.edit_message_text(_wtxt, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=_wmkp)
+
+		elif d == 'warn_ok':
+			await call.answer()
+			try:
+				await bot_instance.delete_message(call.message.chat.id, call.message.message_id)
+			except Exception:
+				pass
 
 		elif d == 'profile_toggle_hidden':
 			new_hidden = await db.toggle_hidden(uid)
@@ -2106,6 +2152,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await _log_admin_action(uid, username, "Нажал «Отправить сообщение»")
 			await bot_instance.send_message(call.message.chat.id, '✉️ *Отправить сообщение пользователю*\n*└─ Введите ID или @username:*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminSendMsgFSM.target.state)
+		elif d == 'admin_warn_user' and uid in admins:
+			await _log_admin_action(uid, username, "Нажал «Выдать предупреждение»")
+			await bot_instance.send_message(call.message.chat.id, '⚠️ *Предупреждение*\n*└─ Введите ID или @username:*', parse_mode="Markdown")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WarnUserFSM.user_id.state)
 
 		elif d == 'promo_type_normal' and uid in admins:
 			state_proxy = dp_instance.current_state(chat=uid, user=uid)
@@ -4540,6 +4590,49 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* {target} до {new_date} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ Введите число дней (например: 7).")
+	except Exception as e:
+		await message.answer(f"❌ Ошибка: {str(e)[:100]}", parse_mode="Markdown")
+		await state.finish()
+
+@dp.message_handler(state=WarnUserFSM.user_id)
+async def warn_user_uid(message: types.Message, state: FSMContext):
+	try:
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь {raw} не найден в базе.", parse_mode="Markdown")
+			await state.finish()
+			return
+		await state.update_data(user_id=target)
+		warn_count = await db.get_warning_count(target)
+		await message.answer(f"⚠️ *ID найден:* {target}\n*Предупреждений уже:* {warn_count}/3\n\n*└─ Введите причину:*", parse_mode="Markdown")
+		await state.set_state(WarnUserFSM.reason.state)
+	except Exception:
+		await message.answer("❌ Ошибка."); await state.finish()
+
+@dp.message_handler(state=WarnUserFSM.reason)
+async def warn_user_reason(message: types.Message, state: FSMContext):
+	try:
+		data = await state.get_data()
+		target = data['user_id']
+		reason = message.text.strip()
+		admin_id = message.from_user.id
+		new_count = await db.add_warning(target, admin_id, reason)
+		await state.finish()
+		revoked = ""
+		if new_count >= 3:
+			await db.set_subscribe(target, "1999-01-01 00:00:00", force=True)
+			await db.set_premium(target, 0)
+			revoked = "\n🚫 *Подписка и премиум сняты автоматически.*"
+		warn_markup = types.InlineKeyboardMarkup()
+		warn_markup.add(types.InlineKeyboardButton("✅ Понял", callback_data='warn_ok'))
+		await _notify_user(
+			target,
+			f"⚠️ *Вам выдано предупреждение* — {new_count}/3\n\n*Причина:* {reason}{revoked}",
+			source_bot=message.bot, parse_mode="Markdown", reply_markup=warn_markup
+		)
+		await message.answer(f"✅ *Предупреждение выдано* пользователю {target}\n*Итого:* {new_count}/3{revoked}", parse_mode="Markdown")
+		await bot.send_message(bot_logs, f"⚠️ *Выдано предупреждение* {target} ({new_count}/3)\n*Причина:* {reason} | *Админ:* {admin_id}", parse_mode="Markdown")
 	except Exception as e:
 		await message.answer(f"❌ Ошибка: {str(e)[:100]}", parse_mode="Markdown")
 		await state.finish()
