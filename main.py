@@ -4858,10 +4858,8 @@ def _auto_select(open_ports: list) -> tuple:
 
 async def _scan_port(ip: str, port: int) -> bool:
 	try:
-		_, writer = await asyncio.wait_for(asyncio.open_connection(ip, port), timeout=0.8)
+		_, writer = await asyncio.wait_for(asyncio.open_connection(ip, port), timeout=0.7)
 		writer.close()
-		try: await writer.wait_closed()
-		except: pass
 		return True
 	except:
 		return False
@@ -4900,9 +4898,14 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 	# Защита — мгновенно по IP-диапазонам (без сети)
 	protection = _detect_protection(ip)
 
-	# Сканируем порты параллельно
+	# Сканируем порты параллельно, жёсткий таймаут 5с на весь скан
 	port_tasks = [_scan_port(ip, p) for p, _ in _L4_SCAN_PORTS]
-	port_results = await asyncio.gather(*port_tasks, return_exceptions=True)
+	try:
+		port_results = await asyncio.wait_for(
+			asyncio.gather(*port_tasks, return_exceptions=True), timeout=5
+		)
+	except asyncio.TimeoutError:
+		port_results = [False] * len(_L4_SCAN_PORTS)
 	open_ports = [(p, lbl) for (p, lbl), ok in zip(_L4_SCAN_PORTS, port_results) if ok is True]
 
 	# Сохраняем список открытых портов для авто-выбора
