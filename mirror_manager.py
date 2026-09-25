@@ -185,7 +185,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         try:
             msg = await mirror_bot.send_message(
                 uid,
-                "🔗 *Бот удален?* — [br\-v2\.com](https://br-v2.com)",
+                "🔗 *Бот удален?* — @Brown\_V2 \| [br\-v2\.com](https://br-v2.com)",
                 parse_mode="MarkdownV2",
                 disable_web_page_preview=False
             )
