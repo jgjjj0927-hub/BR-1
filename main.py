@@ -353,9 +353,15 @@ class WaitStressFSM(StatesGroup):
 	link = State()
 
 class WaitL4FSM(StatesGroup):
-	target   = State()   # IP или домен
-	port     = State()   # порт
-	time_dur = State()   # длительность
+	target   = State()
+	port     = State()
+	time_dur = State()
+
+class WaitNetToolFSM(StatesGroup):
+	tcp_target  = State()   # "IP PORT"
+	udp_target  = State()   # "IP PORT"
+	ping_target = State()   # "IP или домен"
+	http_target = State()   # "URL"
 
 class WaitChannelFSM(StatesGroup):
 	link = State()
@@ -3490,6 +3496,63 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitL4FSM.time_dur.state)
 			await bot_instance.answer_callback_query(call.id)
 
+		# ─── Сетевые инструменты ──────────────────────────────────────────────
+		elif d == 'net_tools':
+			net_mkp = types.InlineKeyboardMarkup(row_width=1)
+			net_mkp.add(
+				types.InlineKeyboardButton('🔵 TCP Port Check', callback_data='net_tcp'),
+				types.InlineKeyboardButton('🟣 UDP Port Check', callback_data='net_udp'),
+				types.InlineKeyboardButton('🏓 ICMP Ping', callback_data='net_ping'),
+				types.InlineKeyboardButton('🌐 HTTP Check', callback_data='net_http'),
+				types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='functions'),
+			)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption="🛠 *Сетевые инструменты*\n\nВыберите проверку:",
+				parse_mode="Markdown", reply_markup=net_mkp
+			)
+			await bot_instance.answer_callback_query(call.id)
+
+		elif d == 'net_tcp':
+			await bot_instance.send_message(
+				call.message.chat.id,
+				"🔵 *TCP Port Check*\n\nВведите IP и порт через пробел:\nПример: `1.2.3.4 80`",
+				parse_mode="Markdown"
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitNetToolFSM.tcp_target.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.answer_callback_query(call.id)
+
+		elif d == 'net_udp':
+			await bot_instance.send_message(
+				call.message.chat.id,
+				"🟣 *UDP Port Check*\n\nВведите IP и порт через пробел:\nПример: `1.2.3.4 53`",
+				parse_mode="Markdown"
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitNetToolFSM.udp_target.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.answer_callback_query(call.id)
+
+		elif d == 'net_ping':
+			await bot_instance.send_message(
+				call.message.chat.id,
+				"🏓 *ICMP Ping*\n\nВведите IP адрес или домен:\nПример: `8.8.8.8` или `google.com`",
+				parse_mode="Markdown"
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitNetToolFSM.ping_target.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.answer_callback_query(call.id)
+
+		elif d == 'net_http':
+			await bot_instance.send_message(
+				call.message.chat.id,
+				"🌐 *HTTP Check*\n\nВведите URL:\nПример: `https://example.com`",
+				parse_mode="Markdown"
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitNetToolFSM.http_target.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.answer_callback_query(call.id)
+
 	except Exception as e:
 		print(f"callback_inline: {e}")
 
@@ -4829,6 +4892,178 @@ async def l4_step_time(message: types.Message, state: FSMContext):
 	except Exception as e:
 		print(f"[L4] launch error: {e}")
 		await _bot.send_message(uid, f"❌ *Ошибка соединения с API*", parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
+
+
+# ─── Сетевые инструменты FSM ──────────────────────────────────────────────────
+
+@dp.message_handler(state=WaitNetToolFSM.tcp_target)
+async def net_tool_tcp(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	lang = await db.get_lang(uid)
+	fsm_data = await state.get_data()
+	await state.finish()
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
+	parts = message.text.strip().split()
+	if len(parts) != 2 or not parts[1].isdigit():
+		await _bot.send_message(uid, "❌ Формат: `IP PORT`\nПример: `1.2.3.4 80`", parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
+		return
+	ip, port = parts[0], int(parts[1])
+	if not (1 <= port <= 65535):
+		await _bot.send_message(uid, "❌ Порт должен быть от 1 до 65535.", parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
+		return
+	wait_msg = await _bot.send_message(uid, f"🔵 Проверяю TCP `{ip}:{port}`…", parse_mode="Markdown")
+	try:
+		start_ts = asyncio.get_event_loop().time()
+		_, writer = await asyncio.wait_for(asyncio.open_connection(ip, port), timeout=5.0)
+		rtt = (asyncio.get_event_loop().time() - start_ts) * 1000
+		writer.close()
+		try: await writer.wait_closed()
+		except: pass
+		result = f"✅ *TCP {ip}:{port}* — `ОТКРЫТ`\n⏱ RTT: `{rtt:.1f} мс`"
+	except asyncio.TimeoutError:
+		result = f"🟡 *TCP {ip}:{port}* — `ФИЛЬТРОВАН` (таймаут)"
+	except ConnectionRefusedError:
+		result = f"❌ *TCP {ip}:{port}* — `ЗАКРЫТ`"
+	except Exception as e:
+		result = f"❓ *TCP {ip}:{port}* — ошибка: `{e}`"
+	try: await _bot.delete_message(uid, wait_msg.message_id)
+	except: pass
+	await _bot.send_message(uid, result, parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
+
+
+@dp.message_handler(state=WaitNetToolFSM.udp_target)
+async def net_tool_udp(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	lang = await db.get_lang(uid)
+	fsm_data = await state.get_data()
+	await state.finish()
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
+	parts = message.text.strip().split()
+	if len(parts) != 2 or not parts[1].isdigit():
+		await _bot.send_message(uid, "❌ Формат: `IP PORT`\nПример: `1.2.3.4 53`", parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
+		return
+	ip, port = parts[0], int(parts[1])
+	if not (1 <= port <= 65535):
+		await _bot.send_message(uid, "❌ Порт должен быть от 1 до 65535.", parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
+		return
+	wait_msg = await _bot.send_message(uid, f"🟣 Проверяю UDP `{ip}:{port}`…", parse_mode="Markdown")
+	import socket as _socket
+	loop = asyncio.get_event_loop()
+	def _udp_check():
+		s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+		s.settimeout(3.0)
+		try:
+			s.sendto(b'\x00' * 4, (ip, port))
+			s.recvfrom(1024)
+			return "open"
+		except _socket.timeout:
+			return "open|filtered"
+		except ConnectionRefusedError:
+			return "closed"
+		except Exception:
+			return "open|filtered"
+		finally:
+			s.close()
+	status = await loop.run_in_executor(None, _udp_check)
+	try: await _bot.delete_message(uid, wait_msg.message_id)
+	except: pass
+	icons = {"open": "✅", "open|filtered": "🟡", "closed": "❌"}
+	labels = {"open": "ОТКРЫТ", "open|filtered": "ОТКРЫТ|ФИЛЬТРОВАН", "closed": "ЗАКРЫТ"}
+	result = f"{icons.get(status, '❓')} *UDP {ip}:{port}* — `{labels.get(status, status)}`"
+	await _bot.send_message(uid, result, parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
+
+
+@dp.message_handler(state=WaitNetToolFSM.ping_target)
+async def net_tool_ping(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	lang = await db.get_lang(uid)
+	fsm_data = await state.get_data()
+	await state.finish()
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
+	host = message.text.strip().split()[0]
+	wait_msg = await _bot.send_message(uid, f"🏓 Пингую `{host}`…", parse_mode="Markdown")
+	try:
+		proc = await asyncio.create_subprocess_exec(
+			'ping', '-c', '3', '-W', '2', host,
+			stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+		)
+		stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=12)
+		output = stdout.decode()
+		import re as _re
+		loss_m = _re.search(r'(\d+)% packet loss', output)
+		rtt_m = _re.search(r'rtt[^=]*=\s*([\d.]+)/([\d.]+)/([\d.]+)', output)
+		loss = loss_m.group(1) if loss_m else "?"
+		if rtt_m:
+			rtt_min, rtt_avg, rtt_max = rtt_m.group(1), rtt_m.group(2), rtt_m.group(3)
+			rtt_info = f"мин/avg/макс: `{rtt_min}/{rtt_avg}/{rtt_max} мс`"
+		else:
+			rtt_info = "RTT: недоступно"
+		if loss == "100":
+			icon, status_txt = "❌", "недоступен"
+		elif loss == "0":
+			icon, status_txt = "✅", "доступен"
+		else:
+			icon, status_txt = "🟡", f"потери {loss}%"
+		result = f"{icon} *Ping {host}* — `{status_txt}`\n{rtt_info}\n📦 Потери: `{loss}%`"
+	except asyncio.TimeoutError:
+		result = f"❌ *Ping {host}* — таймаут"
+	except Exception as e:
+		result = f"❓ *Ping {host}* — ошибка: `{e}`"
+	try: await _bot.delete_message(uid, wait_msg.message_id)
+	except: pass
+	await _bot.send_message(uid, result, parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
+
+
+@dp.message_handler(state=WaitNetToolFSM.http_target)
+async def net_tool_http(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	lang = await db.get_lang(uid)
+	fsm_data = await state.get_data()
+	await state.finish()
+	_bot_token = fsm_data.get('_bot_token')
+	_bot = Bot(token=_bot_token) if (_bot_token and _bot_token != config.TOKEN) else bot
+	url = message.text.strip()
+	if not url.startswith(('http://', 'https://')):
+		url = 'https://' + url
+	wait_msg = await _bot.send_message(uid, f"🌐 Проверяю `{url}`…", parse_mode="Markdown")
+	try:
+		start_ts = asyncio.get_event_loop().time()
+		async with aiohttp.ClientSession() as session:
+			async with session.get(url, timeout=aiohttp.ClientTimeout(total=10), allow_redirects=True, ssl=False) as resp:
+				elapsed = (asyncio.get_event_loop().time() - start_ts) * 1000
+				status = resp.status
+				server = resp.headers.get('Server', 'н/д')
+				content_type = resp.headers.get('Content-Type', 'н/д').split(';')[0]
+				final_url = str(resp.url)
+		if status < 300:
+			icon = "✅"
+		elif status < 400:
+			icon = "🔀"
+		elif status < 500:
+			icon = "🟡"
+		else:
+			icon = "❌"
+		result = (
+			f"{icon} *HTTP {url}*\n"
+			f"📊 Статус: `{status}`\n"
+			f"⏱ Время: `{elapsed:.0f} мс`\n"
+			f"🖥 Сервер: `{server}`\n"
+			f"📄 Тип: `{content_type}`"
+		)
+		if final_url != url:
+			result += f"\n🔀 Редирект: `{final_url}`"
+	except aiohttp.ClientConnectorError:
+		result = f"❌ *HTTP {url}* — не удалось подключиться"
+	except asyncio.TimeoutError:
+		result = f"❌ *HTTP {url}* — таймаут"
+	except Exception as e:
+		result = f"❓ *HTTP {url}* — ошибка: `{e}`"
+	try: await _bot.delete_message(uid, wait_msg.message_id)
+	except: pass
+	await _bot.send_message(uid, result, parse_mode="Markdown", reply_markup=keyboards.get_main_menu_markup(lang))
 
 
 @dp.message_handler(state=WaitStressFSM.link)
