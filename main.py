@@ -2711,7 +2711,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if not _mpay.get('paid'):
 				await bot_instance.answer_callback_query(call.id, '❌ Оплата не найдена. Попробуйте позже.', show_alert=True)
 				return
-			_sess_file, _phone = _tgm.pick_session()
+			_sess_file, _phone = await _tgm.pick_session_async()
 			if not _sess_file or not _phone:
 				await bot_instance.answer_callback_query(call.id, '❌ Нет доступных аккаунтов. Обратитесь в поддержку.', show_alert=True)
 				return
@@ -2771,7 +2771,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			except Exception:
 				await bot_instance.answer_callback_query(call.id, '❌ Ошибка проверки. Попробуйте позже.', show_alert=True)
 				return
-			_sess_file, _phone = _tgm.pick_session()
+			_sess_file, _phone = await _tgm.pick_session_async()
 			if not _sess_file or not _phone:
 				await bot_instance.answer_callback_query(call.id, '❌ Нет доступных аккаунтов. Обратитесь в поддержку.', show_alert=True)
 				return
