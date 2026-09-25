@@ -4749,6 +4749,72 @@ async def profile_step1(message: types.Message, state: FSMContext):
 				pass
 
 
+# ─── Детект защиты ────────────────────────────────────────────────────────────
+
+_PROTECTION_SIGS = [
+	# (название, заголовок или ключ, строка для поиска)
+	("☁️ Cloudflare",   "cf-ray",            None),
+	("☁️ Cloudflare",   "server",            "cloudflare"),
+	("🛡 DDoS-Guard",   "server",            "ddos-guard"),
+	("🛡 DDoS-Guard",   "x-ddos-guard",      None),
+	("🛡 Qrator",       "x-qrator-id",       None),
+	("🛡 Akamai",       "x-akamai-request-id", None),
+	("🛡 AWS CloudFront","x-amz-cf-id",      None),
+	("🛡 Fastly",       "x-served-by",       "fastly"),
+	("🛡 Sucuri",       "x-sucuri-id",       None),
+	("🛡 Imperva",      "x-iinfo",           None),
+	("🛡 StormWall",    "server",            "stormwall"),
+	("🛡 Voxility",     "server",            "voxility"),
+]
+
+_CF_ASN = {"13335", "209242"}
+_DDOSGUARD_ASN = {"57724"}
+_QRATOR_ASN = {"197068"}
+_AKAMAI_ASN = {"20940", "16625"}
+
+_ASN_NAMES = {
+	"13335": "☁️ Cloudflare", "209242": "☁️ Cloudflare",
+	"57724": "🛡 DDoS-Guard",
+	"197068": "🛡 Qrator",
+	"20940": "🛡 Akamai", "16625": "🛡 Akamai",
+	"54113": "🛡 Fastly",
+	"16509": "🛡 AWS",
+}
+
+async def _detect_protection(ip: str, domain: str) -> str:
+	"""Возвращает строку с названием защиты или '' если не обнаружена."""
+	detected = set()
+
+	# 1. Проверяем HTTP-заголовки
+	for url in (f"https://{domain or ip}", f"http://{domain or ip}"):
+		try:
+			async with aiohttp.ClientSession() as s:
+				async with s.get(url, timeout=aiohttp.ClientTimeout(total=5),
+								 allow_redirects=False, ssl=False) as r:
+					hdrs = {k.lower(): v.lower() for k, v in r.headers.items()}
+					for name, hdr, val in _PROTECTION_SIGS:
+						if hdr in hdrs:
+							if val is None or val in hdrs[hdr]:
+								detected.add(name)
+			break
+		except Exception:
+			continue
+
+	# 2. ASN lookup через ipinfo.io
+	try:
+		async with aiohttp.ClientSession() as s:
+			async with s.get(f"https://ipinfo.io/{ip}/org",
+							 timeout=aiohttp.ClientTimeout(total=4), ssl=False) as r:
+				org = await r.text()
+				for asn, name in _ASN_NAMES.items():
+					if f"AS{asn}" in org or asn in org:
+						detected.add(name)
+	except Exception:
+		pass
+
+	return ", ".join(sorted(detected)) if detected else ""
+
+
 # (название для кнопки, метод Lotus API, доп. флаги)
 _L4_PRESETS = [
 	("UDP-PPS  (быстрые пакеты)",  "udp", {"len": "64"}),
@@ -4849,21 +4915,33 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 	domain_str = f" (`{raw}`)" if raw != ip else ""
 	scan_msg = await _bot.send_message(
 		uid,
-		f"🎯 *Цель:* `{ip}`{domain_str}\n\n🔍 *Сканирую открытые порты...*",
+		f"🎯 *Цель:* `{ip}`{domain_str}\n\n🔍 *Сканирую порты и проверяю защиту...*",
 		parse_mode="Markdown"
 	)
 
-	# Сканируем порты параллельно
-	tasks = [_scan_port(ip, p) for p, _ in _L4_SCAN_PORTS]
-	results = await asyncio.gather(*tasks, return_exceptions=True)
-	open_ports = [(p, lbl) for (p, lbl), ok in zip(_L4_SCAN_PORTS, results) if ok is True]
+	# Сканируем порты и детектим защиту параллельно
+	port_tasks = [_scan_port(ip, p) for p, _ in _L4_SCAN_PORTS]
+	prot_task = asyncio.ensure_future(_detect_protection(ip, raw if raw != ip else ""))
+	port_results = await asyncio.gather(*port_tasks, return_exceptions=True)
+	try:
+		protection = await asyncio.wait_for(prot_task, timeout=7)
+	except Exception:
+		protection = ""
+
+	open_ports = [(p, lbl) for (p, lbl), ok in zip(_L4_SCAN_PORTS, port_results) if ok is True]
 
 	# Сохраняем список открытых портов для авто-выбора
 	await state.update_data(_l4_open_ports=[(p, lbl) for p, lbl in open_ports])
 
-	# Показываем авто-выбор подсказкой
+	# Строка защиты
+	if protection:
+		prot_line = f"\n\n⚠️ *Защита обнаружена:* {protection}\n_L4 атака может быть неэффективна_"
+	else:
+		prot_line = "\n\n✅ *Защита не обнаружена*"
+
+	# Авто-выбор подсказка
 	auto_port, auto_preset_idx, auto_reason = _auto_select(open_ports)
-	auto_hint = f"\n\n🤖 *Рекомендую:* {auto_reason}"
+	auto_hint = f"\n🤖 *Рекомендую:* {auto_reason}"
 
 	mkp = types.InlineKeyboardMarkup(row_width=2)
 	mkp.add(types.InlineKeyboardButton("🤖 Авто-выбор", callback_data="l4_auto"))
@@ -4887,6 +4965,7 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 	await _bot.edit_message_text(
 		f"🎯 *Цель:* `{ip}`{domain_str}\n\n"
 		f"*Открытые порты:*\n{port_lines}"
+		f"{prot_line}"
 		f"{auto_hint}\n\n"
 		f"*Выберите порт для атаки:*",
 		chat_id=uid,
