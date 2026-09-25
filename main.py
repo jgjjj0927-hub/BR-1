@@ -4751,72 +4751,46 @@ async def profile_step1(message: types.Message, state: FSMContext):
 
 # ─── Детект защиты ────────────────────────────────────────────────────────────
 
-_PROTECTION_SIGS = [
-	# (название, заголовок или ключ, строка для поиска)
-	("☁️ Cloudflare",   "cf-ray",            None),
-	("☁️ Cloudflare",   "server",            "cloudflare"),
-	("🛡 DDoS-Guard",   "server",            "ddos-guard"),
-	("🛡 DDoS-Guard",   "x-ddos-guard",      None),
-	("🛡 Qrator",       "x-qrator-id",       None),
-	("🛡 Akamai",       "x-akamai-request-id", None),
-	("🛡 AWS CloudFront","x-amz-cf-id",      None),
-	("🛡 Fastly",       "x-served-by",       "fastly"),
-	("🛡 Sucuri",       "x-sucuri-id",       None),
-	("🛡 Imperva",      "x-iinfo",           None),
-	("🛡 StormWall",    "server",            "stormwall"),
-	("🛡 Voxility",     "server",            "voxility"),
+import ipaddress as _ipaddress
+
+# Известные IP-диапазоны провайдеров защиты (offline, без сетевых запросов)
+_PROTECTION_RANGES = [
+	("☁️ Cloudflare", [
+		"173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+		"141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+		"197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15",
+		"104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+	]),
+	("🛡 DDoS-Guard", [
+		"186.2.160.0/19", "194.165.16.0/23", "88.218.48.0/20",
+		"141.8.224.0/19", "5.180.51.0/24", "45.129.33.0/24",
+	]),
+	("🛡 Akamai", [
+		"23.32.0.0/11", "23.64.0.0/14", "104.64.0.0/10",
+		"2.16.0.0/13", "92.122.0.0/15",
+	]),
+	("🛡 Qrator", [
+		"81.177.135.0/24", "87.245.197.0/24", "195.208.0.0/21",
+	]),
+	("🛡 StormWall", [
+		"91.215.167.0/24", "185.112.83.0/24",
+	]),
+	("🛡 Voxility", [
+		"5.45.112.0/21", "89.46.109.0/24",
+	]),
 ]
 
-_CF_ASN = {"13335", "209242"}
-_DDOSGUARD_ASN = {"57724"}
-_QRATOR_ASN = {"197068"}
-_AKAMAI_ASN = {"20940", "16625"}
-
-_ASN_NAMES = {
-	"13335": "☁️ Cloudflare", "209242": "☁️ Cloudflare",
-	"57724": "🛡 DDoS-Guard",
-	"197068": "🛡 Qrator",
-	"20940": "🛡 Akamai", "16625": "🛡 Akamai",
-	"54113": "🛡 Fastly",
-	"16509": "🛡 AWS",
-}
-
-async def _detect_protection(ip: str, domain: str) -> str:
-	"""Возвращает строку с названием защиты или '' если не обнаружена."""
-	detected = set()
-	host = domain or ip
-
-	async def _check_http(url: str):
-		try:
-			async with aiohttp.ClientSession() as s:
-				async with s.get(url, timeout=aiohttp.ClientTimeout(total=3),
-								 allow_redirects=False, ssl=False) as r:
-					hdrs = {k.lower(): v.lower() for k, v in r.headers.items()}
-					for name, hdr, val in _PROTECTION_SIGS:
-						if hdr in hdrs and (val is None or val in hdrs[hdr]):
-							detected.add(name)
-		except Exception:
-			pass
-
-	async def _check_asn():
-		try:
-			async with aiohttp.ClientSession() as s:
-				async with s.get(f"https://ipinfo.io/{ip}/org",
-								 timeout=aiohttp.ClientTimeout(total=3), ssl=False) as r:
-					org = await r.text()
-					for asn, name in _ASN_NAMES.items():
-						if f"AS{asn}" in org:
-							detected.add(name)
-		except Exception:
-			pass
-
-	await asyncio.gather(
-		_check_http(f"https://{host}"),
-		_check_http(f"http://{host}"),
-		_check_asn(),
-		return_exceptions=True,
-	)
-	return ", ".join(sorted(detected)) if detected else ""
+def _detect_protection(ip: str) -> str:
+	"""Мгновенная проверка по IP-диапазонам, без сетевых запросов."""
+	try:
+		addr = _ipaddress.ip_address(ip)
+		for name, ranges in _PROTECTION_RANGES:
+			for cidr in ranges:
+				if addr in _ipaddress.ip_network(cidr, strict=False):
+					return name
+	except Exception:
+		pass
+	return ""
 
 
 # (название для кнопки, метод Lotus API, доп. флаги)
@@ -4923,15 +4897,12 @@ async def l4_step_target(message: types.Message, state: FSMContext):
 		parse_mode="Markdown"
 	)
 
-	# Сканируем порты и детектим защиту параллельно
-	port_tasks = [_scan_port(ip, p) for p, _ in _L4_SCAN_PORTS]
-	prot_task = asyncio.ensure_future(_detect_protection(ip, raw if raw != ip else ""))
-	port_results = await asyncio.gather(*port_tasks, return_exceptions=True)
-	try:
-		protection = await asyncio.wait_for(prot_task, timeout=4)
-	except Exception:
-		protection = ""
+	# Защита — мгновенно по IP-диапазонам (без сети)
+	protection = _detect_protection(ip)
 
+	# Сканируем порты параллельно
+	port_tasks = [_scan_port(ip, p) for p, _ in _L4_SCAN_PORTS]
+	port_results = await asyncio.gather(*port_tasks, return_exceptions=True)
 	open_ports = [(p, lbl) for (p, lbl), ok in zip(_L4_SCAN_PORTS, port_results) if ok is True]
 
 	# Сохраняем список открытых портов для авто-выбора
