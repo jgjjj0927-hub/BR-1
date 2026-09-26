@@ -22,6 +22,7 @@ from captcha import generate_captcha_text, generate_captcha_image
 from translations import t
 from mirror_manager import validate_token, start_mirror, start_all_mirrors
 from bot_stress import main_bot_stress, set_bot_stress
+from berlin_stress import run_berlin_stress
 from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABELS
 from aureport_snos import main_aureport, set_bot_aureport
 from tida_snos import main_tida, set_bot_tida
@@ -577,6 +578,25 @@ async def admin(message):
 			await bot.send_message(message.chat.id, text, reply_markup=keyboards.admin_markup, parse_mode="Markdown")
 		except Exception as e:
 			await bot.send_message(message.chat.id, f"❌ Ошибка: {str(e)[:200]}", parse_mode="Markdown")
+
+@dp.message_handler(commands=['berlin'])
+async def cmd_berlin_stress(message: types.Message):
+	uid = message.from_user.id
+	if uid not in admins:
+		return
+	await bot.send_message(uid, "⚡️ *Запускаю берлин-стрессер...*\nФлоу: /start → я подписался → Snos → тарифы → сутки другу → 120₽ криптой", parse_mode="Markdown")
+
+	async def notify(text: str):
+		try:
+			await bot.send_message(uid, text, parse_mode="Markdown")
+		except Exception:
+			pass
+
+	try:
+		await run_berlin_stress(notify_fn=notify, user_id=uid)
+	except Exception as e:
+		await bot.send_message(uid, f"❌ Ошибка: `{str(e)[:200]}`", parse_mode="Markdown")
+
 
 @dp.message_handler(commands=['addwl'])
 async def addwl(message: types.Message):
