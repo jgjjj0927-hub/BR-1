@@ -118,8 +118,15 @@ async def _prepare_session(session: str) -> tuple[TelegramClient, int, bytes] | 
         await client(GetBotCallbackAnswerRequest(peer=peer, msg_id=sub_msg_id, data=sub_data))
         await asyncio.sleep(2)
 
-        # ── Шаг 4: отправить «Поддержка» (reply-кнопка = текст) ────────────
-        await client(SendMessageRequest(peer=peer, message='Поддержка', random_id=random.randint(1, 2**31)))
+        # ── Шаг 4: нажать inline-кнопку «Поддержка» ────────────────────────
+        msgs = await client.get_messages(peer, limit=5)
+        result = _find_inline_btn(msgs, 'Поддержка')
+        if not result:
+            print(f"[BERLIN] [{session}] ❌ кнопка 'Поддержка' не найдена", flush=True)
+            await client.disconnect()
+            return None
+        supp_msg_id, supp_data = result
+        await client(GetBotCallbackAnswerRequest(peer=peer, msg_id=supp_msg_id, data=supp_data))
         await asyncio.sleep(2)
 
         # ── Шаг 5: найти кнопку «переключить» ──────────────────────────────
