@@ -53,14 +53,17 @@ bot_logs = config.bot_logs
 report_count333 = 200
 
 
-async def send_log(uid: int, text: str, parse_mode: str = "Markdown", **kwargs) -> None:
-    """Отправляет лог в bot_logs с уникальным #ID привязанным к uid."""
+async def send_log(uid: int = 0, text: str = "", parse_mode: str = "Markdown", **kwargs) -> None:
+    """Отправляет лог в bot_logs с уникальным #ID. uid=0 для системных/админских логов."""
     try:
         log_id = await db.add_log_entry(uid)
         full_text = f"{text}\n\n`#лог{log_id}`"
         await bot.send_message(bot_logs, full_text, parse_mode=parse_mode, **kwargs)
     except Exception:
-        await bot.send_message(bot_logs, text, parse_mode=parse_mode, **kwargs)
+        try:
+            await bot.send_message(bot_logs, text, parse_mode=parse_mode, **kwargs)
+        except Exception:
+            pass
 
 # Суб-админы — все их действия логируются отдельно
 SUB_ADMINS = {8701067595}
@@ -497,7 +500,7 @@ async def on(message: types.Message):
 	if message.from_user.id in config.ADMINS:
 		bot_status = 1
 		await bot.send_message(message.chat.id, "🟢 *Включен!*", parse_mode=ParseMode.MARKDOWN)
-		await bot.send_message(bot_logs, "🟢 *Включен!*", parse_mode=ParseMode.MARKDOWN)
+		await send_log(message.from_user.id, "🟢 *Включен!*", parse_mode=ParseMode.MARKDOWN)
 
 @dp.message_handler(commands=['off'])
 async def off(message: types.Message):
@@ -505,7 +508,7 @@ async def off(message: types.Message):
 	if message.from_user.id in config.ADMINS:
 		bot_status = 0
 		await bot.send_message(message.chat.id, "🔴 *Выключен!*", parse_mode=ParseMode.MARKDOWN)
-		await bot.send_message(bot_logs, "🔴 *Выключен!*", parse_mode=ParseMode.MARKDOWN)
+		await send_log(message.from_user.id, "🔴 *Выключен!*", parse_mode=ParseMode.MARKDOWN)
 
 @dp.message_handler(commands=['bot'])
 async def status(message: types.Message):
@@ -590,7 +593,7 @@ async def addwl(message: types.Message):
 		return
 	await db.add_to_whitelist(wl_user)
 	await message.answer(f"*📄 {wl_user} добавлен в вайтлист!*", parse_mode=ParseMode.MARKDOWN)
-	await bot.send_message(bot_logs, f"*📄 {wl_user} добавлен в вайтлист!*", parse_mode=ParseMode.MARKDOWN)
+	await send_log(message.from_user.id, f"*📄 {wl_user} добавлен в вайтлист!*", parse_mode=ParseMode.MARKDOWN)
 
 @dp.message_handler(commands=['addtargetwl'])
 async def addtargetwl(message: types.Message):
@@ -604,7 +607,7 @@ async def addtargetwl(message: types.Message):
 	pattern = parts[1].lstrip('@').lower()
 	await db.add_target_whitelist(pattern, message.from_user.id)
 	await message.answer(f"✅ **@{pattern}* добавлен в белый список целей!*\n*└─ Жалобы на цели начинающиеся с* {pattern} *будут заблокированы.*", parse_mode=ParseMode.MARKDOWN)
-	await bot.send_message(bot_logs, f"🛡 *Белый список целей:* *@{pattern}* *добавлен* {message.from_user.id}", parse_mode=ParseMode.MARKDOWN)
+	await send_log(message.from_user.id, f"🛡 *Белый список целей:* *@{pattern}* *добавлен* {message.from_user.id}", parse_mode=ParseMode.MARKDOWN)
 
 @dp.message_handler(commands=['rmtargetwl'])
 async def rmtargetwl(message: types.Message):
@@ -618,7 +621,7 @@ async def rmtargetwl(message: types.Message):
 	pattern = parts[1].lstrip('@').lower()
 	await db.remove_target_whitelist(pattern)
 	await message.answer(f"🗑 **@{pattern}* удалён из белого списка целей!*", parse_mode=ParseMode.MARKDOWN)
-	await bot.send_message(bot_logs, f"🗑 *Белый список целей:* *@{pattern}* *удалён* {message.from_user.id}", parse_mode=ParseMode.MARKDOWN)
+	await send_log(message.from_user.id, f"🗑 *Белый список целей:* *@{pattern}* *удалён* {message.from_user.id}", parse_mode=ParseMode.MARKDOWN)
 
 @dp.message_handler(commands=['listtargetwl'])
 async def listtargetwl(message: types.Message):
@@ -849,7 +852,7 @@ async def check_status_callback(callback_query: types.CallbackQuery):
 		if sub_type != "premupgrade":
 			new_date = (now_msk() + timedelta(days=int(sub_days))).strftime("%Y-%m-%d %H:%M:%S")
 			await db.set_subscribe(user_id, new_date)
-			await bot.send_message(bot_logs, f"💳 *Оплата подписки* {user_id} *до* {new_date}", parse_mode="Markdown")
+			await send_log(user_id, f"💳 *Оплата подписки* {user_id} *до* {new_date}", parse_mode="Markdown")
 			# Реферальный бонус — 10% от дней подписки рефереру
 			referrer_id = await db.get_referrer_id(user_id)
 			if referrer_id:
@@ -865,7 +868,7 @@ async def check_status_callback(callback_query: types.CallbackQuery):
 				)
 		else:
 			await db.set_premium(user_id, 1)
-			await bot.send_message(bot_logs, f"💳 *Premium* {user_id}", parse_mode="Markdown")
+			await send_log(user_id, f"💳 *Premium* {user_id}", parse_mode="Markdown")
 	except Exception as e:
 		print(f"check_status_callback: {e}")
 
@@ -2303,7 +2306,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 						caption=t('refs_exchanged_caption', _user_lang, count=remaining, link=_ref_link_after),
 						parse_mode="Markdown", reply_markup=keyboards.get_referral_markup(_user_lang)
 					)
-					await bot.send_message(bot_logs, f"🔄 {uid} обменял 10 рефералов на 1 день", parse_mode="Markdown")
+					await send_log(uid, f"🔄 {uid} обменял 10 рефералов на 1 день", parse_mode="Markdown")
 
 		# ─── Бесплатно / Зеркала (старый alias, редирект в mirrors_menu) ────────
 		elif d == 'free_menu':
@@ -2471,7 +2474,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption=t('wheel_result', _user_lang, text=text),
 				parse_mode="Markdown", reply_markup=back_markup
 			)
-			await bot.send_message(bot_logs, f"🎡 {uid} крутил колесо — {log_text}", parse_mode="Markdown")
+			await send_log(uid, f"🎡 {uid} крутил колесо — {log_text}", parse_mode="Markdown")
 
 		# ─── Кейсы ─────────────────────────────────────────────────────────────
 		elif d == 'case_menu':
@@ -2533,7 +2536,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				return
 			await db.add_case(uid, invoice_id)
 			count = await db.get_unopened_cases(uid)
-			await bot.send_message(bot_logs, f"🎁 {uid} (*@{username}*) купил кейс", parse_mode="Markdown")
+			await send_log(uid, f"🎁 {uid} (*@{username}*) купил кейс", parse_mode="Markdown")
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=t('case_bought_ok', _user_lang, count=count),
@@ -2597,7 +2600,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				log_prize = "nothing"
 
 			count = await db.get_unopened_cases(uid)
-			await bot.send_message(bot_logs,
+			await send_log(uid,
 				f"🎁 {uid} (*@{username}*) открыл кейс → {log_prize}",
 				parse_mode="Markdown")
 			markup = types.InlineKeyboardMarkup(row_width=1)
@@ -2669,7 +2672,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				return
 			_tgm.archive_session(_sess_file)
 			await db.fulfill_market_order(_order_id, _sess_file, _phone)
-			await bot.send_message(bot_logs, f"🛒 TG Маркет: {uid} (@{username}) купил аккаунт {_phone} (СБП)", parse_mode="Markdown")
+			await send_log(uid, f"🛒 TG Маркет: {uid} (@{username}) купил аккаунт {_phone} (СБП)", parse_mode="Markdown")
 			_code_mkp = types.InlineKeyboardMarkup(row_width=1)
 			_code_mkp.add(types.InlineKeyboardButton('📲 Получить код', callback_data=f'market_get_code_{_order_id}'))
 			try:
@@ -2729,7 +2732,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				return
 			_tgm.archive_session(_sess_file)
 			await db.fulfill_market_order(_order_id, _sess_file, _phone)
-			await bot.send_message(bot_logs, f"🛒 TG Маркет: {uid} (@{username}) купил аккаунт {_phone} (USDT)", parse_mode="Markdown")
+			await send_log(uid, f"🛒 TG Маркет: {uid} (@{username}) купил аккаунт {_phone} (USDT)", parse_mode="Markdown")
 			_code_mkp = types.InlineKeyboardMarkup(row_width=1)
 			_code_mkp.add(types.InlineKeyboardButton('📲 Получить код', callback_data=f'market_get_code_{_order_id}'))
 			try:
@@ -5332,7 +5335,7 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 		await state.finish()
 		await _notify_user(target, f"🎱 *Подписка обновлена до* {new_date}", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"🎱 *Готово! Подписка выдана* {target} *до* {new_date}", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎱 *Выдана подписка* {target} до {new_date} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"🎱 *Выдана подписка* {target} до {new_date} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ Введите число дней (например: 7).")
 	except Exception as e:
@@ -5391,7 +5394,7 @@ async def warn_user_reason(message: types.Message, state: FSMContext):
 			source_bot=message.bot, parse_mode="Markdown", reply_markup=warn_markup
 		)
 		await message.answer(f"✅ *Предупреждение выдано* пользователю {target}\n*Итого:* {new_count}/3{revoked}", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"⚠️ *Выдано предупреждение* {target} ({new_count}/3)\n*Причина:* {reason} | *Админ:* {admin_id}", parse_mode="Markdown")
+		await send_log(target, f"⚠️ *Выдано предупреждение* {target} ({new_count}/3)\n*Причина:* {reason} | *Админ:* {admin_id}", parse_mode="Markdown")
 	except Exception as e:
 		await message.answer(f"❌ Ошибка: {str(e)[:100]}", parse_mode="Markdown")
 		await state.finish()
@@ -5407,7 +5410,7 @@ async def clear_sub_uid(message: types.Message, state: FSMContext):
 		await state.finish()
 		await _notify_user(target, "*🎱 Подписка сброшена.*", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Сброшено у* {target}*!*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎱 *Сброшена подписка* {target} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"🎱 *Сброшена подписка* {target} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -5422,7 +5425,7 @@ async def add_prem_uid(message: types.Message, state: FSMContext):
 		await state.finish()
 		await _notify_user(target, "*👑 Вам выдан Premium.*", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Премиум выдан* {target}*!*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"👑 *Выдан премиум* {target} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"👑 *Выдан премиум* {target} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
 	except Exception as e:
 		await message.answer(f"❌ Ошибка: {str(e)[:100]}", parse_mode="Markdown")
 		await state.finish()
@@ -5438,7 +5441,7 @@ async def clear_prem_uid(message: types.Message, state: FSMContext):
 		await state.finish()
 		await _notify_user(target, "*🎱 Премиум сброшен.*", source_bot=message.bot, parse_mode="Markdown", reply_markup=del_message2)
 		await message.answer(f"*🎱 Сброшено у* {target}*!*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"👑 *Сброшен премиум* {target} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"👑 *Сброшен премиум* {target} | *Админ:* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -5495,7 +5498,7 @@ async def _do_broadcast(source: types.Message, status_msg: types.Message):
 			parse_mode='Markdown', reply_markup=main_menu
 		)
 	try:
-		await bot.send_message(bot_logs, f"📢 *Рассылка завершена*\n*✅ {ok} / ❌ {fail}*", parse_mode='Markdown')
+		await send_log(0, f"📢 *Рассылка завершена*\n*✅ {ok} / ❌ {fail}*", parse_mode='Markdown')
 	except Exception:
 		pass
 
@@ -5543,17 +5546,17 @@ async def enter_promo(message: types.Message, state: FSMContext):
 	if promo_type == 'premium':
 		await db.set_premium(uid, 1)
 		await message.answer(t('promo_activated_premium', _promo_lang), parse_mode='Markdown')
-		await bot.send_message(bot_logs, f"🎁 {uid} активировал промокод {code} — 👑 Премиум", parse_mode='Markdown')
+		await send_log(uid, f"🎁 {uid} активировал промокод {code} — 👑 Премиум", parse_mode='Markdown')
 	elif promo_type == 'reports':
 		reports_count = days  # в поле days хранится кол-во репортов
 		await db.add_free_reports(uid, reports_count)
 		await message.answer(t('promo_activated_reports', _promo_lang, count=reports_count), parse_mode='Markdown')
-		await bot.send_message(bot_logs, f"🎁 {uid} активировал промокод {code} — 🎯 {reports_count} репортов", parse_mode='Markdown')
+		await send_log(uid, f"🎁 {uid} активировал промокод {code} — 🎯 {reports_count} репортов", parse_mode='Markdown')
 	else:
 		new_date = (now_msk() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
 		await db.set_subscribe(uid, new_date)
 		await message.answer(t('promo_activated_days', _promo_lang, days=days), parse_mode='Markdown')
-		await bot.send_message(bot_logs, f"🎁 {uid} активировал промокод {code} — {days} дней", parse_mode='Markdown')
+		await send_log(uid, f"🎁 {uid} активировал промокод {code} — {days} дней", parse_mode='Markdown')
 
 # ─── Блокировка/разблокировка (админ) ────────────────────────────────────────
 
@@ -5567,7 +5570,7 @@ async def admin_block_user(message: types.Message, state: FSMContext):
 		await db.block_user(target)
 		await state.finish()
 		await message.answer(f"🚫 *Пользователь {target} заблокирован.*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🚫 *Заблокирован* {target} *админом* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"🚫 *Заблокирован* {target} *админом* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -5581,7 +5584,7 @@ async def admin_unblock_user(message: types.Message, state: FSMContext):
 		await db.unblock_user(target)
 		await state.finish()
 		await message.answer(f"✅ *Пользователь {target} разблокирован.*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"✅ *Разблокирован* {target} *админом* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"✅ *Разблокирован* {target} *админом* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -5687,7 +5690,7 @@ async def admin_send_msg_text(message: types.Message, state: FSMContext):
 		else:
 			await bot.send_message(uid_target, text)
 		await message.answer(f"✅ *Сообщение отправлено* {uid_target}", parse_mode="Markdown")
-		await bot.send_message(bot_logs,
+		await send_log(uid_target,
 			f"✉️ *Личное сообщение*\n👤 *От админа:* {message.from_user.id} (*@{message.from_user.username or 'None'}*)\n"
 			f"🎯 *Кому:* {uid_target}\n📝 *Текст:* {text[:300]}",
 			parse_mode="Markdown")
@@ -5704,7 +5707,7 @@ async def admin_delete_user(message: types.Message, state: FSMContext):
 		await db.delete_user(target)
 		await state.finish()
 		await message.answer(f"🗑 *Пользователь {target} удалён из базы.*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🗑 *Удалён из БД* {target} *админом* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"🗑 *Удалён из БД* {target} *админом* {message.from_user.id}", parse_mode="Markdown")
 	except Exception:
 		await message.answer("❌ Ошибка."); await state.finish()
 
@@ -5775,7 +5778,7 @@ async def create_promo_activations(message: types.Message, state: FSMContext):
 					f"📅 *Дней:* {days}\n"
 					f"🔢 *Активаций:* {activations}",
 					parse_mode="Markdown")
-			await bot.send_message(bot_logs,
+			await send_log(message.from_user.id,
 				f"💎 *Создан промокод* {code} ({'👑 Премиум' if promo_type == 'premium' else ('🎯 ' + str(days) + ' репортов') if promo_type == 'reports' else f'📅 {days} дней'}), {activations} акт. *администратором* {message.from_user.id}",
 				parse_mode="Markdown")
 		except Exception:
@@ -5807,7 +5810,7 @@ async def admin_add_reports_amount(message: types.Message, state: FSMContext):
 		await state.finish()
 		current = await db.get_free_reports(target)
 		await message.answer(f"✅ *Выдано {amount} репортов* {target}\n*Итого: {current}*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎯 *+{amount} репортов* {target} *от админа* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"🎯 *+{amount} репортов* {target} *от админа* {message.from_user.id}", parse_mode="Markdown")
 		try:
 			await bot.send_message(target, f"🎯 *Вам выдано {amount} бесплатных репортов!*\n*Итого: {current}*", parse_mode="Markdown")
 		except Exception:
@@ -5844,7 +5847,7 @@ async def admin_remove_reports_amount(message: types.Message, state: FSMContext)
 		await db.set_free_reports(target, new_amount)
 		await state.finish()
 		await message.answer(f"✅ *Забрано {amount} репортов* {target}\n*Осталось: {new_amount}*", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎯 *-{amount} репортов* {target} *от админа* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"🎯 *-{amount} репортов* {target} *от админа* {message.from_user.id}", parse_mode="Markdown")
 	except ValueError:
 		await message.answer("❌ Введите число.")
 		await state.finish()
@@ -5879,7 +5882,7 @@ async def admin_add_case_amount(message: types.Message, state: FSMContext):
 			await db.add_case(target)
 		await state.finish()
 		await message.answer(f"✅ *Выдано {amount} кейс(ов)* пользователю {target}", parse_mode="Markdown")
-		await bot.send_message(bot_logs, f"🎁 *+{amount} кейс(ов)* {target} *от админа* {message.from_user.id}", parse_mode="Markdown")
+		await send_log(target, f"🎁 *+{amount} кейс(ов)* {target} *от админа* {message.from_user.id}", parse_mode="Markdown")
 		try:
 			await bot.send_message(target,
 				f"🎁 *Вам выдано {amount} кейс(ов)!*\n*└─ Откройте их в разделе «🎁 Кейс» в главном меню*",
@@ -6048,7 +6051,7 @@ async def _weekly_leaderboard_loop():
 			else:
 				_lines.append("_В эту неделю репортов не было_")
 
-			await bot.send_message(bot_logs, "\n".join(_lines), parse_mode="Markdown")
+			await send_log(0, "\n".join(_lines), parse_mode="Markdown")
 
 			for _i, _row in enumerate(_top3, 1):
 				_prize = _PRIZES[_i]
