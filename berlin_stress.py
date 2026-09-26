@@ -11,7 +11,8 @@ import random
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError, AuthKeyDuplicatedError
 from telethon.tl.functions.messages import GetBotCallbackAnswerRequest, SendMessageRequest
-from telethon.tl.types import ReplyInlineMarkup, KeyboardButtonCallback
+from telethon.tl.functions.channels import JoinChannelRequest
+from telethon.tl.types import ReplyInlineMarkup, KeyboardButtonCallback, KeyboardButtonUrl
 
 API = [
     '24565698:5a084b434f8505ace703485b9da85040',
@@ -64,9 +65,12 @@ async def _prepare_session(session: str) -> TelegramClient | None:
         await client(SendMessageRequest(peer=peer, message='/start', random_id=random.randint(1, 2**31)))
         await asyncio.sleep(2)
 
-        # Шаг 2: найти и нажать 'я подписался'
+        # Шаг 2: найти кнопку "подписаться на канал" (URL) → вступить → нажать "я подписался"
         msgs = await client.get_messages(peer, limit=5)
-        pressed = False
+        channel_url = None
+        subscribed_msg_id = None
+        subscribed_btn_data = None
+
         for msg in msgs:
             if msg.out or not msg.reply_markup:
                 continue
@@ -74,19 +78,57 @@ async def _prepare_session(session: str) -> TelegramClient | None:
                 continue
             for row in msg.reply_markup.rows:
                 for btn in row.buttons:
+                    if isinstance(btn, KeyboardButtonUrl) and channel_url is None:
+                        channel_url = btn.url  # ссылка на канал
                     if isinstance(btn, KeyboardButtonCallback) and 'подписал' in btn.text.lower():
-                        await client(GetBotCallbackAnswerRequest(peer=peer, msg_id=msg.id, data=btn.data))
-                        pressed = True
-                        break
-                if pressed:
-                    break
-            if pressed:
-                break
+                        subscribed_msg_id = msg.id
+                        subscribed_btn_data = btn.data
 
-        if not pressed:
+        # Вступаем в канал
+        if channel_url:
+            try:
+                # Извлекаем username или invite hash из URL
+                # Поддерживаем форматы: t.me/username, t.me/+HASH, t.me/joinchat/HASH
+                import re as _re
+                _m = _re.search(r't\.me/(?:joinchat/|\+)?([A-Za-z0-9_\-]+)', channel_url)
+                if _m:
+                    chan_ref = _m.group(1)
+                    if channel_url and ('+' in channel_url or 'joinchat' in channel_url):
+                        from telethon.tl.functions.messages import ImportChatInviteRequest
+                        await client(ImportChatInviteRequest(hash=chan_ref))
+                    else:
+                        chan_entity = await client.get_entity(chan_ref)
+                        await client(JoinChannelRequest(chan_entity))
+                    print(f"[BERLIN] [{session}] ✅ вступил в канал ({chan_ref})", flush=True)
+                    await asyncio.sleep(1.5)
+            except Exception as e:
+                # Уже подписан или ошибка — продолжаем
+                print(f"[BERLIN] [{session}] канал: {str(e)[:60]}", flush=True)
+        else:
+            print(f"[BERLIN] [{session}] URL-кнопки не найдено, продолжаем", flush=True)
+
+        # Нажимаем "я подписался"
+        if not subscribed_btn_data:
+            # Если не нашли с первого раза — перечитываем
+            msgs = await client.get_messages(peer, limit=5)
+            for msg in msgs:
+                if msg.out or not msg.reply_markup:
+                    continue
+                if not isinstance(msg.reply_markup, ReplyInlineMarkup):
+                    continue
+                for row in msg.reply_markup.rows:
+                    for btn in row.buttons:
+                        if isinstance(btn, KeyboardButtonCallback) and 'подписал' in btn.text.lower():
+                            subscribed_msg_id = msg.id
+                            subscribed_btn_data = btn.data
+
+        if not subscribed_btn_data:
             print(f"[BERLIN] [{session}] кнопка 'я подписался' не найдена", flush=True)
             await client.disconnect()
             return None
+
+        await client(GetBotCallbackAnswerRequest(peer=peer, msg_id=subscribed_msg_id, data=subscribed_btn_data))
+        await asyncio.sleep(1.5)
 
         await asyncio.sleep(1.5)
         print(f"[BERLIN] [{session}] ✅ подготовлен", flush=True)
