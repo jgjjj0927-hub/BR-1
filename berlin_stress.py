@@ -71,6 +71,18 @@ async def _prepare_session(session: str) -> TelegramClient | None:
         subscribed_msg_id = None
         subscribed_btn_data = None
 
+        # Диагностика: выводим что пришло от бота
+        for msg in msgs:
+            if msg.out:
+                continue
+            print(f"[BERLIN] [{session}] msg id={msg.id} markup={type(msg.reply_markup).__name__} text={msg.text[:60] if msg.text else ''!r}", flush=True)
+            if msg.reply_markup:
+                markup = msg.reply_markup
+                rows = getattr(markup, 'rows', [])
+                for row in rows:
+                    for btn in row.buttons:
+                        print(f"[BERLIN] [{session}]   btn type={type(btn).__name__} text={getattr(btn,'text','?')!r}", flush=True)
+
         for msg in msgs:
             if msg.out or not msg.reply_markup:
                 continue
