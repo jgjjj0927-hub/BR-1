@@ -24,7 +24,7 @@ API = [
 ]
 
 SESSION_DIR  = 'sessions'
-TARGET_BOT   = 'berlinsnos'
+TARGET_BOT   = 'berlinsnoserbot'
 SPAM_TEXT    = 'Поддержка'
 SPAM_DELAY   = 0.3
 SPAM_WORKERS = 5
