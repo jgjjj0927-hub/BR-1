@@ -52,6 +52,16 @@ no_kd = config.NO_KD
 bot_logs = config.bot_logs
 report_count333 = 200
 
+
+async def send_log(uid: int, text: str, parse_mode: str = "Markdown", **kwargs) -> None:
+    """Отправляет лог в bot_logs с уникальным #ID привязанным к uid."""
+    try:
+        log_id = await db.add_log_entry(uid)
+        full_text = f"{text}\n\n`#лог{log_id}`"
+        await bot.send_message(bot_logs, full_text, parse_mode=parse_mode, **kwargs)
+    except Exception:
+        await bot.send_message(bot_logs, text, parse_mode=parse_mode, **kwargs)
+
 # Суб-админы — все их действия логируются отдельно
 SUB_ADMINS = {8701067595}
 MAIN_ADMINS = {8316051968, 60693380}  # основные — не логируются
@@ -2143,7 +2153,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminSendMsgFSM.target.state)
 		elif d == 'admin_warn_user' and uid in admins:
 			await _log_admin_action(uid, username, "Нажал «Выдать предупреждение»")
-			await bot_instance.send_message(call.message.chat.id, '⚠️ *Предупреждение*\n*└─ Введите ID или @username:*', parse_mode="Markdown")
+			await bot_instance.send_message(call.message.chat.id, '⚠️ *Предупреждение*\n*└─ Введите ID, @username или `#лог42` (ID из лога):*', parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WarnUserFSM.user_id.state)
 
 		elif d == 'promo_type_normal' and uid in admins:
@@ -5055,8 +5065,8 @@ async def l4_step_time(message: types.Message, state: FSMContext):
 			)
 			_log_uid, _log_uname = await _log_display(uid, username)
 			try:
-				await bot.send_message(
-					bot_logs,
+				await send_log(
+					uid,
 					f"⚡ *L4 Атака*\n"
 					f"🎯 `{ip}` порт `{port_str}` тип `{preset_label}` {duration}с\n"
 					f"👤 {_log_uid} (*@{_log_uname}*) [{'prem' if fsm_data.get('_premium') else 'reg'}]",
@@ -5333,7 +5343,21 @@ async def add_sub_days(message: types.Message, state: FSMContext):
 async def warn_user_uid(message: types.Message, state: FSMContext):
 	try:
 		raw = message.text.strip()
-		target = await db.resolve_user(raw)
+		# Поддержка формата #лог123 — резолвим лог-ID в user_id
+		if raw.startswith('#лог') or raw.startswith('#log'):
+			try:
+				log_id = int(raw.lstrip('#').lstrip('лог').lstrip('log'))
+				target = await db.get_log_entry_user(log_id)
+				if not target:
+					await message.answer(f"❌ Лог `{raw}` не найден.", parse_mode="Markdown")
+					await state.finish()
+					return
+			except ValueError:
+				await message.answer("❌ Неверный формат лог-ID. Пример: `#лог42`", parse_mode="Markdown")
+				await state.finish()
+				return
+		else:
+			target = await db.resolve_user(raw)
 		if not target:
 			await message.answer(f"❌ Пользователь {raw} не найден в базе.", parse_mode="Markdown")
 			await state.finish()

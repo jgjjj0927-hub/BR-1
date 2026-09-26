@@ -116,6 +116,13 @@ async def init_db():
             )
         """)
         await conn.execute("""
+            CREATE TABLE IF NOT EXISTS log_entries (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS tg_market_orders (
                 id SERIAL PRIMARY KEY,
                 user_id BIGINT NOT NULL,
@@ -1553,3 +1560,23 @@ async def get_warnings(user_id: int, limit: int = 20, offset: int = 0) -> list:
             user_id, limit, offset
         )
         return [dict(r) for r in rows]
+
+
+async def add_log_entry(user_id: int) -> int:
+    """Создаёт запись лога, возвращает её ID."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "INSERT INTO log_entries (user_id) VALUES ($1) RETURNING id",
+            user_id
+        )
+
+
+async def get_log_entry_user(log_id: int) -> int | None:
+    """Возвращает user_id по ID лога, или None если не найден."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT user_id FROM log_entries WHERE id = $1",
+            log_id
+        )
