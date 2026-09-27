@@ -541,6 +541,8 @@ manage_wallets_btn = types.InlineKeyboardButton("💼 Кошельки", callbac
 admin_markup.add(rotate_send_btn, manage_wallets_btn)
 warn_user_btn = types.InlineKeyboardButton("[⚠️] Выдать предупреждение", callback_data='admin_warn_user')
 admin_markup.add(warn_user_btn)
+give_tg_btn = types.InlineKeyboardButton("[📲] Выдать TG аккаунт", callback_data='admin_give_tg')
+admin_markup.add(give_tg_btn)
 
 shop_markup = types.InlineKeyboardMarkup(row_width=2)
 sub1 = types.InlineKeyboardButton("⚡️ 1 день", callback_data='sub_1')

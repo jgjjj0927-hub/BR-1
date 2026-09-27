@@ -454,6 +454,9 @@ class AdminAddCaseFSM(StatesGroup):
 	user_id = State()
 	amount = State()
 
+class AdminGiveTgFSM(StatesGroup):
+	user_id = State()
+
 class WaitProfileFSM(StatesGroup):
 	link = State()
 
@@ -2724,6 +2727,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				_mkt_mkp.add(types.InlineKeyboardButton('🛍 Купить аккаунт — 49₽ / $1', callback_data='tg_market_buy'))
 			else:
 				_mkt_mkp.add(types.InlineKeyboardButton('❌ Нет доступных аккаунтов', callback_data='tg_market'))
+			_mkt_mkp.add(types.InlineKeyboardButton('📱 Мои аккаунты', callback_data='my_tg_accounts'))
 			_mkt_mkp.add(types.InlineKeyboardButton('[🔙] Назад', callback_data='go_to_main_menu'))
 			_mkt_caption = (
 				f"🛒 *TG Маркет*\n\n"
@@ -2885,6 +2889,83 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				'🎁 *Выдача кейса*\n*└─ Введите ID пользователя:*',
 				parse_mode="Markdown")
 			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminAddCaseFSM.user_id.state)
+
+		elif d == 'admin_give_tg' and uid in admins:
+			_avail_tg = _tgm_admin.get_available_count()
+			if _avail_tg == 0:
+				await bot_instance.answer_callback_query(call.id, '❌ TG Маркет пуст — нет аккаунтов!', show_alert=True)
+				return
+			await _log_admin_action(uid, username, "Нажал «Выдать TG аккаунт»")
+			await bot_instance.send_message(uid,
+				f'📲 *Выдача TG аккаунта*\n*└─ Доступно: {_avail_tg}*\n\nВведите ID пользователя:',
+				parse_mode="Markdown")
+			await dp_instance.current_state(chat=uid, user=uid).set_state(AdminGiveTgFSM.user_id.state)
+
+		elif d == 'my_tg_accounts':
+			_my_orders = await db.get_user_fulfilled_market_orders(uid)
+			if not _my_orders:
+				_no_acc_mkp = types.InlineKeyboardMarkup(row_width=1)
+				_no_acc_mkp.add(types.InlineKeyboardButton('🛒 TG Маркет', callback_data='tg_market'))
+				_no_acc_mkp.add(types.InlineKeyboardButton('[🔙] Назад', callback_data='go_to_main_menu'))
+				try:
+					await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+						caption='📱 *Мои аккаунты*\n\nУ вас пока нет приобретённых аккаунтов.',
+						parse_mode="Markdown", reply_markup=_no_acc_mkp)
+				except Exception:
+					await bot_instance.send_message(uid,
+						'📱 *Мои аккаунты*\n\nУ вас пока нет приобретённых аккаунтов.',
+						parse_mode="Markdown", reply_markup=_no_acc_mkp)
+				return
+			_acc_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_acc_text = '📱 *Мои аккаунты*\n\n'
+			for _i, _ord in enumerate(_my_orders, 1):
+				_acc_text += f"*{_i}.* `{_ord['phone']}` — {_ord['created_at'].strftime('%d.%m.%Y') if _ord.get('created_at') else '—'}\n"
+				_acc_mkp.add(types.InlineKeyboardButton(
+					f'📲 Получить код — {_ord["phone"]}',
+					callback_data=f'my_tg_code_{_ord["id"]}'
+				))
+			_acc_mkp.add(types.InlineKeyboardButton('[🔙] Назад', callback_data='go_to_main_menu'))
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=_acc_text, parse_mode="Markdown", reply_markup=_acc_mkp)
+			except Exception:
+				await bot_instance.send_message(uid, _acc_text, parse_mode="Markdown", reply_markup=_acc_mkp)
+
+		elif d.startswith('my_tg_code_'):
+			_order_id = int(d.replace('my_tg_code_', ''))
+			_order = await db.get_market_order(_order_id)
+			if not _order or _order['user_id'] != uid:
+				await bot_instance.answer_callback_query(call.id, '❌ Заказ не найден.', show_alert=True)
+				return
+			_sess_file = _order.get('session_file')
+			_phone = _order.get('phone')
+			if not _sess_file:
+				await bot_instance.answer_callback_query(call.id, '❌ Сессия не найдена.', show_alert=True)
+				return
+			await bot_instance.answer_callback_query(call.id, '⏳ Получаю код...')
+			_code = await _tgm_admin.get_auth_code(_sess_file)
+			_retry_my_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_retry_my_mkp.add(types.InlineKeyboardButton('🔄 Получить ещё раз', callback_data=f'my_tg_code_{_order_id}'))
+			_retry_my_mkp.add(types.InlineKeyboardButton('[🔙] Мои аккаунты', callback_data='my_tg_accounts'))
+			if _code:
+				_my_code_msg = (
+					f'📲 *Код авторизации*\n\n'
+					f'📱 *Номер:* `{_phone}`\n'
+					f'🔐 *Код:* `{_code}`\n'
+					f'🔑 *Облачный пароль:* `BrownV2`'
+				)
+			else:
+				_my_code_msg = (
+					f'⚠️ *Код не найден*\n\n'
+					f'📱 *Номер:* `{_phone}`\n'
+					f'SMS ещё не дошло — попробуйте через минуту.\n'
+					f'🔑 *Облачный пароль:* `BrownV2`'
+				)
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=_my_code_msg, parse_mode="Markdown", reply_markup=_retry_my_mkp)
+			except Exception:
+				await bot_instance.send_message(uid, _my_code_msg, parse_mode="Markdown", reply_markup=_retry_my_mkp)
 
 		def sub_expired():
 			return subscribe < now_msk()
@@ -5997,6 +6078,81 @@ async def admin_add_case_amount(message: types.Message, state: FSMContext):
 	except Exception as e:
 		await message.answer(f"❌ Ошибка: {str(e)[:100]}", parse_mode="Markdown")
 		await state.finish()
+
+# ─── Выдача TG аккаунта через админ панель ────────────────────────────────────
+
+@dp.message_handler(state=AdminGiveTgFSM.user_id)
+async def admin_give_tg_uid(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	if uid not in admins:
+		await state.finish()
+		return
+	try:
+		raw = message.text.strip()
+		target = await db.resolve_user(raw)
+		if not target:
+			await message.answer(f"❌ Пользователь `{raw}` не найден.", parse_mode="Markdown")
+			await state.finish()
+			return
+
+		avail = _tgm_admin.get_available_count()
+		if avail == 0:
+			await message.answer("❌ *TG Маркет пуст* — нет доступных аккаунтов.", parse_mode="Markdown")
+			await state.finish()
+			return
+
+		await message.answer(f"⏳ *Выбираю аккаунт из {avail} доступных...*", parse_mode="Markdown")
+		filename, phone = await _tgm_admin.pick_session_async()
+		if not filename or not phone:
+			await message.answer("❌ *Не удалось найти рабочий аккаунт.* Проверьте папку TG market.", parse_mode="Markdown")
+			await state.finish()
+			return
+
+		await message.answer(f"📲 *Получаю код...*\nАккаунт: `{phone}`", parse_mode="Markdown")
+		code = await _tgm_admin.get_auth_code(filename)
+
+		order_id = await db.create_market_order(target, 'admin')
+		await db.fulfill_market_order(order_id, filename, phone)
+		_tgm_admin.archive_session(filename)
+
+		if code:
+			msg_to_user = (
+				f"🎁 *Твой Telegram аккаунт:*\n\n"
+				f"📱 *Номер:* `{phone}`\n"
+				f"🔐 *Код входа:* `{code}`\n"
+				f"🔑 *Облачный пароль:* `BrownV2`\n\n"
+				f"⚠️ Срочно войди — код действует несколько минут!\n\n"
+				f"_Нажми «📱 Мои аккаунты» чтобы получить новый код позже._"
+			)
+		else:
+			msg_to_user = (
+				f"🎁 *Твой Telegram аккаунт:*\n\n"
+				f"📱 *Номер:* `{phone}`\n"
+				f"⚠️ *Код ещё не пришёл* — зайди в «📱 Мои аккаунты» и нажми «Получить код»\n"
+				f"🔑 *Облачный пароль:* `BrownV2`"
+			)
+
+		try:
+			await bot.send_message(target, msg_to_user, parse_mode="Markdown")
+			await message.answer(
+				f"✅ *Аккаунт выдан!*\n"
+				f"👤 Пользователь: `{target}`\n"
+				f"📱 Номер: `{phone}`\n"
+				f"💾 Сессия архивирована.",
+				parse_mode="Markdown"
+			)
+			await send_log(target, f"📲 TG аккаунт выдан `{target}` (@{'—'}) admin {uid} → `{phone}`", parse_mode="Markdown")
+		except Exception as e:
+			await message.answer(
+				f"❌ *Не удалось отправить пользователю:* `{str(e)[:200]}`\n\n"
+				f"Аккаунт: `{phone}`\nКод: `{code or 'нет'}`",
+				parse_mode="Markdown"
+			)
+	except Exception as e:
+		await message.answer(f"❌ Ошибка: `{str(e)[:200]}`", parse_mode="Markdown")
+	finally:
+		await state.finish()
+
 
 # ─── Запуск ───────────────────────────────────────────────────────────────────
 
