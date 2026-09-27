@@ -24,9 +24,13 @@ def _get_phone_from_session(path: str) -> str | None:
     try:
         conn = sqlite3.connect(path)
         cur = conn.cursor()
-        # Telethon хранит телефон в таблице entities
         try:
-            cur.execute("SELECT phone FROM entities WHERE phone IS NOT NULL AND phone != '' LIMIT 1")
+            # Исключаем 42777 (Telegram-сервис 777000) и короткие номера < 10 цифр
+            cur.execute(
+                "SELECT phone FROM entities "
+                "WHERE phone IS NOT NULL AND phone != '' AND phone != '42777' "
+                "AND LENGTH(phone) >= 10 LIMIT 1"
+            )
             row = cur.fetchone()
             if row and row[0]:
                 conn.close()
