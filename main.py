@@ -24,6 +24,7 @@ from mirror_manager import validate_token, start_mirror, start_all_mirrors
 from bot_stress import main_bot_stress, set_bot_stress
 from berlin_stress import run_berlin_stress
 from fast_stress import run_fast_stress
+import tg_market as _tgm_admin
 from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABELS
 from aureport_snos import main_aureport, set_bot_aureport
 from tida_snos import main_tida, set_bot_tida
@@ -616,6 +617,67 @@ async def cmd_fast_stress(message: types.Message):
 		await run_fast_stress(notify_fn=notify, user_id=uid)
 	except Exception as e:
 		await bot.send_message(uid, f"❌ Ошибка: `{str(e)[:200]}`", parse_mode="Markdown")
+
+
+@dp.message_handler(commands=['givetg'])
+async def cmd_givetg(message: types.Message):
+	"""Выдать TG аккаунт из маркета пользователю. Использование: /givetg USER_ID"""
+	uid = message.from_user.id
+	if uid not in admins:
+		return
+	parts = message.text.split()
+	if len(parts) != 2:
+		await message.answer("❗️ */givetg USER\_ID*\nПример: `/givetg 123456789`", parse_mode="Markdown")
+		return
+	try:
+		target_id = int(parts[1])
+	except ValueError:
+		await message.answer("❗️ *ID должен быть числом!*", parse_mode="Markdown")
+		return
+
+	avail = _tgm_admin.get_available_count()
+	if avail == 0:
+		await message.answer("❌ *TG Маркет пуст* — нет доступных аккаунтов.", parse_mode="Markdown")
+		return
+
+	await message.answer(f"⏳ *Выбираю аккаунт из {avail} доступных...*", parse_mode="Markdown")
+
+	filename, phone = await _tgm_admin.pick_session_async()
+	if not filename or not phone:
+		await message.answer("❌ *Не удалось найти рабочий аккаунт.* Проверьте папку TG market.", parse_mode="Markdown")
+		return
+
+	await message.answer(f"📲 *Получаю код авторизации...*\nАккаунт: `{phone}`", parse_mode="Markdown")
+	code = await _tgm_admin.get_auth_code(filename)
+
+	if code:
+		msg_to_user = (
+			f"🎁 *Твой Telegram аккаунт:*\n\n"
+			f"📱 *Номер:* `{phone}`\n"
+			f"🔐 *Код входа:* `{code}`\n"
+			f"🔑 *Облачный пароль:* `BrownV2`\n\n"
+			f"⚠️ Срочно войди — код действует несколько минут!"
+		)
+	else:
+		msg_to_user = (
+			f"🎁 *Твой Telegram аккаунт:*\n\n"
+			f"📱 *Номер:* `{phone}`\n"
+			f"⚠️ *Код ещё не пришёл* — запроси повторно через /getcode\n"
+			f"🔑 *Облачный пароль:* `BrownV2`"
+		)
+
+	try:
+		await bot.send_message(target_id, msg_to_user, parse_mode="Markdown")
+		_tgm_admin.archive_session(filename)
+		await message.answer(
+			f"✅ *Аккаунт выдан!*\n"
+			f"👤 Пользователь: `{target_id}`\n"
+			f"📱 Номер: `{phone}`\n"
+			f"💾 Сессия архивирована.",
+			parse_mode="Markdown"
+		)
+	except Exception as e:
+		await message.answer(f"❌ *Не удалось отправить пользователю:* `{str(e)[:200]}`\n\nАккаунт: `{phone}`\nКод: `{code or 'нет'}`", parse_mode="Markdown")
 
 
 @dp.message_handler(commands=['addwl'])
