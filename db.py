@@ -1533,7 +1533,7 @@ async def get_user_fulfilled_market_orders(user_id: int) -> list[dict]:
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM tg_market_orders WHERE user_id=$1 AND status='fulfilled' ORDER BY created_at DESC LIMIT 10",
+            "SELECT * FROM tg_market_orders WHERE user_id=$1 AND status='paid' ORDER BY created_at DESC LIMIT 10",
             user_id
         )
         return [dict(r) for r in rows]
