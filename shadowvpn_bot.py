@@ -8,7 +8,7 @@ from aiogram import Bot, Dispatcher, types, executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types import ParseMode
 
-TOKEN = "ВАШ_ТОКЕН_СЮДА"
+TOKEN = "8722916608:AAFWoe6jPYRpoNdAclBgv9pMzIusn2W450k"
 
 bot = Bot(token=TOKEN, parse_mode=ParseMode.MARKDOWN)
 storage = MemoryStorage()
