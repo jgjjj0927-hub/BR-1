@@ -1,0 +1,86 @@
+"""
+set_shadowvpn_avatar.py — устанавливает аватарку Shadow V2 VPN бота.
+Запуск: python3 set_shadowvpn_avatar.py
+"""
+import asyncio
+import os
+import sys
+import requests
+
+IMG_URL  = "https://i.ibb.co/1GnZfHv5/Chat-GPT-Image-28-2026-21-42-28.png"
+IMG_PATH = "/tmp/shadowvpn_avatar.png"
+BOT_NAME = "Shadow V2 VPN"
+
+
+def download_avatar() -> bool:
+    print(f"📥 Скачиваю аватарку...")
+    try:
+        r = requests.get(IMG_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+        if r.status_code == 200 and len(r.content) > 50000:
+            with open(IMG_PATH, "wb") as f:
+                f.write(r.content)
+            print(f"   ✅ Скачано ({len(r.content)} байт)")
+            return True
+        print(f"   ❌ Ошибка ({r.status_code}, {len(r.content)} байт)")
+    except Exception as e:
+        print(f"   ❌ {e}")
+    return False
+
+
+async def set_photo_and_name(api_id: int, api_hash: str, bot_token: str):
+    from telethon import TelegramClient
+    from telethon.sessions import StringSession
+    from telethon.tl.functions.photos import UploadProfilePhotoRequest
+
+    client = TelegramClient(StringSession(""), api_id, api_hash)
+    print("🔗 Подключаюсь как бот...")
+    await client.start(bot_token=bot_token)
+
+    me = await client.get_me()
+    print(f"✅ Вошёл как @{me.username}")
+
+    # Имя через Bot API
+    print(f"✏️  Меняю имя на «{BOT_NAME}»...")
+    r = requests.post(
+        f"https://api.telegram.org/bot{bot_token}/setMyName",
+        json={"name": BOT_NAME}, timeout=10,
+    )
+    if r.json().get("ok"):
+        print("✅ Имя обновлено!")
+    else:
+        print(f"   ⚠️ {r.json().get('description')}")
+
+    # Аватарка через MTProto
+    print("🖼  Устанавливаю аватарку...")
+    uploaded = await client.upload_file(IMG_PATH)
+    await client(UploadProfilePhotoRequest(file=uploaded))
+    print("✅ Аватарка установлена!")
+
+    await client.disconnect()
+
+
+def main():
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import config as cfg
+    api_id   = int(cfg.AUREPORT_API_ID)
+    api_hash = cfg.AUREPORT_API_HASH
+
+    bot_token = input("🤖 Токен бота: ").strip()
+    if not bot_token:
+        print("❌ Токен пустой.")
+        sys.exit(1)
+
+    if not download_avatar():
+        print("❌ Не удалось скачать аватарку.")
+        sys.exit(1)
+
+    asyncio.run(set_photo_and_name(api_id, api_hash, bot_token))
+
+    try:
+        os.remove(IMG_PATH)
+    except FileNotFoundError:
+        pass
+
+
+if __name__ == "__main__":
+    main()
