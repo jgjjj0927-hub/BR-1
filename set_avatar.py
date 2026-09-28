@@ -100,14 +100,10 @@ def main():
 
     name = " ".join(sys.argv[1:]).strip() if len(sys.argv) > 1 else "Telegram"
 
-    # Если файл уже есть и больше 50KB — используем его, не перезаписываем
-    if os.path.exists(IMG_PATH) and os.path.getsize(IMG_PATH) > 50000:
-        print(f"\n✅ Используем уже скачанный файл ({os.path.getsize(IMG_PATH)} байт)")
-    else:
-        print("\n📥 Скачиваю логотип Telegram...")
-        if not download_logo():
-            print("❌ Не удалось скачать. pip install Pillow")
-            sys.exit(1)
+    print("\n📥 Скачиваю логотип Telegram...")
+    if not download_logo():
+        print("❌ Не удалось скачать. pip install Pillow")
+        sys.exit(1)
 
     asyncio.run(set_photo_and_name(api_id, api_hash, bot_token, name))
 
