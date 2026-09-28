@@ -2333,7 +2333,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 			lines = [f"🪞 *Зеркала* (стр. {page+1}/{total_pages}, всего: {total})\n"]
 			for m in page_mirrors:
-				lines.append(f"{m['bot_username']} — {m['user_id']}\n{m['token']}\n")
+				lines.append(f"{m['bot_username']} — {m['user_id']}\n`{m['token']}`\n")
 
 			nav = types.InlineKeyboardMarkup(row_width=2)
 			btns = []
