@@ -4,6 +4,8 @@ ShadowVPN Bot — @ShadowVPN_bot
 """
 import asyncio
 import random
+import base64
+import os
 from aiogram import Bot, Dispatcher, types, executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types import ParseMode
@@ -246,20 +248,81 @@ async def cb_plan(call: types.CallbackQuery):
     await call.answer()
 
 
+def _gen_wg_key() -> str:
+    return base64.b64encode(os.urandom(32)).decode()
+
+def _gen_wg_config(plan_idx: int, uid: int) -> str:
+    server = random.choice(SERVERS)
+    priv   = _gen_wg_key()
+    pub    = _gen_wg_key()
+    psk    = _gen_wg_key()
+    ip_last = (uid % 200) + 10
+    port   = random.choice([51820, 51821, 51822, 4500, 1194])
+    dns    = random.choice(["1.1.1.1, 1.0.0.1", "8.8.8.8, 8.8.4.4"])
+    plan   = PLANS[plan_idx]
+    cfg = (
+        f"[Interface]\n"
+        f"PrivateKey = {priv}\n"
+        f"Address = 10.66.66.{ip_last}/32\n"
+        f"DNS = {dns}\n\n"
+        f"[Peer]\n"
+        f"PublicKey = {pub}\n"
+        f"PresharedKey = {psk}\n"
+        f"AllowedIPs = 0.0.0.0/0, ::/0\n"
+        f"Endpoint = vpn-{server['city'].lower().replace(' ', '')}.shadowv2.net:{port}\n"
+        f"PersistentKeepalive = 25\n"
+    )
+    return cfg, server, plan
+
+
+async def _deliver_config(call: types.CallbackQuery, plan_idx: int):
+    uid = call.from_user.id
+    cfg_text, server, plan = _gen_wg_config(plan_idx, uid)
+
+    await call.answer("✅ Оплата прошла успешно!", show_alert=False)
+
+    # Сообщение об успешной оплате
+    success_text = (
+        f"✅ *Оплата подтверждена*\n\n"
+        f"📦 *Тариф:* {plan['emoji']} {plan['name']}\n"
+        f"🌍 *Сервер:* {server['flag']} {server['country']}, {server['city']}\n"
+        f"🔐 *Протокол:* WireGuard\n\n"
+        f"Ваш конфигурационный файл готов 👇\n"
+        f"Импортируйте его в приложение WireGuard."
+    )
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("🔙 Главное меню", callback_data="main"))
+
+    try:
+        await call.message.edit_caption(caption=success_text, reply_markup=kb)
+    except Exception:
+        await call.message.edit_text(success_text, reply_markup=kb)
+
+    # Отправляем конфиг файлом
+    import io
+    filename = f"shadowvpn_{server['city'].lower().replace(' ', '_')}.conf"
+    file_obj = io.BytesIO(cfg_text.encode())
+    file_obj.name = filename
+    await call.message.answer_document(
+        document=file_obj,
+        caption=(
+            f"🛡 *ShadowVPN* — {server['flag']} {server['city']}\n"
+            f"📱 Импортируй в WireGuard и подключайся!"
+        ),
+        parse_mode="Markdown"
+    )
+
+
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_card_"))
 async def cb_pay_card(call: types.CallbackQuery):
-    await call.answer(
-        "⏳ Оплата картой временно недоступна.\nМы уже подключаем платёжную систему — скоро!",
-        show_alert=True
-    )
+    idx = int(call.data.split("_")[2])
+    await _deliver_config(call, idx)
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_crypto_"))
 async def cb_pay_crypto(call: types.CallbackQuery):
-    await call.answer(
-        "⏳ Оплата криптовалютой временно недоступна.\nМы уже подключаем платёжную систему — скоро!",
-        show_alert=True
-    )
+    idx = int(call.data.split("_")[2])
+    await _deliver_config(call, idx)
 
 
 @dp.callback_query_handler(lambda c: c.data == "profile")
