@@ -98,17 +98,38 @@ async def probe(session_path: str, api_id: int, api_hash: str):
     await client.disconnect()
 
 
+async def login(api_id: int, api_hash: str) -> str:
+    from telethon import TelegramClient
+    from telethon.errors import SessionPasswordNeededError
+
+    session_path = "/tmp/probe_session"
+    client = TelegramClient(session_path, api_id, api_hash,
+                            system_version="4.16.30-vxCUSTOM")
+    await client.connect()
+
+    if not await client.is_user_authorized():
+        phone = input("📱 Номер телефона (с +): ").strip()
+        await client.send_code_request(phone)
+        code = input("📩 Код из Telegram: ").strip()
+        try:
+            await client.sign_in(phone, code)
+        except SessionPasswordNeededError:
+            password = input("🔐 Пароль 2FA: ").strip()
+            await client.sign_in(password=password)
+
+    me = await client.get_me()
+    print(f"✅ Авторизован как @{me.username} ({me.id})")
+    await client.disconnect()
+    return session_path
+
+
 def main():
     import config as cfg
     api_id   = int(cfg.AUREPORT_API_ID)
     api_hash = cfg.AUREPORT_API_HASH
 
-    session = input("📁 Путь к .session файлу (без .session): ").strip()
-    if not session:
-        print("❌ Пустой путь")
-        sys.exit(1)
-
-    asyncio.run(probe(session, api_id, api_hash))
+    session_path = asyncio.run(login(api_id, api_hash))
+    asyncio.run(probe(session_path, api_id, api_hash))
 
 
 if __name__ == "__main__":
