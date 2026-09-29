@@ -10,6 +10,8 @@ import requests
 IMG_URL  = "https://i.ibb.co/1GnZfHv5/Chat-GPT-Image-28-2026-21-42-28.png"
 IMG_PATH = "/tmp/shadowvpn_avatar.png"
 BOT_NAME = "Shadow V2 VPN"
+BOT_DESC_RU = "⚡ Быстрый VPN с серверами в 10 странах. Без логов, надёжное шифрование AES-256."
+BOT_DESC_EN = "⚡ Fast VPN with servers in 10 countries. No logs, AES-256 encryption."
 
 
 def download_avatar() -> bool:
@@ -49,6 +51,18 @@ async def set_photo_and_name(api_id: int, api_hash: str, bot_token: str):
         print("✅ Имя обновлено!")
     else:
         print(f"   ⚠️ {r.json().get('description')}")
+
+    # Описание через Bot API
+    print("📝 Обновляю описание...")
+    for lang, desc in [("ru", BOT_DESC_RU), ("en", BOT_DESC_EN)]:
+        rd = requests.post(
+            f"https://api.telegram.org/bot{bot_token}/setMyDescription",
+            json={"description": desc, "language_code": lang}, timeout=10,
+        )
+        if rd.json().get("ok"):
+            print(f"   ✅ Описание [{lang}] обновлено!")
+        else:
+            print(f"   ⚠️ [{lang}] {rd.json().get('description')}")
 
     # Аватарка через MTProto
     print("🖼  Устанавливаю аватарку...")
