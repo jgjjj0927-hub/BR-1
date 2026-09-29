@@ -21,13 +21,6 @@ CALLBACKS = [
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
-ADMIN_COMMANDS = [
-    "/admin", "/panel", "/manage", "/stats",
-    "/broadcast", "/ban", "/users", "/dashboard",
-    "/control", "/settings", "/promo",
-]
-
-
 async def probe(session_path: str, api_id: int, api_hash: str):
     from telethon import TelegramClient
 
@@ -42,20 +35,8 @@ async def probe(session_path: str, api_id: int, api_hash: str):
     me = await client.get_me()
     print(f"✅ Вошёл как @{me.username} ({me.id})")
 
-    # 1. Пробуем admin-команды
-    print(f"\n🔍 Пробую admin-команды в {TARGET_BOT}...\n")
-    for cmd in ADMIN_COMMANDS:
-        await client.send_message(TARGET_BOT, cmd)
-        await asyncio.sleep(1.2)
-        msgs = await client.get_messages(TARGET_BOT, limit=1)
-        if msgs:
-            text = (msgs[0].text or msgs[0].caption or "")[:120]
-            print(f"  [{cmd}] → {text or '(пусто)'}")
-        else:
-            print(f"  [{cmd}] → нет ответа")
-
-    # 2. Кликаем все реальные кнопки из /start
-    print(f"\n🔘 Кликаю реальные кнопки из /start...\n")
+    # Получаем свежее сообщение от бота с кнопками
+    print(f"\n📨 Отправляю /start в {TARGET_BOT}...")
     await client.send_message(TARGET_BOT, "/start")
     await asyncio.sleep(1.5)
 
@@ -63,28 +44,35 @@ async def probe(session_path: str, api_id: int, api_hash: str):
     bot_msg = next((m for m in msgs if m.buttons), None)
 
     if not bot_msg:
-        print("⚠️  Нет сообщений с кнопками")
-    else:
-        print(f"📋 message_id={bot_msg.id}, кнопок: {sum(len(r) for r in bot_msg.buttons)}\n")
-        for row in bot_msg.buttons:
-            for btn in row:
-                cb_data = btn.data.decode() if btn.data else None
-                print(f"  Кнопка: «{btn.text}» → callback_data={cb_data!r}")
-                try:
-                    await btn.click()
-                    await asyncio.sleep(1.2)
-                    new_msgs = await client.get_messages(TARGET_BOT, limit=1)
-                    if new_msgs:
-                        text = (new_msgs[0].text or new_msgs[0].caption or "")[:150]
-                        btns_info = ""
-                        if new_msgs[0].buttons:
-                            btns_info = " [+кнопки: " + ", ".join(
-                                b.data.decode() if b.data else b.text
-                                for row2 in new_msgs[0].buttons for b in row2
-                            ) + "]"
-                        print(f"    → {text}{btns_info}")
-                except Exception as e:
-                    print(f"    ⚠️  {e}")
+        print("❌ Нет сообщений с кнопками")
+        await client.disconnect()
+        return
+
+    print(f"📋 message_id={bot_msg.id}\n")
+    print("🔍 Перебираю скрытые callbacks на этом сообщении...\n")
+
+    for cb in CALLBACKS:
+        try:
+            # click(data=...) отправляет callback_data напрямую на это сообщение
+            result = await bot_msg.click(data=cb.encode())
+            if result and hasattr(result, 'message') and result.message:
+                print(f"  ✅ [{cb}] → {result.message[:100]}")
+            else:
+                # Смотрим не появилось ли новое сообщение
+                new = await client.get_messages(TARGET_BOT, limit=1)
+                if new and new[0].id != bot_msg.id:
+                    text = (new[0].text or new[0].caption or "")[:120]
+                    print(f"  🔥 [{cb}] → НОВОЕ СООБЩЕНИЕ: {text}")
+                    bot_msg = new[0]
+                else:
+                    print(f"  · [{cb}] нет реакции")
+        except Exception as e:
+            err = str(e)
+            if "not found" in err.lower() or "button" in err.lower():
+                print(f"  · [{cb}] кнопка не найдена")
+            else:
+                print(f"  · [{cb}] {err[:70]}")
+        await asyncio.sleep(0.5)
 
     print("\n✅ Готово")
     await client.disconnect()
