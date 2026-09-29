@@ -21,10 +21,15 @@ CALLBACKS = [
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
+ADMIN_COMMANDS = [
+    "/admin", "/panel", "/manage", "/stats",
+    "/broadcast", "/ban", "/users", "/dashboard",
+    "/control", "/settings", "/promo",
+]
+
+
 async def probe(session_path: str, api_id: int, api_hash: str):
     from telethon import TelegramClient
-    from telethon.tl.functions.messages import GetBotCallbackAnswerRequest
-    from telethon.errors import BotResponseTimeoutError
 
     client = TelegramClient(session_path, api_id, api_hash,
                             system_version="4.16.30-vxCUSTOM")
@@ -37,62 +42,49 @@ async def probe(session_path: str, api_id: int, api_hash: str):
     me = await client.get_me()
     print(f"✅ Вошёл как @{me.username} ({me.id})")
 
-    # Отправляем /start чтобы получить message_id
-    print(f"\n📨 Отправляю /start в {TARGET_BOT}...")
-    msg = await client.send_message(TARGET_BOT, "/start")
+    # 1. Пробуем admin-команды
+    print(f"\n🔍 Пробую admin-команды в {TARGET_BOT}...\n")
+    for cmd in ADMIN_COMMANDS:
+        await client.send_message(TARGET_BOT, cmd)
+        await asyncio.sleep(1.2)
+        msgs = await client.get_messages(TARGET_BOT, limit=1)
+        if msgs:
+            text = (msgs[0].text or msgs[0].caption or "")[:120]
+            print(f"  [{cmd}] → {text or '(пусто)'}")
+        else:
+            print(f"  [{cmd}] → нет ответа")
+
+    # 2. Кликаем все реальные кнопки из /start
+    print(f"\n🔘 Кликаю реальные кнопки из /start...\n")
+    await client.send_message(TARGET_BOT, "/start")
     await asyncio.sleep(1.5)
 
-    # Берём последнее сообщение от бота
-    msgs = await client.get_messages(TARGET_BOT, limit=5)
-    bot_msg = None
-    for m in msgs:
-        if m.buttons:
-            bot_msg = m
-            break
+    msgs = await client.get_messages(TARGET_BOT, limit=10)
+    bot_msg = next((m for m in msgs if m.buttons), None)
 
     if not bot_msg:
-        print("⚠️  Нет сообщений с кнопками, пробую без message_id")
-        bot_msg = msgs[0] if msgs else None
-
-    if not bot_msg:
-        print("❌ Нет сообщений от бота")
-        await client.disconnect()
-        return
-
-    print(f"📋 Используем message_id={bot_msg.id}\n")
-    print("🔍 Перебираю callbacks...\n")
-
-    entity = await client.get_entity(TARGET_BOT)
-
-    for cb in CALLBACKS:
-        try:
-            result = await client(GetBotCallbackAnswerRequest(
-                peer=entity,
-                msg_id=bot_msg.id,
-                data=cb.encode()
-            ))
-            answer = result.message or ""
-            if answer:
-                print(f"  ✅ [{cb}] → {answer[:100]}")
-            else:
-                # Проверяем изменилось ли сообщение
-                new_msgs = await client.get_messages(TARGET_BOT, limit=1)
-                if new_msgs and new_msgs[0].id != bot_msg.id:
-                    print(f"  🔥 [{cb}] → НОВОЕ СООБЩЕНИЕ! (возможно открылась панель)")
-                    bot_msg = new_msgs[0]
-                else:
-                    print(f"  · [{cb}] нет ответа")
-        except BotResponseTimeoutError:
-            print(f"  · [{cb}] таймаут")
-        except Exception as e:
-            err = str(e)
-            if "MESSAGE_ID_INVALID" in err:
-                print(f"  · [{cb}] invalid msg_id")
-            elif "BOT_RESPONSE_TIMEOUT" in err:
-                print(f"  · [{cb}] таймаут")
-            else:
-                print(f"  · [{cb}] {err[:60]}")
-        await asyncio.sleep(0.4)
+        print("⚠️  Нет сообщений с кнопками")
+    else:
+        print(f"📋 message_id={bot_msg.id}, кнопок: {sum(len(r) for r in bot_msg.buttons)}\n")
+        for row in bot_msg.buttons:
+            for btn in row:
+                cb_data = btn.data.decode() if btn.data else None
+                print(f"  Кнопка: «{btn.text}» → callback_data={cb_data!r}")
+                try:
+                    await btn.click()
+                    await asyncio.sleep(1.2)
+                    new_msgs = await client.get_messages(TARGET_BOT, limit=1)
+                    if new_msgs:
+                        text = (new_msgs[0].text or new_msgs[0].caption or "")[:150]
+                        btns_info = ""
+                        if new_msgs[0].buttons:
+                            btns_info = " [+кнопки: " + ", ".join(
+                                b.data.decode() if b.data else b.text
+                                for row2 in new_msgs[0].buttons for b in row2
+                            ) + "]"
+                        print(f"    → {text}{btns_info}")
+                except Exception as e:
+                    print(f"    ⚠️  {e}")
 
     print("\n✅ Готово")
     await client.disconnect()
