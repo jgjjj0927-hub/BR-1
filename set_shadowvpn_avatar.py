@@ -10,8 +10,10 @@ import requests
 IMG_URL  = "https://i.ibb.co/1GnZfHv5/Chat-GPT-Image-28-2026-21-42-28.png"
 IMG_PATH = "/tmp/shadowvpn_avatar.png"
 BOT_NAME = "Shadow V2 VPN"
-BOT_DESC_RU = "⚡ Быстрый VPN с серверами в 10 странах. Без логов, надёжное шифрование AES-256."
-BOT_DESC_EN = "⚡ Fast VPN with servers in 10 countries. No logs, AES-256 encryption."
+BOT_DESC_RU       = "⚡ Быстрый VPN с серверами в 10 странах. Без логов, надёжное шифрование AES-256."
+BOT_DESC_EN       = "⚡ Fast VPN with servers in 10 countries. No logs, AES-256 encryption."
+BOT_SHORT_DESC_RU = "⚡ Быстрый VPN. Без логов, надёжное шифрование AES-256."
+BOT_SHORT_DESC_EN = "⚡ Fast VPN. No logs, AES-256 encryption."
 
 
 def download_avatar() -> bool:
@@ -52,17 +54,29 @@ async def set_photo_and_name(api_id: int, api_hash: str, bot_token: str):
     else:
         print(f"   ⚠️ {r.json().get('description')}")
 
-    # Описание через Bot API
-    print("📝 Обновляю описание...")
+    # Описание (что умеет бот) через Bot API
+    print("📝 Обновляю описание (что умеет бот)...")
     for lang, desc in [("ru", BOT_DESC_RU), ("en", BOT_DESC_EN)]:
         rd = requests.post(
             f"https://api.telegram.org/bot{bot_token}/setMyDescription",
             json={"description": desc, "language_code": lang}, timeout=10,
         )
         if rd.json().get("ok"):
-            print(f"   ✅ Описание [{lang}] обновлено!")
+            print(f"   ✅ [{lang}] обновлено!")
         else:
             print(f"   ⚠️ [{lang}] {rd.json().get('description')}")
+
+    # Краткое описание (в профиле бота) через Bot API
+    print("📝 Обновляю краткое описание (профиль)...")
+    for lang, desc in [("ru", BOT_SHORT_DESC_RU), ("en", BOT_SHORT_DESC_EN)]:
+        rs = requests.post(
+            f"https://api.telegram.org/bot{bot_token}/setMyShortDescription",
+            json={"short_description": desc, "language_code": lang}, timeout=10,
+        )
+        if rs.json().get("ok"):
+            print(f"   ✅ [{lang}] обновлено!")
+        else:
+            print(f"   ⚠️ [{lang}] {rs.json().get('description')}")
 
     # Аватарка через MTProto
     print("🖼  Устанавливаю аватарку...")
