@@ -34,7 +34,7 @@ object NetworkReader {
             }
 
             val ok = ApiClient.post("/network", payload)
-            if (!ok) buffer.push("network", payload.toString())
+            if (!ok) { buffer.push("network", payload.toString()) }
 
         } catch (e: Exception) {
             Log.w("NetworkReader", "Failed: ${e.message}")
