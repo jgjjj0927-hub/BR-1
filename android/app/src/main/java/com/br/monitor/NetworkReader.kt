@@ -27,14 +27,15 @@ object NetworkReader {
 
             val ssid = if (type == "wifi") getWifiSsid(context) else ""
 
-            val payload = JSONObject().apply {
-                put("type", type)
-                put("ssid", ssid)
-                put("ts",   System.currentTimeMillis())
-            }
+            val payload = JSONObject()
+            payload.put("type", type)
+            payload.put("ssid", ssid)
+            payload.put("ts", System.currentTimeMillis())
 
             val ok = ApiClient.post("/network", payload)
-            if (!ok) { buffer.push("network", payload.toString()) }
+            when {
+                !ok -> buffer.push("network", payload.toString())
+            }
 
         } catch (e: Exception) {
             Log.w("NetworkReader", "Failed: ${e.message}")
@@ -47,6 +48,8 @@ object NetworkReader {
             val wm = context.applicationContext.getSystemService(WifiManager::class.java)
             val info = wm.connectionInfo
             info?.ssid?.removeSurrounding("\"") ?: ""
-        } catch (_: Exception) { "" }
+        } catch (_: Exception) {
+            ""
+        }
     }
 }
