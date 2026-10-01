@@ -131,6 +131,7 @@ last_used_web = {}
 last_used_mail = {}
 last_used_botnet = {}
 last_used_botnet2 = {}
+last_used_username_prem = {}
 last_used_bot_snos = {}
 last_used_bot_snos_fast = {}  # КД 5 минут для "своих" ботов (с капчей)
 last_used_stress = {}
@@ -464,6 +465,9 @@ class WaitTrapFSM(StatesGroup):
 	victim = State()   # ввод username жертвы после нажатия "Готово"
 
 
+class WaitUsernamePremFSM(StatesGroup):
+    username = State()
+
 class WaitProbivFSM(StatesGroup):
 	query = State()
 
@@ -498,6 +502,38 @@ maintenance_mode = _get_maintenance()
 
 # ─── Команды ──────────────────────────────────────────────────────────────────
 
+
+
+@dp.message_handler(state=WaitUsernamePremFSM.username)
+async def username_prem_got(message: types.Message, state: FSMContext):
+    uid = message.from_user.id
+    target = message.text.strip().lstrip('@')
+    await state.finish()
+    if uid not in admins:
+        last_used_username_prem[uid] = now_msk()
+    await bot.send_message(uid, f"\U0001f464 *Username-метод*\n*└─ Цель:* `@{target}`", parse_mode="Markdown")
+    asyncio.create_task(_run_username_progress(uid, target))
+
+
+async def _run_username_progress(uid: int, target: str):
+    def _bar(pct):
+        return '█' * (pct // 10) + '░' * (10 - pct // 10)
+    prog = await bot.send_message(uid, f"🔄 *Обработка...*\n`[{_bar(10)}]` 10%", parse_mode="Markdown")
+    for pct in range(20, 101, 10):
+        await asyncio.sleep(7.0 / 9)
+        try:
+            await bot.edit_message_text(f"🔄 *Обработка...*\n`[{_bar(pct)}]` {pct}%", chat_id=uid, message_id=prog.message_id, parse_mode="Markdown")
+        except Exception:
+            pass
+    try:
+        mm = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("[🔙] Главное меню", callback_data="go_to_main_menu"))
+        await bot.edit_message_text(f"✅ *Готово!*\n`[██████████]` 100%\n\n*└─ @{target} обработан*", chat_id=uid, message_id=prog.message_id, parse_mode="Markdown", reply_markup=mm)
+    except Exception:
+        await bot.send_message(uid, f"✅ *Готово!*\n*└─ @{target} обработан*", parse_mode="Markdown")
+    try:
+        await bot.send_message(bot_logs, f"\U0001f464 *Username-метод*\n└─ `{uid}` → `@{target}`", parse_mode="Markdown")
+    except Exception:
+        pass
 
 
 @dp.message_handler(commands=['on'])
