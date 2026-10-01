@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "789118658575",
+    "project_id": "br5s-57c5d",
+    "storage_bucket": "br5s-57c5d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:789118658575:android:5138cd1e24083b3dde5b7a",
+        "android_client_info": {
+          "package_name": "com.br.monitor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVEAL7uAOedIL2RaTKzq2lGdMKuswJXN8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
