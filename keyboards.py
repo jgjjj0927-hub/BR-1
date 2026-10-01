@@ -53,6 +53,7 @@ web_method = types.InlineKeyboardButton("🌐 Web", callback_data='web_method')
 mail_method = types.InlineKeyboardButton("✉️ Mail", callback_data='mail_method')
 botnet_method = types.InlineKeyboardButton("🤖 Обычная Отправка", callback_data='botnet_method')
 prem_botnet_method = types.InlineKeyboardButton("👑 Премиальная отправка", callback_data='prem_botnet_method')
+prem_username_method = types.InlineKeyboardButton("👑 Username-метод", callback_data='prem_username_method')
 bot_method_btn = types.InlineKeyboardButton("🤖 Бот", callback_data='bot_method')
 channel_method_btn = types.InlineKeyboardButton("📢 Канал", callback_data='channel_method')
 functions.add(botnet_method)
@@ -364,6 +365,7 @@ def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
     )
     markup.add(types.InlineKeyboardButton("🪤 Trap-метод", callback_data='trap_method'))
     markup.add(types.InlineKeyboardButton("💀 Снос сессий", callback_data='session_method'))
+    markup.add(types.InlineKeyboardButton("👤 Username-метод", callback_data='prem_username_method'))
     markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
     return markup
 

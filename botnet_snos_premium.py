@@ -1164,6 +1164,23 @@ async def _report_one_session_prem(session, chat_username, message_id, message_u
             await client.disconnect()
 
 
+async def main2_username(target_username: str, user, username):
+    """Заглушка: репорт по @username без ссылки на сообщение."""
+    print(f"\n[PREM-USERNAME] {'='*50}", flush=True)
+    print(f"[PREM-USERNAME] 🚧 Метод в разработке", flush=True)
+    print(f"[PREM-USERNAME] 👤 Пользователь: {user} (@{username})", flush=True)
+    print(f"[PREM-USERNAME] 🎯 Таргет: {target_username}", flush=True)
+    print(f"[PREM-USERNAME] {'='*50}\n", flush=True)
+
+    if bot is not None:
+        await bot.send_message(
+            user,
+            "🚧 *Username-метод в разработке!*\n_Скоро будет доступен._",
+            parse_mode="Markdown",
+            reply_markup=keyboards.main_menu,
+        )
+
+
 async def main2(chat_username, message_id, user, username, message_url):
     # Получаем вайтлист из PostgreSQL (db.py)
     try:

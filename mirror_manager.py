@@ -392,6 +392,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitProfileFSM, profile_step1,
             WaitTrapFSM, trap_step1,
             WaitTelegraphFSM, telegraph_step1, telegraph_custom_text,
+            WaitUsernamePREMFSM, prem_username_step1,
         )
 
         handlers = {
@@ -436,6 +437,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitTrapFSM.victim.state: trap_step1,
             WaitTelegraphFSM.link.state: telegraph_step1,
             WaitTelegraphFSM.custom_text.state: telegraph_custom_text,
+            WaitUsernamePREMFSM.username.state: prem_username_step1,
         }
 
         handler = handlers.get(current_state)

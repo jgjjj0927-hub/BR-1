@@ -16,7 +16,7 @@ import aiohttp
 from web_snos import web, generate_log_filename
 from mail_snos import send_bulk_emails, load_mails
 from botnet_snos import extract_username_and_message_id, main as botnet_main, set_bot as botnet_set_bot
-from botnet_snos_premium import extract_username_and_message_id2, main2 as botnet_main2, set_bot2 as botnet_set_bot2
+from botnet_snos_premium import extract_username_and_message_id2, main2 as botnet_main2, main2_username as botnet_main2_username, set_bot2 as botnet_set_bot2
 from bot_snos import main_bot_snos, set_bot_snos, detect_bot_type
 from captcha import generate_captcha_text, generate_captcha_image
 from mirror_manager import validate_token, start_mirror, start_all_mirrors
@@ -283,6 +283,9 @@ class AddPremFSM(StatesGroup):
 
 class WaitLinkPREMFSM(StatesGroup):
 	link = State()
+
+class WaitUsernamePREMFSM(StatesGroup):
+	username = State()
 
 class WaitBotLinkFSM(StatesGroup):
 	link = State()
@@ -2314,6 +2317,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitLinkPREMFSM.link.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
+		elif d == "prem_username_method":
+			if uid not in admins:
+				await call.answer("❌ Только для админов!", show_alert=True); return
+			await bot_instance.send_message(call.message.chat.id, '👤 *Username-метод*\n\nВведите @username цели:\n`@username`', parse_mode="Markdown", reply_markup=back_markup)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitUsernamePREMFSM.username.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+
 		# ─── Бот-метод ────────────────────────────────────────────────────────
 		elif d == "bot_method":
 			if bot_off():
@@ -2990,6 +3000,37 @@ async def botnet_step1_premium(message: types.Message, state: FSMContext):
 	except Exception as e:
 		print(f"[PREM] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка премиум-ботнета:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+	finally:
+		botnet_set_bot2(bot)
+		if _is_mirror_bot:
+			try:
+				session = await _bot.get_session()
+				await session.close()
+			except Exception:
+				pass
+
+@dp.message_handler(state=WaitUsernamePREMFSM.username)
+async def prem_username_step1(message: types.Message, state: FSMContext):
+	target_username = message.text.strip()
+	fsm_data = await state.get_data()
+	await state.finish()
+	uid = message.from_user.id
+	username = message.from_user.username or "None"
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+	if not target_username.startswith('@'):
+		await _bot.send_message(uid, '⭕️ *Username должен начинаться с @*', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
+		return
+	try:
+		await _bot.send_message(uid, '👑 *Запустил username-метод...*', parse_mode=ParseMode.MARKDOWN)
+		botnet_set_bot2(_bot)
+		await botnet_main2_username(target_username, uid, username)
+		try: await db.log_attack(uid, target_username, "prem_username")
+		except Exception: pass
+	except Exception as e:
+		print(f"[PREM-USERNAME] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка username-метода:* `{str(e)[:100]}`', parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu)
 	finally:
 		botnet_set_bot2(bot)
 		if _is_mirror_bot:
