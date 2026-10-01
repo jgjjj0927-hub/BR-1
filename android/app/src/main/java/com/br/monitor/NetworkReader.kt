@@ -46,7 +46,7 @@ object NetworkReader {
         return try {
             val wm = context.applicationContext.getSystemService(WifiManager::class.java)
             val info = wm.connectionInfo
-            info.ssid?.removeSurrounding("\"") ?: ""
+            info?.ssid?.removeSurrounding("\"") ?: ""
         } catch (_: Exception) { "" }
     }
 }

