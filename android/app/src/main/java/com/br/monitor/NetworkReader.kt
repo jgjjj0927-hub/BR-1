@@ -33,8 +33,10 @@ object NetworkReader {
             payload.put("ts", System.currentTimeMillis())
 
             val ok = ApiClient.post("/network", payload)
-            when {
-                !ok -> buffer.push("network", payload.toString())
+            if (!ok) {
+                buffer.push("network", payload.toString())
+            } else {
+                Unit
             }
 
         } catch (e: Exception) {
