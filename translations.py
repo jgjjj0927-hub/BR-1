@@ -282,6 +282,8 @@ _T = {
         'btn_trap_method': '🪤 Trap-метод',
         'btn_session_method': '💀 Снос сессий',
         'btn_domain_killer': '🔪 Domain Killer',
+        'btn_username_prem': '👤 Username',
+        'username_prem_caption': '👤 *Username*\n\n*└─ Введите @username цели:*\n\n`@username`',
         'domain_killer_domain_caption': (
             '🔪 *Domain Killer*\n\n'
             '*└─ Введите ссылку или домен цели:*\n'
@@ -888,6 +890,8 @@ _T = {
         'btn_trap_method': '🪤 Trap Method',
         'btn_session_method': '💀 Session Takedown',
         'btn_domain_killer': '🔪 Domain Killer',
+        'btn_username_prem': '👤 Username',
+        'username_prem_caption': '👤 *Username*\n\n*└─ Enter target @username:*\n\n`@username`',
         'domain_killer_domain_caption': (
             '🔪 *Domain Killer*\n\n'
             '*└─ Enter the target domain or URL:*\n'

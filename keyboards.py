@@ -190,6 +190,7 @@ def get_premium_functions(lang: str = 'ru', is_admin: bool = False) -> types.Inl
     m.add(types.InlineKeyboardButton(t('btn_universal_method', lang), callback_data='universal_method'))
     m.add(types.InlineKeyboardButton(t('btn_session_method', lang), callback_data='support_method'))
     m.add(types.InlineKeyboardButton(t('btn_domain_killer', lang), callback_data='domain_killer_method'))
+    m.add(types.InlineKeyboardButton(t('btn_username_prem', lang), callback_data='username_prem_method'))
     if is_admin:
         m.add(types.InlineKeyboardButton(t('btn_profile_report', lang), callback_data='profile_method'))
         m.add(types.InlineKeyboardButton(t('btn_trap_method', lang), callback_data='trap_method'))

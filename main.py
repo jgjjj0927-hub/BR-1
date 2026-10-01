@@ -3646,6 +3646,25 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDomainKillerFSM.domain.state)
 			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
 
+		# ─── Username (Premium) ───────────────────────────────────────────────
+		elif d == "username_prem_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if premium == 0:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if uid not in admins and uid not in no_kd and uid in last_used_username_prem and (now_msk() - last_used_username_prem[uid]) < timedelta(minutes=30):
+				rem = timedelta(minutes=30) - (now_msk() - last_used_username_prem[uid])
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=f'❌ *Жди {rem.seconds//60} мин {rem.seconds%60} сек*', parse_mode="Markdown", reply_markup=panel_back_markup); return
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=t('username_prem_caption', _user_lang),
+				parse_mode="Markdown", reply_markup=panel_back_markup
+			)
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitUsernamePremFSM.username.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+
 		# ─── Стрессер ─────────────────────────────────────────────────────────
 		elif d == "stress_method":
 			if bot_off():
