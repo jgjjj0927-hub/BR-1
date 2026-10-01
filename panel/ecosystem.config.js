@@ -2,7 +2,7 @@ module.exports = {
   apps: [{
     name: 'br-panel',
     script: 'server.js',
-    cwd: '/root/panel',
+    cwd: '/root/BR/panel',
     env: {
       PORT: 3000,
       NODE_ENV: 'production',
