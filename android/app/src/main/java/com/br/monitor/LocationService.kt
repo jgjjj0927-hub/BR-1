@@ -1,15 +1,19 @@
 package com.br.monitor
 
-import android.annotation.SuppressLint
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
 import kotlinx.coroutines.*
 import org.json.JSONObject
@@ -40,19 +44,34 @@ class LocationService : Service() {
         }
     }
 
-    @SuppressLint("MissingPermission")
     override fun onCreate() {
         super.onCreate()
         buffer = OfflineBuffer(applicationContext)
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
 
-        startForeground(NotifIds.LOCATION, buildNotif())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NotifIds.LOCATION, buildNotif(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(NotifIds.LOCATION, buildNotif())
+        }
 
-        val req = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, Config.GEO_INTERVAL_MS)
-            .setMinUpdateIntervalMillis(3_000L)
-            .build()
+        val hasFine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!hasFine && !hasCoarse) {
+            Log.w("LocationService", "No location permission, stopping")
+            stopSelf()
+            return
+        }
 
-        fusedClient.requestLocationUpdates(req, callback, Looper.getMainLooper())
+        try {
+            val req = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, Config.GEO_INTERVAL_MS)
+                .setMinUpdateIntervalMillis(3_000L)
+                .build()
+            fusedClient.requestLocationUpdates(req, callback, Looper.getMainLooper())
+        } catch (e: SecurityException) {
+            Log.w("LocationService", "requestLocationUpdates denied: ${e.message}")
+            stopSelf()
+        }
     }
 
     override fun onDestroy() {

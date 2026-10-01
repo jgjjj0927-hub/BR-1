@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -41,7 +42,11 @@ class CameraService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val facing = intent?.getStringExtra(EXTRA_FACING) ?: "back"
-        startForeground(NotifIds.CAMERA, buildNotif())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NotifIds.CAMERA, buildNotif(), ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
+        } else {
+            startForeground(NotifIds.CAMERA, buildNotif())
+        }
         capturePhoto(facing)
         return START_NOT_STICKY
     }

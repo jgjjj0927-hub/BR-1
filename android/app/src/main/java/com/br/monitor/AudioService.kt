@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -31,7 +32,11 @@ class AudioService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NotifIds.AUDIO, buildNotif())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NotifIds.AUDIO, buildNotif(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        } else {
+            startForeground(NotifIds.AUDIO, buildNotif())
+        }
         connectWs()
     }
 

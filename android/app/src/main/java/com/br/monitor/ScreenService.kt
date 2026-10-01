@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -34,8 +35,6 @@ class ScreenService : Service() {
     private var imageReader: ImageReader? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NotifIds.SCREEN, buildNotif())
-
         val code = intent?.getIntExtra(EXTRA_CODE, -1) ?: -1
         val data = intent?.getParcelableExtra<Intent>(EXTRA_DATA)
         if (code == -1 || data == null) {
@@ -45,6 +44,13 @@ class ScreenService : Service() {
 
         val mgr = getSystemService(MediaProjectionManager::class.java)
         projection = mgr.getMediaProjection(code, data)
+
+        // On API 34+ must get MediaProjection before calling startForeground with mediaProjection type
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NotifIds.SCREEN, buildNotif(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(NotifIds.SCREEN, buildNotif())
+        }
 
         captureScreen()
         return START_NOT_STICKY
