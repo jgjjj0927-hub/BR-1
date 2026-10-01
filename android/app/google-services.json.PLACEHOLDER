@@ -1,0 +1,6 @@
+REPLACE THIS FILE with your real google-services.json from Firebase Console:
+  1. Go to console.firebase.google.com
+  2. Create project (or use existing)
+  3. Add Android app with package: com.br.monitor
+  4. Download google-services.json → place in app/ folder (rename, remove .PLACEHOLDER)
+  5. In Firebase Console → Project Settings → Cloud Messaging → copy Server Key for your backend
