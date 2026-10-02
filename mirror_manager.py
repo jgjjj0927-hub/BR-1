@@ -22,6 +22,8 @@ import config
 import db
 import keyboards
 from captcha import generate_captcha_text, generate_captcha_image
+from translations import t
+from utils import now_msk, esc_md
 
 _running_mirrors: dict[str, asyncio.Task] = {}
 _mirror_bots: dict[str, Bot] = {}  # token → Bot instance
@@ -30,6 +32,31 @@ _mirror_bots: dict[str, Bot] = {}  # token → Bot instance
 _mirror_captcha_codes: dict[str, dict[int, str]] = {}
 
 MIRROR_LIMIT = 100  # максимум активных зеркал одновременно
+INVITE_API = "http://127.0.0.1:8181/invite"
+CHECK_API  = "http://127.0.0.1:8181/check"
+
+
+async def _api_get_invite_links() -> tuple[str, str]:
+    """Получает свежие инвайт-ссылки у основного бота по HTTP."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(INVITE_API, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                data = await resp.json()
+                return data.get("link1", ""), data.get("link2", "")
+    except Exception:
+        return "", ""
+
+
+async def _api_check_subscription(uid: int) -> bool:
+    """Проверяет подписку юзера через HTTP API основного бота."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(CHECK_API, params={"uid": uid},
+                                   timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                data = await resp.json()
+                return bool(data.get("subscribed", False))
+    except Exception:
+        return True  # при ошибке пропускаем (чтоб не блокировать юзера)
 
 
 class MirrorCaptchaFSM(StatesGroup):
@@ -37,6 +64,35 @@ class MirrorCaptchaFSM(StatesGroup):
 
 class MirrorCreateFSM(StatesGroup):
     token = State()
+
+
+async def _mirror_send_subscribe(uid: int, mirror_bot: Bot):
+    """Отправляет юзеру требование подписки, получая ссылки через HTTP API."""
+    try:
+        lang = await db.get_lang(uid)
+    except Exception:
+        lang = 'ru'
+    link1, link2 = await _api_get_invite_links()
+    from translations import t
+    import config as _cfg
+    if not link1:
+        link1 = _cfg.bot_channel_link
+    if not link2:
+        link2 = _cfg.bot_channel2_link
+    markup = _build_sub_markup(link1, link2, lang)
+    await mirror_bot.send_message(uid, t('sub_required', lang), parse_mode="Markdown", reply_markup=markup)
+
+
+def _build_sub_markup(link1: str, link2: str, lang: str):
+    from aiogram import types as _types
+    from translations import t
+    markup = _types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        _types.InlineKeyboardButton(t('sub_btn_1', lang), url=link1),
+        _types.InlineKeyboardButton(t('sub_btn_2', lang), url=link2),
+        _types.InlineKeyboardButton(t('sub_btn_check', lang), callback_data='start_check_sub'),
+    )
+    return markup
 
 
 def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
@@ -70,13 +126,13 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             mails_count = 0
         text = (
             ">🤖 *Админ меню:*\n\n📊 *Статистика:*\n"
-            f"*├─👥 Всего пользователей:* `{users_count}`\n"
-            f"*├─💳 С подпиской:* `{subscribers_count}`\n"
-            f"*├─🎯 С репортами:* `{reports_users_count}`\n"
-            f"*├─🪞 Зеркал:* `{mirrors_count}`\n"
-            f"*├─🕒 Сессий в ботнете:* `{sessions_count}`\n"
-            f"*├─👑 Сессий в премиум ботнете:* `{sessions_count_prem}`\n"
-            f"*├─✉️ Почт добавлено:* `{mails_count}`\n\n"
+            f"*├─👥 Всего пользователей:* {users_count}\n"
+            f"*├─💳 С подпиской:* {subscribers_count}\n"
+            f"*├─🎯 С репортами:* {reports_users_count}\n"
+            f"*├─🪞 Зеркал:* {mirrors_count}\n"
+            f"*├─🕒 Сессий в ботнете:* {sessions_count}\n"
+            f"*├─👑 Сессий в премиум ботнете:* {sessions_count_prem}\n"
+            f"*├─✉️ Почт добавлено:* {mails_count}\n\n"
             "*/promo PROMOCODE DAYS ACTIVATIONS \- создать промокод*\n"
             "*/on \- включить бота*\n*/off \- выключить бота*\n"
             "*/addwl ID \- добавить в вайтлист*\n"
@@ -99,7 +155,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         pattern = parts[1].lstrip('@').lower()
         await db.add_target_whitelist(pattern, message.from_user.id)
         await mirror_bot.send_message(message.chat.id,
-            f"✅ *`@{pattern}` добавлен в белый список целей!*", parse_mode="Markdown")
+            f"✅ **@{pattern}* добавлен в белый список целей!*", parse_mode="Markdown")
 
     @dp.message_handler(commands=['rmtargetwl'])
     async def mirror_rmtargetwl(message: types.Message):
@@ -112,7 +168,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         pattern = parts[1].lstrip('@').lower()
         await db.remove_target_whitelist(pattern)
         await mirror_bot.send_message(message.chat.id,
-            f"🗑 *`@{pattern}` удалён из белого списка!*", parse_mode="Markdown")
+            f"🗑 **@{pattern}* удалён из белого списка!*", parse_mode="Markdown")
 
     @dp.message_handler(commands=['listtargetwl'])
     async def mirror_listtargetwl(message: types.Message):
@@ -122,13 +178,30 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         if not patterns:
             await mirror_bot.send_message(message.chat.id, "📋 *Белый список целей пуст.*", parse_mode="Markdown")
             return
-        lines = ["📋 *Белый список целей:*\n"] + [f"• `@{p}`" for p in patterns]
+        lines = ["📋 *Белый список целей:*\n"] + [f"• *@{p}*" for p in patterns]
         await mirror_bot.send_message(message.chat.id, "\n".join(lines), parse_mode="Markdown")
 
+    async def _send_and_pin_site_msg(uid: int):
+        try:
+            msg = await mirror_bot.send_message(
+                uid,
+                "🔗 *Бот удален?* — @Brown\_V2 \| [br\-v2\.com](https://br-v2.com)",
+                parse_mode="MarkdownV2",
+                disable_web_page_preview=False
+            )
+            await mirror_bot.pin_chat_message(uid, msg.message_id, disable_notification=True)
+        except Exception as e:
+            print(f"[MIRROR PIN] Ошибка: {e}", flush=True)
+
     # ─── /start ───────────────────────────────────────────────────────────────
-    @dp.message_handler(commands=['start'])
-    async def mirror_start(message: types.Message):
+    @dp.message_handler(commands=['start'], state='*')
+    async def mirror_start(message: types.Message, state: FSMContext):
         uid = message.chat.id
+        await state.finish()  # сбрасываем любое старое состояние
+        try:
+            await db.touch_user_mirror(uid, token)
+        except Exception:
+            pass
         if await db.is_blocked(uid):
             return
         is_new = not await db.user_exists(uid)
@@ -141,19 +214,18 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 uid, photo=img,
                 caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",
                 parse_mode="Markdown")
-            await MirrorCaptchaFSM.code.set()
+            await state.set_state(MirrorCaptchaFSM.code.state)
             if is_new:
                 args = message.get_args()
                 if args and args.startswith("ref_"):
-                    async with dp.current_state(user=uid).proxy() as fsm_data:
-                        fsm_data['ref_arg'] = args
+                    await state.update_data(ref_arg=args)
             return
         await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
-        # Проверяем подписку через основной бот
-        from main import check_subscription, send_subscribe_required
-        if not await check_subscription(uid):
-            await send_subscribe_required(uid, mirror_bot)
+        # Проверяем подписку через HTTP API основного бота
+        if not await _api_check_subscription(uid):
+            await _mirror_send_subscribe(uid, mirror_bot)
             return
+        await _send_and_pin_site_msg(uid)
         await mirror_bot.send_photo(
             uid, photo=open('material/menu.png', 'rb'),
             caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
@@ -184,11 +256,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 except Exception:
                     pass
             await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
-            # Проверяем подписку через основной бот
-            from main import check_subscription, send_subscribe_required
-            if not await check_subscription(uid):
-                await send_subscribe_required(uid, mirror_bot)
+            # Проверяем подписку через HTTP API основного бота
+            if not await _api_check_subscription(uid):
+                await _mirror_send_subscribe(uid, mirror_bot)
                 return
+            await _send_and_pin_site_msg(uid)
             await mirror_bot.send_photo(
                 uid, photo=open('material/menu.png', 'rb'),
                 caption='>*Добро пожаловать в Brown V2\!*\n\n*Меню:*',
@@ -200,72 +272,191 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                 uid, photo=generate_captcha_image(code),
                 caption="*❌ Неверно! Попробуй ещё раз:*", parse_mode="Markdown")
 
-    # ─── Оплата sub_ ──────────────────────────────────────────────────────────
-    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'))
-    async def mirror_sub(callback_query: types.CallbackQuery):
+    _MIRROR_SUB_MAP = {
+        "1":          ("1",  "1",   "sub_1d",      "100"),
+        "3":          ("2",  "3",   "sub_3d",      "175"),
+        "7":          ("4",  "7",   "sub_7d",      "350"),
+        "30":         ("8",  "30",  "sub_30d",     "700"),
+        "60":         ("12", "60",  "sub_60d",     "1100"),
+        "premupgrade":("5",  "1",   "sub_premium", "400"),
+    }
+    _MIRROR_YM_WALLET = "4100118677444773"
+    _MIRROR_TON_ADDRESS = "UQDeT6tcvKiwrR_fCa0ORJ_OOKPQbnvbzyB8l1YXzXK0iLCf"
+
+    async def _mirror_edit(callback_query, caption, markup):
         try:
-            from pyCryptoPayAPI import pyCryptoPayAPI
-            crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
-            user_id = callback_query.from_user.id
-            sub_map = {
-                "1": ("1", "1", "на 1 день"),
-                "3": ("2", "3", "на 3 дня"),
-                "7": (4, "7", "на 7 дней"),
-                "30": (8, "30", "на 30 дней"),
-                "forever": (6, "999", "навсегда"),
-                "premupgrade": (5, "1", "Премиум"),
-            }
-            st = callback_query.data.split('_')[1]
-            if st not in sub_map:
-                return
-            amount, sub_days, pidor = sub_map[st]
-            invoice = await asyncio.to_thread(crypto.create_invoice, asset='USDT', amount=amount)
-            pay_check = types.InlineKeyboardMarkup(row_width=2)
-            pay_check.add(
-                types.InlineKeyboardButton("💸 Оплатить", url=invoice['pay_url']),
-                types.InlineKeyboardButton("🔍 Проверить",
-                    callback_data=f'check_status_{invoice["invoice_id"]}_{st}_{sub_days}'))
-            pay_check.add(keyboards.back)
             await mirror_bot.edit_message_caption(
                 chat_id=callback_query.message.chat.id,
                 message_id=callback_query.message.message_id,
-                caption=f">⚙️ *Покупка*\n*└─ Вы покупаете: {pidor}*\n*└─ Вы платите: {amount}$*",
-                parse_mode="MarkdownV2", reply_markup=pay_check)
+                caption=caption, parse_mode="MarkdownV2", reply_markup=markup)
+        except Exception:
+            await mirror_bot.edit_message_text(
+                caption, chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
+                parse_mode="MarkdownV2", reply_markup=markup)
+
+    async def _mirror_create_pay_link(ym_url: str) -> str:
+        try:
+            import aiohttp as _aiohttp
+            async with _aiohttp.ClientSession() as _s:
+                async with _s.post(
+                    'http://127.0.0.1:8080/register_pay',
+                    json={'url': ym_url},
+                    timeout=_aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    data = await resp.json()
+                    return f"https://br-v2.com/pay/{data['token']}"
+        except Exception:
+            return ym_url
+
+    # ─── Оплата sub_ ──────────────────────────────────────────────────────────
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'), state='*')
+    async def mirror_sub(callback_query: types.CallbackQuery):
+        try:
+            await callback_query.answer()
+            st = callback_query.data.split('_', 1)[1]
+            if st not in _MIRROR_SUB_MAP:
+                return
+            _lang = await db.get_lang(callback_query.from_user.id)
+            amount_usd, _, pidor_key, _ = _MIRROR_SUB_MAP[st]
+            pidor = t(pidor_key, _lang)
+            method_markup = types.InlineKeyboardMarkup(row_width=1)
+            method_markup.add(
+                types.InlineKeyboardButton("CryptoBot", callback_data=f'pay_crypto_{st}'),
+                types.InlineKeyboardButton("🇷🇺 СБП", callback_data=f'pay_sbp_{st}'),
+                types.InlineKeyboardButton("TonKeeper", callback_data=f'pay_ton_{st}'),
+                keyboards.back,
+            )
+            await _mirror_edit(callback_query, t('shop_buy_select', _lang, item=pidor), method_markup)
         except Exception as e:
             print(f"[MIRROR] sub: {e}")
 
-    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'))
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_crypto_'), state='*')
+    async def mirror_pay_crypto(callback_query: types.CallbackQuery):
+        try:
+            await callback_query.answer()
+            from pyCryptoPayAPI import pyCryptoPayAPI
+            _crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
+            st = callback_query.data[len('pay_crypto_'):]
+            if st not in _MIRROR_SUB_MAP:
+                return
+            _lang = await db.get_lang(callback_query.from_user.id)
+            amount_usd, sub_days, pidor_key, _ = _MIRROR_SUB_MAP[st]
+            pidor = t(pidor_key, _lang)
+            invoice = await asyncio.to_thread(_crypto.create_invoice, asset='USDT', amount=amount_usd)
+            pay_check = types.InlineKeyboardMarkup(row_width=2)
+            pay_check.add(
+                types.InlineKeyboardButton(t('pay_btn_pay', _lang), url=invoice['pay_url']),
+                types.InlineKeyboardButton(t('pay_btn_paid', _lang),
+                    callback_data=f'check_status_{invoice["invoice_id"]}_{st}_{sub_days}'))
+            pay_check.add(keyboards.back)
+            await _mirror_edit(callback_query, t('shop_buy_usd', _lang, item=pidor, amount=amount_usd), pay_check)
+        except Exception as e:
+            print(f"[MIRROR] pay_crypto: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_sbp_'), state='*')
+    async def mirror_pay_sbp(callback_query: types.CallbackQuery):
+        try:
+            import urllib.parse as _urlparse
+            await callback_query.answer()
+            st = callback_query.data[len('pay_sbp_'):]
+            if st not in _MIRROR_SUB_MAP:
+                return
+            _lang = await db.get_lang(callback_query.from_user.id)
+            amount_usd, sub_days, pidor_key, amount_rub = _MIRROR_SUB_MAP[st]
+            pidor = t(pidor_key, _lang)
+            user_id = callback_query.from_user.id
+            label = f"sub_{user_id}_{st}"
+            targets = _urlparse.quote(f"Subscription BR V2 {pidor}", safe='')
+            ym_url = (
+                f"https://yoomoney.ru/quickpay/confirm.xml"
+                f"?receiver={_MIRROR_YM_WALLET}"
+                f"&quickpay-form=shop"
+                f"&targets={targets}"
+                f"&sum={amount_rub}"
+                f"&label={label}"
+            )
+            short_url = await _mirror_create_pay_link(ym_url)
+            sbp_markup = types.InlineKeyboardMarkup(row_width=1)
+            sbp_markup.add(
+                types.InlineKeyboardButton(t('pay_btn_card', _lang), url=short_url),
+                types.InlineKeyboardButton(t('pay_btn_paid', _lang), callback_data=f'sbp_paid_{st}'),
+                keyboards.back,
+            )
+            await _mirror_edit(callback_query, t('shop_buy_rub', _lang, item=pidor, amount=amount_rub), sbp_markup)
+        except Exception as e:
+            print(f"[MIRROR] pay_sbp: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sbp_paid_'), state='*')
+    async def mirror_sbp_paid(callback_query: types.CallbackQuery):
+        try:
+            await callback_query.answer()
+            _lang = await db.get_lang(callback_query.from_user.id)
+            await mirror_bot.send_message(
+                callback_query.from_user.id,
+                t('pay_sub_pending', _lang), parse_mode="MarkdownV2")
+        except Exception as e:
+            print(f"[MIRROR] sbp_paid: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_ton_'), state='*')
+    async def mirror_pay_ton(callback_query: types.CallbackQuery):
+        try:
+            await callback_query.answer()
+            st = callback_query.data[len('pay_ton_'):]
+            if st not in _MIRROR_SUB_MAP:
+                return
+            _lang = await db.get_lang(callback_query.from_user.id)
+            amount_usd, _, pidor_key, _ = _MIRROR_SUB_MAP[st]
+            pidor = t(pidor_key, _lang)
+            ton_markup = types.InlineKeyboardMarkup(row_width=1)
+            ton_markup.add(
+                types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
+                keyboards.back,
+            )
+            await _mirror_edit(callback_query,
+                t('shop_buy_ton', _lang, item=pidor, amount=amount_usd, address=_MIRROR_TON_ADDRESS),
+                ton_markup)
+        except Exception as e:
+            print(f"[MIRROR] pay_ton: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'), state='*')
     async def mirror_check_status(callback_query: types.CallbackQuery):
         try:
             from pyCryptoPayAPI import pyCryptoPayAPI
-            crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
+            _crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
             parts = callback_query.data.split('_')
             invoice_id, sub_type, sub_days = parts[2], parts[3], parts[4]
             user_id = callback_query.from_user.id
-            old_invoice = await asyncio.to_thread(crypto.get_invoices, invoice_ids=invoice_id)
+            _lang = await db.get_lang(user_id)
+            old_invoice = await asyncio.to_thread(_crypto.get_invoices, invoice_ids=invoice_id)
             if old_invoice['items'][0]['status'] != "paid":
-                await mirror_bot.send_message(user_id, "❌ *Оплата не получена!*", parse_mode=ParseMode.MARKDOWN)
+                await mirror_bot.send_message(user_id, t('pay_not_received', _lang), parse_mode=ParseMode.MARKDOWN)
                 return
-            # Защита от повторного начисления
             if await db.is_invoice_used(invoice_id):
-                await mirror_bot.send_message(user_id, "✅ *Этот платёж уже был обработан!*", parse_mode=ParseMode.MARKDOWN)
+                await mirror_bot.send_message(user_id, t('pay_already_processed', _lang), parse_mode=ParseMode.MARKDOWN)
                 return
             await db.mark_invoice_used(invoice_id, user_id)
-            await mirror_bot.edit_message_caption(
-                chat_id=callback_query.message.chat.id,
-                message_id=callback_query.message.message_id,
-                caption=">⚙️ *Спасибо за заказ*", parse_mode="MarkdownV2",
-                reply_markup=keyboards.back_markup)
+            try:
+                await mirror_bot.edit_message_caption(
+                    chat_id=callback_query.message.chat.id,
+                    message_id=callback_query.message.message_id,
+                    caption=t('pay_thanks', _lang), parse_mode="MarkdownV2",
+                    reply_markup=keyboards.back_markup)
+            except Exception:
+                pass
             if sub_type != "premupgrade":
-                new_date = (datetime.now() + timedelta(days=int(sub_days))).strftime("%Y-%m-%d %H:%M:%S")
+                new_date = (now_msk() + timedelta(days=int(sub_days))).strftime("%Y-%m-%d %H:%M:%S")
                 await db.set_subscribe(user_id, new_date)
                 referrer_id = await db.get_referrer_id(user_id)
                 if referrer_id:
                     bonus_days = max(1, int(int(sub_days) * 0.1))
-                    await db.set_subscribe(referrer_id,
-                        (datetime.now() + timedelta(days=bonus_days)).strftime("%Y-%m-%d %H:%M:%S"))
-                    await mirror_bot.send_message(referrer_id,
-                        f"💰 *Реферальный бонус!*\n*└─ +{bonus_days} день подписки*",
+                    ref_new_date = (now_msk() + timedelta(days=bonus_days)).strftime("%Y-%m-%d %H:%M:%S")
+                    await db.set_subscribe(referrer_id, ref_new_date)
+                    await mirror_bot.send_message(
+                        referrer_id,
+                        f"💰 *Реферальный бонус!*\n"
+                        f"*└─ Ваш реферал купил подписку*\n"
+                        f"*└─ Вам начислено: +{bonus_days} день подписки*",
                         parse_mode="Markdown")
             else:
                 await db.set_premium(user_id, 1)
@@ -295,7 +486,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                     await mirror_bot.send_photo(uid, photo=img,
                         caption=f"*Привет, {message.from_user.first_name}!*\n\n*Докажи, что ты не робот 🤖*\n*└─ Введи код с картинки:*",
                         parse_mode="Markdown")
-                    await MirrorCaptchaFSM.code.set()
+                    await state.set_state(MirrorCaptchaFSM.code.state)
                     return
                 await mirror_bot.send_sticker(uid, InputFile("AnimatedSticker.tgs"))
                 await mirror_bot.send_photo(uid, photo=open('material/menu.png', 'rb'),
@@ -308,7 +499,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         if ':' not in new_token or len(new_token) < 30:
             await state.finish()
             await mirror_bot.send_message(uid,
-                "❌ *Неверный формат токена!*\n*Пример:* `1234567890:ABCdef...`",
+                "❌ *Неверный формат токена!*\n*Пример:* 1234567890:ABCdef...",
                 parse_mode="Markdown")
             return
 
@@ -343,7 +534,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         await mirror_bot.send_message(
             uid,
             f"✅ *Зеркало создано!*\n\n"
-            f"🤖 *Бот:* `{bot_username}`\n"
+            f"🤖 *Бот:* {bot_username}\n"
             f"📊 *Всего зеркал: {mirror_count}*"
             f"{bonus_msg}",
             parse_mode="Markdown")
@@ -353,9 +544,9 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             await main_bot.send_message(
                 bot_logs,
                 f"🪞 *Новое зеркало*\n"
-                f"*└─ Пользователь:* `{uid}`\n"
-                f"*└─ Бот:* `{bot_username}`\n"
-                f"*└─ Всего зеркал:* `{mirror_count}`",
+                f"*└─ Пользователь:* {uid}\n"
+                f"*└─ Бот:* {bot_username}\n"
+                f"*└─ Всего зеркал:* {mirror_count}",
                 parse_mode="Markdown")
         except Exception:
             pass
@@ -365,8 +556,18 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     @dp.message_handler(state='*', content_types=types.ContentTypes.TEXT)
     async def mirror_fsm_router(message: types.Message, state: FSMContext):
         """Перенаправляет все текстовые FSM состояния в обработчики main.py"""
+        uid = message.from_user.id
+        # Фиксируем последнее активное зеркало юзера
+        try:
+            await db.touch_user_mirror(uid, token)
+        except Exception:
+            pass
         current_state = await state.get_state()
         if current_state is None:
+            try:
+                await message.answer("👋 Нажми /start чтобы начать.", parse_mode="Markdown")
+            except Exception:
+                pass
             return
 
         from main import (
@@ -381,6 +582,8 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             admin_remove_reports_uid, admin_remove_reports_amount,
             admin_add_case_uid, admin_add_case_amount,
             create_promo_code, create_promo_days, create_promo_activations,
+            admin_send_msg_target, admin_send_msg_text, AdminSendMsgFSM,
+            WaitProbivFSM, probiv_query,
             WaitTextFSM, WaitMailTopicFSM, WaitMailTextFSM,
             WaitLinkFSM, WaitLinkPREMFSM, WaitBotLinkFSM,
             WaitMirrorTokenFSM, WaitPromoFSM, WaitStressFSM, WaitChannelFSM,
@@ -391,8 +594,14 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             AdminAddReportsFSM, AdminRemoveReportsFSM, AdminAddCaseFSM,
             WaitProfileFSM, profile_step1,
             WaitTrapFSM, trap_step1,
+            WaitUsernamePremFSM, username_prem_got,
             WaitTelegraphFSM, telegraph_step1, telegraph_custom_text,
-            WaitUsernamePREMFSM, prem_username_step1,
+            WaitUniversalFSM, universal_step_link, universal_step_tida_text,
+            WaitCaptchaFSM, check_captcha,
+            WaitCodeFSM, code_step1,
+            CheckUserFSM, admin_check_user_fsm,
+            WaitSupportFSM, support_step1, support_step2,
+            WaitDomainKillerFSM, domain_killer_step1, domain_killer_step2,
         )
 
         handlers = {
@@ -434,9 +643,21 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             AdminAddCaseFSM.amount.state: admin_add_case_amount,
             WaitProfileFSM.link.state: profile_step1,
             WaitTrapFSM.victim.state: trap_step1,
+            WaitUsernamePremFSM.username.state: username_prem_got,
             WaitTelegraphFSM.link.state: telegraph_step1,
             WaitTelegraphFSM.custom_text.state: telegraph_custom_text,
-            WaitUsernamePREMFSM.username.state: prem_username_step1,
+            AdminSendMsgFSM.target.state: admin_send_msg_target,
+            AdminSendMsgFSM.text.state: admin_send_msg_text,
+            WaitProbivFSM.query.state: probiv_query,
+            WaitUniversalFSM.link.state: universal_step_link,
+            WaitUniversalFSM.tida_text.state: universal_step_tida_text,
+            WaitCaptchaFSM.code.state: check_captcha,
+            WaitCodeFSM.phone.state: code_step1,
+            CheckUserFSM.query.state: admin_check_user_fsm,
+            WaitSupportFSM.target.state: support_step1,
+            WaitSupportFSM.phone.state: support_step2,
+            WaitDomainKillerFSM.domain.state: domain_killer_step1,
+            WaitDomainKillerFSM.reason.state: domain_killer_step2,
         }
 
         handler = handlers.get(current_state)
@@ -446,44 +667,84 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     return mirror_bot, dp
 
 
+async def _poll_loop(mirror_bot, dp):
+    """Ручной polling loop — даёт полный контроль над исключениями.
+    dp.start_polling() имеет внутренний retry который глотает TerminatedByOtherGetUpdates,
+    поэтому используем свой цикл чтобы исключение доходило до вызывающего кода."""
+    from aiogram import Bot as _Bot, Dispatcher as _Dispatcher
+    offset = 0
+    while True:
+        updates = await mirror_bot.get_updates(offset=offset, timeout=20, limit=100)
+        for update in updates:
+            # Устанавливаем ContextVar ПЕРЕД ensure_future чтобы задача
+            # унаследовала правильный бот и диспетчер (иначе message.bot
+            # указывает на главного бота через глобальный ContextVar)
+            _Bot.set_current(mirror_bot)
+            _Dispatcher.set_current(dp)
+            asyncio.ensure_future(dp.process_update(update))
+        if updates:
+            offset = max(u.update_id + 1 for u in updates)
+
+
 async def _run_mirror(token: str):
-    mirror_bot, dp = _build_mirror_dispatcher(token)
-    _mirror_bots[token] = mirror_bot
-    try:
-        print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}...", flush=True)
-        # Сначала закрываем все предыдущие соединения — сбрасываем webhook и старые сессии
-        await mirror_bot.delete_webhook(drop_pending_updates=True)
-        await asyncio.sleep(3)  # ждём 3с чтобы Telegram завершил старые polling соединения
-        await dp.start_polling()
-    except Unauthorized:
-        print(f"[MIRROR] 🚫 Токен невалидный, удаляем: {token[:20]}", flush=True)
-        await db.remove_mirror_by_token(token)
-    except TerminatedByOtherGetUpdates:
-        print(f"[MIRROR] ⚠️ Конфликт для {token[:20]}, повторная попытка через 5с...", flush=True)
-        _running_mirrors.pop(token, None)
-        await asyncio.sleep(5)
-        await start_mirror(token)
-        return
-    except Exception as e:
-        print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
-    finally:
+    max_retries = 5
+    for attempt in range(max_retries):
+        mirror_bot, dp = _build_mirror_dispatcher(token)
+        _mirror_bots[token] = mirror_bot
         try:
-            await dp.storage.close()
-            await dp.storage.wait_closed()
-        except Exception:
-            pass
-        try:
-            session = await mirror_bot.get_session()
-            await session.close()
-        except Exception:
-            pass
-        _running_mirrors.pop(token, None)
-        _mirror_bots.pop(token, None)
-        print(f"[MIRROR] 🔴 Зеркало {token[:20]} остановлено", flush=True)
+            print(f"[MIRROR] 🚀 Запуск зеркала {token[:20]}... (попытка {attempt+1})", flush=True)
+            # Сначала сбрасываем вебхук — это освобождает слот быстрее
+            try:
+                await mirror_bot.delete_webhook(drop_pending_updates=True)
+            except Exception:
+                pass
+            # Ждём пока старая long-poll сессия умрёт
+            for kick in range(10):
+                try:
+                    await mirror_bot.get_updates(offset=-1, timeout=0, limit=1)
+                    break
+                except TerminatedByOtherGetUpdates:
+                    print(f"[MIRROR] ⏳ Слот занят {token[:20]}, жду 2с... ({kick+1}/10)", flush=True)
+                    await asyncio.sleep(2)
+                except Exception:
+                    break
+            await _poll_loop(mirror_bot, dp)
+            break  # нормальный выход из цикла (polling остановлен снаружи)
+        except Unauthorized:
+            print(f"[MIRROR] 🚫 Токен невалидный, удаляем: {token[:20]}", flush=True)
+            await db.remove_mirror_by_token(token)
+            break
+        except TerminatedByOtherGetUpdates:
+            backoff = min(35 * (attempt + 1), 120)
+            print(f"[MIRROR] ⚠️ Конфликт {token[:20]}, повтор через {backoff}с...", flush=True)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[MIRROR] ❌ Ошибка зеркала {token[:20]}: {e}", flush=True)
+            break
+        finally:
+            try:
+                await dp.storage.close()
+                await dp.storage.wait_closed()
+            except Exception:
+                pass
+            try:
+                if mirror_bot._session and not mirror_bot._session.closed:
+                    await mirror_bot._session.close()
+            except Exception:
+                pass
+            _mirror_bots.pop(token, None)
+        if attempt < max_retries - 1:
+            await asyncio.sleep(backoff)
+    _running_mirrors.pop(token, None)
+    print(f"[MIRROR] 🔴 Зеркало {token[:20]} остановлено", flush=True)
 
 
 async def start_mirror(token: str):
     if token in _running_mirrors:
+        return
+    if token == os.environ.get("TOKEN", ""):
+        print(f"[MIRROR] ⛔ Попытка запустить главный токен как зеркало — пропускаем", flush=True)
         return
     task = asyncio.ensure_future(_run_mirror(token))
     _running_mirrors[token] = task
@@ -492,6 +753,10 @@ async def start_mirror(token: str):
 
 async def start_all_mirrors():
     tokens = await db.get_all_mirror_tokens()
+    # Исключаем главный токен бота — если он случайно попал в БД зеркал,
+    # его kick-loop будет убивать polling основного бота
+    main_token = os.environ.get("TOKEN", "")
+    tokens = [t for t in tokens if t != main_token]
     print(f"[MIRROR] Загружаем {len(tokens)} зеркал из БД...", flush=True)
 
     async def check_token(token: str) -> tuple:
@@ -516,9 +781,11 @@ async def start_all_mirrors():
 
 
 async def _start_mirrors_background(tokens: list):
-    for token in tokens:
-        await start_mirror(token)
-        await asyncio.sleep(0.05)
+    batch_size = 20
+    for i in range(0, len(tokens), batch_size):
+        batch = tokens[i:i + batch_size]
+        await asyncio.gather(*[start_mirror(t) for t in batch])
+        await asyncio.sleep(0.3)
 
 
 def get_running_tokens() -> list:
