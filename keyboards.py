@@ -193,6 +193,7 @@ def get_premium_functions(lang: str = 'ru', is_admin: bool = False) -> types.Inl
     if is_admin:
         m.add(types.InlineKeyboardButton(t('btn_profile_report', lang), callback_data='profile_method'))
         m.add(types.InlineKeyboardButton(t('btn_trap_method', lang), callback_data='trap_method'))
+        m.add(types.InlineKeyboardButton('👤 Username-метод', callback_data='prem_username_method'))
     m.add(types.InlineKeyboardButton(t('btn_back', lang), callback_data='functions'))
     return m
 
