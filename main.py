@@ -801,21 +801,14 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 		st = callback_query.data.split('_', 1)[1]
 		if st not in _SUB_MAP:
 			return
-		_lang = await db.get_lang(user_id)
-		amount_usd, _, pidor_key, amount_rub = _SUB_MAP[st]
-		pidor = t(pidor_key, _lang)
-		method_markup = types.InlineKeyboardMarkup(row_width=1)
-		method_markup.add(
-			types.InlineKeyboardButton("CryptoBot", callback_data=f'pay_crypto_{st}'),
-			types.InlineKeyboardButton("🇷🇺 СБП — написать в поддержку", url='https://t.me/BR_V2_Support'),
-			types.InlineKeyboardButton("TonKeeper", callback_data=f'pay_ton_{st}'),
-			keyboards.back,
-		)
+		stub_markup = types.InlineKeyboardMarkup(row_width=1)
+		stub_markup.add(keyboards.back)
+		await bot.answer_callback_query(callback_query.id)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption=t('shop_buy_select', _lang, item=pidor),
-			parse_mode="MarkdownV2", reply_markup=method_markup
+			caption="🔧 *Оплата временно недоступна*\n\n_Скоро добавим_ — следите за обновлениями\\!",
+			parse_mode="MarkdownV2", reply_markup=stub_markup
 		)
 	except Exception as e:
 		print(f"handle_subscription: {e}")
@@ -823,29 +816,14 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_crypto_'), state='*')
 async def pay_crypto_callback(callback_query: types.CallbackQuery):
 	try:
-		user_id = callback_query.from_user.id
-		if not await check_user_in_db(user_id):
-			return
-		st = callback_query.data[len('pay_crypto_'):]
-		if st not in _SUB_MAP:
-			return
-		_lang = await db.get_lang(user_id)
-		amount_usd, sub_days, pidor_key, _ = _SUB_MAP[st]
-		pidor = t(pidor_key, _lang)
-		invoice = await asyncio.to_thread(crypto.create_invoice, asset='USDT', amount=amount_usd)
-		pay_url = invoice['pay_url']
-		invoice_id = invoice['invoice_id']
-		pay_check = types.InlineKeyboardMarkup(row_width=2)
-		pay_check.add(
-			types.InlineKeyboardButton(t('pay_btn_pay', _lang), url=pay_url),
-			types.InlineKeyboardButton(t('pay_btn_paid', _lang), callback_data=f'check_status_{invoice_id}_{st}_{sub_days}')
-		)
-		pay_check.add(keyboards.back)
+		stub_markup = types.InlineKeyboardMarkup(row_width=1)
+		stub_markup.add(keyboards.back)
+		await bot.answer_callback_query(callback_query.id)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption=t('shop_buy_usd', _lang, item=pidor, amount=amount_usd),
-			parse_mode="MarkdownV2", reply_markup=pay_check
+			caption="🔧 *Оплата временно недоступна*\n\n_Скоро добавим_ — следите за обновлениями\\!",
+			parse_mode="MarkdownV2", reply_markup=stub_markup
 		)
 	except Exception as e:
 		print(f"pay_crypto_callback: {e}")
@@ -867,18 +845,15 @@ async def _create_pay_link(ym_url: str) -> str:
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_sbp_'), state='*')
 async def pay_sbp_callback(callback_query: types.CallbackQuery):
 	try:
-		_sup_mkp = types.InlineKeyboardMarkup(row_width=1)
-		_sup_mkp.add(
-			types.InlineKeyboardButton('✍️ Написать в поддержку', url='https://t.me/BR_V2_Support'),
-			keyboards.back,
-		)
+		stub_markup = types.InlineKeyboardMarkup(row_width=1)
+		stub_markup.add(keyboards.back)
+		await bot.answer_callback_query(callback_query.id)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption="⚠️ *СБП временно недоступен*\n\nДля покупки подписки напишите в поддержку — @BR\\_V2\\_Support\nМы оформим вручную в течение нескольких минут\\.",
-			parse_mode="MarkdownV2", reply_markup=_sup_mkp
+			caption="🔧 *Оплата временно недоступна*\n\n_Скоро добавим_ — следите за обновлениями\\!",
+			parse_mode="MarkdownV2", reply_markup=stub_markup
 		)
-		await bot.answer_callback_query(callback_query.id)
 	except Exception as e:
 		await bot.answer_callback_query(callback_query.id)
 		print(f"pay_sbp_callback: {e}")
@@ -944,25 +919,14 @@ async def case_sbp_paid_callback(callback_query: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_ton_'), state='*')
 async def pay_ton_callback(callback_query: types.CallbackQuery):
 	try:
-		user_id = callback_query.from_user.id
-		if not await check_user_in_db(user_id):
-			return
-		st = callback_query.data[len('pay_ton_'):]
-		if st not in _SUB_MAP:
-			return
-		_lang = await db.get_lang(user_id)
-		amount_usd, _, pidor_key, _ = _SUB_MAP[st]
-		pidor = t(pidor_key, _lang)
-		ton_markup = types.InlineKeyboardMarkup(row_width=1)
-		ton_markup.add(
-			types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
-			keyboards.back,
-		)
+		stub_markup = types.InlineKeyboardMarkup(row_width=1)
+		stub_markup.add(keyboards.back)
+		await bot.answer_callback_query(callback_query.id)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption=t('shop_buy_ton', _lang, item=pidor, amount=amount_usd, address=_TON_ADDRESS),
-			parse_mode="MarkdownV2", reply_markup=ton_markup
+			caption="🔧 *Оплата временно недоступна*\n\n_Скоро добавим_ — следите за обновлениями\\!",
+			parse_mode="MarkdownV2", reply_markup=stub_markup
 		)
 	except Exception as e:
 		print(f"pay_ton_callback: {e}")
