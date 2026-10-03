@@ -1471,12 +1471,14 @@ async def cispay_webhook(request: Request):
 @app.post("/xrocket/webhook")
 async def xrocket_webhook(request: Request):
     raw = await request.body()
-    # xRocket отправляет Webhook Token в заголовке для верификации
-    key_header = request.headers.get("Rocket-Pay-Key", "")
+    # Pay API: HMAC-SHA256(raw_body, webhook_token) в заголовке X-Rocket-Signature
+    sig_header = request.headers.get("X-Rocket-Signature", "")
     token = XROCKET_WEBHOOK_TOKEN or XROCKET_API_KEY
-    if token and key_header != token:
-        log.warning("[xrocket-webhook] invalid Rocket-Pay-Key")
-        raise HTTPException(status_code=403, detail="bad key")
+    if token and sig_header:
+        expected = hmac.new(token.encode(), raw, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, sig_header):
+            log.warning("[xrocket-webhook] invalid signature")
+            raise HTTPException(status_code=403, detail="bad signature")
 
     try:
         data = json.loads(raw)
