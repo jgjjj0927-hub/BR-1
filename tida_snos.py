@@ -452,7 +452,7 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
                     for btn in row.buttons:
                         if "confirm" in btn.text.lower():
                             if isinstance(btn, KeyboardButtonCallback):
-                                await client.request(btn.click(bot_entity))
+                                await event.message.click(data=btn.data)
                                 step = 5
                                 logger.info(f"[TIDA] [{session_name}] [{report_num}] Подтверждено (кнопка)")
                                 return
