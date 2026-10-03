@@ -3746,7 +3746,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			if uid not in admins:
 				last_used_tida[uid] = now_msk()
 			await _bot.send_message(uid,
-				f'🟣 *Запускаю TIDA на* {tida_link}*...*',
+				f'🟣 *Запускаю TIDA на* {tida_link.replace("_", chr(92)+"_")}*...*',
 				parse_mode="Markdown")
 			try:
 				await main_tida(tida_link, tida_text, uid, tida_username, notify_bot=_bot)
@@ -4827,8 +4827,9 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 	if uid not in admins:
 		last_used_aureport[uid] = now_msk()
 
+	raw_display = raw.replace('_', '\\_')
 	await _bot.send_message(uid,
-		f'🇦🇺 *Запускаю AU Report на* {raw}*...*\n*└─ Это может занять некоторое время*',
+		f'🇦🇺 *Запускаю AU Report на* {raw_display}*...*\n*└─ Это может занять некоторое время*',
 		parse_mode="Markdown")
 
 	try:
@@ -5138,7 +5139,7 @@ async def tida_step2(message: types.Message, state: FSMContext):
 		last_used_tida[uid] = now_msk()
 
 	await _bot.send_message(uid,
-		f'🟣 *Запускаю TIDA на* {target_link}*...*\n*└─ Это может занять некоторое время*',
+		f'🟣 *Запускаю TIDA на* {target_link.replace("_", chr(92)+"_")}*...*\n*└─ Это может занять некоторое время*',
 		parse_mode="Markdown")
 
 	try:
@@ -5501,7 +5502,7 @@ async def profile_step1(message: types.Message, state: FSMContext):
 
 	await _bot.send_message(
 		uid,
-		f'👤 *\[ТЕСТ\] Запускаю Profile Report на* {raw}*...*\n'
+		f'👤 *\[ТЕСТ\] Запускаю Profile Report на* {raw.replace("_", chr(92)+"_")}*...*\n'
 		f'*└─ Метод: Spam → Defamation/Insult*',
 		parse_mode="Markdown"
 	)
