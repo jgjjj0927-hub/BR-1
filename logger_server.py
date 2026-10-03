@@ -25,9 +25,10 @@ NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,60693380,870106
 YM_SECRET = os.getenv("YM_SECRET", "uEyXCRwqs60eoUFLfvUI9cNt")
 YM_TOKEN = os.getenv("YM_TOKEN", "")   # YooMoney OAuth access token для API-проверки платежей
 BOT_LOGS = int(os.getenv("BOT_LOGS", "8316051968"))
-CISPAY_SHOP_ID  = os.getenv("CISPAY_SHOP_ID", "")
-CISPAY_API_KEY  = os.getenv("CISPAY_API_KEY", "")
-XROCKET_API_KEY = os.getenv("XROCKET_API_KEY", "")
+CISPAY_SHOP_ID       = os.getenv("CISPAY_SHOP_ID", "")
+CISPAY_API_KEY       = os.getenv("CISPAY_API_KEY", "")
+XROCKET_API_KEY      = os.getenv("XROCKET_API_KEY", "")
+XROCKET_WEBHOOK_TOKEN = os.getenv("XROCKET_WEBHOOK_TOKEN", "")
 
 # sub type → days (mirrors _SUB_MAP in main.py)
 _YM_SUB_DAYS = {
@@ -1470,9 +1471,10 @@ async def cispay_webhook(request: Request):
 @app.post("/xrocket/webhook")
 async def xrocket_webhook(request: Request):
     raw = await request.body()
-    # xRocket отправляет ключ обратно в заголовке для верификации
+    # xRocket отправляет Webhook Token в заголовке для верификации
     key_header = request.headers.get("Rocket-Pay-Key", "")
-    if XROCKET_API_KEY and key_header != XROCKET_API_KEY:
+    token = XROCKET_WEBHOOK_TOKEN or XROCKET_API_KEY
+    if token and key_header != token:
         log.warning("[xrocket-webhook] invalid Rocket-Pay-Key")
         raise HTTPException(status_code=403, detail="bad key")
 
