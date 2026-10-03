@@ -26,7 +26,6 @@ def _extract_addr(header_val):
         return m.group(1).strip().lower()
     return header_val.strip("<>").strip().lower()
 
-# Try headers in order of reliability
 def _is_external(addr):
     return addr and "@" in addr and "localhost" not in addr and ".local" not in addr
 
@@ -38,18 +37,33 @@ candidates = [
 ]
 to_addr = next((a for a in candidates if _is_external(a)), "")
 
+# Extract body — try text/plain first, fall back to text/html
 body = ""
+html_body = ""
 if msg.is_multipart():
     for part in msg.walk():
-        if part.get_content_type() == "text/plain":
+        ct = part.get_content_type()
+        if ct == "text/plain" and not body:
             payload = part.get_payload(decode=True)
             if payload:
                 body = payload.decode("utf-8", errors="ignore")
-                break
+        elif ct == "text/html" and not html_body:
+            payload = part.get_payload(decode=True)
+            if payload:
+                html_body = payload.decode("utf-8", errors="ignore")
 else:
     payload = msg.get_payload(decode=True)
     if payload:
-        body = payload.decode("utf-8", errors="ignore")
+        ct = msg.get_content_type()
+        decoded = payload.decode("utf-8", errors="ignore")
+        if ct == "text/html":
+            html_body = decoded
+        else:
+            body = decoded
+
+# Strip HTML tags for code search
+if not body and html_body:
+    body = re.sub(r'<[^>]+>', ' ', html_body)
 
 code_match = re.search(r'\b(\d{6})\b', body)
 if code_match and to_addr and "@" in to_addr:
