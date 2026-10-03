@@ -309,6 +309,12 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         except Exception:
             return ym_url
 
+    _MIRROR_SUB_LABELS = {
+        "1": "1 день", "3": "3 дня", "7": "7 дней",
+        "30": "30 дней", "60": "60 дней",
+        "premupgrade": "Premium", "test": "Тест",
+    }
+
     # ─── Оплата sub_ ──────────────────────────────────────────────────────────
     @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'), state='*')
     async def mirror_sub(callback_query: types.CallbackQuery):
@@ -317,17 +323,61 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             st = callback_query.data.split('_', 1)[1]
             if st not in _MIRROR_SUB_MAP:
                 return
-            _lang = await db.get_lang(callback_query.from_user.id)
-            amount_usd, _, pidor_key, _ = _MIRROR_SUB_MAP[st]
-            pidor = t(pidor_key, _lang)
-            method_markup = types.InlineKeyboardMarkup(row_width=1)
-            method_markup.add(
-                types.InlineKeyboardButton("CryptoBot", callback_data=f'pay_crypto_{st}'),
-                types.InlineKeyboardButton("🇷🇺 СБП", callback_data=f'pay_sbp_{st}'),
-                types.InlineKeyboardButton("TonKeeper", callback_data=f'pay_ton_{st}'),
-                keyboards.back,
+            user_id = callback_query.from_user.id
+            _, _, _, amount_rub = _MIRROR_SUB_MAP[st]
+            order_id = f"cispay_{user_id}_{st}_{int(_time.time())}"
+            amount_kopecks = int(amount_rub) * 100
+            label = _MIRROR_SUB_LABELS.get(st, st)
+
+            payment_url = None
+            if config.CISPAY_SHOP_ID and config.CISPAY_API_KEY:
+                try:
+                    async with aiohttp.ClientSession() as _s:
+                        async with _s.post(
+                            "https://api.cispay.app/payments",
+                            json={
+                                "amount": amount_kopecks,
+                                "currency": "RUB",
+                                "order_id": order_id,
+                                "payment_method": "SBP",
+                                "customer_id": str(user_id),
+                                "description": f"Подписка BR V2 · {label}",
+                            },
+                            headers={
+                                "X-Shop-ID": config.CISPAY_SHOP_ID,
+                                "X-Api-Key": config.CISPAY_API_KEY,
+                            },
+                            timeout=aiohttp.ClientTimeout(total=10),
+                        ) as resp:
+                            data = await resp.json()
+                    payment_url = data.get("payment_url")
+                except Exception as _e:
+                    print(f"[MIRROR] cisPay create error: {_e}")
+
+            if not payment_url:
+                err_markup = types.InlineKeyboardMarkup(row_width=1)
+                err_markup.add(keyboards.back)
+                await _mirror_edit(
+                    callback_query,
+                    "⚠️ *Не удалось создать счёт\\.*\n\nПопробуйте позже или свяжитесь с поддержкой\\.",
+                    err_markup,
+                )
+                return
+
+            pay_markup = types.InlineKeyboardMarkup(row_width=1)
+            pay_markup.add(types.InlineKeyboardButton(f"💳 Оплатить {amount_rub} ₽ через СБП", url=payment_url))
+            pay_markup.add(keyboards.back)
+            await _mirror_edit(
+                callback_query,
+                (
+                    f"📲 *Оплата через СБП*\n\n"
+                    f"*└─ Тариф:* {label}\n"
+                    f"*└─ Сумма:* {amount_rub} ₽\n\n"
+                    f"Нажмите кнопку ниже — откроется форма СБП\\.\n"
+                    f"После оплаты подписка активируется автоматически\\."
+                ),
+                pay_markup,
             )
-            await _mirror_edit(callback_query, t('shop_buy_select', _lang, item=pidor), method_markup)
         except Exception as e:
             print(f"[MIRROR] sub: {e}")
 
@@ -335,55 +385,23 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     async def mirror_pay_crypto(callback_query: types.CallbackQuery):
         try:
             await callback_query.answer()
-            from pyCryptoPayAPI import pyCryptoPayAPI
-            _crypto = pyCryptoPayAPI(api_token=config.CRYPTO, result_as_class=False)
-            st = callback_query.data[len('pay_crypto_'):]
-            if st not in _MIRROR_SUB_MAP:
-                return
-            _lang = await db.get_lang(callback_query.from_user.id)
-            amount_usd, sub_days, pidor_key, _ = _MIRROR_SUB_MAP[st]
-            pidor = t(pidor_key, _lang)
-            invoice = await asyncio.to_thread(_crypto.create_invoice, asset='USDT', amount=amount_usd)
-            pay_check = types.InlineKeyboardMarkup(row_width=2)
-            pay_check.add(
-                types.InlineKeyboardButton(t('pay_btn_pay', _lang), url=invoice['pay_url']),
-                types.InlineKeyboardButton(t('pay_btn_paid', _lang),
-                    callback_data=f'check_status_{invoice["invoice_id"]}_{st}_{sub_days}'))
-            pay_check.add(keyboards.back)
-            await _mirror_edit(callback_query, t('shop_buy_usd', _lang, item=pidor, amount=amount_usd), pay_check)
+            stub_markup = types.InlineKeyboardMarkup(row_width=1)
+            stub_markup.add(keyboards.back)
+            await _mirror_edit(callback_query,
+                "🔧 *Оплата временно недоступна*\n\n_Скоро добавим_ — следите за обновлениями\\!",
+                stub_markup)
         except Exception as e:
             print(f"[MIRROR] pay_crypto: {e}")
 
     @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_sbp_'), state='*')
     async def mirror_pay_sbp(callback_query: types.CallbackQuery):
         try:
-            import urllib.parse as _urlparse
             await callback_query.answer()
-            st = callback_query.data[len('pay_sbp_'):]
-            if st not in _MIRROR_SUB_MAP:
-                return
-            _lang = await db.get_lang(callback_query.from_user.id)
-            amount_usd, sub_days, pidor_key, amount_rub = _MIRROR_SUB_MAP[st]
-            pidor = t(pidor_key, _lang)
-            user_id = callback_query.from_user.id
-            label = f"sub_{user_id}_{st}"
-            targets = _urlparse.quote(f"Subscription BR V2 {pidor}", safe='')
-            ym_url = (
-                f"https://yoomoney.ru/quickpay/confirm.xml"
-                f"?receiver={_MIRROR_YM_WALLET}"
-                f"&quickpay-form=shop"
-                f"&targets={targets}"
-                f"&sum={amount_rub}"
-                f"&label={label}"
-            )
-            short_url = await _mirror_create_pay_link(ym_url)
-            sbp_markup = types.InlineKeyboardMarkup(row_width=1)
-            sbp_markup.add(
-                types.InlineKeyboardButton(t('pay_btn_card', _lang), url=short_url),
-                types.InlineKeyboardButton(t('pay_btn_paid', _lang), callback_data=f'sbp_paid_{st}'),
-                keyboards.back,
-            )
-            await _mirror_edit(callback_query, t('shop_buy_rub', _lang, item=pidor, amount=amount_rub), sbp_markup)
+            stub_markup = types.InlineKeyboardMarkup(row_width=1)
+            stub_markup.add(keyboards.back)
+            await _mirror_edit(callback_query,
+                "🔧 *Оплата временно недоступна*\n\n_Скоро добавим_ — следите за обновлениями\\!",
+                stub_markup)
         except Exception as e:
             print(f"[MIRROR] pay_sbp: {e}")
 
@@ -391,10 +409,6 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     async def mirror_sbp_paid(callback_query: types.CallbackQuery):
         try:
             await callback_query.answer()
-            _lang = await db.get_lang(callback_query.from_user.id)
-            await mirror_bot.send_message(
-                callback_query.from_user.id,
-                t('pay_sub_pending', _lang), parse_mode="MarkdownV2")
         except Exception as e:
             print(f"[MIRROR] sbp_paid: {e}")
 
@@ -402,20 +416,11 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     async def mirror_pay_ton(callback_query: types.CallbackQuery):
         try:
             await callback_query.answer()
-            st = callback_query.data[len('pay_ton_'):]
-            if st not in _MIRROR_SUB_MAP:
-                return
-            _lang = await db.get_lang(callback_query.from_user.id)
-            amount_usd, _, pidor_key, _ = _MIRROR_SUB_MAP[st]
-            pidor = t(pidor_key, _lang)
-            ton_markup = types.InlineKeyboardMarkup(row_width=1)
-            ton_markup.add(
-                types.InlineKeyboardButton("✍️ Написать @TariSmit", url='https://t.me/TariSmit'),
-                keyboards.back,
-            )
+            stub_markup = types.InlineKeyboardMarkup(row_width=1)
+            stub_markup.add(keyboards.back)
             await _mirror_edit(callback_query,
-                t('shop_buy_ton', _lang, item=pidor, amount=amount_usd, address=_MIRROR_TON_ADDRESS),
-                ton_markup)
+                "🔧 *Оплата временно недоступна*\n\n_Скоро добавим_ — следите за обновлениями\\!",
+                stub_markup)
         except Exception as e:
             print(f"[MIRROR] pay_ton: {e}")
 
