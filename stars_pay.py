@@ -93,7 +93,11 @@ async def _hemoroy_flow(client: TelegramClient, stars_amount: int, memo: str) ->
     bot_entity = await client.get_entity(HEMOMOY_BOT)
 
     @client.on(events.NewMessage(from_users=bot_entity.id))
-    async def _handler(event):
+    async def _handler_new(event):
+        await msgs_queue.put(event)
+
+    @client.on(events.MessageEdited(from_users=bot_entity.id))
+    async def _handler_edit(event):
         await msgs_queue.put(event)
 
     async def wait_msg(timeout: int = 30):
@@ -172,7 +176,8 @@ async def _hemoroy_flow(client: TelegramClient, stars_amount: int, memo: str) ->
     except Exception as e:
         print(f"[STARS] Ошибка flow: {e}", flush=True)
     finally:
-        client.remove_event_handler(_handler)
+        client.remove_event_handler(_handler_new)
+        client.remove_event_handler(_handler_edit)
 
     return pay_link
 
