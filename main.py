@@ -3693,8 +3693,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
-			if uid not in admins and uid not in no_kd and uid in last_used_aureport and (now_msk() - last_used_aureport[uid]) < timedelta(minutes=1):
-				rem = timedelta(minutes=1) - (now_msk() - last_used_aureport[uid])
+			if uid not in admins and uid not in no_kd and uid in last_used_aureport and (now_msk() - last_used_aureport[uid]) < timedelta(minutes=30):
+				rem = timedelta(minutes=30) - (now_msk() - last_used_aureport[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitAuReportFSM.link.state)
@@ -3711,8 +3711,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
-			if uid not in admins and uid not in no_kd and uid in last_used_tida and (now_msk() - last_used_tida[uid]) < timedelta(minutes=1):
-				rem = timedelta(minutes=1) - (now_msk() - last_used_tida[uid])
+			if uid not in admins and uid not in no_kd and uid in last_used_tida and (now_msk() - last_used_tida[uid]) < timedelta(minutes=30):
+				rem = timedelta(minutes=30) - (now_msk() - last_used_tida[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=panel_back_markup); return
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitTidaFSM.link.state)
