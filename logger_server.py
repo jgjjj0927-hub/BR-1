@@ -1401,8 +1401,42 @@ async def cispay_webhook(request: Request):
     transaction_id = data.get("id", order_id)
     amount_kopecks = data.get("charged_amount", 0)
 
-    # order_id format: cispay_{uid}_{sub_type}_{ts}
     parts = order_id.split("_")
+
+    # ─── Кейс через СБП ──────────────────────────────────────────────────────
+    if len(parts) >= 3 and parts[0] == "case" and parts[1] == "cispay":
+        try:
+            uid = int(parts[2])
+        except ValueError:
+            log.warning(f"[cispay-webhook] bad uid in case order_id: {order_id}")
+            return {"ok": True}
+        async with pool.acquire() as conn:
+            existing = await conn.fetchval("SELECT 1 FROM cases WHERE invoice_id=$1", transaction_id)
+            if existing:
+                log.info(f"[cispay-webhook] duplicate case tx={transaction_id}")
+                return {"ok": True}
+            await conn.execute(
+                "INSERT INTO cases (user_id, invoice_id) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+                uid, transaction_id
+            )
+        msg_text = "🎁 *Кейс успешно добавлен\\!*\n\nОткройте его в разделе Кейсы\\."
+        log_text = f"🛒 *cisPay кейс* · uid={uid} · tx={transaction_id}"
+        user_tok = await _get_notify_token(uid)
+        if BOT_TOKEN:
+            await _tg_send(BOT_TOKEN, uid, msg_text)
+        async with aiohttp.ClientSession() as s:
+            try:
+                await s.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN or user_tok}/sendMessage",
+                    json={"chat_id": BOT_LOGS, "text": log_text, "parse_mode": "Markdown"},
+                    timeout=aiohttp.ClientTimeout(total=5)
+                )
+            except Exception as e:
+                log.warning(f"[cispay-webhook] case bot_logs notify failed: {e}")
+        log.info(f"[cispay-webhook] case granted uid={uid} tx={transaction_id}")
+        return {"ok": True}
+
+    # ─── Подписка через СБП ──────────────────────────────────────────────────
     if len(parts) < 3 or parts[0] != "cispay":
         log.warning(f"[cispay-webhook] unknown order_id format: {order_id}")
         return {"ok": True}
@@ -1497,10 +1531,45 @@ async def xrocket_webhook(request: Request):
         log.warning(f"[xrocket-webhook] status={status}, skip")
         return {"ok": True}
 
-    # clientInvoiceId holds our payload string: xrocket_{uid}_{sub_type}_{ts}
+    # clientInvoiceId holds our payload string
     payload = invoice.get("clientInvoiceId", "") or invoice.get("payload", "")
     transaction_id = str(payment.get("id") or invoice.get("id") or payload)
     parts = payload.split("_")
+
+    # ─── Кейс через xRocket ──────────────────────────────────────────────────
+    if len(parts) >= 3 and parts[0] == "case" and parts[1] == "xrocket":
+        try:
+            uid = int(parts[2])
+        except ValueError:
+            log.warning(f"[xrocket-webhook] bad uid in case payload: {payload}")
+            return {"ok": True}
+        async with pool.acquire() as conn:
+            existing = await conn.fetchval("SELECT 1 FROM cases WHERE invoice_id=$1", transaction_id)
+            if existing:
+                log.info(f"[xrocket-webhook] duplicate case tx={transaction_id}")
+                return {"ok": True}
+            await conn.execute(
+                "INSERT INTO cases (user_id, invoice_id) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+                uid, transaction_id
+            )
+        msg_text = "🎁 *Кейс успешно добавлен\\!*\n\nОткройте его в разделе Кейсы\\."
+        log_text = f"🛒 *xRocket кейс* · uid={uid} · tx={transaction_id}"
+        user_tok = await _get_notify_token(uid)
+        if BOT_TOKEN:
+            await _tg_send(BOT_TOKEN, uid, msg_text)
+        async with aiohttp.ClientSession() as s:
+            try:
+                await s.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN or user_tok}/sendMessage",
+                    json={"chat_id": BOT_LOGS, "text": log_text, "parse_mode": "Markdown"},
+                    timeout=aiohttp.ClientTimeout(total=5)
+                )
+            except Exception as e:
+                log.warning(f"[xrocket-webhook] case bot_logs notify failed: {e}")
+        log.info(f"[xrocket-webhook] case granted uid={uid} tx={transaction_id}")
+        return {"ok": True}
+
+    # ─── Подписка через xRocket ──────────────────────────────────────────────
     if len(parts) < 3 or parts[0] != "xrocket":
         log.warning(f"[xrocket-webhook] unknown payload format: {payload}")
         return {"ok": True}

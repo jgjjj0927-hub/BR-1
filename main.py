@@ -890,6 +890,57 @@ async def _create_xrocket_invoice(user_id: int, st: str) -> str | None:
 	return None
 
 
+async def _create_cispay_case(user_id: int) -> str | None:
+	order_id = f"case_cispay_{user_id}_{int(time.time())}"
+	try:
+		async with aiohttp.ClientSession() as _s:
+			async with _s.post(
+				"https://api.cispay.app/payments",
+				json={
+					"amount": 20000,
+					"currency": "RUB",
+					"order_id": order_id,
+					"payment_method": "SBP",
+					"customer_id": str(user_id),
+					"description": "Кейс BR V2",
+				},
+				headers={
+					"X-Shop-ID": config.CISPAY_SHOP_ID,
+					"X-Api-Key": config.CISPAY_API_KEY,
+				},
+				timeout=aiohttp.ClientTimeout(total=10),
+			) as resp:
+				data = await resp.json()
+		return data.get("payment_url")
+	except Exception as _e:
+		print(f"cisPay case error: {_e}")
+	return None
+
+
+async def _create_xrocket_case(user_id: int) -> str | None:
+	payload = f"case_xrocket_{user_id}_{int(time.time())}"
+	try:
+		async with aiohttp.ClientSession() as _s:
+			async with _s.post(
+				"https://pay.api.xrocket.exchange/api/v1/invoices",
+				json={
+					"priceAmount": "2",
+					"priceCurrency": "USDT",
+					"description": "Кейс BR V2",
+					"payload": payload,
+					"clientInvoiceId": payload,
+				},
+				headers={"Authorization": f"Bearer {config.XROCKET_API_KEY}"},
+				timeout=aiohttp.ClientTimeout(total=10),
+			) as resp:
+				data = await resp.json()
+				print(f"xRocket case response [{resp.status}]: {data}")
+		return data.get("links", {}).get("telegramBotLink")
+	except Exception as _e:
+		print(f"xRocket case error: {_e}")
+	return None
+
+
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_cispay_'), state='*')
 async def pay_cispay_callback(callback_query: types.CallbackQuery):
 	try:
@@ -2767,15 +2818,47 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			)
 
 		elif d == 'case_buy_sbp':
-			_sbp_off_mkp = types.InlineKeyboardMarkup(row_width=1)
-			_sbp_off_mkp.add(
-				types.InlineKeyboardButton('✍️ Написать в поддержку', url='https://t.me/BR_V2_Support'),
+			payment_url = await _create_cispay_case(uid)
+			if not payment_url:
+				_err = types.InlineKeyboardMarkup(row_width=1)
+				_err.add(types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='case_buy'))
+				await bot_instance.edit_message_caption(
+					call.message.chat.id, call.message.message_id,
+					caption="⚠️ *Не удалось создать счёт\\.*\n\nПопробуйте позже\\.",
+					parse_mode="MarkdownV2", reply_markup=_err
+				)
+				return
+			_pay_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_pay_mkp.add(
+				types.InlineKeyboardButton("💳 Оплатить 200 ₽ через СБП", url=payment_url),
 				types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='case_buy'),
 			)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
-				caption="⚠️ *СБП временно недоступен*\n\nДля покупки кейса напишите в поддержку — @BR\\_V2\\_Support\nОформим вручную в течение нескольких минут.",
-				parse_mode="Markdown", reply_markup=_sbp_off_mkp
+				caption="📲 *Оплата кейса через СБП*\n\n└─ Сумма: *200 ₽*\n\nПосле оплаты кейс добавится автоматически\\.",
+				parse_mode="MarkdownV2", reply_markup=_pay_mkp
+			)
+
+		elif d == 'case_buy_xrocket':
+			invoice_url = await _create_xrocket_case(uid)
+			if not invoice_url:
+				_err = types.InlineKeyboardMarkup(row_width=1)
+				_err.add(types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='case_buy'))
+				await bot_instance.edit_message_caption(
+					call.message.chat.id, call.message.message_id,
+					caption="⚠️ *Не удалось создать счёт\\.*\n\nПопробуйте позже\\.",
+					parse_mode="MarkdownV2", reply_markup=_err
+				)
+				return
+			_pay_mkp = types.InlineKeyboardMarkup(row_width=1)
+			_pay_mkp.add(
+				types.InlineKeyboardButton("🚀 Оплатить 2 USDT в xRocket", url=invoice_url),
+				types.InlineKeyboardButton(t('btn_back', _user_lang), callback_data='case_buy'),
+			)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption="🚀 *Оплата кейса через xRocket*\n\n└─ Сумма: *2 USDT*\n\nПосле оплаты кейс добавится автоматически\\.",
+				parse_mode="MarkdownV2", reply_markup=_pay_mkp
 			)
 
 		elif d == 'case_buy_usdt':

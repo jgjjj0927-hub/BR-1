@@ -424,8 +424,8 @@ def get_referral_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
 def get_case_buy_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=1)
     m.add(
-        types.InlineKeyboardButton(t('case_buy_usdt', lang), callback_data='case_buy_usdt'),
-        types.InlineKeyboardButton(t('case_buy_sbp', lang), callback_data='case_buy_sbp'),
+        types.InlineKeyboardButton("🇷🇺 СБП — 200 ₽", callback_data='case_buy_sbp'),
+        types.InlineKeyboardButton("🚀 xRocket — 2 USDT", callback_data='case_buy_xrocket'),
         types.InlineKeyboardButton(t('btn_back', lang), callback_data='case_menu'),
     )
     return m
