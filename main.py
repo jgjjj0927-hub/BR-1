@@ -883,7 +883,7 @@ async def _create_xrocket_invoice(user_id: int, st: str) -> str | None:
 				status = resp.status
 				data = await resp.json()
 				print(f"xRocket response [{status}]: {data}")
-		link = data.get("link") or data.get("data", {}).get("link")
+		link = data.get("links", {}).get("telegramBotLink")
 		return link
 	except Exception as _e:
 		print(f"xRocket create error: {_e}")

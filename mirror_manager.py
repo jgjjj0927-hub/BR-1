@@ -364,7 +364,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
                     status = resp.status
                     data = await resp.json()
                     print(f"[MIRROR] xRocket response [{status}]: {data}")
-            link = data.get("link") or data.get("data", {}).get("link")
+            link = data.get("links", {}).get("telegramBotLink")
             return link
         except Exception as _e:
             print(f"[MIRROR] xRocket create error: {_e}")
