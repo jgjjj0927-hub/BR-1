@@ -106,13 +106,13 @@ async def _hemoroy_flow(client: TelegramClient, stars_amount: int, memo: str) ->
         msg = await wait_msg()
         print(f"[STARS] step0 text={msg.text[:80]!r}", flush=True)
 
-        # Нажимаем кнопку sell_stars
+        # Нажимаем кнопку "Продать зв..."
         await asyncio.sleep(0.5)
-        btn = _find_btn(msg, "sell_stars") or _find_btn(msg, "продать")
+        btn = _find_btn(msg, "продать")
         if btn:
             await _press(client, bot_entity, msg, btn)
         else:
-            await client.send_message(bot_entity, "sell_stars")
+            await client.send_message(bot_entity, "Продать звёзды")
         msg = await wait_msg()
         print(f"[STARS] step1 text={msg.text[:80]!r}", flush=True)
 
@@ -124,11 +124,11 @@ async def _hemoroy_flow(client: TelegramClient, stars_amount: int, memo: str) ->
 
         # Нажимаем кнопку method_sell_stars:TON
         await asyncio.sleep(0.5)
-        btn = _find_btn(msg, "sell_stars", "ton") or _find_btn(msg, "usdt", "ton") or _find_btn(msg, "ton")
+        btn = _find_btn(msg, "usdt", "ton") or _find_btn(msg, "ton")
         if btn:
             await _press(client, bot_entity, msg, btn)
         else:
-            await client.send_message(bot_entity, "method_sell_stars:TON")
+            await client.send_message(bot_entity, "USDT TON")
         msg = await wait_msg()
         print(f"[STARS] step3 text={msg.text[:80]!r}", flush=True)
 
