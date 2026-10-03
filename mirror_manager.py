@@ -277,11 +277,19 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         "3":          ("2",  "3",   "sub_3d",      "175"),
         "7":          ("4",  "7",   "sub_7d",      "350"),
         "30":         ("8",  "30",  "sub_30d",     "700"),
-        "60":         ("12", "60",  "sub_60d",     "1100"),
+        "60":         ("8",  "60",  "sub_60d",     "900"),
         "premupgrade":("5",  "1",   "sub_premium", "400"),
     }
     _MIRROR_YM_WALLET = "4100118677444773"
     _MIRROR_TON_ADDRESS = "UQDeT6tcvKiwrR_fCa0ORJ_OOKPQbnvbzyB8l1YXzXK0iLCf"
+    _MIRROR_TON_PRICES = {"1": "1", "3": "2", "7": "3", "30": "6", "60": "8"}
+    _MIRROR_TON_NANO_TO_DAYS = {
+        1_000_000_000: 1,
+        2_000_000_000: 3,
+        3_000_000_000: 7,
+        6_000_000_000: 30,
+        8_000_000_000: 60,
+    }
 
     async def _mirror_edit(callback_query, caption, markup):
         try:
@@ -384,8 +392,10 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             method_markup.add(
                 types.InlineKeyboardButton(f"🇷🇺 СБП — {amount_rub} ₽", callback_data=f'pay_cispay_{st}'),
                 types.InlineKeyboardButton(f"🚀 xRocket — {amount_usd} USDT", callback_data=f'pay_xrocket_{st}'),
-                keyboards.back,
             )
+            if st in _MIRROR_TON_PRICES:
+                method_markup.add(types.InlineKeyboardButton(f"💎 TON — {_MIRROR_TON_PRICES[st]} TON", callback_data=f'pay_ton_{st}'))
+            method_markup.add(keyboards.back)
             await _mirror_edit(
                 callback_query,
                 (
@@ -492,9 +502,128 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_ton_'), state='*')
     async def mirror_pay_ton(callback_query: types.CallbackQuery):
         try:
+            user_id = callback_query.from_user.id
+            st = callback_query.data[len('pay_ton_'):]
+            if st not in _MIRROR_SUB_MAP:
+                await callback_query.answer()
+                return
             await callback_query.answer()
+            label = _MIRROR_SUB_LABELS.get(st, st)
+            ton_amount = _MIRROR_TON_PRICES.get(st, "?")
+            pay_markup = types.InlineKeyboardMarkup(row_width=1)
+            pay_markup.add(
+                types.InlineKeyboardButton("✅ Проверить оплату", callback_data=f'check_ton_{st}'),
+                keyboards.back,
+            )
+            await _mirror_edit(
+                callback_query,
+                (
+                    f"💎 *Оплата через TON \\(Gram\\)*\n\n"
+                    f"*└─ Тариф:* {label}\n"
+                    f"*└─ Сумма:* {ton_amount} TON\n\n"
+                    f"📋 *Адрес кошелька:*\n"
+                    f"`{_MIRROR_TON_ADDRESS}`\n\n"
+                    f"🔖 *Комментарий \\(Memo\\):*\n"
+                    f"`{user_id}`\n\n"
+                    f"⚠️ *ВАЖНО:* Без комментария перевод не будет засчитан\\!\n\n"
+                    f"После оплаты нажмите кнопку ниже\\."
+                ),
+                pay_markup,
+            )
         except Exception as e:
             print(f"[MIRROR] pay_ton: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_ton_'), state='*')
+    async def mirror_check_ton(callback_query: types.CallbackQuery):
+        try:
+            user_id = callback_query.from_user.id
+            st = callback_query.data[len('check_ton_'):]
+            if st not in _MIRROR_SUB_MAP:
+                await callback_query.answer()
+                return
+            await callback_query.answer(text="🔍 Проверяем...")
+            ton_amount = _MIRROR_TON_PRICES.get(st, "?")
+            found_hash = None
+            found_days = None
+            try:
+                async with aiohttp.ClientSession() as _s:
+                    async with _s.get(
+                        "https://toncenter.com/api/v2/getTransactions",
+                        params={"address": _MIRROR_TON_ADDRESS, "limit": "50"},
+                        timeout=aiohttp.ClientTimeout(total=10),
+                    ) as resp:
+                        data = await resp.json()
+                for tx in data.get("result", []):
+                    in_msg = tx.get("in_msg", {})
+                    comment = in_msg.get("message", "").strip()
+                    value = int(in_msg.get("value", 0))
+                    tx_hash = tx.get("transaction_id", {}).get("hash", "")
+                    if comment != str(user_id):
+                        continue
+                    days = _MIRROR_TON_NANO_TO_DAYS.get(value)
+                    if days is None:
+                        continue
+                    if await db.is_invoice_used(tx_hash):
+                        continue
+                    found_hash = tx_hash
+                    found_days = days
+                    break
+            except Exception as _e:
+                print(f"[MIRROR] check_ton toncenter error: {_e}")
+
+            if not found_hash:
+                err_markup = types.InlineKeyboardMarkup(row_width=1)
+                err_markup.add(
+                    types.InlineKeyboardButton("✅ Проверить оплату", callback_data=f'check_ton_{st}'),
+                    keyboards.back,
+                )
+                await _mirror_edit(
+                    callback_query,
+                    (
+                        f"❌ *Оплата не найдена*\n\n"
+                        f"Убедитесь, что:\n"
+                        f"• Перевод сделан на правильный адрес\n"
+                        f"• В комментарии указан ваш ID: `{user_id}`\n"
+                        f"• Сумма: {ton_amount} TON\n\n"
+                        f"Транзакции обновляются с задержкой\\. Попробуйте через минуту\\."
+                    ),
+                    err_markup,
+                )
+                return
+
+            await db.mark_invoice_used(found_hash, user_id)
+            new_date = (now_msk() + timedelta(days=found_days)).strftime("%Y-%m-%d %H:%M:%S")
+            await db.set_subscribe(user_id, new_date)
+
+            referrer_id = await db.get_referrer_id(user_id)
+            if referrer_id:
+                bonus_days = max(1, int(found_days * 0.1))
+                ref_new_date = (now_msk() + timedelta(days=bonus_days)).strftime("%Y-%m-%d %H:%M:%S")
+                await db.set_subscribe(referrer_id, ref_new_date)
+                try:
+                    await mirror_bot.send_message(
+                        referrer_id,
+                        f"💰 *Реферальный бонус\\!*\n"
+                        f"*└─ Ваш реферал купил подписку*\n"
+                        f"*└─ Вам начислено: \\+{bonus_days} день подписки*",
+                        parse_mode="MarkdownV2")
+                except Exception:
+                    pass
+
+            label = _MIRROR_SUB_LABELS.get(st, st)
+            back_markup = types.InlineKeyboardMarkup(row_width=1)
+            back_markup.add(keyboards.back)
+            await _mirror_edit(
+                callback_query,
+                (
+                    f"✅ *Оплата получена\\!*\n\n"
+                    f"*└─ Подписка активирована:* {label}\n\n"
+                    f"Спасибо за покупку\\!"
+                ),
+                back_markup,
+            )
+        except Exception as e:
+            print(f"[MIRROR] check_ton: {e}")
 
     @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'), state='*')
     async def mirror_check_status(callback_query: types.CallbackQuery):
