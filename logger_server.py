@@ -1487,17 +1487,19 @@ async def xrocket_webhook(request: Request):
 
     print(f"[xrocket-webhook] raw={raw[:500]}", flush=True)
 
-    # new Pay API wraps event in {"event": "...", "payment": {...}}
-    event_data = data.get("payment", data)
+    # Pay API structure: {"data": {"event": "...", "invoice": {...}, "payment": {...}}, ...}
+    inner = data.get("data", data)
+    invoice = inner.get("invoice", inner)
+    payment = inner.get("payment", {})
 
-    status = event_data.get("status")
+    status = invoice.get("status") or payment.get("status")
     if status != "paid":
         log.warning(f"[xrocket-webhook] status={status}, skip")
         return {"ok": True}
 
-    # payload format: xrocket_{uid}_{sub_type}_{ts}
-    payload = event_data.get("payload", "")
-    transaction_id = str(event_data.get("id", payload))
+    # clientInvoiceId holds our payload string: xrocket_{uid}_{sub_type}_{ts}
+    payload = invoice.get("clientInvoiceId", "") or invoice.get("payload", "")
+    transaction_id = str(payment.get("id") or invoice.get("id") or payload)
     parts = payload.split("_")
     if len(parts) < 3 or parts[0] != "xrocket":
         log.warning(f"[xrocket-webhook] unknown payload format: {payload}")
@@ -1515,7 +1517,7 @@ async def xrocket_webhook(request: Request):
         log.warning(f"[xrocket-webhook] unknown sub type: {st}")
         return {"ok": True}
 
-    amount_usdt = event_data.get("amount", 0)
+    amount_usdt = invoice.get("priceAmount", 0) or payment.get("payAmount", 0)
 
     async with pool.acquire() as conn:
         inserted = await conn.fetchval(
