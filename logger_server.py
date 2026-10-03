@@ -1485,14 +1485,19 @@ async def xrocket_webhook(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="invalid json")
 
-    status = data.get("status")
+    print(f"[xrocket-webhook] raw={raw[:500]}", flush=True)
+
+    # new Pay API wraps event in {"event": "...", "payment": {...}}
+    event_data = data.get("payment", data)
+
+    status = event_data.get("status")
     if status != "paid":
-        log.info(f"[xrocket-webhook] status={status}, skip")
+        log.warning(f"[xrocket-webhook] status={status}, skip")
         return {"ok": True}
 
     # payload format: xrocket_{uid}_{sub_type}_{ts}
-    payload = data.get("payload", "")
-    transaction_id = str(data.get("id", payload))
+    payload = event_data.get("payload", "")
+    transaction_id = str(event_data.get("id", payload))
     parts = payload.split("_")
     if len(parts) < 3 or parts[0] != "xrocket":
         log.warning(f"[xrocket-webhook] unknown payload format: {payload}")
@@ -1510,7 +1515,7 @@ async def xrocket_webhook(request: Request):
         log.warning(f"[xrocket-webhook] unknown sub type: {st}")
         return {"ok": True}
 
-    amount_usdt = data.get("amount", 0)
+    amount_usdt = event_data.get("amount", 0)
 
     async with pool.acquire() as conn:
         inserted = await conn.fetchval(
