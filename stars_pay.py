@@ -101,18 +101,22 @@ async def _hemoroy_flow(client: TelegramClient, stars_amount: int, memo: str) ->
 
     pay_link = None
     try:
-        # /start → меню
+        # /start → ждём сообщение с кнопкой "Продать"
         await client.send_message(bot_entity, "/start")
-        msg = await wait_msg()
-        print(f"[STARS] step0 text={msg.text[:80]!r}", flush=True)
+        menu_msg = None
+        for _ in range(6):
+            msg = await wait_msg(timeout=15)
+            print(f"[STARS] step0 text={msg.text[:80]!r} has_markup={bool(msg.reply_markup)}", flush=True)
+            if _find_btn(msg, "продать"):
+                menu_msg = msg
+                break
+        if not menu_msg:
+            print("[STARS] Меню с кнопкой 'Продать' не найдено", flush=True)
+            return None
 
         # Нажимаем кнопку "Продать зв..."
         await asyncio.sleep(0.5)
-        btn = _find_btn(msg, "продать")
-        if btn:
-            await _press(client, bot_entity, msg, btn)
-        else:
-            await client.send_message(bot_entity, "Продать звёзды")
+        await _press(client, bot_entity, menu_msg, _find_btn(menu_msg, "продать"))
         msg = await wait_msg()
         print(f"[STARS] step1 text={msg.text[:80]!r}", flush=True)
 
