@@ -149,27 +149,37 @@ async def _hemoroy_flow(client: TelegramClient, stars_amount: int, memo: str) ->
         # Вводим memo
         await asyncio.sleep(0.5)
         await client.send_message(bot_entity, memo)
-        msg = await wait_msg()
-        print(f"[STARS] step5 text={msg.text[:80]!r}", flush=True)
 
-        # Извлекаем ссылку из URL-кнопки
-        if msg.reply_markup:
-            for row in msg.reply_markup.rows:
-                for b in row.buttons:
-                    url = getattr(b, "url", None)
-                    if url and "t.me/$" in url:
-                        pay_link = url
-                        break
-                if pay_link:
-                    break
+        # Собираем все сообщения от бота за 5 секунд после мемо
+        collected = []
+        for _ in range(6):
+            try:
+                m2 = await asyncio.wait_for(msgs_queue.get(), timeout=3)
+                collected.append(m2)
+                print(f"[STARS] step5 msg={m2.text[:100]!r}", flush=True)
+            except asyncio.TimeoutError:
+                break
 
-        # Запасной поиск в тексте
-        if not pay_link and msg.text:
-            m = re.search(r"https://t\.me/\$[\w\-]+", msg.text)
-            if m:
-                pay_link = m.group(0)
+        order_id = None
+        for m2 in collected:
+            if m2.text:
+                oid = re.search(r'ID\s+заявки[:\s]+(\d+)', m2.text, re.IGNORECASE)
+                if oid:
+                    order_id = oid.group(1)
+            if not pay_link:
+                if m2.reply_markup:
+                    for row in m2.reply_markup.rows:
+                        for b in row.buttons:
+                            url = getattr(b, "url", None)
+                            if url and "t.me/$" in url:
+                                pay_link = url
+                                break
+                if not pay_link and m2.text:
+                    mt = re.search(r"https://t\.me/\$[\w\-]+", m2.text)
+                    if mt:
+                        pay_link = mt.group(0)
 
-        print(f"[STARS] pay_link={pay_link}", flush=True)
+        print(f"[STARS] pay_link={pay_link} order_id={order_id}", flush=True)
 
     except asyncio.TimeoutError:
         print("[STARS] Timeout при диалоге с @Hemoroyybot", flush=True)
@@ -179,13 +189,13 @@ async def _hemoroy_flow(client: TelegramClient, stars_amount: int, memo: str) ->
         client.remove_event_handler(_handler_new)
         client.remove_event_handler(_handler_edit)
 
-    return pay_link
+    return pay_link, order_id
 
 
 async def create_invoice(user_id: int, st: str) -> dict | None:
     """
     Создаёт инвойс через @Hemoroyybot.
-    Возвращает {'link': str, 'hash': str, 'stars': int} или None при ошибке.
+    Возвращает {'link': str, 'hash': str, 'stars': int, 'order_id': str} или None при ошибке.
     """
     stars = STARS_COUNT.get(st)
     if stars is None:
@@ -199,7 +209,7 @@ async def create_invoice(user_id: int, st: str) -> dict | None:
         return None
 
     try:
-        link = await _hemoroy_flow(client, stars, memo)
+        link, order_id = await _hemoroy_flow(client, stars, memo)
     finally:
         try:
             await client.disconnect()
@@ -209,16 +219,43 @@ async def create_invoice(user_id: int, st: str) -> dict | None:
     if not link:
         return None
 
-    return {"link": link, "hash": unique_hash, "stars": stars}
+    return {"link": link, "hash": unique_hash, "stars": stars, "order_id": order_id or ""}
 
 
-async def check_payment(user_id: int, unique_hash: str, st: str) -> tuple[bool, str | None]:
+async def check_payment(user_id: int, unique_hash: str, st: str, order_id: str = "") -> tuple[bool, str | None]:
     """
-    Проверяет поступление USDT на TON-адрес через tonapi.io.
-    Ищет JettonTransfer с memo={user_id}{unique_hash} и суммой ≥90% ожидаемой.
-    Возвращает (found: bool, tx_hash: str | None).
+    Проверяет оплату по двум каналам:
+    1. Сообщения от @Hemoroyybot к нашей сессии (подтверждение выплаты по order_id)
+    2. Fallback: tonapi.io JettonTransfer с memo и суммой ≥90% ожидаемой.
     """
     memo_expected = f"{user_id}{unique_hash}"
+
+    # --- Канал 1: проверяем сообщения @Hemoroyybot нашей AU-сессии ---
+    if order_id:
+        client = await _create_client()
+        if client:
+            try:
+                bot_entity = await client.get_entity(HEMOMOY_BOT)
+                msgs = await client.get_messages(bot_entity, limit=50)
+                for m in msgs:
+                    if not m.text:
+                        continue
+                    text = m.text
+                    # Ищем сообщение с нашим order_id И признаком выплаты
+                    if order_id in text:
+                        tl = text.lower()
+                        if any(w in tl for w in ["выплат", "отправ", "завершен", "выполнен", "перевед", "paid", "sent", "completed"]):
+                            print(f"[STARS] confirmed via TG msg order_id={order_id}", flush=True)
+                            return True, f"tg_msg_{order_id}"
+            except Exception as e:
+                print(f"[STARS] TG msg check error: {e}", flush=True)
+            finally:
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
+
+    # --- Канал 2: tonapi.io JettonTransfer ---
     expected_usdt = STARS_USDT.get(st, 1.0)
     min_amount = int(expected_usdt * 0.90 * 1_000_000)  # USDT-TON: 6 decimals
 

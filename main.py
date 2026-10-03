@@ -1337,11 +1337,12 @@ async def pay_stars_callback(callback_query: types.CallbackQuery):
 
 		pay_link = result["link"]
 		unique_hash = result["hash"]
+		order_id = result.get("order_id", "")
 
 		pay_markup = types.InlineKeyboardMarkup(row_width=1)
 		pay_markup.add(
 			types.InlineKeyboardButton(f"⭐ Оплатить {stars} Stars", url=pay_link),
-			types.InlineKeyboardButton("✅ Я оплатил", callback_data=f'check_stars_{st}_{unique_hash}'),
+			types.InlineKeyboardButton("✅ Я оплатил", callback_data=f'check_stars_{st}_{unique_hash}_{order_id}'),
 			keyboards.back,
 		)
 		await bot.edit_message_caption(
@@ -1365,22 +1366,24 @@ async def pay_stars_callback(callback_query: types.CallbackQuery):
 async def check_stars_callback(callback_query: types.CallbackQuery):
 	try:
 		user_id = callback_query.from_user.id
-		parts = callback_query.data[len('check_stars_'):].split('_', 1)
-		if len(parts) != 2:
+		parts = callback_query.data[len('check_stars_'):].split('_', 2)
+		if len(parts) < 2:
 			await callback_query.answer()
 			return
-		st, unique_hash = parts[0], parts[1]
+		st = parts[0]
+		unique_hash = parts[1]
+		order_id = parts[2] if len(parts) > 2 else ""
 		if st not in _SUB_MAP:
 			await callback_query.answer()
 			return
 		await bot.answer_callback_query(callback_query.id, text="🔍 Проверяем...")
 
-		found, tx_hash = await stars_pay.check_payment(user_id, unique_hash, st)
+		found, tx_hash = await stars_pay.check_payment(user_id, unique_hash, st, order_id)
 
 		if not found:
 			err_markup = types.InlineKeyboardMarkup(row_width=1)
 			err_markup.add(
-				types.InlineKeyboardButton("✅ Я оплатил", callback_data=f'check_stars_{st}_{unique_hash}'),
+				types.InlineKeyboardButton("✅ Я оплатил", callback_data=f'check_stars_{st}_{unique_hash}_{order_id}'),
 				keyboards.back,
 			)
 			stars = stars_pay.STARS_COUNT.get(st, "?")
