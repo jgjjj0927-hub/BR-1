@@ -14,6 +14,7 @@ import time
 
 import aiohttp
 from telethon import TelegramClient, events
+from telethon.tl.types import KeyboardButtonCallback
 
 import config
 
@@ -31,7 +32,7 @@ STARS_COUNT = {
     "60": 740,
 }
 
-# expected USDT payout for each tier (used for amount verification, ~$0.0108/star)
+# expected USDT payout (~$0.0108/star)
 STARS_USDT = {
     "1":  1.0,
     "3":  2.0,
@@ -64,9 +65,29 @@ async def _create_client() -> TelegramClient | None:
         return None
 
 
+def _find_btn(msg, *keywords: str):
+    """Ищет кнопку по ключевым словам (все должны совпасть)."""
+    if not msg.reply_markup:
+        return None
+    for row in msg.reply_markup.rows:
+        for btn in row.buttons:
+            t = btn.text.lower()
+            if all(k in t for k in keywords):
+                return btn
+    return None
+
+
+async def _press(client, bot_entity, msg, btn) -> None:
+    """Нажимает кнопку: inline → .click(), reply-keyboard → send text."""
+    if isinstance(btn, KeyboardButtonCallback):
+        await msg.click(text=btn.text)
+    else:
+        await client.send_message(bot_entity, btn.text)
+
+
 async def _hemoroy_flow(client: TelegramClient, stars_amount: int, memo: str) -> str | None:
     """
-    Проходит диалог с @Hemoroyybot и возвращает ссылку для оплаты вида https://t.me/$...
+    Проходит диалог с @Hemoroyybot кнопками и возвращает ссылку https://t.me/$...
     """
     msgs_queue: asyncio.Queue = asyncio.Queue()
     bot_entity = await client.get_entity(HEMOMOY_BOT)
@@ -75,76 +96,72 @@ async def _hemoroy_flow(client: TelegramClient, stars_amount: int, memo: str) ->
     async def _handler(event):
         await msgs_queue.put(event)
 
-    async def wait_msg(timeout: int = 25):
+    async def wait_msg(timeout: int = 30):
         return await asyncio.wait_for(msgs_queue.get(), timeout=timeout)
 
     pay_link = None
     try:
-        # /start
+        # /start → меню
         await client.send_message(bot_entity, "/start")
         msg = await wait_msg()
+        print(f"[STARS] step0 text={msg.text[:80]!r}", flush=True)
 
-        # Находим кнопку "Продать звёзды" в reply-клавиатуре
-        sell_text = None
-        if msg.reply_markup:
-            for row in msg.reply_markup.rows:
-                for btn in row.buttons:
-                    if "продать" in btn.text.lower():
-                        sell_text = btn.text
-                        break
-                if sell_text:
-                    break
-        await asyncio.sleep(0.4)
-        await client.send_message(bot_entity, sell_text or "Продать звёзды")
+        # Нажимаем кнопку sell_stars
+        await asyncio.sleep(0.5)
+        btn = _find_btn(msg, "sell_stars") or _find_btn(msg, "продать")
+        if btn:
+            await _press(client, bot_entity, msg, btn)
+        else:
+            await client.send_message(bot_entity, "sell_stars")
         msg = await wait_msg()
+        print(f"[STARS] step1 text={msg.text[:80]!r}", flush=True)
 
-        # Вводим количество звёзд
-        await asyncio.sleep(0.4)
+        # Вводим количество звёзд (текст, там нет кнопок)
+        await asyncio.sleep(0.5)
         await client.send_message(bot_entity, str(stars_amount))
         msg = await wait_msg()
+        print(f"[STARS] step2 text={msg.text[:80]!r}", flush=True)
 
-        # Нажимаем "USDT TON" inline-кнопку
-        await asyncio.sleep(0.4)
-        clicked = False
-        if msg.reply_markup:
-            for row in msg.reply_markup.rows:
-                for btn in row.buttons:
-                    if "usdt" in btn.text.lower() and "ton" in btn.text.lower():
-                        await msg.click(text=btn.text)
-                        clicked = True
-                        break
-                if clicked:
-                    break
-        if not clicked:
-            await client.send_message(bot_entity, "USDT TON")
+        # Нажимаем кнопку method_sell_stars:TON
+        await asyncio.sleep(0.5)
+        btn = _find_btn(msg, "sell_stars", "ton") or _find_btn(msg, "usdt", "ton") or _find_btn(msg, "ton")
+        if btn:
+            await _press(client, bot_entity, msg, btn)
+        else:
+            await client.send_message(bot_entity, "method_sell_stars:TON")
         msg = await wait_msg()
+        print(f"[STARS] step3 text={msg.text[:80]!r}", flush=True)
 
         # Вводим TON-адрес
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(0.5)
         await client.send_message(bot_entity, TON_ADDRESS)
         msg = await wait_msg()
+        print(f"[STARS] step4 text={msg.text[:80]!r}", flush=True)
 
         # Вводим memo
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(0.5)
         await client.send_message(bot_entity, memo)
         msg = await wait_msg()
+        print(f"[STARS] step5 text={msg.text[:80]!r}", flush=True)
 
-        # Извлекаем ссылку из кнопки
+        # Извлекаем ссылку из URL-кнопки
         if msg.reply_markup:
             for row in msg.reply_markup.rows:
-                for btn in row.buttons:
-                    url = getattr(btn, "url", None)
+                for b in row.buttons:
+                    url = getattr(b, "url", None)
                     if url and "t.me/$" in url:
                         pay_link = url
                         break
                 if pay_link:
                     break
 
-        # Запасной поиск ссылки в тексте сообщения
+        # Запасной поиск в тексте
         if not pay_link and msg.text:
             m = re.search(r"https://t\.me/\$[\w\-]+", msg.text)
             if m:
                 pay_link = m.group(0)
+
+        print(f"[STARS] pay_link={pay_link}", flush=True)
 
     except asyncio.TimeoutError:
         print("[STARS] Timeout при диалоге с @Hemoroyybot", flush=True)
@@ -188,14 +205,13 @@ async def create_invoice(user_id: int, st: str) -> dict | None:
 
 async def check_payment(user_id: int, unique_hash: str, st: str) -> tuple[bool, str | None]:
     """
-    Проверяет поступление USDT на TON-адрес.
-    Ищет Jetton-перевод с memo={user_id}{unique_hash} и суммой ≥ 90% от ожидаемой.
+    Проверяет поступление USDT на TON-адрес через tonapi.io.
+    Ищет JettonTransfer с memo={user_id}{unique_hash} и суммой ≥90% ожидаемой.
     Возвращает (found: bool, tx_hash: str | None).
     """
     memo_expected = f"{user_id}{unique_hash}"
     expected_usdt = STARS_USDT.get(st, 1.0)
-    # USDT-TON имеет 6 знаков после запятой (decimals=6)
-    min_amount = int(expected_usdt * 0.90 * 1_000_000)
+    min_amount = int(expected_usdt * 0.90 * 1_000_000)  # USDT-TON: 6 decimals
 
     try:
         async with aiohttp.ClientSession() as s:
@@ -213,8 +229,7 @@ async def check_payment(user_id: int, unique_hash: str, st: str) -> tuple[bool, 
                     continue
                 jt = action.get("JettonTransfer", {})
                 comment = jt.get("comment", "")
-                amount_str = jt.get("amount", "0")
-                amount = int(amount_str)
+                amount = int(jt.get("amount", "0"))
                 if comment == memo_expected and amount >= min_amount:
                     tx_hash = event.get("event_id", memo_expected)
                     return True, tx_hash
