@@ -871,19 +871,20 @@ async def _create_xrocket_invoice(user_id: int, st: str) -> str | None:
 			async with _s.post(
 				"https://pay.api.xrocket.exchange/api/v1/invoices",
 				json={
-					"amount": float(amount_usd),
-					"numPayments": 1,
-					"currency": "USDT",
+					"priceAmount": amount_usd,
+					"priceCurrency": "USDT",
 					"description": f"Подписка BR V2 · {label}",
 					"payload": payload,
-					"expiredIn": 3600,
+					"clientInvoiceId": payload,
 				},
 				headers={"Authorization": f"Bearer {config.XROCKET_API_KEY}"},
 				timeout=aiohttp.ClientTimeout(total=10),
 			) as resp:
+				status = resp.status
 				data = await resp.json()
-				print(f"xRocket response: {data}")
-		return data.get("link")
+				print(f"xRocket response [{status}]: {data}")
+		link = data.get("link") or data.get("data", {}).get("link")
+		return link
 	except Exception as _e:
 		print(f"xRocket create error: {_e}")
 	return None
