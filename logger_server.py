@@ -25,6 +25,8 @@ NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,60693380,870106
 YM_SECRET = os.getenv("YM_SECRET", "uEyXCRwqs60eoUFLfvUI9cNt")
 YM_TOKEN = os.getenv("YM_TOKEN", "")   # YooMoney OAuth access token для API-проверки платежей
 BOT_LOGS = int(os.getenv("BOT_LOGS", "8316051968"))
+CISPAY_SHOP_ID = os.getenv("CISPAY_SHOP_ID", "")
+CISPAY_API_KEY = os.getenv("CISPAY_API_KEY", "")
 
 # sub type → days (mirrors _SUB_MAP in main.py)
 _YM_SUB_DAYS = {
@@ -1367,6 +1369,101 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
 </body>
 </html>"""
     return HTMLResponse(content=html)
+
+
+@app.post("/cispay/webhook")
+async def cispay_webhook(request: Request):
+    raw = await request.body()
+    sig = request.headers.get("X-Signature", "")
+    if CISPAY_API_KEY:
+        expected = hmac.new(CISPAY_API_KEY.encode(), raw, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, sig):
+            log.warning("[cispay-webhook] invalid signature")
+            raise HTTPException(status_code=403, detail="bad signature")
+
+    try:
+        data = json.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid json")
+
+    if data.get("is_sandbox"):
+        log.info(f"[cispay-webhook] sandbox event, skip: {data}")
+        return {"ok": True}
+
+    status = data.get("status")
+    if status != "PAID":
+        log.info(f"[cispay-webhook] status={status}, skip")
+        return {"ok": True}
+
+    order_id = data.get("order_id", "")
+    transaction_id = data.get("id", order_id)
+    amount_kopecks = data.get("charged_amount", 0)
+
+    # order_id format: cispay_{uid}_{sub_type}_{ts}
+    parts = order_id.split("_")
+    if len(parts) < 3 or parts[0] != "cispay":
+        log.warning(f"[cispay-webhook] unknown order_id format: {order_id}")
+        return {"ok": True}
+
+    try:
+        uid = int(parts[1])
+    except ValueError:
+        log.warning(f"[cispay-webhook] bad uid in order_id: {order_id}")
+        return {"ok": True}
+
+    st = parts[2]
+    sub_days = _YM_SUB_DAYS.get(st)
+    if sub_days is None:
+        log.warning(f"[cispay-webhook] unknown sub type: {st}")
+        return {"ok": True}
+
+    async with pool.acquire() as conn:
+        inserted = await conn.fetchval(
+            "INSERT INTO paid_invoices (invoice_id, user_id, created_at) VALUES ($1,$2,NOW()) ON CONFLICT DO NOTHING RETURNING invoice_id",
+            transaction_id, uid
+        )
+        if not inserted:
+            log.info(f"[cispay-webhook] duplicate transaction_id={transaction_id}, skip")
+            return {"ok": True}
+
+        if st == "premupgrade":
+            await conn.execute("UPDATE users SET premium=1 WHERE user_id=$1", uid)
+            msg_text = "✅ *Ваш Premium активирован\\!*"
+            log_text = f"💳 *Premium* via cisPay · {uid}"
+        else:
+            current = await conn.fetchval("SELECT subscribe FROM users WHERE user_id=$1", uid)
+            now = datetime.now()
+            base = current if current and current > now else now
+            new_date = base + timedelta(days=sub_days)
+            await conn.execute(
+                "UPDATE users SET subscribe=$1, sub_expiry_notified=FALSE WHERE user_id=$2",
+                new_date, uid
+            )
+            new_date_str = new_date.strftime("%Y-%m-%d %H:%M:%S")
+            amount_rub = amount_kopecks // 100
+            msg_text = f"✅ *Подписка активирована\\!*\n*└─ Действует до: {new_date_str}*"
+            log_text = f"💳 *cisPay СБП* {uid} · {amount_rub} ₽ · до {new_date_str}"
+
+    user_tok = await _get_notify_token(uid)
+    sent = False
+    if BOT_TOKEN:
+        sent = await _tg_send(BOT_TOKEN, uid, msg_text)
+    if not sent and user_tok and user_tok != BOT_TOKEN:
+        await _tg_send(user_tok, uid, msg_text)
+
+    async with aiohttp.ClientSession() as s:
+        try:
+            tok = BOT_TOKEN or user_tok
+            await s.post(
+                f"https://api.telegram.org/bot{tok}/sendMessage",
+                json={"chat_id": BOT_LOGS, "text": log_text, "parse_mode": "Markdown"},
+                timeout=aiohttp.ClientTimeout(total=5)
+            )
+        except Exception as e:
+            log.warning(f"[cispay-webhook] bot_logs notify failed: {e}")
+
+    log.info(f"[cispay-webhook] granted st={st} days={sub_days} uid={uid} tx={transaction_id}")
+    return {"ok": True}
 
 
 if __name__ == "__main__":

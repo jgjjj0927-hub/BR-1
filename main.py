@@ -801,14 +801,71 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 		st = callback_query.data.split('_', 1)[1]
 		if st not in _SUB_MAP:
 			return
-		stub_markup = types.InlineKeyboardMarkup(row_width=1)
-		stub_markup.add(keyboards.back)
 		await bot.answer_callback_query(callback_query.id)
+
+		_, _, _, amount_rub = _SUB_MAP[st]
+		order_id = f"cispay_{user_id}_{st}_{int(time.time())}"
+		amount_kopecks = int(amount_rub) * 100
+
+		_sub_labels = {
+			"1": "1 день", "3": "3 дня", "7": "7 дней",
+			"30": "30 дней", "60": "60 дней",
+			"premupgrade": "Premium", "test": "Тест",
+		}
+		label = _sub_labels.get(st, st)
+
+		payment_url = None
+		if config.CISPAY_SHOP_ID and config.CISPAY_API_KEY:
+			try:
+				async with aiohttp.ClientSession() as _s:
+					async with _s.post(
+						"https://api.cispay.app/payments",
+						json={
+							"amount": amount_kopecks,
+							"currency": "RUB",
+							"order_id": order_id,
+							"payment_method": "SBP",
+							"customer_id": str(user_id),
+							"description": f"Подписка BR V2 · {label}",
+						},
+						headers={
+							"X-Shop-ID": config.CISPAY_SHOP_ID,
+							"X-Api-Key": config.CISPAY_API_KEY,
+						},
+						timeout=aiohttp.ClientTimeout(total=10),
+					) as resp:
+						data = await resp.json()
+				payment_url = data.get("payment_url")
+			except Exception as _e:
+				print(f"cisPay create error: {_e}")
+
+		if not payment_url:
+			err_markup = types.InlineKeyboardMarkup(row_width=1)
+			err_markup.add(keyboards.back)
+			await bot.edit_message_caption(
+				chat_id=callback_query.message.chat.id,
+				message_id=callback_query.message.message_id,
+				caption="⚠️ *Не удалось создать счёт\\.*\n\nПопробуйте позже или свяжитесь с поддержкой\\.",
+				parse_mode="MarkdownV2", reply_markup=err_markup,
+			)
+			return
+
+		amount_esc = amount_rub.replace('.', '\\.')
+		pay_markup = types.InlineKeyboardMarkup(row_width=1)
+		pay_markup.add(types.InlineKeyboardButton(f"💳 Оплатить {amount_rub} ₽ через СБП", url=payment_url))
+		pay_markup.add(keyboards.back)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
 			message_id=callback_query.message.message_id,
-			caption="🔧 *Оплата временно недоступна*\n\n_Скоро добавим_ — следите за обновлениями\\!",
-			parse_mode="MarkdownV2", reply_markup=stub_markup
+			caption=(
+				f"📲 *Оплата через СБП*\n\n"
+				f"*└─ Тариф:* {label}\n"
+				f"*└─ Сумма:* {amount_rub} ₽\n\n"
+				f"Нажмите кнопку ниже — откроется форма СБП\\.\n"
+				f"После оплаты подписка активируется автоматически\\."
+			),
+			parse_mode="MarkdownV2",
+			reply_markup=pay_markup,
 		)
 	except Exception as e:
 		print(f"handle_subscription: {e}")
