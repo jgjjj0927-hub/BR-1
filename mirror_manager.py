@@ -21,6 +21,7 @@ from aiogram.utils.exceptions import Unauthorized, TerminatedByOtherGetUpdates
 import config
 import db
 import keyboards
+import stars_pay as _stars_pay
 from captcha import generate_captcha_text, generate_captcha_image
 from translations import t
 from utils import now_msk, esc_md
@@ -395,6 +396,8 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             )
             if st in _MIRROR_TON_PRICES:
                 method_markup.add(types.InlineKeyboardButton(f"💎 TON — {_MIRROR_TON_PRICES[st]} TON", callback_data=f'pay_ton_{st}'))
+            if st in _stars_pay.STARS_COUNT:
+                method_markup.add(types.InlineKeyboardButton(f"⭐ Звёзды — {_stars_pay.STARS_COUNT[st]} Stars", callback_data=f'pay_stars_{st}'))
             method_markup.add(keyboards.back)
             await _mirror_edit(
                 callback_query,
@@ -624,6 +627,141 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             )
         except Exception as e:
             print(f"[MIRROR] check_ton: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_stars_'), state='*')
+    async def mirror_pay_stars(callback_query: types.CallbackQuery):
+        try:
+            user_id = callback_query.from_user.id
+            st = callback_query.data[len('pay_stars_'):]
+            if st not in _MIRROR_SUB_MAP or st not in _stars_pay.STARS_COUNT:
+                await callback_query.answer()
+                return
+            await callback_query.answer()
+            label = _MIRROR_SUB_LABELS.get(st, st)
+            stars = _stars_pay.STARS_COUNT[st]
+
+            wait_markup = types.InlineKeyboardMarkup(row_width=1)
+            wait_markup.add(keyboards.back)
+            await _mirror_edit(
+                callback_query,
+                (
+                    f"⭐ *Оплата через Telegram Stars*\n\n"
+                    f"*└─ Тариф:* {label}\n"
+                    f"*└─ Сумма:* {stars} Stars\n\n"
+                    f"⏳ Создаём счёт\\.\\.\\."
+                ),
+                wait_markup,
+            )
+
+            result = await _stars_pay.create_invoice(user_id, st)
+            if not result or not result.get("link"):
+                err_markup = types.InlineKeyboardMarkup(row_width=1)
+                err_markup.add(keyboards.back)
+                await _mirror_edit(
+                    callback_query,
+                    "⚠️ *Не удалось создать счёт\\.*\n\nПопробуйте позже или выберите другой способ оплаты\\.",
+                    err_markup,
+                )
+                return
+
+            pay_link = result["link"]
+            unique_hash = result["hash"]
+
+            pay_markup = types.InlineKeyboardMarkup(row_width=1)
+            pay_markup.add(
+                types.InlineKeyboardButton(f"⭐ Оплатить {stars} Stars", url=pay_link),
+                types.InlineKeyboardButton("✅ Я оплатил", callback_data=f'check_stars_{st}_{unique_hash}'),
+                keyboards.back,
+            )
+            await _mirror_edit(
+                callback_query,
+                (
+                    f"⭐ *Оплата через Telegram Stars*\n\n"
+                    f"*└─ Тариф:* {label}\n"
+                    f"*└─ Сумма:* {stars} Stars\n\n"
+                    f"Нажмите кнопку ниже — откроется диалог для оплаты\\.\n"
+                    f"После оплаты нажмите *«Я оплатил»*\\."
+                ),
+                pay_markup,
+            )
+        except Exception as e:
+            print(f"[MIRROR] pay_stars: {e}")
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_stars_'), state='*')
+    async def mirror_check_stars(callback_query: types.CallbackQuery):
+        try:
+            user_id = callback_query.from_user.id
+            parts = callback_query.data[len('check_stars_'):].split('_', 1)
+            if len(parts) != 2:
+                await callback_query.answer()
+                return
+            st, unique_hash = parts[0], parts[1]
+            if st not in _MIRROR_SUB_MAP:
+                await callback_query.answer()
+                return
+            await callback_query.answer(text="🔍 Проверяем...")
+
+            found, tx_hash = await _stars_pay.check_payment(user_id, unique_hash, st)
+
+            if not found:
+                err_markup = types.InlineKeyboardMarkup(row_width=1)
+                err_markup.add(
+                    types.InlineKeyboardButton("✅ Я оплатил", callback_data=f'check_stars_{st}_{unique_hash}'),
+                    keyboards.back,
+                )
+                stars = _stars_pay.STARS_COUNT.get(st, "?")
+                await _mirror_edit(
+                    callback_query,
+                    (
+                        f"❌ *Оплата не найдена*\n\n"
+                        f"Убедитесь что перевод завершён\\.\n"
+                        f"Транзакции обновляются с задержкой 1\\-3 мин\\.\n"
+                        f"*└─ Ожидаем:* {stars} Stars\n\n"
+                        f"Попробуйте через минуту\\."
+                    ),
+                    err_markup,
+                )
+                return
+
+            if await db.is_invoice_used(tx_hash):
+                await callback_query.answer(text="✅ Уже активировано!", show_alert=True)
+                return
+
+            await db.mark_invoice_used(tx_hash, user_id)
+            _, days_str, _, _ = _MIRROR_SUB_MAP[st]
+            found_days = int(days_str)
+            new_date = (now_msk() + timedelta(days=found_days)).strftime("%Y-%m-%d %H:%M:%S")
+            await db.set_subscribe(user_id, new_date)
+
+            referrer_id = await db.get_referrer_id(user_id)
+            if referrer_id:
+                bonus_days = max(1, int(found_days * 0.1))
+                ref_new_date = (now_msk() + timedelta(days=bonus_days)).strftime("%Y-%m-%d %H:%M:%S")
+                await db.set_subscribe(referrer_id, ref_new_date)
+                try:
+                    await mirror_bot.send_message(
+                        referrer_id,
+                        f"💰 *Реферальный бонус\\!*\n"
+                        f"*└─ Ваш реферал купил подписку*\n"
+                        f"*└─ Вам начислено: \\+{bonus_days} день подписки*",
+                        parse_mode="MarkdownV2")
+                except Exception:
+                    pass
+
+            label = _MIRROR_SUB_LABELS.get(st, st)
+            back_markup = types.InlineKeyboardMarkup(row_width=1)
+            back_markup.add(keyboards.back)
+            await _mirror_edit(
+                callback_query,
+                (
+                    f"✅ *Оплата получена\\!*\n\n"
+                    f"*└─ Подписка активирована:* {label}\n\n"
+                    f"Спасибо за покупку\\!"
+                ),
+                back_markup,
+            )
+        except Exception as e:
+            print(f"[MIRROR] check_stars: {e}")
 
     @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'), state='*')
     async def mirror_check_status(callback_query: types.CallbackQuery):

@@ -33,6 +33,7 @@ from code_snos import main_code_snos, set_bot_code
 from dsa_snos import main_dsa_snos, set_bot_dsa
 from support_snos import main_support
 from domain_killer import main_domain_killer
+import stars_pay
 from telegraph_snos import main_telegraph_snos, set_bot_telegraph, fetch_telegraph_text, generate_telegraph_text
 from monitor_snos import monitor_loop, set_monitor_bot, telegraph_monitor_add
 from support_monitor import add_support_monitor, set_support_monitor_bot, support_monitor_loop
@@ -827,6 +828,8 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 		)
 		if st in _TON_PRICES:
 			method_markup.add(types.InlineKeyboardButton(f"💎 TON — {_TON_PRICES[st]} TON", callback_data=f'pay_ton_{st}'))
+		if st in stars_pay.STARS_COUNT:
+			method_markup.add(types.InlineKeyboardButton(f"⭐ Звёзды — {stars_pay.STARS_COUNT[st]} Stars", callback_data=f'pay_stars_{st}'))
 		method_markup.add(keyboards.back)
 		await bot.edit_message_caption(
 			chat_id=callback_query.message.chat.id,
@@ -1290,6 +1293,168 @@ async def check_ton_callback(callback_query: types.CallbackQuery):
 			pass
 	except Exception as e:
 		print(f"check_ton_callback: {e}")
+
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_stars_'), state='*')
+async def pay_stars_callback(callback_query: types.CallbackQuery):
+	try:
+		user_id = callback_query.from_user.id
+		st = callback_query.data[len('pay_stars_'):]
+		if st not in _SUB_MAP or st not in stars_pay.STARS_COUNT:
+			await callback_query.answer()
+			return
+		await bot.answer_callback_query(callback_query.id)
+		label = _SUB_LABELS.get(st, st)
+		stars = stars_pay.STARS_COUNT[st]
+
+		wait_markup = types.InlineKeyboardMarkup(row_width=1)
+		wait_markup.add(keyboards.back)
+		await bot.edit_message_caption(
+			chat_id=callback_query.message.chat.id,
+			message_id=callback_query.message.message_id,
+			caption=(
+				f"⭐ *Оплата через Telegram Stars*\n\n"
+				f"*└─ Тариф:* {label}\n"
+				f"*└─ Сумма:* {stars} Stars\n\n"
+				f"⏳ Создаём счёт\\.\\.\\."
+			),
+			parse_mode="MarkdownV2",
+			reply_markup=wait_markup,
+		)
+
+		result = await stars_pay.create_invoice(user_id, st)
+		if not result or not result.get("link"):
+			err_markup = types.InlineKeyboardMarkup(row_width=1)
+			err_markup.add(keyboards.back)
+			await bot.edit_message_caption(
+				chat_id=callback_query.message.chat.id,
+				message_id=callback_query.message.message_id,
+				caption="⚠️ *Не удалось создать счёт\\.*\n\nПопробуйте позже или выберите другой способ оплаты\\.",
+				parse_mode="MarkdownV2",
+				reply_markup=err_markup,
+			)
+			return
+
+		pay_link = result["link"]
+		unique_hash = result["hash"]
+
+		pay_markup = types.InlineKeyboardMarkup(row_width=1)
+		pay_markup.add(
+			types.InlineKeyboardButton(f"⭐ Оплатить {stars} Stars", url=pay_link),
+			types.InlineKeyboardButton("✅ Я оплатил", callback_data=f'check_stars_{st}_{unique_hash}'),
+			keyboards.back,
+		)
+		await bot.edit_message_caption(
+			chat_id=callback_query.message.chat.id,
+			message_id=callback_query.message.message_id,
+			caption=(
+				f"⭐ *Оплата через Telegram Stars*\n\n"
+				f"*└─ Тариф:* {label}\n"
+				f"*└─ Сумма:* {stars} Stars\n\n"
+				f"Нажмите кнопку ниже — откроется диалог для оплаты\\.\n"
+				f"После оплаты нажмите *«Я оплатил»*\\."
+			),
+			parse_mode="MarkdownV2",
+			reply_markup=pay_markup,
+		)
+	except Exception as e:
+		print(f"pay_stars_callback: {e}")
+
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_stars_'), state='*')
+async def check_stars_callback(callback_query: types.CallbackQuery):
+	try:
+		user_id = callback_query.from_user.id
+		parts = callback_query.data[len('check_stars_'):].split('_', 1)
+		if len(parts) != 2:
+			await callback_query.answer()
+			return
+		st, unique_hash = parts[0], parts[1]
+		if st not in _SUB_MAP:
+			await callback_query.answer()
+			return
+		await bot.answer_callback_query(callback_query.id, text="🔍 Проверяем...")
+
+		found, tx_hash = await stars_pay.check_payment(user_id, unique_hash, st)
+
+		if not found:
+			err_markup = types.InlineKeyboardMarkup(row_width=1)
+			err_markup.add(
+				types.InlineKeyboardButton("✅ Я оплатил", callback_data=f'check_stars_{st}_{unique_hash}'),
+				keyboards.back,
+			)
+			stars = stars_pay.STARS_COUNT.get(st, "?")
+			await bot.edit_message_caption(
+				chat_id=callback_query.message.chat.id,
+				message_id=callback_query.message.message_id,
+				caption=(
+					f"❌ *Оплата не найдена*\n\n"
+					f"Убедитесь что перевод завершён\\.\n"
+					f"Транзакции обновляются с задержкой 1\\-3 мин\\.\n"
+					f"*└─ Ожидаем:* {stars} Stars\n\n"
+					f"Попробуйте через минуту\\."
+				),
+				parse_mode="MarkdownV2",
+				reply_markup=err_markup,
+			)
+			return
+
+		if await db.is_invoice_used(tx_hash):
+			await bot.answer_callback_query(callback_query.id, text="✅ Уже активировано!", show_alert=True)
+			return
+
+		await db.mark_invoice_used(tx_hash, user_id)
+		_, _, _, _ = _SUB_MAP[st]
+		_, days_str, _, _ = _SUB_MAP[st]
+		found_days = int(days_str)
+		new_date = (now_msk() + timedelta(days=found_days)).strftime("%Y-%m-%d %H:%M:%S")
+		await db.set_subscribe(user_id, new_date)
+
+		referrer_id = await db.get_referrer_id(user_id)
+		if referrer_id:
+			bonus_days = max(1, int(found_days * 0.1))
+			ref_new_date = (now_msk() + timedelta(days=bonus_days)).strftime("%Y-%m-%d %H:%M:%S")
+			await db.set_subscribe(referrer_id, ref_new_date)
+			try:
+				await bot.send_message(
+					referrer_id,
+					f"💰 *Реферальный бонус\\!*\n"
+					f"*└─ Ваш реферал купил подписку*\n"
+					f"*└─ Вам начислено: \\+{bonus_days} день подписки*",
+					parse_mode="MarkdownV2")
+			except Exception:
+				pass
+
+		label = _SUB_LABELS.get(st, st)
+		stars = stars_pay.STARS_COUNT.get(st, "?")
+		try:
+			await bot.edit_message_caption(
+				chat_id=callback_query.message.chat.id,
+				message_id=callback_query.message.message_id,
+				caption=(
+					f"✅ *Оплата получена\\!*\n\n"
+					f"*└─ Подписка активирована:* {label}\n\n"
+					f"Спасибо за покупку\\!"
+				),
+				parse_mode="MarkdownV2",
+				reply_markup=keyboards.back_markup,
+			)
+		except Exception:
+			pass
+		try:
+			await bot.send_message(
+				bot_logs,
+				f"⭐ *Stars оплата*\n"
+				f"*└─ Пользователь:* {user_id}\n"
+				f"*└─ Тариф:* {label}\n"
+				f"*└─ Stars:* {stars}",
+				parse_mode="Markdown",
+			)
+		except Exception:
+			pass
+	except Exception as e:
+		print(f"check_stars_callback: {e}")
+
 
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('check_status_'), state='*')
 async def check_status_callback(callback_query: types.CallbackQuery):
