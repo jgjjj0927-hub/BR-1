@@ -197,7 +197,7 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
             logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Email отправлен ({session_email}), жду код...")
 
         elif ("sent a" in text and "code" in text or "verification code" in text) and step == 6:
-            code = await _wait_for_code_file(session_email, timeout=60)
+            code = await _wait_for_code_file(session_email, timeout=180)
             if code:
                 await asyncio.sleep(0.5)
                 await client.send_message(bot_entity, code)
