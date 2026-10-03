@@ -792,6 +792,12 @@ _SUB_MAP = {
 _YM_WALLET = "4100118677444773"
 _TON_ADDRESS = "UQDeT6tcvKiwrR_fCa0ORJ_OOKPQbnvbzyB8l1YXzXK0iLCf"
 
+_SUB_LABELS = {
+	"1": "1 день", "3": "3 дня", "7": "7 дней",
+	"30": "30 дней", "60": "60 дней",
+	"premupgrade": "Premium", "test": "Тест",
+}
+
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('sub_'), state='*')
 async def handle_subscription(callback_query: types.CallbackQuery):
 	try:
@@ -803,41 +809,101 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 			return
 		await bot.answer_callback_query(callback_query.id)
 
-		_, _, _, amount_rub = _SUB_MAP[st]
-		order_id = f"cispay_{user_id}_{st}_{int(time.time())}"
-		amount_kopecks = int(amount_rub) * 100
+		amount_usd, _, _, amount_rub = _SUB_MAP[st]
+		label = _SUB_LABELS.get(st, st)
 
-		_sub_labels = {
-			"1": "1 день", "3": "3 дня", "7": "7 дней",
-			"30": "30 дней", "60": "60 дней",
-			"premupgrade": "Premium", "test": "Тест",
-		}
-		label = _sub_labels.get(st, st)
+		method_markup = types.InlineKeyboardMarkup(row_width=1)
+		method_markup.add(
+			types.InlineKeyboardButton(f"🇷🇺 СБП — {amount_rub} ₽", callback_data=f'pay_cispay_{st}'),
+			types.InlineKeyboardButton(f"🚀 xRocket — {amount_usd} USDT", callback_data=f'pay_xrocket_{st}'),
+			keyboards.back,
+		)
+		await bot.edit_message_caption(
+			chat_id=callback_query.message.chat.id,
+			message_id=callback_query.message.message_id,
+			caption=(
+				f"💳 *Выберите способ оплаты*\n\n"
+				f"*└─ Тариф:* {label}\n\n"
+				f"После оплаты подписка активируется автоматически\\."
+			),
+			parse_mode="MarkdownV2",
+			reply_markup=method_markup,
+		)
+	except Exception as e:
+		print(f"handle_subscription: {e}")
+
+
+async def _create_cispay_payment(user_id: int, st: str) -> str | None:
+	_, _, _, amount_rub = _SUB_MAP[st]
+	label = _SUB_LABELS.get(st, st)
+	order_id = f"cispay_{user_id}_{st}_{int(time.time())}"
+	try:
+		async with aiohttp.ClientSession() as _s:
+			async with _s.post(
+				"https://api.cispay.app/payments",
+				json={
+					"amount": int(amount_rub) * 100,
+					"currency": "RUB",
+					"order_id": order_id,
+					"payment_method": "SBP",
+					"customer_id": str(user_id),
+					"description": f"Подписка BR V2 · {label}",
+				},
+				headers={
+					"X-Shop-ID": config.CISPAY_SHOP_ID,
+					"X-Api-Key": config.CISPAY_API_KEY,
+				},
+				timeout=aiohttp.ClientTimeout(total=10),
+			) as resp:
+				data = await resp.json()
+		return data.get("payment_url")
+	except Exception as _e:
+		print(f"cisPay create error: {_e}")
+		return None
+
+
+async def _create_xrocket_invoice(user_id: int, st: str) -> str | None:
+	amount_usd, _, _, _ = _SUB_MAP[st]
+	label = _SUB_LABELS.get(st, st)
+	payload = f"xrocket_{user_id}_{st}_{int(time.time())}"
+	try:
+		async with aiohttp.ClientSession() as _s:
+			async with _s.post(
+				"https://pay.xrocket.tg/tg-invoices",
+				json={
+					"amount": float(amount_usd),
+					"numPayments": 1,
+					"currency": "USDT",
+					"description": f"Подписка BR V2 · {label}",
+					"hiddenMessage": "✅ Оплата получена! Подписка активируется автоматически.",
+					"payload": payload,
+					"expiredIn": 3600,
+				},
+				headers={"Rocket-Pay-Key": config.XROCKET_API_KEY},
+				timeout=aiohttp.ClientTimeout(total=10),
+			) as resp:
+				data = await resp.json()
+		if data.get("success"):
+			return data["data"].get("link")
+	except Exception as _e:
+		print(f"xRocket create error: {_e}")
+	return None
+
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_cispay_'), state='*')
+async def pay_cispay_callback(callback_query: types.CallbackQuery):
+	try:
+		user_id = callback_query.from_user.id
+		st = callback_query.data[len('pay_cispay_'):]
+		if st not in _SUB_MAP:
+			return
+		await bot.answer_callback_query(callback_query.id)
+		_, _, _, amount_rub = _SUB_MAP[st]
+		label = _SUB_LABELS.get(st, st)
 
 		payment_url = None
 		if config.CISPAY_SHOP_ID and config.CISPAY_API_KEY:
-			try:
-				async with aiohttp.ClientSession() as _s:
-					async with _s.post(
-						"https://api.cispay.app/payments",
-						json={
-							"amount": amount_kopecks,
-							"currency": "RUB",
-							"order_id": order_id,
-							"payment_method": "SBP",
-							"customer_id": str(user_id),
-							"description": f"Подписка BR V2 · {label}",
-						},
-						headers={
-							"X-Shop-ID": config.CISPAY_SHOP_ID,
-							"X-Api-Key": config.CISPAY_API_KEY,
-						},
-						timeout=aiohttp.ClientTimeout(total=10),
-					) as resp:
-						data = await resp.json()
-				payment_url = data.get("payment_url")
-			except Exception as _e:
-				print(f"cisPay create error: {_e}")
+			payment_url = await _create_cispay_payment(user_id, st)
 
 		if not payment_url:
 			err_markup = types.InlineKeyboardMarkup(row_width=1)
@@ -850,7 +916,6 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 			)
 			return
 
-		amount_esc = amount_rub.replace('.', '\\.')
 		pay_markup = types.InlineKeyboardMarkup(row_width=1)
 		pay_markup.add(types.InlineKeyboardButton(f"💳 Оплатить {amount_rub} ₽ через СБП", url=payment_url))
 		pay_markup.add(keyboards.back)
@@ -868,7 +933,53 @@ async def handle_subscription(callback_query: types.CallbackQuery):
 			reply_markup=pay_markup,
 		)
 	except Exception as e:
-		print(f"handle_subscription: {e}")
+		print(f"pay_cispay_callback: {e}")
+
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_xrocket_'), state='*')
+async def pay_xrocket_callback(callback_query: types.CallbackQuery):
+	try:
+		user_id = callback_query.from_user.id
+		st = callback_query.data[len('pay_xrocket_'):]
+		if st not in _SUB_MAP:
+			return
+		await bot.answer_callback_query(callback_query.id)
+		amount_usd, _, _, _ = _SUB_MAP[st]
+		label = _SUB_LABELS.get(st, st)
+
+		invoice_url = None
+		if config.XROCKET_API_KEY:
+			invoice_url = await _create_xrocket_invoice(user_id, st)
+
+		if not invoice_url:
+			err_markup = types.InlineKeyboardMarkup(row_width=1)
+			err_markup.add(keyboards.back)
+			await bot.edit_message_caption(
+				chat_id=callback_query.message.chat.id,
+				message_id=callback_query.message.message_id,
+				caption="⚠️ *Не удалось создать счёт\\.*\n\nПопробуйте позже или свяжитесь с поддержкой\\.",
+				parse_mode="MarkdownV2", reply_markup=err_markup,
+			)
+			return
+
+		pay_markup = types.InlineKeyboardMarkup(row_width=1)
+		pay_markup.add(types.InlineKeyboardButton(f"🚀 Оплатить {amount_usd} USDT в xRocket", url=invoice_url))
+		pay_markup.add(keyboards.back)
+		await bot.edit_message_caption(
+			chat_id=callback_query.message.chat.id,
+			message_id=callback_query.message.message_id,
+			caption=(
+				f"🚀 *Оплата через xRocket*\n\n"
+				f"*└─ Тариф:* {label}\n"
+				f"*└─ Сумма:* {amount_usd} USDT\n\n"
+				f"Нажмите кнопку ниже — откроется Telegram бот xRocket\\.\n"
+				f"После оплаты подписка активируется автоматически\\."
+			),
+			parse_mode="MarkdownV2",
+			reply_markup=pay_markup,
+		)
+	except Exception as e:
+		print(f"pay_xrocket_callback: {e}")
 
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('pay_crypto_'), state='*')
 async def pay_crypto_callback(callback_query: types.CallbackQuery):

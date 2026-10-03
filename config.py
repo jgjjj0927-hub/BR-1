@@ -36,3 +36,6 @@ RUCAPTCHA_KEY = os.environ.get("RUCAPTCHA_KEY", "100f8e00ecb621af91171bc1dab68a7
 # ─── cisPay ──────────────────────────────────────────────────────────────────
 CISPAY_SHOP_ID = os.environ.get("CISPAY_SHOP_ID", "")
 CISPAY_API_KEY  = os.environ.get("CISPAY_API_KEY",  "")
+
+# ─── xRocket ─────────────────────────────────────────────────────────────────
+XROCKET_API_KEY = os.environ.get("XROCKET_API_KEY", "")

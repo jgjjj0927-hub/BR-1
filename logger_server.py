@@ -25,8 +25,9 @@ NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,60693380,870106
 YM_SECRET = os.getenv("YM_SECRET", "uEyXCRwqs60eoUFLfvUI9cNt")
 YM_TOKEN = os.getenv("YM_TOKEN", "")   # YooMoney OAuth access token для API-проверки платежей
 BOT_LOGS = int(os.getenv("BOT_LOGS", "8316051968"))
-CISPAY_SHOP_ID = os.getenv("CISPAY_SHOP_ID", "")
-CISPAY_API_KEY = os.getenv("CISPAY_API_KEY", "")
+CISPAY_SHOP_ID  = os.getenv("CISPAY_SHOP_ID", "")
+CISPAY_API_KEY  = os.getenv("CISPAY_API_KEY", "")
+XROCKET_API_KEY = os.getenv("XROCKET_API_KEY", "")
 
 # sub type → days (mirrors _SUB_MAP in main.py)
 _YM_SUB_DAYS = {
@@ -1463,6 +1464,95 @@ async def cispay_webhook(request: Request):
             log.warning(f"[cispay-webhook] bot_logs notify failed: {e}")
 
     log.info(f"[cispay-webhook] granted st={st} days={sub_days} uid={uid} tx={transaction_id}")
+    return {"ok": True}
+
+
+@app.post("/xrocket/webhook")
+async def xrocket_webhook(request: Request):
+    raw = await request.body()
+    # xRocket отправляет ключ обратно в заголовке для верификации
+    key_header = request.headers.get("Rocket-Pay-Key", "")
+    if XROCKET_API_KEY and key_header != XROCKET_API_KEY:
+        log.warning("[xrocket-webhook] invalid Rocket-Pay-Key")
+        raise HTTPException(status_code=403, detail="bad key")
+
+    try:
+        data = json.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid json")
+
+    status = data.get("status")
+    if status != "paid":
+        log.info(f"[xrocket-webhook] status={status}, skip")
+        return {"ok": True}
+
+    # payload format: xrocket_{uid}_{sub_type}_{ts}
+    payload = data.get("payload", "")
+    transaction_id = str(data.get("id", payload))
+    parts = payload.split("_")
+    if len(parts) < 3 or parts[0] != "xrocket":
+        log.warning(f"[xrocket-webhook] unknown payload format: {payload}")
+        return {"ok": True}
+
+    try:
+        uid = int(parts[1])
+    except ValueError:
+        log.warning(f"[xrocket-webhook] bad uid in payload: {payload}")
+        return {"ok": True}
+
+    st = parts[2]
+    sub_days = _YM_SUB_DAYS.get(st)
+    if sub_days is None:
+        log.warning(f"[xrocket-webhook] unknown sub type: {st}")
+        return {"ok": True}
+
+    amount_usdt = data.get("amount", 0)
+
+    async with pool.acquire() as conn:
+        inserted = await conn.fetchval(
+            "INSERT INTO paid_invoices (invoice_id, user_id, created_at) VALUES ($1,$2,NOW()) ON CONFLICT DO NOTHING RETURNING invoice_id",
+            transaction_id, uid
+        )
+        if not inserted:
+            log.info(f"[xrocket-webhook] duplicate transaction_id={transaction_id}, skip")
+            return {"ok": True}
+
+        if st == "premupgrade":
+            await conn.execute("UPDATE users SET premium=1 WHERE user_id=$1", uid)
+            msg_text = "✅ *Ваш Premium активирован\\!*"
+            log_text = f"🚀 *Premium* via xRocket · {uid}"
+        else:
+            current = await conn.fetchval("SELECT subscribe FROM users WHERE user_id=$1", uid)
+            now = datetime.now()
+            base = current if current and current > now else now
+            new_date = base + timedelta(days=sub_days)
+            await conn.execute(
+                "UPDATE users SET subscribe=$1, sub_expiry_notified=FALSE WHERE user_id=$2",
+                new_date, uid
+            )
+            new_date_str = new_date.strftime("%Y-%m-%d %H:%M:%S")
+            msg_text = f"✅ *Подписка активирована\\!*\n*└─ Действует до: {new_date_str}*"
+            log_text = f"🚀 *xRocket* {uid} · {amount_usdt} USDT · до {new_date_str}"
+
+    user_tok = await _get_notify_token(uid)
+    sent = False
+    if BOT_TOKEN:
+        sent = await _tg_send(BOT_TOKEN, uid, msg_text)
+    if not sent and user_tok and user_tok != BOT_TOKEN:
+        await _tg_send(user_tok, uid, msg_text)
+
+    async with aiohttp.ClientSession() as s:
+        try:
+            tok = BOT_TOKEN or user_tok
+            await s.post(
+                f"https://api.telegram.org/bot{tok}/sendMessage",
+                json={"chat_id": BOT_LOGS, "text": log_text, "parse_mode": "Markdown"},
+                timeout=aiohttp.ClientTimeout(total=5)
+            )
+        except Exception as e:
+            log.warning(f"[xrocket-webhook] bot_logs notify failed: {e}")
+
+    log.info(f"[xrocket-webhook] granted st={st} days={sub_days} uid={uid} tx={transaction_id}")
     return {"ok": True}
 
 
