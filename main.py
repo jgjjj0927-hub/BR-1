@@ -509,32 +509,43 @@ maintenance_mode = _get_maintenance()
 async def username_prem_got(message: types.Message, state: FSMContext):
     uid = message.from_user.id
     target = message.text.strip().lstrip('@')
+    fsm_data = await state.get_data()
+    _bot_token = fsm_data.get('_bot_token')
+    _is_mirror = bool(_bot_token and _bot_token != config.TOKEN)
+    _bot = Bot(token=_bot_token) if _is_mirror else bot
     await state.finish()
     if uid not in admins:
         last_used_username_prem[uid] = now_msk()
-    await bot.send_message(uid, f"\U0001f464 *Username-метод*\n*└─ Цель:* `@{target}`", parse_mode="Markdown")
-    asyncio.create_task(_run_username_progress(uid, target))
+    await _bot.send_message(uid, f"\U0001f464 *Username-метод*\n*└─ Цель:* `@{target}`", parse_mode="Markdown")
+    asyncio.create_task(_run_username_progress(uid, target, _bot, _is_mirror))
 
 
-async def _run_username_progress(uid: int, target: str):
+async def _run_username_progress(uid: int, target: str, _bot=None, _is_mirror: bool = False):
+    if _bot is None:
+        _bot = bot
     def _bar(pct):
         return '█' * (pct // 10) + '░' * (10 - pct // 10)
-    prog = await bot.send_message(uid, f"🔄 *Обработка...*\n`[{_bar(10)}]` 10%", parse_mode="Markdown")
+    prog = await _bot.send_message(uid, f"🔄 *Обработка...*\n`[{_bar(10)}]` 10%", parse_mode="Markdown")
     for pct in range(20, 101, 10):
         await asyncio.sleep(7.0 / 9)
         try:
-            await bot.edit_message_text(f"🔄 *Обработка...*\n`[{_bar(pct)}]` {pct}%", chat_id=uid, message_id=prog.message_id, parse_mode="Markdown")
+            await _bot.edit_message_text(f"🔄 *Обработка...*\n`[{_bar(pct)}]` {pct}%", chat_id=uid, message_id=prog.message_id, parse_mode="Markdown")
         except Exception:
             pass
     try:
         mm = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("[🔙] Главное меню", callback_data="go_to_main_menu"))
-        await bot.edit_message_text(f"✅ *Готово!*\n`[██████████]` 100%\n\n*└─ @{target} обработан*", chat_id=uid, message_id=prog.message_id, parse_mode="Markdown", reply_markup=mm)
+        await _bot.edit_message_text(f"✅ *Готово!*\n`[██████████]` 100%\n\n*└─ @{target} обработан*", chat_id=uid, message_id=prog.message_id, parse_mode="Markdown", reply_markup=mm)
     except Exception:
-        await bot.send_message(uid, f"✅ *Готово!*\n*└─ @{target} обработан*", parse_mode="Markdown")
+        await _bot.send_message(uid, f"✅ *Готово!*\n*└─ @{target} обработан*", parse_mode="Markdown")
     try:
         await bot.send_message(bot_logs, f"\U0001f464 *Username-метод*\n└─ `{uid}` → `@{target}`", parse_mode="Markdown")
     except Exception:
         pass
+    if _is_mirror:
+        try:
+            s = await _bot.get_session(); await s.close()
+        except Exception:
+            pass
 
 
 @dp.message_handler(commands=['on'])
@@ -4029,8 +4040,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		# ─── Username-метод ──────────────────────────────────────────────────────
 		elif d == "prem_username_method":
-			if uid not in admins:
-				await bot_instance.answer_callback_query(call.id, "❌ Только для администраторов!", show_alert=True)
+			if premium == 0 and uid not in admins:
+				await bot_instance.answer_callback_query(call.id, "❌ Только для премиум-пользователей!", show_alert=True)
 				return
 			if bot_off():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
