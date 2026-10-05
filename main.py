@@ -6230,38 +6230,54 @@ async def sendall(message: types.Message, state: FSMContext):
 
 async def _do_broadcast(source: types.Message, status_msg: types.Message):
 	users = await db.get_all_user_ids()
-	ok, fail = 0, 0
 	total = len(users)
 
 	from mirror_manager import _mirror_bots
 
-	for i, user_id in enumerate(users):
-		try:
-			# Отправляем через зеркало юзера, если есть — иначе через основной бот
-			token = await db.get_user_mirror(user_id)
-			if token and token in _mirror_bots:
-				await _mirror_bots[token].copy_message(
-					chat_id=user_id,
-					from_chat_id=source.chat.id,
-					message_id=source.message_id,
-					reply_markup=del_message2,
-				)
-			else:
-				await source.copy_to(user_id, reply_markup=del_message2)
-			ok += 1
-		except Exception:
-			fail += 1
-		await asyncio.sleep(0.05)
-		# Обновляем прогресс каждые 200 отправок
-		if (i + 1) % 200 == 0:
-			try:
-				await status_msg.edit_text(
-					f'📤 *Рассылка...*\n*Прогресс:* {i+1}/{total}\n*✅* {ok} *❌* {fail}',
-					parse_mode='Markdown'
-				)
-			except Exception:
-				pass
+	# Группируем юзеров по зеркалу: token → [user_id, ...]
+	groups: dict[str | None, list[int]] = {}
+	for user_id in users:
+		token = await db.get_user_mirror(user_id)
+		key = token if (token and token in _mirror_bots) else None
+		groups.setdefault(key, []).append(user_id)
 
+	ok_box = [0]
+	fail_box = [0]
+	sent_box = [0]
+
+	async def _send_group(key: str | None, uid_list: list[int]):
+		_b = _mirror_bots[key] if key else None
+		for user_id in uid_list:
+			try:
+				if _b:
+					await _b.copy_message(
+						chat_id=user_id,
+						from_chat_id=source.chat.id,
+						message_id=source.message_id,
+						reply_markup=del_message2,
+					)
+				else:
+					await source.copy_to(user_id, reply_markup=del_message2)
+				ok_box[0] += 1
+			except Exception:
+				fail_box[0] += 1
+			sent_box[0] += 1
+			# Обновляем прогресс каждые 200 отправок (из любой группы)
+			if sent_box[0] % 200 == 0:
+				try:
+					await status_msg.edit_text(
+						f'📤 *Рассылка...*\n*Прогресс:* {sent_box[0]}/{total}\n*✅* {ok_box[0]} *❌* {fail_box[0]}',
+						parse_mode='Markdown'
+					)
+				except Exception:
+					pass
+			# ~20 сообщений/сек на зеркало — ниже лимита Telegram
+			await asyncio.sleep(0.05)
+
+	# Все группы (зеркала) стартуют одновременно
+	await asyncio.gather(*[_send_group(k, v) for k, v in groups.items()])
+
+	ok, fail = ok_box[0], fail_box[0]
 	try:
 		await status_msg.edit_text(
 			f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}',
