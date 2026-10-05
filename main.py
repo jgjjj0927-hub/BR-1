@@ -6296,16 +6296,19 @@ async def _do_broadcast(source: types.Message, status_msg: types.Message):
 			pass
 		return
 
+	result_text = f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}'
+	# Удаляем промежуточный статус и шлём новое сообщение (чтобы оно было внизу чата)
 	try:
-		await status_msg.edit_text(
-			f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}',
-			parse_mode='Markdown', reply_markup=main_menu
-		)
+		await status_msg.delete()
 	except Exception:
-		await source.answer(
-			f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}',
-			parse_mode='Markdown', reply_markup=main_menu
-		)
+		pass
+	try:
+		await source.answer(result_text, parse_mode='Markdown', reply_markup=main_menu)
+	except Exception:
+		try:
+			await bot.send_message(source.chat.id, result_text, parse_mode='Markdown', reply_markup=main_menu)
+		except Exception:
+			pass
 	try:
 		await send_log(0, f"📢 *Рассылка завершена*\n*✅ {ok} / ❌ {fail}*", parse_mode='Markdown')
 	except Exception:
