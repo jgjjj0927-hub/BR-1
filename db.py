@@ -259,6 +259,18 @@ async def get_all_user_ids() -> list[int]:
         return [r["user_id"] for r in rows]
 
 
+async def get_all_users_with_mirrors() -> dict[int, str | None]:
+    """Один запрос: {user_id: mirror_token | None} для всех пользователей."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT u.user_id, ma.mirror_token
+            FROM users u
+            LEFT JOIN mirror_assignments ma ON ma.user_id = u.user_id
+        """)
+    return {r["user_id"]: r["mirror_token"] for r in rows}
+
+
 async def get_users_count() -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:

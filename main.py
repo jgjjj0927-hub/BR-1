@@ -6229,55 +6229,62 @@ async def sendall(message: types.Message, state: FSMContext):
 	asyncio.create_task(_do_broadcast(message, status_msg))
 
 async def _do_broadcast(source: types.Message, status_msg: types.Message):
-	users = await db.get_all_user_ids()
-	total = len(users)
+	try:
+		from mirror_manager import _mirror_bots
 
-	from mirror_manager import _mirror_bots
+		# Один запрос — все юзеры + их зеркала
+		user_mirror_map = await db.get_all_users_with_mirrors()
+		total = len(user_mirror_map)
 
-	# Группируем юзеров по зеркалу: token → [user_id, ...]
-	groups: dict[str | None, list[int]] = {}
-	for user_id in users:
-		token = await db.get_user_mirror(user_id)
-		key = token if (token and token in _mirror_bots) else None
-		groups.setdefault(key, []).append(user_id)
+		# Группируем по зеркалу: token → [user_id, ...]
+		groups = {}
+		for user_id, token in user_mirror_map.items():
+			key = token if (token and token in _mirror_bots) else None
+			groups.setdefault(key, []).append(user_id)
 
-	ok_box = [0]
-	fail_box = [0]
-	sent_box = [0]
+		ok_box = [0]
+		fail_box = [0]
+		sent_box = [0]
 
-	async def _send_group(key: str | None, uid_list: list[int]):
-		_b = _mirror_bots[key] if key else None
-		for user_id in uid_list:
-			try:
-				if _b:
-					await _b.copy_message(
-						chat_id=user_id,
-						from_chat_id=source.chat.id,
-						message_id=source.message_id,
-						reply_markup=del_message2,
-					)
-				else:
-					await source.copy_to(user_id, reply_markup=del_message2)
-				ok_box[0] += 1
-			except Exception:
-				fail_box[0] += 1
-			sent_box[0] += 1
-			# Обновляем прогресс каждые 200 отправок (из любой группы)
-			if sent_box[0] % 200 == 0:
+		async def _send_group(key, uid_list):
+			_b = _mirror_bots.get(key) if key else None
+			for user_id in uid_list:
 				try:
-					await status_msg.edit_text(
-						f'📤 *Рассылка...*\n*Прогресс:* {sent_box[0]}/{total}\n*✅* {ok_box[0]} *❌* {fail_box[0]}',
-						parse_mode='Markdown'
-					)
+					if _b:
+						await _b.copy_message(
+							chat_id=user_id,
+							from_chat_id=source.chat.id,
+							message_id=source.message_id,
+							reply_markup=del_message2,
+						)
+					else:
+						await source.copy_to(user_id, reply_markup=del_message2)
+					ok_box[0] += 1
 				except Exception:
-					pass
-			# ~20 сообщений/сек на зеркало — ниже лимита Telegram
-			await asyncio.sleep(0.05)
+					fail_box[0] += 1
+				sent_box[0] += 1
+				if sent_box[0] % 200 == 0:
+					try:
+						await status_msg.edit_text(
+							f'📤 *Рассылка...*\n*Прогресс:* {sent_box[0]}/{total}\n*✅* {ok_box[0]} *❌* {fail_box[0]}',
+							parse_mode='Markdown'
+						)
+					except Exception:
+						pass
+				await asyncio.sleep(0.05)
 
-	# Все группы (зеркала) стартуют одновременно
-	await asyncio.gather(*[_send_group(k, v) for k, v in groups.items()])
+		# Все зеркала параллельно
+		await asyncio.gather(*[_send_group(k, v) for k, v in groups.items()])
 
-	ok, fail = ok_box[0], fail_box[0]
+		ok, fail = ok_box[0], fail_box[0]
+	except Exception as e:
+		print(f"[BROADCAST] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		try:
+			await status_msg.edit_text(f'❌ *Рассылка упала:* {str(e)[:200]}', parse_mode='Markdown')
+		except Exception:
+			pass
+		return
+
 	try:
 		await status_msg.edit_text(
 			f'*🎱 Рассылка окончена!*\n*✅ Доставлено:* {ok}\n*❌ Не доставлено:* {fail}',
