@@ -6246,35 +6246,46 @@ async def _do_broadcast(source: types.Message, status_msg: types.Message):
 		fail_box = [0]
 		sent_box = [0]
 
-		async def _send_group(key, uid_list):
-			_b = _mirror_bots.get(key) if key else None
-			for user_id in uid_list:
-				try:
-					if _b:
-						await _b.copy_message(
+		async def _send_one(b, user_id):
+			try:
+				if b:
+					await asyncio.wait_for(
+						b.copy_message(
 							chat_id=user_id,
 							from_chat_id=source.chat.id,
 							message_id=source.message_id,
 							reply_markup=del_message2,
-						)
-					else:
-						await source.copy_to(user_id, reply_markup=del_message2)
-					ok_box[0] += 1
+						), timeout=8
+					)
+				else:
+					await asyncio.wait_for(
+						source.copy_to(user_id, reply_markup=del_message2),
+						timeout=8
+					)
+				ok_box[0] += 1
+			except Exception:
+				fail_box[0] += 1
+			sent_box[0] += 1
+			if sent_box[0] % 200 == 0:
+				try:
+					await status_msg.edit_text(
+						f'📤 *Рассылка...*\n*Прогресс:* {sent_box[0]}/{total}\n*✅* {ok_box[0]} *❌* {fail_box[0]}',
+						parse_mode='Markdown'
+					)
 				except Exception:
-					fail_box[0] += 1
-				sent_box[0] += 1
-				if sent_box[0] % 200 == 0:
-					try:
-						await status_msg.edit_text(
-							f'📤 *Рассылка...*\n*Прогресс:* {sent_box[0]}/{total}\n*✅* {ok_box[0]} *❌* {fail_box[0]}',
-							parse_mode='Markdown'
-						)
-					except Exception:
-						pass
-				await asyncio.sleep(0.05)
+					pass
+			await asyncio.sleep(0.05)
 
-		# Все зеркала параллельно
-		await asyncio.gather(*[_send_group(k, v) for k, v in groups.items()])
+		async def _send_group(key, uid_list):
+			_b = _mirror_bots.get(key) if key else None
+			for user_id in uid_list:
+				await _send_one(_b, user_id)
+
+		# Все зеркала параллельно, общий таймаут 30 мин
+		await asyncio.wait_for(
+			asyncio.gather(*[_send_group(k, v) for k, v in groups.items()]),
+			timeout=1800
+		)
 
 		ok, fail = ok_box[0], fail_box[0]
 	except Exception as e:
