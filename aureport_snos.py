@@ -73,19 +73,14 @@ def _get_sessions():
 
 def _load_proxies():
     proxies = []
-    # au_proxies.txt — австралийские прокси (приоритет для AU Report)
-    for fname in ["au_proxies.txt", "proxies.txt", "proxy_input.txt"]:
+    for fname in ["proxies.txt", "proxy_input.txt"]:
         if os.path.exists(fname):
             with open(fname, "r") as f:
                 for line in f:
                     line = line.strip()
-                    if line and ":" in line and not line.startswith("#"):
+                    if line and ":" in line:
                         proxies.append(line)
-            if proxies:
-                logger.info(f"[AUREPORT] Прокси загружены из {fname}: {len(proxies)} шт.")
-                break
-    if not proxies:
-        logger.warning("[AUREPORT] ⚠️ au_proxies.txt не найден — без прокси (возможна блокировка по гео)")
+            break
     return proxies
 
 
