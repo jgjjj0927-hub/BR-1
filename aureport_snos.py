@@ -148,31 +148,11 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
 
         logger.info(f"[AUREPORT] [{session_name}] [{report_num}] 📨 step={step} | {text[:120]!r}")
 
-        if "please enter a t.me" in text and step <= 1:
+        if "please enter a t.me" in text and step == 0:
             await asyncio.sleep(0.3)
             await client.send_message(bot_entity, target)
             step = 1
             logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Ссылка отправлена")
-
-        elif step == 0:
-            # Новый флоу: бот показывает инфо + кнопку перед запросом ссылки
-            await asyncio.sleep(0.4)
-            if markup and markup.rows:
-                for row in markup.rows:
-                    for btn in row.buttons:
-                        btn_lower = btn.text.lower()
-                        if isinstance(btn, KeyboardButtonCallback):
-                            await event.message.click(data=btn.data)
-                            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Нажата кнопка: {btn.text!r}")
-                            return
-                        elif any(w in btn_lower for w in ["report", "submit", "start", "continue", "proceed", "next"]):
-                            await client.send_message(bot_entity, btn.text)
-                            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Reply-кнопка: {btn.text!r}")
-                            return
-            else:
-                # Нет кнопок — пробуем отправить /report
-                await client.send_message(bot_entity, "/report")
-                logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Отправил /report")
 
         elif "select the reason" in text and step == 1:
             await asyncio.sleep(0.3)
