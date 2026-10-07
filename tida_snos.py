@@ -652,50 +652,50 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
 
     logger.info(f"[TIDA] 🚀 Запуск | Цель: {target} | Сессий: {total} | Ротация: {rot_idx} ({os.path.basename(active_session)}) | Прокси: {len(all_proxies)}")
 
+    ACCOUNTS_TO_USE = min(2, total)
     tida_peer_ref = [None]
-    pb = ProgressBar(_notify, user, total=total, title="🎵 *TIDA*", silent=silent)
+    pb = ProgressBar(_notify, user, total=ACCOUNTS_TO_USE, title="🎵 *TIDA*", silent=silent)
     await pb.start()
 
-    # Пробуем аккаунты по очереди начиная с текущего; при ошибке — следующий (самый давний)
-    real_result = False
-    for attempt in range(total):
+    # Всегда отправляем с ACCOUNTS_TO_USE аккаунтов подряд, не останавливаясь после первого успеха
+    successful_count = 0
+    last_email_idx = email_idx
+    for attempt in range(ACCOUNTS_TO_USE):
         sess_idx = (rot_idx + attempt) % total
         session_path = sessions[sess_idx]
         cur_email_idx = email_idx + attempt
+        last_email_idx = cur_email_idx
         session_email = f"td{cur_email_idx:04d}@{MAIL_DOMAIN}"
-        logger.info(f"[TIDA] Попытка {attempt + 1}/{total} | сессия: {os.path.basename(session_path)} | email: {session_email}")
-        real_result = await _single_session_flow(
+        logger.info(f"[TIDA] Аккаунт {attempt + 1}/{ACCOUNTS_TO_USE} | сессия: {os.path.basename(session_path)} | email: {session_email}")
+        ok = await _single_session_flow(
             session_path, target, custom_text,
             random.choice(all_proxies) if all_proxies else None,
             tida_peer_ref,
             all_proxies if all_proxies else None,
             session_email=session_email)
-        if real_result:
-            try:
-                with open(email_counter_file, "w") as f:
-                    f.write(str(cur_email_idx + 1))
-            except Exception:
-                pass
-            break
-        logger.warning(f"[TIDA] Сессия {os.path.basename(session_path)} не сработала, пробуем следующую")
+        if ok:
+            successful_count += 1
+        else:
+            logger.warning(f"[TIDA] Сессия {os.path.basename(session_path)} не сработала")
 
-    if not real_result:
-        try:
-            with open(email_counter_file, "w") as f:
-                f.write(str(email_idx + total))
-        except Exception:
-            pass
+    try:
+        with open(email_counter_file, "w") as f:
+            f.write(str(last_email_idx + 1))
+    except Exception:
+        pass
 
-    # Визуально показываем все сессии как выполненные
-    for i in range(total):
+    real_result = successful_count > 0
+
+    # Визуально показываем все аккаунты как выполненные
+    for i in range(ACCOUNTS_TO_USE):
         await pb.update(i + 1)
-        if i < total - 1:
+        if i < ACCOUNTS_TO_USE - 1:
             await asyncio.sleep(0.05)
 
     await pb.finish()
 
     if not real_result:
-        logger.warning(f"[TIDA] ❌ Все {total} аккаунтов не смогли отправить жалобу")
+        logger.warning(f"[TIDA] ❌ Оба аккаунта не смогли отправить жалобу")
         if not silent:
             try:
                 await _notify.send_message(
@@ -704,11 +704,11 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
                     parse_mode="Markdown", reply_markup=keyboards.main_menu)
             except Exception as e:
                 logger.error(f"[TIDA] Ошибка отправки ошибки пользователю: {e}")
-        return (0, total)
+        return (0, ACCOUNTS_TO_USE)
 
-    successful = total
+    successful = successful_count
 
-    logger.info(f"[TIDA] 🏁 Итог: {successful}/{total}")
+    logger.info(f"[TIDA] 🏁 Итог: {successful}/{ACCOUNTS_TO_USE}")
 
     now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
 
@@ -718,7 +718,7 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
         f"🎯 *Цель:* {target_escaped}\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
-        f"🔴 *Не удалось: {total - successful}*"
+        f"🔴 *Не удалось: {ACCOUNTS_TO_USE - successful}*"
     )
     try:
         import db as _db_mod
@@ -735,7 +735,7 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
         f"👤 *Пользователь:* {_log_uid} (@{_log_uname})\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
-        f"🔴 *Не удалось: {total - successful}*"
+        f"🔴 *Не удалось: {ACCOUNTS_TO_USE - successful}*"
     )
 
     if not silent:
@@ -749,4 +749,4 @@ async def main_tida(target_link: str, custom_text: str, user: int, username: str
         except Exception as e:
             logger.error(f"[TIDA] Ошибка отправки лога: {e}")
 
-    return (successful, total)
+    return (successful, ACCOUNTS_TO_USE)
