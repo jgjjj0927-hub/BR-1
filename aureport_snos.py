@@ -73,7 +73,7 @@ def _get_sessions():
 
 def _load_proxies():
     proxies = []
-    for fname in ["proxies.txt", "proxy_input.txt"]:
+    for fname in ["au_proxies.txt", "proxies.txt", "proxy_input.txt"]:
         if os.path.exists(fname):
             with open(fname, "r") as f:
                 for line in f:
@@ -88,7 +88,15 @@ def _parse_proxy(proxy_str):
     """Парсит строку proxy в формат Telethon: (type, host, port, True, user, pass)"""
     try:
         import socks
-        proxy_str = proxy_str.replace("socks5://", "").replace("http://", "")
+        proxy_str = proxy_str.strip()
+        proxy_type = socks.HTTP
+        if proxy_str.startswith("socks5://"):
+            proxy_type = socks.SOCKS5
+            proxy_str = proxy_str[len("socks5://"):]
+        elif proxy_str.startswith("http://"):
+            proxy_str = proxy_str[len("http://"):]
+        # без префикса — HTTP (мобильные прокси)
+
         if "@" in proxy_str:
             auth, hostport = proxy_str.rsplit("@", 1)
             user, password = auth.split(":", 1)
@@ -101,8 +109,8 @@ def _parse_proxy(proxy_str):
                 host, port = parts[0], parts[1]
                 user, password = None, None
         if user and password:
-            return (socks.SOCKS5, host, int(port), True, user, password)
-        return (socks.SOCKS5, host, int(port))
+            return (proxy_type, host, int(port), True, user, password)
+        return (proxy_type, host, int(port))
     except Exception:
         return None
 

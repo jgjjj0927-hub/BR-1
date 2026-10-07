@@ -316,22 +316,34 @@ def _parse_proxy_str(line: str):
     """Парсит строку прокси в tuple для Telethon. Возвращает tuple или None."""
     try:
         line = line.strip()
-        if not line or line.startswith("http://"):
+        if not line:
             return None
-        line = line.replace("socks5://", "").replace("socks4://", "")
+        proxy_type = socks.SOCKS5
+        if line.startswith("http://"):
+            proxy_type = socks.HTTP
+            line = line[len("http://"):]
+        elif line.startswith("socks5://"):
+            line = line[len("socks5://"):]
+        elif line.startswith("socks4://"):
+            proxy_type = socks.SOCKS4
+            line = line[len("socks4://"):]
+        else:
+            # без префикса — определяем по содержимому, дефолт HTTP для мобильных
+            proxy_type = socks.HTTP
+
         if "@" in line:
             auth, hostport = line.rsplit("@", 1)
             u, p = auth.split(":", 1)
             h, pt = hostport.rsplit(":", 1)
-            return (socks.SOCKS5, h, int(pt), True, u, p)
+            return (proxy_type, h, int(pt), True, u, p)
         else:
             parts = line.split(":")
             if len(parts) == 4:
                 h, pt, u, p = parts
-                return (socks.SOCKS5, h, int(pt), True, u, p)
+                return (proxy_type, h, int(pt), True, u, p)
             elif len(parts) == 2:
                 h, pt = parts
-                return (socks.SOCKS5, h, int(pt))
+                return (proxy_type, h, int(pt))
     except Exception:
         pass
     return None
