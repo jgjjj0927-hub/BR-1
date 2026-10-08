@@ -124,11 +124,9 @@ async def _send_message(business_connection_id: str, chat_id: int, text: str, bo
 
 
 async def _delete_message(business_connection_id: str, chat_id: int, message_id: int, bot_token: str = ''):
-    # deleteMessages (plural) — официально поддерживает business_connection_id
-    r = await _api_call("deleteMessages", _token=bot_token,
-                        business_connection_id=business_connection_id,
-                        chat_id=chat_id, message_ids=[message_id])
-    print(f"[CHATBOT] deleteMessages chat={chat_id} msg={message_id}: {r}", flush=True)
+    await _api_call("deleteMessages", _token=bot_token,
+                    business_connection_id=business_connection_id,
+                    chat_id=chat_id, message_ids=[message_id])
 
 
 # ─── Обработчики апдейтов ─────────────────────────────────────────────────────
@@ -222,13 +220,11 @@ async def handle_business_message(raw: dict, bot_token: str = ''):
             pass
 
     # Проверяем мут
-    is_muted = await db.chatbot_is_muted(user_id, chat_id)
-    print(f"[CHATBOT] mute check user={user_id} chat={chat_id} → {is_muted}", flush=True)
-    if is_muted:
+    if await db.chatbot_is_muted(user_id, chat_id):
         try:
             await _delete_message(connection_id, chat_id, message_id, bot_token)
         except Exception as e:
-            print(f"[CHATBOT] delete error (мут): {e}", flush=True)
+            logger.warning(f"[CHATBOT] delete error (мут): {e}")
 
 
 async def handle_deleted_business_messages(raw: dict, bot_token: str = ''):
@@ -505,16 +501,6 @@ async def _cmd_haha(user_id: int, connection_id: str, chat_id: int, message_id: 
 # ─── .mute ────────────────────────────────────────────────────────────────────
 
 async def _cmd_mute(user_id: int, connection_id: str, chat_id: int, message_id: int, text: str, bot_token: str = ''):
-    # Проверяем права бота на удаление чужих сообщений
-    bc_data = await _api_call('getBusinessConnection', _token=bot_token, business_connection_id=connection_id)
-    rights = bc_data.get('result', {}).get('rights', {})
-    if not rights.get('can_delete_all_messages'):
-        await _edit_message(connection_id, chat_id, message_id,
-                            "❌ Для .mute нужно разрешение «Удалять сообщения»\n"
-                            "Зайди: Настройки ТГ → Мой профиль → Чат-боты → выбери бота → включи «Удалять сообщения»",
-                            bot_token)
-        return
-
     parts = text.split(None, 1)
     arg = parts[1].strip() if len(parts) > 1 else ''
     dur = _parse_mute_duration(arg)
