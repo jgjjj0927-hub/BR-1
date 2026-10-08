@@ -146,9 +146,10 @@ async def _send_message(business_connection_id: str, chat_id: int, text: str, bo
 
 
 async def _delete_message(business_connection_id: str, chat_id: int, message_id: int, bot_token: str = ''):
-    await _api_call("deleteMessages", _token=bot_token,
-                    business_connection_id=business_connection_id,
-                    chat_id=chat_id, message_ids=[message_id])
+    r = await _api_call("deleteMessages", _token=bot_token,
+                        business_connection_id=business_connection_id,
+                        chat_id=chat_id, message_ids=[message_id])
+    print(f"[CHATBOT] deleteMessages msg={message_id} result={r}", flush=True)
 
 
 # ─── Обработчики апдейтов ─────────────────────────────────────────────────────
