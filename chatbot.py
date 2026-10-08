@@ -260,12 +260,8 @@ async def _handle_command(user_id: int, connection_id: str, chat: dict,
     cmd_lower = text.lower().strip()
 
     # ── .botsnos ──────────────────────────────────────────────────────────────
-    if cmd_lower == '.botsnos':
-        if not _is_private_bot(chat):
-            await _edit_message(connection_id, chat_id, message_id,
-                                "❌ .botsnos работает только в личном чате с ботом", bot_token)
-            return
-        await _cmd_botsnos(user_id, connection_id, chat, chat_id, message_id, bot_token)
+    if cmd_lower.startswith('.botsnos'):
+        await _cmd_botsnos(user_id, connection_id, chat, chat_id, message_id, text, bot_token)
         return
 
     # ── .snos ─────────────────────────────────────────────────────────────────
@@ -317,14 +313,18 @@ async def _handle_command(user_id: int, connection_id: str, chat: dict,
 
 # ─── .botsnos ─────────────────────────────────────────────────────────────────
 
-async def _cmd_botsnos(user_id: int, connection_id: str, chat: dict, chat_id: int, message_id: int, bot_token: str = ''):
+async def _cmd_botsnos(user_id: int, connection_id: str, chat: dict, chat_id: int, message_id: int, text: str = '', bot_token: str = ''):
     from main import last_used_bot_snos, no_kd, admins
     from bot_snos import main_bot_snos
 
-    target = chat.get('username', '')
+    # Парсим аргумент: .botsnos @username или .botsnos username
+    parts = text.strip().split(None, 1)
+    arg = parts[1].lstrip('@').strip() if len(parts) > 1 else ''
+    target = arg or chat.get('username', '')
+
     if not target:
         await _edit_message(connection_id, chat_id, message_id,
-                            "❌ Не удалось определить username бота", bot_token)
+                            "❌ Укажи username\nПример: .botsnos @GraphWorks", bot_token)
         return
 
     if user_id not in admins and user_id not in no_kd:
