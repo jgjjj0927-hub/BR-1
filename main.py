@@ -7006,7 +7006,8 @@ async def on_startup(dp):
 	try:
 		await bot.get_updates(offset=-1, timeout=0, allowed_updates=[
 			'message', 'edited_message', 'callback_query', 'inline_query',
-			'chosen_inline_result', 'channel_post', 'edited_channel_post'
+			'chosen_inline_result', 'channel_post', 'edited_channel_post',
+			'business_connection', 'business_message', 'deleted_business_messages'
 		])
 		print("allowed_updates сброшены.", flush=True)
 	except Exception:
@@ -7472,36 +7473,78 @@ async def universal_step_tida_text(message: types.Message, state: FSMContext):
 	asyncio.create_task(run_universal(parsed, tida_text, uid, username, status_msg.message_id, _bot, cd_state=cd_state))
 
 
-# ─── Business Bot API (raw update handler) ────────────────────────────────────
+# ─── Business Bot API — custom polling loop ───────────────────────────────────
+# aiogram v2 strips unknown update fields (business_*) before middleware sees them,
+# so we run our own getUpdates call over raw aiohttp and route business events
+# to chatbot handlers before passing everything else to dp.process_update.
 
-from aiogram.dispatcher.middlewares import BaseMiddleware
+_POLLING_ALLOWED = [
+    'message', 'edited_message', 'callback_query', 'inline_query',
+    'chosen_inline_result', 'channel_post', 'edited_channel_post',
+    'business_connection', 'business_message', 'deleted_business_messages',
+]
 
-class _BusinessMiddleware(BaseMiddleware):
-    async def on_pre_process_update(self, update: types.Update, data: dict):
-        raw = update.to_python()
-        try:
-            if 'business_connection' in raw:
-                await _chatbot.handle_business_connection(raw)
-            elif 'business_message' in raw:
-                await _chatbot.handle_business_message(raw)
-            elif 'deleted_business_messages' in raw:
-                await _chatbot.handle_deleted_business_messages(raw)
-        except Exception as e:
-            print(f"[CHATBOT] raw_update error: {e}", flush=True)
+async def _run_polling():
+    token = config.TOKEN
+    offset = 0
+    async with aiohttp.ClientSession() as http:
+        while True:
+            try:
+                params = {
+                    'timeout': 30,
+                    'allowed_updates': _POLLING_ALLOWED,
+                }
+                if offset:
+                    params['offset'] = offset
+                async with http.post(
+                    f'https://api.telegram.org/bot{token}/getUpdates',
+                    json=params,
+                    timeout=aiohttp.ClientTimeout(total=40),
+                ) as resp:
+                    data = await resp.json()
 
-dp.middleware.setup(_BusinessMiddleware())
+                if not data.get('ok'):
+                    print(f"[POLLING] getUpdates not ok: {data.get('description')}", flush=True)
+                    await asyncio.sleep(5)
+                    continue
+
+                for upd in data.get('result', []):
+                    uid = upd['update_id']
+                    if uid >= offset:
+                        offset = uid + 1
+
+                    try:
+                        if 'business_connection' in upd:
+                            asyncio.create_task(_chatbot.handle_business_connection(upd))
+                        elif 'business_message' in upd:
+                            asyncio.create_task(_chatbot.handle_business_message(upd))
+                        elif 'deleted_business_messages' in upd:
+                            asyncio.create_task(_chatbot.handle_deleted_business_messages(upd))
+                        else:
+                            update_obj = types.Update(**upd)
+                            asyncio.create_task(dp.process_update(update_obj))
+                    except Exception as e:
+                        print(f"[POLLING] update error: {e}", flush=True)
+
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                print(f"[POLLING] error: {e}", flush=True)
+                await asyncio.sleep(5)
 
 
 if __name__ == "__main__":
 	import sys
-	# Отключаем буферизацию вывода — логи сразу видны в Railway/консоли
 	sys.stdout.reconfigure(line_buffering=True)
+
+	async def _async_main():
+		await on_startup(dp)
+		await _run_polling()
+
 	while True:
 		try:
 			print("Бот запускается...", flush=True)
-			
-
-			executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
+			asyncio.run(_async_main())
 		except KeyboardInterrupt:
 			exit()
 		except Exception as e:
