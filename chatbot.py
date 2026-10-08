@@ -459,7 +459,7 @@ async def _cmd_spam(user_id: int, connection_id: str, chat_id: int, message_id: 
     limit = SPAM_LIMIT_PREMIUM if premium else SPAM_LIMIT_FREE
     n = max(1, min(n, limit))
 
-    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
+    await _delete_message(connection_id, chat_id, message_id, bot_token)
 
     async def run():
         for _ in range(n):
@@ -483,7 +483,7 @@ async def _cmd_haha(user_id: int, connection_id: str, chat_id: int, message_id: 
         n = 5
     n = max(1, min(n, HAHA_LIMIT))
 
-    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
+    await _delete_message(connection_id, chat_id, message_id, bot_token)
 
     async def run():
         for _ in range(n):
