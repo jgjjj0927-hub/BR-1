@@ -1014,23 +1014,63 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
     return mirror_bot, dp
 
 
+_MIRROR_ALLOWED = [
+    'message', 'edited_message', 'callback_query', 'inline_query',
+    'chosen_inline_result', 'channel_post', 'edited_channel_post',
+    'business_connection', 'business_message', 'deleted_business_messages',
+]
+
 async def _poll_loop(mirror_bot, dp):
     """Ручной polling loop — даёт полный контроль над исключениями.
-    dp.start_polling() имеет внутренний retry который глотает TerminatedByOtherGetUpdates,
-    поэтому используем свой цикл чтобы исключение доходило до вызывающего кода."""
+    Использует raw aiohttp вместо mirror_bot.get_updates(), чтобы business_*
+    апдейты не дропались aiogram при парсинге types.Update."""
+    import chatbot as _chatbot
     from aiogram import Bot as _Bot, Dispatcher as _Dispatcher
+
+    token = getattr(mirror_bot, '_token', '') or ''
     offset = 0
-    while True:
-        updates = await mirror_bot.get_updates(offset=offset, timeout=20, limit=100)
-        for update in updates:
-            # Устанавливаем ContextVar ПЕРЕД ensure_future чтобы задача
-            # унаследовала правильный бот и диспетчер (иначе message.bot
-            # указывает на главного бота через глобальный ContextVar)
-            _Bot.set_current(mirror_bot)
-            _Dispatcher.set_current(dp)
-            asyncio.ensure_future(dp.process_update(update))
-        if updates:
-            offset = max(u.update_id + 1 for u in updates)
+
+    async with aiohttp.ClientSession() as http:
+        while True:
+            params = {'timeout': 20, 'limit': 100, 'allowed_updates': _MIRROR_ALLOWED}
+            if offset:
+                params['offset'] = offset
+
+            async with http.post(
+                f'https://api.telegram.org/bot{token}/getUpdates',
+                json=params,
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                data = await resp.json()
+
+            if not data.get('ok'):
+                err_code = data.get('error_code', 0)
+                desc = data.get('description', '')
+                if err_code == 401:
+                    raise Unauthorized(desc)
+                if err_code == 409:
+                    raise TerminatedByOtherGetUpdates(desc)
+                raise Exception(f"getUpdates error {err_code}: {desc}")
+
+            for upd in data.get('result', []):
+                uid = upd['update_id']
+                if uid >= offset:
+                    offset = uid + 1
+
+                try:
+                    if 'business_connection' in upd:
+                        asyncio.ensure_future(_chatbot.handle_business_connection(upd))
+                    elif 'business_message' in upd:
+                        asyncio.ensure_future(_chatbot.handle_business_message(upd))
+                    elif 'deleted_business_messages' in upd:
+                        asyncio.ensure_future(_chatbot.handle_deleted_business_messages(upd))
+                    else:
+                        update_obj = types.Update(**upd)
+                        _Bot.set_current(mirror_bot)
+                        _Dispatcher.set_current(dp)
+                        asyncio.ensure_future(dp.process_update(update_obj))
+                except Exception as e:
+                    print(f"[MIRROR POLL] update error: {e}", flush=True)
 
 
 async def _run_mirror(token: str):
