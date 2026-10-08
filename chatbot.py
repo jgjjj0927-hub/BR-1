@@ -124,13 +124,14 @@ async def _send_message(business_connection_id: str, chat_id: int, text: str, bo
 
 
 async def _delete_message(business_connection_id: str, chat_id: int, message_id: int, bot_token: str = ''):
-    await _api_call(
+    result = await _api_call(
         "deleteMessage",
         _token=bot_token,
-        business_connection_id=business_connection_id,
         chat_id=chat_id,
         message_id=message_id,
     )
+    if not result.get('result'):
+        print(f"[CHATBOT] deleteMessage failed: {result}", flush=True)
 
 
 # ─── Обработчики апдейтов ─────────────────────────────────────────────────────
@@ -221,11 +222,13 @@ async def handle_business_message(raw: dict, bot_token: str = ''):
             pass
 
     # Проверяем мут
-    if await db.chatbot_is_muted(user_id, chat_id):
+    is_muted = await db.chatbot_is_muted(user_id, chat_id)
+    print(f"[CHATBOT] mute check user={user_id} chat={chat_id} → {is_muted}", flush=True)
+    if is_muted:
         try:
             await _delete_message(connection_id, chat_id, message_id, bot_token)
         except Exception as e:
-            logger.warning(f"[CHATBOT] Не удалось удалить сообщение (мут): {e}")
+            print(f"[CHATBOT] delete error (мут): {e}", flush=True)
 
 
 async def handle_deleted_business_messages(raw: dict, bot_token: str = ''):
