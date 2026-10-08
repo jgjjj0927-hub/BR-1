@@ -192,6 +192,7 @@ async def handle_business_connection(raw: dict, bot_token: str = ''):
                     "Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота.\n"
                     "Фото инструкция тут - https://t.me/Brown_V2_bot/2"
                 ),
+                parse_mode='HTML',
             )
         except Exception:
             pass
