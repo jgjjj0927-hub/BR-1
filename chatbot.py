@@ -127,6 +127,7 @@ async def _delete_message(business_connection_id: str, chat_id: int, message_id:
     result = await _api_call(
         "deleteMessage",
         _token=bot_token,
+        business_connection_id=business_connection_id,
         chat_id=chat_id,
         message_id=message_id,
     )
