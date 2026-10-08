@@ -9,13 +9,10 @@ chatbot.py — обработчик Telegram Business Bot API апдейтов.
   .session @юз +7   — Снос сессий (только в личном чате с пользователем)
   .spam N [текст]   — отправить N сообщений
   .haha N / .хаха N — отправить N смех-вариантов
-  .mute [время]     — мут входящих (.mute 5м / .mute 1ч / .mute)
-  .unmute / .unmut  — снять мут
 """
 
 import asyncio
 import logging
-import re
 from datetime import datetime, timedelta
 
 import aiohttp
@@ -52,20 +49,6 @@ def set_bot(bot_instance, last_bot_snos: dict, last_aureport: dict, last_support
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
-
-def _parse_mute_duration(arg: str) -> timedelta | None:
-    """Парсит '5м', '1ч', '30m', '2h' → timedelta. None = бессрочно."""
-    if not arg:
-        return None
-    arg = arg.strip().lower()
-    m = re.match(r'^(\d+)\s*([мmчh])', arg)
-    if not m:
-        return None
-    n = int(m.group(1))
-    unit = m.group(2)
-    if unit in ('м', 'm'):
-        return timedelta(minutes=n)
-    return timedelta(hours=n)
 
 
 def _is_private_user(chat: dict) -> bool:
@@ -206,8 +189,7 @@ async def handle_business_connection(raw: dict, bot_token: str = ''):
                     ".session @юз +7номер — снос сессий\n"
                     ".spam N [текст] — авто-спам (макс 50/200)\n"
                     ".haha N / .хаха N — смех-спам (макс 50)\n"
-                    ".mute [Nм/Nч] — мут входящих\n"
-                    ".unmute — снять мут\n\n"
+                    "\n"
                     "Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота.\n"
                     "Фото инструкция тут - https://t.me/Brown_V2_bot/2"
                 ),
@@ -249,16 +231,6 @@ async def handle_business_message(raw: dict, bot_token: str = ''):
             await db.chatbot_cache_message(user_id, chat_id, message_id, from_id, text)
         except Exception:
             pass
-
-    # Проверяем мут
-    muted = await db.chatbot_is_muted(user_id, chat_id)
-    print(f"[CHATBOT] incoming from={from_id} muted={muted}", flush=True)
-    if muted:
-        try:
-            await _delete_message(connection_id, chat_id, message_id, bot_token)
-            print(f"[CHATBOT] deleted muted msg {message_id}", flush=True)
-        except Exception as e:
-            print(f"[CHATBOT] mute del error: {e}", flush=True)
 
 
 async def handle_deleted_business_messages(raw: dict, bot_token: str = ''):
@@ -357,19 +329,6 @@ async def _handle_command(user_id: int, connection_id: str, chat: dict,
         await _cmd_haha(user_id, connection_id, chat_id, message_id, text, bot_token)
         return
 
-    # ── .mute ─────────────────────────────────────────────────────────────────
-    if cmd_lower.startswith('.mute'):
-        if not _is_private_user(chat):
-            await _edit_message(connection_id, chat_id, message_id,
-                                "❌ .mute работает только в личных чатах с пользователями", bot_token)
-            return
-        await _cmd_mute(user_id, connection_id, chat_id, message_id, text, bot_token)
-        return
-
-    # ── .unmute ───────────────────────────────────────────────────────────────
-    if cmd_lower in ('.unmute', '.unmut', '.размут'):
-        await _cmd_unmute(user_id, connection_id, chat_id, message_id, bot_token)
-        return
 
 
 # ─── .botsnos ─────────────────────────────────────────────────────────────────
@@ -563,29 +522,3 @@ async def _cmd_haha(user_id: int, connection_id: str, chat_id: int, message_id: 
     asyncio.create_task(run())
 
 
-# ─── .mute ────────────────────────────────────────────────────────────────────
-
-async def _cmd_mute(user_id: int, connection_id: str, chat_id: int, message_id: int, text: str, bot_token: str = ''):
-    parts = text.split(None, 1)
-    arg = parts[1].strip() if len(parts) > 1 else ''
-    dur = _parse_mute_duration(arg)
-
-    until = None
-    if dur:
-        until = now_msk() + dur
-
-    await db.chatbot_set_mute(user_id, chat_id, until)
-
-    if until:
-        label = f"до {until.strftime('%H:%M')}"
-    else:
-        label = "бессрочно"
-
-    await _edit_message(connection_id, chat_id, message_id, f"🔇 Мут включён {label} ✔", bot_token)
-
-
-# ─── .unmute ──────────────────────────────────────────────────────────────────
-
-async def _cmd_unmute(user_id: int, connection_id: str, chat_id: int, message_id: int, bot_token: str = ''):
-    await db.chatbot_remove_mute(user_id, chat_id)
-    await _edit_message(connection_id, chat_id, message_id, "🔊 Мут снят ✔", bot_token)
