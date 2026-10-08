@@ -165,6 +165,23 @@ async def handle_business_connection(raw: dict):
         logger.info(f"[CHATBOT] Пользователь {user_id} отключил чат-бота")
 
 
+async def _resolve_connection(connection_id: str) -> int | None:
+    """Ищет user_id в DB; если нет — авторегистрация через getBusinessConnection."""
+    user_id = await db.chatbot_get_user_by_connection(connection_id)
+    if user_id:
+        return user_id
+    # Первый раз: bootstrap — спрашиваем Telegram кому принадлежит connection_id
+    data = await _api_call('getBusinessConnection', business_connection_id=connection_id)
+    if not data.get('ok'):
+        return None
+    conn = data.get('result', {})
+    uid = conn.get('user', {}).get('id')
+    if uid:
+        await db.chatbot_save_connection(uid, connection_id)
+        logger.info(f"[CHATBOT] Авторегистрация connection {connection_id} → user {uid}")
+    return uid or None
+
+
 async def handle_business_message(raw: dict):
     """Все сообщения в чатах пользователя через Business API."""
     msg = raw.get('business_message', {})
@@ -176,7 +193,7 @@ async def handle_business_message(raw: dict):
     from_id = from_user.get('id', 0)
     text = msg.get('text', '') or msg.get('caption', '')
 
-    user_id = await db.chatbot_get_user_by_connection(connection_id)
+    user_id = await _resolve_connection(connection_id)
     if not user_id:
         return
 
@@ -211,7 +228,7 @@ async def handle_deleted_business_messages(raw: dict):
     chat_id = chat.get('id', 0)
     message_ids = data.get('message_ids', [])
 
-    user_id = await db.chatbot_get_user_by_connection(connection_id)
+    user_id = await _resolve_connection(connection_id)
     if not user_id or not message_ids:
         return
 
