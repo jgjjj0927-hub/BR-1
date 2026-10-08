@@ -2407,15 +2407,13 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			enabled = await db.chatbot_is_enabled(uid)
 			if enabled:
 				_cb_text = (
-					"🤖 *Чат-бот подключён* ✔\n\n"
+					"🤖 *Чат-бот подключён* ✔️\n\n"
 					"Доступные команды в личных чатах:\n\n"
 					"`.botsnos` — бот-метод на текущего бота\n"
 					"`.snos` — AU Report на цель\n"
 					"`.session @юз +7номер` — снос сессий\n"
 					"`.spam N [текст]` — авто-спам (макс 50/200)\n"
-					"`.haha N` / `.хаха N` — смех-спам (макс 50)\n"
-					"`.mute [5м/1ч]` — мут входящих\n"
-					"`.unmute` — снять мут\n\n"
+					"`.haha N` / `.хаха N` — смех-спам (макс 50)\n\n"
 					"Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота."
 				)
 			else:
@@ -2427,7 +2425,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					"2️⃣ Нажми *Изм.* в правом верхнем углу\n"
 					"3️⃣ Перейди в *Автоматизация чатов*\n"
 					f"4️⃣ Введи `@{_me.username}` и нажми *ДОБАВИТЬ*\n\n"
-					"После подключения в личных чатах станут доступны команды `.botsnos`, `.snos`, `.session`, `.spam`, `.haha`, `.mute`"
+					"После подключения в личных чатах станут доступны команды `.botsnos`, `.snos`, `.session`, `.spam`, `.haha`\n"
+					"Фото инструкция тут - https://t.me/Brown_V2_bot/2"
 				)
 			_cb_back = types.InlineKeyboardMarkup()
 			_cb_back.add(types.InlineKeyboardButton("🔙 Назад", callback_data='settings_menu'))
