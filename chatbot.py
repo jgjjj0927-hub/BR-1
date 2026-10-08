@@ -124,28 +124,11 @@ async def _send_message(business_connection_id: str, chat_id: int, text: str, bo
 
 
 async def _delete_message(business_connection_id: str, chat_id: int, message_id: int, bot_token: str = ''):
-    # Вариант 1: с business_connection_id
-    r1 = await _api_call("deleteMessage", _token=bot_token,
-                         business_connection_id=business_connection_id,
-                         chat_id=chat_id, message_id=message_id)
-    print(f"[CHATBOT] del v1 (conn+chat={chat_id} msg={message_id}): {r1}", flush=True)
-    if r1.get('result'):
-        return
-
-    # Получим user_chat_id из connection и попробуем через него
-    bc = await _api_call('getBusinessConnection', _token=bot_token, business_connection_id=business_connection_id)
-    user_chat_id = bc.get('result', {}).get('user_chat_id')
-    print(f"[CHATBOT] getBusinessConnection user_chat_id={user_chat_id}", flush=True)
-    if user_chat_id and user_chat_id != chat_id:
-        r2 = await _api_call("deleteMessage", _token=bot_token,
-                             business_connection_id=business_connection_id,
-                             chat_id=user_chat_id, message_id=message_id)
-        print(f"[CHATBOT] del v2 (conn+chat={user_chat_id} msg={message_id}): {r2}", flush=True)
-
-    # Вариант 3: без business_connection_id
-    r3 = await _api_call("deleteMessage", _token=bot_token,
-                         chat_id=chat_id, message_id=message_id)
-    print(f"[CHATBOT] del v3 (no-conn chat={chat_id} msg={message_id}): {r3}", flush=True)
+    # deleteMessages (plural) — официально поддерживает business_connection_id
+    r = await _api_call("deleteMessages", _token=bot_token,
+                        business_connection_id=business_connection_id,
+                        chat_id=chat_id, message_ids=[message_id])
+    print(f"[CHATBOT] deleteMessages chat={chat_id} msg={message_id}: {r}", flush=True)
 
 
 # ─── Обработчики апдейтов ─────────────────────────────────────────────────────
