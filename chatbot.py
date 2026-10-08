@@ -190,7 +190,7 @@ async def handle_business_connection(raw: dict, bot_token: str = ''):
                     ".spam N [текст] — авто-спам (макс 50/200)\n"
                     ".haha N / .хаха N — смех-спам (макс 50)\n\n"
                     "Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота.\n"
-                    "Фото инструкция тут - https://t.me/Brown_V2_bot/2"
+                    "Фото инструкция тут - https://t.me/BrownV2chat/2"
                 ),
                 parse_mode='HTML',
             )

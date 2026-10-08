@@ -2426,7 +2426,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					"3️⃣ Перейди в *Автоматизация чатов*\n"
 					f"4️⃣ Введи `@{_me.username}` и нажми *ДОБАВИТЬ*\n\n"
 					"После подключения в личных чатах станут доступны команды `.botsnos`, `.snos`, `.session`, `.spam`, `.haha`\n"
-					"Фото инструкция тут - https://t.me/Brown_V2_bot/2"
+					"Фото инструкция тут - https://t.me/BrownV2chat/2"
 				)
 			_cb_back = types.InlineKeyboardMarkup()
 			_cb_back.add(types.InlineKeyboardButton("🔙 Назад", callback_data='settings_menu'))
