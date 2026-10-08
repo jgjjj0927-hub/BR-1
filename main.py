@@ -7522,6 +7522,8 @@ async def _run_polling():
                             asyncio.create_task(_chatbot.handle_deleted_business_messages(upd))
                         else:
                             update_obj = types.Update(**upd)
+                            Bot.set_current(bot)
+                            Dispatcher.set_current(dp)
                             asyncio.create_task(dp.process_update(update_obj))
                     except Exception as e:
                         print(f"[POLLING] update error: {e}", flush=True)
