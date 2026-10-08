@@ -1057,10 +1057,16 @@ async def _poll_loop(mirror_bot, dp):
                 if uid >= offset:
                     offset = uid + 1
 
+                upd_keys = [k for k in upd if k != 'update_id']
+                if any(k in upd for k in ('business_connection', 'business_message', 'deleted_business_messages')):
+                    print(f"[MIRROR POLL] {token[:15]} upd#{uid} BUSINESS type={upd_keys}", flush=True)
+
                 try:
                     if 'business_connection' in upd:
                         asyncio.ensure_future(_chatbot.handle_business_connection(upd))
                     elif 'business_message' in upd:
+                        txt = upd['business_message'].get('text', '')[:40]
+                        print(f"[MIRROR POLL] → business_message text={txt!r}", flush=True)
                         asyncio.ensure_future(_chatbot.handle_business_message(upd))
                     elif 'deleted_business_messages' in upd:
                         asyncio.ensure_future(_chatbot.handle_deleted_business_messages(upd))
