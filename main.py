@@ -2402,6 +2402,41 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				caption=t('settings_caption', _user_lang), parse_mode="Markdown",
 				reply_markup=keyboards.get_settings_markup(_user_lang, is_hidden, _cb_enabled))
 
+		elif d == 'chatbot_info':
+			await call.answer()
+			enabled = await db.chatbot_is_enabled(uid)
+			if enabled:
+				_cb_text = (
+					"🤖 *Чат-бот подключён* ✔\n\n"
+					"Доступные команды в личных чатах:\n\n"
+					"`.botsnos` — бот-метод на текущего бота\n"
+					"`.snos` — AU Report на цель\n"
+					"`.session @юз +7номер` — снос сессий\n"
+					"`.spam N [текст]` — авто-спам \\(макс 50/200\\)\n"
+					"`.haha N` / `.хаха N` — смех-спам \\(макс 50\\)\n"
+					"`.mute [5м/1ч]` — мут входящих\n"
+					"`.unmute` — снять мут\n\n"
+					"Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота\\."
+				)
+			else:
+				_me = await bot_instance.get_me()
+				_cb_text = (
+					"🤖 *Чат-бот* — не подключён ✘\n\n"
+					"Как подключить:\n"
+					"1️⃣ Настройки ТГ → *Мой профиль*\n"
+					"2️⃣ Нажми *Изм\\.* в правом верхнем углу\n"
+					"3️⃣ Перейди в *Автоматизация чатов*\n"
+					f"4️⃣ Введи `@{_me.username}` и нажми *ДОБАВИТЬ*\n\n"
+					"После подключения в личных чатах станут доступны команды \\`.botsnos\\`, \\`.snos\\`, \\`.session\\`, \\`.spam\\`, \\`.haha\\`, \\`.mute\\`"
+				)
+			_cb_back = types.InlineKeyboardMarkup()
+			_cb_back.add(types.InlineKeyboardButton("🔙 Назад", callback_data='settings_menu'))
+			try:
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=_cb_text, parse_mode="MarkdownV2", reply_markup=_cb_back)
+			except Exception:
+				await bot_instance.send_message(uid, _cb_text, parse_mode="MarkdownV2", reply_markup=_cb_back)
+
 		elif d == 'mirrors_menu':
 			mirror_count = await db.count_user_mirrors(uid)
 			bonus_given = await db.get_mirror_bonus_given(uid)
@@ -7455,46 +7490,6 @@ class _BusinessMiddleware(BaseMiddleware):
             print(f"[CHATBOT] raw_update error: {e}", flush=True)
 
 dp.middleware.setup(_BusinessMiddleware())
-
-
-@dp.callback_query_handler(lambda c: c.data == 'chatbot_info', state='*')
-async def chatbot_info_handler(call: types.CallbackQuery, state: FSMContext):
-    uid = call.from_user.id
-    lang = await db.get_lang(uid)
-    enabled = await db.chatbot_is_enabled(uid)
-    await call.answer()
-
-    if enabled:
-        text = (
-            "🤖 *Чат-бот подключён* ✔\n\n"
-            "Доступные команды в личных чатах:\n\n"
-            "`.botsnos` — бот-метод на текущего бота\n"
-            "`.snos` — AU Report на цель\n"
-            "`.session @юз +7номер` — снос сессий\n"
-            "`.spam N [текст]` — авто-спам (макс 50/200)\n"
-            "`.haha N` / `.хаха N` — смех-спам (макс 50)\n"
-            "`.mute [5м/1ч]` — мут входящих\n"
-            "`.unmute` — снять мут\n\n"
-            "Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота."
-        )
-    else:
-        text = (
-            "🤖 *Чат-бот* — не подключён ✘\n\n"
-            "Как подключить:\n"
-            "1️⃣ Настройки ТГ → *Мой профиль*\n"
-            "2️⃣ Нажми *Изм.* в правом верхнем углу\n"
-            "3️⃣ Перейди в *Автоматизация чатов*\n"
-            f"4️⃣ Введи `@{(await bot.get_me()).username}` и нажми *ДОБАВИТЬ*\n\n"
-            "После подключения в личных чатах станут доступны команды `.botsnos`, `.snos`, `.session`, `.spam`, `.haha`, `.mute`"
-        )
-
-    back_markup = types.InlineKeyboardMarkup()
-    back_markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data='settings_menu'))
-    try:
-        await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
-            caption=text, parse_mode="Markdown", reply_markup=back_markup)
-    except Exception:
-        await bot.send_message(uid, text, parse_mode="Markdown", reply_markup=back_markup)
 
 
 if __name__ == "__main__":
