@@ -56,11 +56,38 @@ async def init_db():
             ("lang", "TEXT DEFAULT 'ru'"),
             ("sub_expiry_notified", "BOOLEAN DEFAULT FALSE"),
             ("is_hidden", "BOOLEAN DEFAULT TRUE"),
+            ("chatbot_enabled", "BOOLEAN DEFAULT FALSE"),
         ]:
             try:
                 await conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {definition}")
             except Exception:
                 pass
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS business_connections (
+                user_id       BIGINT PRIMARY KEY,
+                connection_id TEXT NOT NULL,
+                connected_at  TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS chatbot_mutes (
+                user_id  BIGINT,
+                chat_id  BIGINT,
+                until    TIMESTAMP,
+                PRIMARY KEY (user_id, chat_id)
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS chatbot_msg_cache (
+                user_id    BIGINT,
+                chat_id    BIGINT,
+                message_id INT,
+                from_id    BIGINT,
+                text       TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                PRIMARY KEY (user_id, chat_id, message_id)
+            )
+        """)
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS promocode (
                 code TEXT UNIQUE,
@@ -1601,4 +1628,121 @@ async def get_log_entry_user(log_id: int) -> int | None:
         return await conn.fetchval(
             "SELECT user_id FROM log_entries WHERE id = $1",
             log_id
+        )
+
+
+# ─── Chatbot (Business Bot API) ───────────────────────────────────────────────
+
+async def chatbot_save_connection(user_id: int, connection_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO business_connections (user_id, connection_id)
+               VALUES ($1, $2)
+               ON CONFLICT (user_id) DO UPDATE SET connection_id=$2, connected_at=NOW()""",
+            user_id, connection_id
+        )
+        await conn.execute(
+            "UPDATE users SET chatbot_enabled=TRUE WHERE user_id=$1", user_id
+        )
+
+
+async def chatbot_remove_connection(user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM business_connections WHERE user_id=$1", user_id)
+        await conn.execute(
+            "UPDATE users SET chatbot_enabled=FALSE WHERE user_id=$1", user_id
+        )
+
+
+async def chatbot_get_connection(user_id: int) -> str | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT connection_id FROM business_connections WHERE user_id=$1", user_id
+        )
+
+
+async def chatbot_get_user_by_connection(connection_id: str) -> int | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            "SELECT user_id FROM business_connections WHERE connection_id=$1", connection_id
+        )
+
+
+async def chatbot_is_enabled(user_id: int) -> bool:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        val = await conn.fetchval(
+            "SELECT chatbot_enabled FROM users WHERE user_id=$1", user_id
+        )
+        return bool(val)
+
+
+async def chatbot_set_mute(user_id: int, chat_id: int, until=None):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO chatbot_mutes (user_id, chat_id, until)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (user_id, chat_id) DO UPDATE SET until=$3""",
+            user_id, chat_id, until
+        )
+
+
+async def chatbot_remove_mute(user_id: int, chat_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM chatbot_mutes WHERE user_id=$1 AND chat_id=$2",
+            user_id, chat_id
+        )
+
+
+async def chatbot_is_muted(user_id: int, chat_id: int) -> bool:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT until FROM chatbot_mutes WHERE user_id=$1 AND chat_id=$2",
+            user_id, chat_id
+        )
+        if not row:
+            return False
+        if row['until'] is None:
+            return True
+        from utils import now_msk
+        return now_msk() < row['until'].replace(tzinfo=None)
+
+
+async def chatbot_cache_message(user_id: int, chat_id: int, message_id: int, from_id: int, text: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO chatbot_msg_cache (user_id, chat_id, message_id, from_id, text)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (user_id, chat_id, message_id) DO NOTHING""",
+            user_id, chat_id, message_id, from_id, text
+        )
+
+
+async def chatbot_get_cached_messages(user_id: int, chat_id: int, message_ids: list) -> list:
+    if not message_ids:
+        return []
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT message_id, from_id, text FROM chatbot_msg_cache
+               WHERE user_id=$1 AND chat_id=$2 AND message_id=ANY($3::int[])""",
+            user_id, chat_id, message_ids
+        )
+        return [dict(r) for r in rows]
+
+
+async def chatbot_clean_old_cache():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM chatbot_msg_cache WHERE created_at < NOW() - INTERVAL '48 hours'"
         )

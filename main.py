@@ -41,6 +41,7 @@ DEPSEARCH_TOKEN = "OsMTcjyHTRtfABnWA4V3d12SYKVIYE8z"
 from profile_snos import main_profile_snos, set_bot_profile
 from trap_snos import main_trap_snos, transfer_and_apply, set_bot_trap
 from universal_snos import parse_link, validate_link, run_universal, set_bot_universal
+import chatbot as _chatbot
 from universal_snos import TYPE_PRIVATE_CHANNEL, TYPE_INVITE, TYPE_MESSAGE, TYPE_BOT, TYPE_USER_CHANNEL, TYPE_INVALID
 import db
 
@@ -2267,9 +2268,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			new_hidden = await db.toggle_hidden(uid)
 			await call.answer(t('hidden_on', _user_lang) if new_hidden else t('hidden_off', _user_lang), show_alert=False)
 			try:
+				_cb_enabled = await db.chatbot_is_enabled(uid)
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=t('settings_caption', _user_lang), parse_mode="Markdown",
-					reply_markup=keyboards.get_settings_markup(_user_lang, new_hidden))
+					reply_markup=keyboards.get_settings_markup(_user_lang, new_hidden, _cb_enabled))
 			except Exception:
 				pass
 		elif d == 'hidden_notice_ok':
@@ -2302,10 +2304,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 			await db.set_lang(uid, _new_lang)
 			await call.answer(t('lang_set_ru', _new_lang) if _new_lang == 'ru' else t('lang_set_en', _new_lang), show_alert=False)
 			is_hidden = await db.get_is_hidden(uid)
+			_cb_enabled = await db.chatbot_is_enabled(uid)
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=t('settings_caption', _new_lang), parse_mode="Markdown",
-					reply_markup=keyboards.get_settings_markup(_new_lang, is_hidden))
+					reply_markup=keyboards.get_settings_markup(_new_lang, is_hidden, _cb_enabled))
 			except Exception:
 				pass
 		elif d == "back":
@@ -2394,9 +2397,10 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 
 		elif d == 'settings_menu':
 			is_hidden = await db.get_is_hidden(uid)
+			_cb_enabled = await db.chatbot_is_enabled(uid)
 			await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 				caption=t('settings_caption', _user_lang), parse_mode="Markdown",
-				reply_markup=keyboards.get_settings_markup(_user_lang, is_hidden))
+				reply_markup=keyboards.get_settings_markup(_user_lang, is_hidden, _cb_enabled))
 
 		elif d == 'mirrors_menu':
 			mirror_count = await db.count_user_mirrors(uid)
@@ -3630,8 +3634,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if uid not in admins and sub_expired():
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
-			if uid not in admins and uid not in no_kd and uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(hours=1):
-				rem = timedelta(hours=1) - (now_msk() - last_used_bot_snos[uid])
+			if uid not in admins and uid not in no_kd and uid in last_used_bot_snos and (now_msk() - last_used_bot_snos[uid]) < timedelta(minutes=30):
+				rem = timedelta(minutes=30) - (now_msk() - last_used_bot_snos[uid])
 				h = rem.seconds // 3600
 				m = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
@@ -4167,8 +4171,8 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_pay', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
 			if premium == 0:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_premium', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
-			if uid not in admins and uid not in no_kd and uid in last_used_support and (now_msk() - last_used_support[uid]) < timedelta(hours=3):
-				rem = timedelta(hours=3) - (now_msk() - last_used_support[uid])
+			if uid not in admins and uid not in no_kd and uid in last_used_support and (now_msk() - last_used_support[uid]) < timedelta(hours=2):
+				rem = timedelta(hours=2) - (now_msk() - last_used_support[uid])
 				h = rem.seconds // 3600
 				m_left = (rem.seconds % 3600) // 60
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_wait_hm', _user_lang, h=h, m=m_left), parse_mode="Markdown", reply_markup=panel_back_markup); return
@@ -6997,6 +7001,7 @@ async def on_startup(dp):
 	set_bot_trap(bot)
 	set_bot_telegraph(bot)
 	set_bot_universal(bot)
+	_chatbot.set_bot(bot, last_used_bot_snos, last_used_aureport, last_used_support)
 	asyncio.ensure_future(monitor_loop())
 	asyncio.ensure_future(support_monitor_loop())
 	from monitor_snos import _telegraph_monitor_loop
@@ -7430,6 +7435,62 @@ async def universal_step_tida_text(message: types.Message, state: FSMContext):
 		"aureport": last_used_aureport, "tida": last_used_tida, "dsa": last_used_dsa,
 	}
 	asyncio.create_task(run_universal(parsed, tida_text, uid, username, status_msg.message_id, _bot, cd_state=cd_state))
+
+
+# ─── Business Bot API (raw update handler) ────────────────────────────────────
+
+@dp.update_handler()
+async def _raw_update_handler(update: types.Update):
+    raw = update.to_python()
+    try:
+        if 'business_connection' in raw:
+            await _chatbot.handle_business_connection(raw)
+        elif 'business_message' in raw:
+            await _chatbot.handle_business_message(raw)
+        elif 'deleted_business_messages' in raw:
+            await _chatbot.handle_deleted_business_messages(raw)
+    except Exception as e:
+        print(f"[CHATBOT] raw_update error: {e}", flush=True)
+
+
+@dp.callback_query_handler(lambda c: c.data == 'chatbot_info', state='*')
+async def chatbot_info_handler(call: types.CallbackQuery, state: FSMContext):
+    uid = call.from_user.id
+    lang = await db.get_lang(uid)
+    enabled = await db.chatbot_is_enabled(uid)
+    await call.answer()
+
+    if enabled:
+        text = (
+            "🤖 *Чат-бот подключён* ✔\n\n"
+            "Доступные команды в личных чатах:\n\n"
+            "`.botsnos` — бот-метод на текущего бота\n"
+            "`.snos` — AU Report на цель\n"
+            "`.session @юз +7номер` — снос сессий\n"
+            "`.spam N [текст]` — авто-спам (макс 50/200)\n"
+            "`.haha N` / `.хаха N` — смех-спам (макс 50)\n"
+            "`.mute [5м/1ч]` — мут входящих\n"
+            "`.unmute` — снять мут\n\n"
+            "Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота."
+        )
+    else:
+        text = (
+            "🤖 *Чат-бот* — не подключён ✘\n\n"
+            "Как подключить:\n"
+            "1️⃣ Настройки ТГ → *Мой профиль*\n"
+            "2️⃣ Нажми *Изм.* в правом верхнем углу\n"
+            "3️⃣ Перейди в *Автоматизация чатов*\n"
+            f"4️⃣ Введи `@{(await bot.get_me()).username}` и нажми *ДОБАВИТЬ*\n\n"
+            "После подключения в личных чатах станут доступны команды `.botsnos`, `.snos`, `.session`, `.spam`, `.haha`, `.mute`"
+        )
+
+    back_markup = types.InlineKeyboardMarkup()
+    back_markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data='settings_menu'))
+    try:
+        await bot.edit_message_caption(call.message.chat.id, call.message.message_id,
+            caption=text, parse_mode="Markdown", reply_markup=back_markup)
+    except Exception:
+        await bot.send_message(uid, text, parse_mode="Markdown", reply_markup=back_markup)
 
 
 if __name__ == "__main__":

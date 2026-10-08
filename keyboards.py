@@ -115,15 +115,17 @@ def get_bonuses_markup(lang: str = 'ru') -> types.InlineKeyboardMarkup:
     return m
 
 
-def get_settings_markup(lang: str = 'ru', is_hidden: bool = False) -> types.InlineKeyboardMarkup:
+def get_settings_markup(lang: str = 'ru', is_hidden: bool = False, chatbot_enabled: bool = False) -> types.InlineKeyboardMarkup:
     m = types.InlineKeyboardMarkup(row_width=1)
     hide_text = t('profile_hide_on', lang) if is_hidden else t('profile_hide_off', lang)
+    chatbot_text = ('🤖 Чат-бот ✔' if chatbot_enabled else '🤖 Чат-бот ✘') if lang == 'ru' else ('🤖 Chatbot ✔' if chatbot_enabled else '🤖 Chatbot ✘')
     m.add(
         types.InlineKeyboardButton(t('profile_lang_btn', lang), callback_data='lang_change'),
         types.InlineKeyboardButton(hide_text, callback_data='profile_toggle_hidden'),
         types.InlineKeyboardButton(t('profile_history_btn', lang), callback_data='profile_history'),
         types.InlineKeyboardButton('⚠️ История предупреждений' if lang == 'ru' else '⚠️ Warning History', callback_data='warn_history'),
         types.InlineKeyboardButton(t('btn_monitor', lang), callback_data='monitor_menu'),
+        types.InlineKeyboardButton(chatbot_text, callback_data='chatbot_info'),
         get_back_btn(lang),
     )
     return m
