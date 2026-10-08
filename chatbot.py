@@ -201,6 +201,7 @@ async def handle_business_message(raw: dict, bot_token: str = ''):
     text = msg.get('text', '') or msg.get('caption', '')
 
     user_id = await _resolve_connection(connection_id, bot_token)
+    print(f"[CHATBOT] msg from={from_id} chat={chat_id} user_id={user_id} conn={connection_id[:8] if connection_id else ''}", flush=True)
     if not user_id:
         return
 
@@ -220,11 +221,14 @@ async def handle_business_message(raw: dict, bot_token: str = ''):
             pass
 
     # Проверяем мут
-    if await db.chatbot_is_muted(user_id, chat_id):
+    muted = await db.chatbot_is_muted(user_id, chat_id)
+    print(f"[CHATBOT] incoming from={from_id} muted={muted}", flush=True)
+    if muted:
         try:
             await _delete_message(connection_id, chat_id, message_id, bot_token)
+            print(f"[CHATBOT] deleted muted msg {message_id}", flush=True)
         except Exception as e:
-            logger.warning(f"[CHATBOT] delete error (мут): {e}")
+            print(f"[CHATBOT] mute del error: {e}", flush=True)
 
 
 async def handle_deleted_business_messages(raw: dict, bot_token: str = ''):
