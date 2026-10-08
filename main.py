@@ -7439,18 +7439,22 @@ async def universal_step_tida_text(message: types.Message, state: FSMContext):
 
 # ─── Business Bot API (raw update handler) ────────────────────────────────────
 
-@dp.updates_handler()
-async def _raw_update_handler(update: types.Update):
-    raw = update.to_python()
-    try:
-        if 'business_connection' in raw:
-            await _chatbot.handle_business_connection(raw)
-        elif 'business_message' in raw:
-            await _chatbot.handle_business_message(raw)
-        elif 'deleted_business_messages' in raw:
-            await _chatbot.handle_deleted_business_messages(raw)
-    except Exception as e:
-        print(f"[CHATBOT] raw_update error: {e}", flush=True)
+from aiogram.dispatcher.middlewares import BaseMiddleware
+
+class _BusinessMiddleware(BaseMiddleware):
+    async def on_pre_process_update(self, update: types.Update, data: dict):
+        raw = update.to_python()
+        try:
+            if 'business_connection' in raw:
+                await _chatbot.handle_business_connection(raw)
+            elif 'business_message' in raw:
+                await _chatbot.handle_business_message(raw)
+            elif 'deleted_business_messages' in raw:
+                await _chatbot.handle_deleted_business_messages(raw)
+        except Exception as e:
+            print(f"[CHATBOT] raw_update error: {e}", flush=True)
+
+dp.middleware.setup(_BusinessMiddleware())
 
 
 @dp.callback_query_handler(lambda c: c.data == 'chatbot_info', state='*')
