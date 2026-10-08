@@ -169,20 +169,23 @@ async def handle_business_connection(raw: dict, bot_token: str = ''):
         await db.chatbot_save_connection(user_id, connection_id)
         logger.info(f"[CHATBOT] Пользователь {user_id} подключил чат-бота (conn={connection_id})")
         try:
-            await _bot.send_message(
-                user_id,
-                "🤖 Чат-бот подключён ✔\n\n"
-                "Доступные команды в личных чатах:\n\n"
-                "`.botsnos @юз` — бот-метод на бота\n"
-                "`.snos` — AU Report на цель\n"
-                "`.session @юз +7номер` — снос сессий\n"
-                "`.spam N [текст]` — авто-спам (макс 50/200)\n"
-                "`.haha N` / `.хаха N` — смех-спам (макс 50)\n"
-                "`.mute [Nм/Nч]` — мут входящих\n"
-                "`.unmute` — снять мут\n\n"
-                "Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота.\n"
-                "Фото инструкция тут - https://t.me/Brown\\_V2\\_bot/2",
-                parse_mode="Markdown"
+            await _api_call(
+                'sendMessage',
+                _token=bot_token,
+                chat_id=user_id,
+                text=(
+                    "🤖 Чат-бот подключён ✔\n\n"
+                    "Доступные команды в личных чатах:\n\n"
+                    ".botsnos @юз — бот-метод на бота\n"
+                    ".snos — AU Report на цель\n"
+                    ".session @юз +7номер — снос сессий\n"
+                    ".spam N [текст] — авто-спам (макс 50/200)\n"
+                    ".haha N / .хаха N — смех-спам (макс 50)\n"
+                    ".mute [Nм/Nч] — мут входящих\n"
+                    ".unmute — снять мут\n\n"
+                    "Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота.\n"
+                    "Фото инструкция тут - https://t.me/Brown_V2_bot/2"
+                ),
             )
         except Exception:
             pass
