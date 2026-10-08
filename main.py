@@ -7439,7 +7439,7 @@ async def universal_step_tida_text(message: types.Message, state: FSMContext):
 
 # ─── Business Bot API (raw update handler) ────────────────────────────────────
 
-@dp.update_handler()
+@dp.updates_handler()
 async def _raw_update_handler(update: types.Update):
     raw = update.to_python()
     try:
