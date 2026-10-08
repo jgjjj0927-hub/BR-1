@@ -2412,11 +2412,11 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					"`.botsnos` — бот-метод на текущего бота\n"
 					"`.snos` — AU Report на цель\n"
 					"`.session @юз +7номер` — снос сессий\n"
-					"`.spam N [текст]` — авто-спам \\(макс 50/200\\)\n"
-					"`.haha N` / `.хаха N` — смех-спам \\(макс 50\\)\n"
+					"`.spam N [текст]` — авто-спам (макс 50/200)\n"
+					"`.haha N` / `.хаха N` — смех-спам (макс 50)\n"
 					"`.mute [5м/1ч]` — мут входящих\n"
 					"`.unmute` — снять мут\n\n"
-					"Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота\\."
+					"Чтобы отключить — зайди в Настройки ТГ → Мой профиль → Автоматизация чатов и удали бота."
 				)
 			else:
 				_me = await bot_instance.get_me()
@@ -2424,18 +2424,18 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					"🤖 *Чат-бот* — не подключён ✘\n\n"
 					"Как подключить:\n"
 					"1️⃣ Настройки ТГ → *Мой профиль*\n"
-					"2️⃣ Нажми *Изм\\.* в правом верхнем углу\n"
+					"2️⃣ Нажми *Изм.* в правом верхнем углу\n"
 					"3️⃣ Перейди в *Автоматизация чатов*\n"
 					f"4️⃣ Введи `@{_me.username}` и нажми *ДОБАВИТЬ*\n\n"
-					"После подключения в личных чатах станут доступны команды \\`.botsnos\\`, \\`.snos\\`, \\`.session\\`, \\`.spam\\`, \\`.haha\\`, \\`.mute\\`"
+					"После подключения в личных чатах станут доступны команды `.botsnos`, `.snos`, `.session`, `.spam`, `.haha`, `.mute`"
 				)
 			_cb_back = types.InlineKeyboardMarkup()
 			_cb_back.add(types.InlineKeyboardButton("🔙 Назад", callback_data='settings_menu'))
 			try:
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
-					caption=_cb_text, parse_mode="MarkdownV2", reply_markup=_cb_back)
+					caption=_cb_text, parse_mode="Markdown", reply_markup=_cb_back)
 			except Exception:
-				await bot_instance.send_message(uid, _cb_text, parse_mode="MarkdownV2", reply_markup=_cb_back)
+				await bot_instance.send_message(uid, _cb_text, parse_mode="Markdown", reply_markup=_cb_back)
 
 		elif d == 'mirrors_menu':
 			mirror_count = await db.count_user_mirrors(uid)
