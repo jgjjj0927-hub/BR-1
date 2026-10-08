@@ -170,8 +170,9 @@ async def _resolve_connection(connection_id: str) -> int | None:
     user_id = await db.chatbot_get_user_by_connection(connection_id)
     if user_id:
         return user_id
-    # Первый раз: bootstrap — спрашиваем Telegram кому принадлежит connection_id
+    logger.info(f"[CHATBOT] connection {connection_id!r} не в DB, пробуем getBusinessConnection")
     data = await _api_call('getBusinessConnection', business_connection_id=connection_id)
+    logger.info(f"[CHATBOT] getBusinessConnection → {data}")
     if not data.get('ok'):
         return None
     conn = data.get('result', {})

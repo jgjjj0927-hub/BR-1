@@ -7487,6 +7487,7 @@ _POLLING_ALLOWED = [
 async def _run_polling():
     token = config.TOKEN
     offset = 0
+    print(f"[POLLING] Custom loop started (token={token[:15]}...)", flush=True)
     async with aiohttp.ClientSession() as http:
         while True:
             try:
@@ -7513,10 +7514,14 @@ async def _run_polling():
                     if uid >= offset:
                         offset = uid + 1
 
+                    upd_keys = [k for k in upd if k != 'update_id']
+                    print(f"[POLLING] upd#{uid} type={upd_keys}", flush=True)
+
                     try:
                         if 'business_connection' in upd:
                             asyncio.create_task(_chatbot.handle_business_connection(upd))
                         elif 'business_message' in upd:
+                            print(f"[POLLING] → business_message chat={upd['business_message'].get('chat',{}).get('id')} text={upd['business_message'].get('text','')[:40]!r}", flush=True)
                             asyncio.create_task(_chatbot.handle_business_message(upd))
                         elif 'deleted_business_messages' in upd:
                             asyncio.create_task(_chatbot.handle_deleted_business_messages(upd))
