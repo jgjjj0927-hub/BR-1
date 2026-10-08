@@ -89,6 +89,28 @@ def _fmt_rem(rem: timedelta) -> str:
     return f"{m}м"
 
 
+class _BotProxy:
+    """Минимальный прокси: send_message / send_photo идут через нужный токен."""
+    def __init__(self, token: str):
+        self._token = token
+
+    async def send_message(self, chat_id, text, **kwargs):
+        return await _api_call('sendMessage', _token=self._token, chat_id=chat_id, text=text, **kwargs)
+
+    async def send_photo(self, chat_id, photo, **kwargs):
+        return await _api_call('sendPhoto', _token=self._token, chat_id=chat_id, photo=photo, **kwargs)
+
+    async def send_document(self, chat_id, document, **kwargs):
+        return await _api_call('sendDocument', _token=self._token, chat_id=chat_id, document=document, **kwargs)
+
+
+def _notify_bot(bot_token: str):
+    """Возвращает прокси-бот с правильным токеном, или основной бот если токен не передан."""
+    if bot_token:
+        return _BotProxy(bot_token)
+    return _bot
+
+
 async def _api_call(method: str, _token: str = '', **kwargs):
     """Прямой вызов Bot API через aiohttp (нужен business_connection_id)."""
     token = _token or (getattr(_bot, '_token', None) or '')
@@ -261,9 +283,34 @@ async def handle_deleted_business_messages(raw: dict, bot_token: str = ''):
 
 # ─── Обработка команд ─────────────────────────────────────────────────────────
 
+async def _check_subscription(user_id: int) -> bool:
+    """True если подписка активна."""
+    try:
+        user_data = await db.get_user(user_id)
+        if not user_data:
+            return False
+        sub = user_data.get('subscribe')
+        if not sub:
+            return False
+        if isinstance(sub, str):
+            from datetime import datetime as _dt
+            sub = _dt.strptime(str(sub)[:19], "%Y-%m-%d %H:%M:%S")
+        return sub > now_msk()
+    except Exception:
+        return False
+
+
 async def _handle_command(user_id: int, connection_id: str, chat: dict,
                           chat_id: int, message_id: int, text: str, bot_token: str = ''):
     cmd_lower = text.lower().strip()
+
+    # ── Проверка подписки ─────────────────────────────────────────────────────
+    from main import admins, no_kd
+    if user_id not in admins and user_id not in no_kd:
+        if not await _check_subscription(user_id):
+            await _edit_message(connection_id, chat_id, message_id,
+                                "❌ Нужна подписка для использования команд", bot_token)
+            return
 
     # ── .botsnos ──────────────────────────────────────────────────────────────
     if cmd_lower.startswith('.botsnos'):
@@ -343,15 +390,17 @@ async def _cmd_botsnos(user_id: int, connection_id: str, chat: dict, chat_id: in
     await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
     last_used_bot_snos[user_id] = now_msk()
 
+    nb = _notify_bot(bot_token)
+
     async def run():
         try:
             user_data = await db.get_user(user_id)
             username = (user_data or {}).get('username', 'None')
-            await main_bot_snos(f"@{target}", 'other', user_id, username, f"@{target}", notify_bot=_bot)
+            await main_bot_snos(f"@{target}", 'other', user_id, username, f"@{target}", notify_bot=nb)
         except Exception as e:
             logger.error(f"[CHATBOT] .botsnos error: {e}")
             try:
-                await _bot.send_message(user_id, f"❌ Ошибка: {str(e)[:100]}")
+                await nb.send_message(user_id, f"❌ Ошибка: {str(e)[:100]}")
             except Exception:
                 pass
 
@@ -376,15 +425,17 @@ async def _cmd_snos(user_id: int, connection_id: str, chat: dict, chat_id: int, 
     await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
     last_used_aureport[user_id] = now_msk()
 
+    nb = _notify_bot(bot_token)
+
     async def run():
         try:
             user_data = await db.get_user(user_id)
             username = (user_data or {}).get('username', 'None')
-            await main_aureport(target, user_id, username, notify_bot=_bot)
+            await main_aureport(target, user_id, username, notify_bot=nb)
         except Exception as e:
             logger.error(f"[CHATBOT] .snos error: {e}")
             try:
-                await _bot.send_message(user_id, f"❌ Ошибка: {str(e)[:100]}")
+                await nb.send_message(user_id, f"❌ Ошибка: {str(e)[:100]}")
             except Exception:
                 pass
 
@@ -428,15 +479,17 @@ async def _cmd_session(user_id: int, connection_id: str, chat: dict,
     await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
     last_used_support[user_id] = now_msk()
 
+    nb = _notify_bot(bot_token)
+
     async def run():
         try:
             user_data = await db.get_user(user_id)
             username = (user_data or {}).get('username', 'None')
-            await main_support(target, phone, user_id, username, notify_bot=_bot)
+            await main_support(target, phone, user_id, username, notify_bot=nb)
         except Exception as e:
             logger.error(f"[CHATBOT] .session error: {e}")
             try:
-                await _bot.send_message(user_id, f"❌ Ошибка: {str(e)[:100]}")
+                await nb.send_message(user_id, f"❌ Ошибка: {str(e)[:100]}")
             except Exception:
                 pass
 
