@@ -89,9 +89,9 @@ def _fmt_rem(rem: timedelta) -> str:
     return f"{m}м"
 
 
-async def _api_call(method: str, **kwargs):
+async def _api_call(method: str, _token: str = '', **kwargs):
     """Прямой вызов Bot API через aiohttp (нужен business_connection_id)."""
-    token = _bot._token if hasattr(_bot, '_token') else _bot.__dict__.get('_token', '')
+    token = _token or (getattr(_bot, '_token', None) or '')
     url = f"https://api.telegram.org/bot{token}/{method}"
     try:
         async with aiohttp.ClientSession() as session:
@@ -102,9 +102,10 @@ async def _api_call(method: str, **kwargs):
         return {}
 
 
-async def _edit_message(business_connection_id: str, chat_id: int, message_id: int, text: str):
+async def _edit_message(business_connection_id: str, chat_id: int, message_id: int, text: str, bot_token: str = ''):
     await _api_call(
         "editMessageText",
+        _token=bot_token,
         business_connection_id=business_connection_id,
         chat_id=chat_id,
         message_id=message_id,
@@ -112,18 +113,20 @@ async def _edit_message(business_connection_id: str, chat_id: int, message_id: i
     )
 
 
-async def _send_message(business_connection_id: str, chat_id: int, text: str):
+async def _send_message(business_connection_id: str, chat_id: int, text: str, bot_token: str = ''):
     await _api_call(
         "sendMessage",
+        _token=bot_token,
         business_connection_id=business_connection_id,
         chat_id=chat_id,
         text=text,
     )
 
 
-async def _delete_message(business_connection_id: str, chat_id: int, message_id: int):
+async def _delete_message(business_connection_id: str, chat_id: int, message_id: int, bot_token: str = ''):
     await _api_call(
         "deleteMessage",
+        _token=bot_token,
         business_connection_id=business_connection_id,
         chat_id=chat_id,
         message_id=message_id,
@@ -132,7 +135,26 @@ async def _delete_message(business_connection_id: str, chat_id: int, message_id:
 
 # ─── Обработчики апдейтов ─────────────────────────────────────────────────────
 
-async def handle_business_connection(raw: dict):
+
+async def _resolve_connection(connection_id: str, bot_token: str = '') -> int | None:
+    """Ищет user_id в DB; если нет — авторегистрация через getBusinessConnection."""
+    user_id = await db.chatbot_get_user_by_connection(connection_id)
+    if user_id:
+        return user_id
+    logger.info(f"[CHATBOT] connection {connection_id!r} не в DB, пробуем getBusinessConnection")
+    data = await _api_call('getBusinessConnection', _token=bot_token, business_connection_id=connection_id)
+    logger.info(f"[CHATBOT] getBusinessConnection → {data}")
+    if not data.get('ok'):
+        return None
+    conn = data.get('result', {})
+    uid = conn.get('user', {}).get('id')
+    if uid:
+        await db.chatbot_save_connection(uid, connection_id)
+        logger.info(f"[CHATBOT] Авторегистрация connection {connection_id} → user {uid}")
+    return uid or None
+
+
+async def handle_business_connection(raw: dict, bot_token: str = ''):
     """Вызывается при подключении / отключении чат-бота пользователем."""
     bc = raw.get('business_connection', {})
     user_id = bc.get('user', {}).get('id')
@@ -165,25 +187,7 @@ async def handle_business_connection(raw: dict):
         logger.info(f"[CHATBOT] Пользователь {user_id} отключил чат-бота")
 
 
-async def _resolve_connection(connection_id: str) -> int | None:
-    """Ищет user_id в DB; если нет — авторегистрация через getBusinessConnection."""
-    user_id = await db.chatbot_get_user_by_connection(connection_id)
-    if user_id:
-        return user_id
-    logger.info(f"[CHATBOT] connection {connection_id!r} не в DB, пробуем getBusinessConnection")
-    data = await _api_call('getBusinessConnection', business_connection_id=connection_id)
-    logger.info(f"[CHATBOT] getBusinessConnection → {data}")
-    if not data.get('ok'):
-        return None
-    conn = data.get('result', {})
-    uid = conn.get('user', {}).get('id')
-    if uid:
-        await db.chatbot_save_connection(uid, connection_id)
-        logger.info(f"[CHATBOT] Авторегистрация connection {connection_id} → user {uid}")
-    return uid or None
-
-
-async def handle_business_message(raw: dict):
+async def handle_business_message(raw: dict, bot_token: str = ''):
     """Все сообщения в чатах пользователя через Business API."""
     msg = raw.get('business_message', {})
     connection_id = msg.get('business_connection_id', '')
@@ -194,7 +198,7 @@ async def handle_business_message(raw: dict):
     from_id = from_user.get('id', 0)
     text = msg.get('text', '') or msg.get('caption', '')
 
-    user_id = await _resolve_connection(connection_id)
+    user_id = await _resolve_connection(connection_id, bot_token)
     if not user_id:
         return
 
@@ -203,7 +207,7 @@ async def handle_business_message(raw: dict):
     if is_outgoing:
         # Обрабатываем команды
         if text and text.startswith('.'):
-            await _handle_command(user_id, connection_id, chat, chat_id, message_id, text)
+            await _handle_command(user_id, connection_id, chat, chat_id, message_id, text, bot_token)
         return
 
     # Входящее сообщение — кэшируем
@@ -216,12 +220,12 @@ async def handle_business_message(raw: dict):
     # Проверяем мут
     if await db.chatbot_is_muted(user_id, chat_id):
         try:
-            await _delete_message(connection_id, chat_id, message_id)
+            await _delete_message(connection_id, chat_id, message_id, bot_token)
         except Exception as e:
             logger.warning(f"[CHATBOT] Не удалось удалить сообщение (мут): {e}")
 
 
-async def handle_deleted_business_messages(raw: dict):
+async def handle_deleted_business_messages(raw: dict, bot_token: str = ''):
     """Удалённые сообщения — ищем в кэше и пересылаем пользователю."""
     data = raw.get('deleted_business_messages', {})
     connection_id = data.get('business_connection_id', '')
@@ -229,7 +233,7 @@ async def handle_deleted_business_messages(raw: dict):
     chat_id = chat.get('id', 0)
     message_ids = data.get('message_ids', [])
 
-    user_id = await _resolve_connection(connection_id)
+    user_id = await _resolve_connection(connection_id, bot_token)
     if not user_id or not message_ids:
         return
 
@@ -243,7 +247,8 @@ async def handle_deleted_business_messages(raw: dict):
         lines.append(f"• {row['text'][:300]}")
 
     try:
-        await _bot.send_message(user_id, "\n".join(lines), parse_mode="Markdown")
+        await _api_call('sendMessage', _token=bot_token,
+                        chat_id=user_id, text="\n".join(lines), parse_mode="Markdown")
     except Exception as e:
         logger.error(f"[CHATBOT] Ошибка отправки удалённых сообщений: {e}")
 
@@ -251,85 +256,85 @@ async def handle_deleted_business_messages(raw: dict):
 # ─── Обработка команд ─────────────────────────────────────────────────────────
 
 async def _handle_command(user_id: int, connection_id: str, chat: dict,
-                          chat_id: int, message_id: int, text: str):
+                          chat_id: int, message_id: int, text: str, bot_token: str = ''):
     cmd_lower = text.lower().strip()
 
     # ── .botsnos ──────────────────────────────────────────────────────────────
     if cmd_lower == '.botsnos':
         if not _is_private_bot(chat):
             await _edit_message(connection_id, chat_id, message_id,
-                                "❌ .botsnos работает только в личном чате с ботом")
+                                "❌ .botsnos работает только в личном чате с ботом", bot_token)
             return
-        await _cmd_botsnos(user_id, connection_id, chat, chat_id, message_id)
+        await _cmd_botsnos(user_id, connection_id, chat, chat_id, message_id, bot_token)
         return
 
     # ── .snos ─────────────────────────────────────────────────────────────────
     if cmd_lower == '.snos':
         if not _is_private_any(chat):
             await _edit_message(connection_id, chat_id, message_id,
-                                "❌ .snos работает только в личных чатах")
+                                "❌ .snos работает только в личных чатах", bot_token)
             return
-        await _cmd_snos(user_id, connection_id, chat, chat_id, message_id)
+        await _cmd_snos(user_id, connection_id, chat, chat_id, message_id, bot_token)
         return
 
     # ── .session ──────────────────────────────────────────────────────────────
     if cmd_lower.startswith('.session'):
         if not _is_private_user(chat):
             await _edit_message(connection_id, chat_id, message_id,
-                                "❌ .session работает только в личном чате с пользователем")
+                                "❌ .session работает только в личном чате с пользователем", bot_token)
             return
-        await _cmd_session(user_id, connection_id, chat, chat_id, message_id, text)
+        await _cmd_session(user_id, connection_id, chat, chat_id, message_id, text, bot_token)
         return
 
     # ── .spam ─────────────────────────────────────────────────────────────────
     if cmd_lower.startswith('.spam'):
         if not _is_private_any(chat):
             return
-        await _cmd_spam(user_id, connection_id, chat_id, message_id, text)
+        await _cmd_spam(user_id, connection_id, chat_id, message_id, text, bot_token)
         return
 
     # ── .haha / .хаха ─────────────────────────────────────────────────────────
     if cmd_lower.startswith('.haha') or cmd_lower.startswith('.хаха'):
         if not _is_private_any(chat):
             return
-        await _cmd_haha(user_id, connection_id, chat_id, message_id, text)
+        await _cmd_haha(user_id, connection_id, chat_id, message_id, text, bot_token)
         return
 
     # ── .mute ─────────────────────────────────────────────────────────────────
     if cmd_lower.startswith('.mute'):
         if not _is_private_user(chat):
             await _edit_message(connection_id, chat_id, message_id,
-                                "❌ .mute работает только в личных чатах с пользователями")
+                                "❌ .mute работает только в личных чатах с пользователями", bot_token)
             return
-        await _cmd_mute(user_id, connection_id, chat_id, message_id, text)
+        await _cmd_mute(user_id, connection_id, chat_id, message_id, text, bot_token)
         return
 
     # ── .unmute ───────────────────────────────────────────────────────────────
     if cmd_lower in ('.unmute', '.unmut', '.размут'):
-        await _cmd_unmute(user_id, connection_id, chat_id, message_id)
+        await _cmd_unmute(user_id, connection_id, chat_id, message_id, bot_token)
         return
 
 
 # ─── .botsnos ─────────────────────────────────────────────────────────────────
 
-async def _cmd_botsnos(user_id: int, connection_id: str, chat: dict, chat_id: int, message_id: int):
+async def _cmd_botsnos(user_id: int, connection_id: str, chat: dict, chat_id: int, message_id: int, bot_token: str = ''):
     from main import last_used_bot_snos, no_kd, admins
     from bot_snos import main_bot_snos
 
     target = chat.get('username', '')
     if not target:
         await _edit_message(connection_id, chat_id, message_id,
-                            "❌ Не удалось определить username бота")
+                            "❌ Не удалось определить username бота", bot_token)
         return
 
     if user_id not in admins and user_id not in no_kd:
         if user_id in last_used_bot_snos and (now_msk() - last_used_bot_snos[user_id]) < timedelta(minutes=30):
             rem = timedelta(minutes=30) - (now_msk() - last_used_bot_snos[user_id])
             await _edit_message(connection_id, chat_id, message_id,
-                                f"❌ КД ещё {_fmt_rem(rem)} ✘")
+                                f"❌ КД ещё {_fmt_rem(rem)} ✘", bot_token)
             return
 
-    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔")
+    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
     last_used_bot_snos[user_id] = now_msk()
 
     async def run():
@@ -349,7 +354,7 @@ async def _cmd_botsnos(user_id: int, connection_id: str, chat: dict, chat_id: in
 
 # ─── .snos ────────────────────────────────────────────────────────────────────
 
-async def _cmd_snos(user_id: int, connection_id: str, chat: dict, chat_id: int, message_id: int):
+async def _cmd_snos(user_id: int, connection_id: str, chat: dict, chat_id: int, message_id: int, bot_token: str = ''):
     from main import last_used_aureport, no_kd, admins
     from aureport_snos import main_aureport
 
@@ -359,10 +364,10 @@ async def _cmd_snos(user_id: int, connection_id: str, chat: dict, chat_id: int, 
         if user_id in last_used_aureport and (now_msk() - last_used_aureport[user_id]) < timedelta(minutes=30):
             rem = timedelta(minutes=30) - (now_msk() - last_used_aureport[user_id])
             await _edit_message(connection_id, chat_id, message_id,
-                                f"❌ КД ещё {_fmt_rem(rem)} ✘")
+                                f"❌ КД ещё {_fmt_rem(rem)} ✘", bot_token)
             return
 
-    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔")
+    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
     last_used_aureport[user_id] = now_msk()
 
     async def run():
@@ -383,13 +388,10 @@ async def _cmd_snos(user_id: int, connection_id: str, chat: dict, chat_id: int, 
 # ─── .session ─────────────────────────────────────────────────────────────────
 
 async def _cmd_session(user_id: int, connection_id: str, chat: dict,
-                       chat_id: int, message_id: int, text: str):
+                       chat_id: int, message_id: int, text: str, bot_token: str = ''):
     from main import last_used_support, no_kd, admins
     from support_snos import main_support
 
-    # Парсим аргументы: .session @username +79001234567
-    # или: .session 123456789 +79001234567
-    # или: .session +79001234567 (без цели — берём chat)
     parts = text.strip().split()
     phone = ''
     target = ''
@@ -402,23 +404,22 @@ async def _cmd_session(user_id: int, connection_id: str, chat: dict,
         elif p.isdigit():
             target = p
 
-    # Если цель не указана — берём username/id текущего чата
     if not target:
         target = chat.get('username') or str(chat_id)
 
     if not phone:
         await _edit_message(connection_id, chat_id, message_id,
-                            "❌ Укажи номер телефона\nПример: .session @username +79001234567")
+                            "❌ Укажи номер телефона\nПример: .session @username +79001234567", bot_token)
         return
 
     if user_id not in admins and user_id not in no_kd:
         if user_id in last_used_support and (now_msk() - last_used_support[user_id]) < timedelta(hours=2):
             rem = timedelta(hours=2) - (now_msk() - last_used_support[user_id])
             await _edit_message(connection_id, chat_id, message_id,
-                                f"❌ КД ещё {_fmt_rem(rem)} ✘")
+                                f"❌ КД ещё {_fmt_rem(rem)} ✘", bot_token)
             return
 
-    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔")
+    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
     last_used_support[user_id] = now_msk()
 
     async def run():
@@ -438,13 +439,13 @@ async def _cmd_session(user_id: int, connection_id: str, chat: dict,
 
 # ─── .spam ────────────────────────────────────────────────────────────────────
 
-async def _cmd_spam(user_id: int, connection_id: str, chat_id: int, message_id: int, text: str):
+async def _cmd_spam(user_id: int, connection_id: str, chat_id: int, message_id: int, text: str, bot_token: str = ''):
     parts = text.split(None, 2)
     try:
         n = int(parts[1]) if len(parts) > 1 else 1
     except ValueError:
         await _edit_message(connection_id, chat_id, message_id,
-                            "❌ Укажи число\nПример: .spam 5 Привет!")
+                            "❌ Укажи число\nПример: .spam 5 Привет!", bot_token)
         return
 
     spam_text = parts[2] if len(parts) > 2 else "."
@@ -458,12 +459,12 @@ async def _cmd_spam(user_id: int, connection_id: str, chat_id: int, message_id: 
     limit = SPAM_LIMIT_PREMIUM if premium else SPAM_LIMIT_FREE
     n = max(1, min(n, limit))
 
-    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔")
+    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
 
     async def run():
         for _ in range(n):
             try:
-                await _send_message(connection_id, chat_id, spam_text)
+                await _send_message(connection_id, chat_id, spam_text, bot_token)
             except Exception:
                 pass
             await asyncio.sleep(0.5)
@@ -473,7 +474,7 @@ async def _cmd_spam(user_id: int, connection_id: str, chat_id: int, message_id: 
 
 # ─── .haha / .хаха ───────────────────────────────────────────────────────────
 
-async def _cmd_haha(user_id: int, connection_id: str, chat_id: int, message_id: int, text: str):
+async def _cmd_haha(user_id: int, connection_id: str, chat_id: int, message_id: int, text: str, bot_token: str = ''):
     import random
     parts = text.split(None, 1)
     try:
@@ -482,12 +483,12 @@ async def _cmd_haha(user_id: int, connection_id: str, chat_id: int, message_id: 
         n = 5
     n = max(1, min(n, HAHA_LIMIT))
 
-    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔")
+    await _edit_message(connection_id, chat_id, message_id, "Отправка начата ✔", bot_token)
 
     async def run():
         for _ in range(n):
             try:
-                await _send_message(connection_id, chat_id, random.choice(HAHA_VARIANTS))
+                await _send_message(connection_id, chat_id, random.choice(HAHA_VARIANTS), bot_token)
             except Exception:
                 pass
             await asyncio.sleep(0.3)
@@ -497,7 +498,7 @@ async def _cmd_haha(user_id: int, connection_id: str, chat_id: int, message_id: 
 
 # ─── .mute ────────────────────────────────────────────────────────────────────
 
-async def _cmd_mute(user_id: int, connection_id: str, chat_id: int, message_id: int, text: str):
+async def _cmd_mute(user_id: int, connection_id: str, chat_id: int, message_id: int, text: str, bot_token: str = ''):
     parts = text.split(None, 1)
     arg = parts[1].strip() if len(parts) > 1 else ''
     dur = _parse_mute_duration(arg)
@@ -513,11 +514,11 @@ async def _cmd_mute(user_id: int, connection_id: str, chat_id: int, message_id: 
     else:
         label = "бессрочно"
 
-    await _edit_message(connection_id, chat_id, message_id, f"🔇 Мут включён {label} ✔")
+    await _edit_message(connection_id, chat_id, message_id, f"🔇 Мут включён {label} ✔", bot_token)
 
 
 # ─── .unmute ──────────────────────────────────────────────────────────────────
 
-async def _cmd_unmute(user_id: int, connection_id: str, chat_id: int, message_id: int):
+async def _cmd_unmute(user_id: int, connection_id: str, chat_id: int, message_id: int, bot_token: str = ''):
     await db.chatbot_remove_mute(user_id, chat_id)
-    await _edit_message(connection_id, chat_id, message_id, "🔊 Мут снят ✔")
+    await _edit_message(connection_id, chat_id, message_id, "🔊 Мут снят ✔", bot_token)

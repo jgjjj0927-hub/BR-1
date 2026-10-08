@@ -1063,13 +1063,13 @@ async def _poll_loop(mirror_bot, dp):
 
                 try:
                     if 'business_connection' in upd:
-                        asyncio.ensure_future(_chatbot.handle_business_connection(upd))
+                        asyncio.ensure_future(_chatbot.handle_business_connection(upd, bot_token=token))
                     elif 'business_message' in upd:
                         txt = upd['business_message'].get('text', '')[:40]
                         print(f"[MIRROR POLL] → business_message text={txt!r}", flush=True)
-                        asyncio.ensure_future(_chatbot.handle_business_message(upd))
+                        asyncio.ensure_future(_chatbot.handle_business_message(upd, bot_token=token))
                     elif 'deleted_business_messages' in upd:
-                        asyncio.ensure_future(_chatbot.handle_deleted_business_messages(upd))
+                        asyncio.ensure_future(_chatbot.handle_deleted_business_messages(upd, bot_token=token))
                     else:
                         update_obj = types.Update(**upd)
                         _Bot.set_current(mirror_bot)
