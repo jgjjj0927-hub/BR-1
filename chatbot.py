@@ -509,6 +509,16 @@ async def _cmd_haha(user_id: int, connection_id: str, chat_id: int, message_id: 
 # ─── .mute ────────────────────────────────────────────────────────────────────
 
 async def _cmd_mute(user_id: int, connection_id: str, chat_id: int, message_id: int, text: str, bot_token: str = ''):
+    # Проверяем права бота на удаление чужих сообщений
+    bc_data = await _api_call('getBusinessConnection', _token=bot_token, business_connection_id=connection_id)
+    rights = bc_data.get('result', {}).get('rights', {})
+    if not rights.get('can_delete_all_messages'):
+        await _edit_message(connection_id, chat_id, message_id,
+                            "❌ Для .mute нужно разрешение «Удалять сообщения»\n"
+                            "Зайди: Настройки ТГ → Мой профиль → Чат-боты → выбери бота → включи «Удалять сообщения»",
+                            bot_token)
+        return
+
     parts = text.split(None, 1)
     arg = parts[1].strip() if len(parts) > 1 else ''
     dur = _parse_mute_duration(arg)
