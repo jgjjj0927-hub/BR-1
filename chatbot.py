@@ -124,6 +124,7 @@ async def _send_message(business_connection_id: str, chat_id: int, text: str, bo
 
 
 async def _delete_message(business_connection_id: str, chat_id: int, message_id: int, bot_token: str = ''):
+    print(f"[CHATBOT] deleteMessage conn={business_connection_id!r} chat={chat_id} msg={message_id} token={bot_token[:15]!r}", flush=True)
     result = await _api_call(
         "deleteMessage",
         _token=bot_token,
@@ -131,8 +132,7 @@ async def _delete_message(business_connection_id: str, chat_id: int, message_id:
         chat_id=chat_id,
         message_id=message_id,
     )
-    if not result.get('result'):
-        print(f"[CHATBOT] deleteMessage failed: {result}", flush=True)
+    print(f"[CHATBOT] deleteMessage result: {result}", flush=True)
 
 
 # ─── Обработчики апдейтов ─────────────────────────────────────────────────────
