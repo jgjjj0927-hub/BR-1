@@ -73,14 +73,12 @@ def _get_sessions():
 
 def _load_proxies():
     proxies = []
-    for fname in ["au_proxies.txt", "proxies.txt", "proxy_input.txt"]:
-        if os.path.exists(fname):
-            with open(fname, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and ":" in line:
-                        proxies.append(line)
-            break
+    if os.path.exists("au_proxies.txt"):
+        with open("au_proxies.txt", "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and ":" in line:
+                    proxies.append(line)
     return proxies
 
 

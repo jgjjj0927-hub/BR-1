@@ -698,18 +698,16 @@ async def cmd_test_session(message: types.Message):
 		await bot.send_message(uid, f"❌ Сессия `{SESSION_NAME}.session` не найдена", parse_mode="Markdown")
 		return
 
-	# Берём прокси из файла (тот же приоритет что и в aureport_snos)
+	# Берём прокси только из au_proxies.txt
 	proxy = None
-	for pfname in ["au_proxies.txt", "proxies.txt", "proxy_input.txt"]:
-		if os.path.exists(pfname):
-			try:
-				with open(pfname) as _pf:
-					line = next((l.strip() for l in _pf if l.strip() and not l.startswith("#")), None)
-				if line:
-					proxy = aureport_snos._parse_proxy(line)
-			except Exception:
-				pass
-			break
+	if os.path.exists("au_proxies.txt"):
+		try:
+			with open("au_proxies.txt") as _pf:
+				line = next((l.strip() for l in _pf if l.strip() and not l.startswith("#")), None)
+			if line:
+				proxy = aureport_snos._parse_proxy(line)
+		except Exception:
+			pass
 
 	await bot.send_message(uid, f"🔌 Прокси: `{'подключаю' if proxy else 'нет — прямое соединение'}`", parse_mode="Markdown")
 
