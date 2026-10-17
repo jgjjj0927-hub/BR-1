@@ -27,6 +27,7 @@ from fast_stress import run_fast_stress
 import tg_market as _tgm_admin
 from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABELS
 from aureport_snos import main_aureport, set_bot_aureport
+import aureport_snos
 from tida_snos import main_tida, set_bot_tida
 from bank_snos import process_bank_report, set_bot_bank
 from code_snos import main_code_snos, set_bot_code
@@ -669,6 +670,89 @@ async def cmd_fast_stress(message: types.Message):
 		await run_fast_stress(notify_fn=notify, user_id=uid)
 	except Exception as e:
 		await bot.send_message(uid, f"❌ Ошибка: `{str(e)[:200]}`", parse_mode="Markdown")
+
+
+@dp.message_handler(commands=['test'])
+async def cmd_test_session(message: types.Message):
+	uid = message.from_user.id
+	if uid not in admins:
+		return
+
+	SESSION_NAME = "61455112151"
+	SENDS = 3
+	DELAY = 2
+
+	await bot.send_message(uid, "🧪 *Запускаю тест сессии...*\nСессия: `61455112151`\nОтправляю `/start` → `@AUReportBot` × 3", parse_mode="Markdown")
+
+	import socks as _socks
+	from telethon import TelegramClient as _TGClient
+
+	# Ищем сессию в возможных папках
+	session_path = None
+	for folder in ["aureport_sessions", "sessions", "."]:
+		candidate = os.path.join(folder, SESSION_NAME)
+		if os.path.exists(candidate + ".session"):
+			session_path = candidate
+			break
+	if session_path is None:
+		await bot.send_message(uid, f"❌ Сессия `{SESSION_NAME}.session` не найдена", parse_mode="Markdown")
+		return
+
+	# Берём прокси из файла (тот же приоритет что и в aureport_snos)
+	proxy = None
+	for pfname in ["au_proxies.txt", "proxies.txt", "proxy_input.txt"]:
+		if os.path.exists(pfname):
+			try:
+				with open(pfname) as _pf:
+					line = next((l.strip() for l in _pf if l.strip() and not l.startswith("#")), None)
+				if line:
+					proxy = aureport_snos._parse_proxy(line)
+			except Exception:
+				pass
+			break
+
+	await bot.send_message(uid, f"🔌 Прокси: `{'подключаю' if proxy else 'нет — прямое соединение'}`", parse_mode="Markdown")
+
+	client = None
+	try:
+		client = _TGClient(
+			session_path,
+			int(config.AUREPORT_API_ID),
+			config.AUREPORT_API_HASH,
+			proxy=proxy,
+			system_version='4.16.30-vxCUSTOM',
+		)
+		# Подключаемся один раз и держим соединение до конца
+		for _attempt in range(3):
+			try:
+				await asyncio.wait_for(client.connect(), timeout=15)
+				break
+			except (asyncio.TimeoutError, OSError):
+				if _attempt == 2:
+					await bot.send_message(uid, "❌ Не удалось подключиться к Telegram (таймаут)", parse_mode="Markdown")
+					return
+				await asyncio.sleep(2)
+
+		if not await client.is_user_authorized():
+			await bot.send_message(uid, "❌ Сессия не авторизована", parse_mode="Markdown")
+			return
+
+		bot_entity = await client.get_entity("AUReportBot")
+		await bot.send_message(uid, "✅ Подключено, начинаю отправку...", parse_mode="Markdown")
+
+		for i in range(1, SENDS + 1):
+			await client.send_message(bot_entity, "/start")
+			await bot.send_message(uid, f"📨 `/start` #{i} отправлен", parse_mode="Markdown")
+			if i < SENDS:
+				await asyncio.sleep(DELAY)
+
+		await bot.send_message(uid, "✅ *Тест завершён.* Все 3 `/start` отправлены через прокси.", parse_mode="Markdown")
+
+	except Exception as e:
+		await bot.send_message(uid, f"❌ Ошибка: `{str(e)[:300]}`", parse_mode="Markdown")
+	finally:
+		if client and client.is_connected():
+			await client.disconnect()
 
 
 @dp.message_handler(commands=['givetg'])
