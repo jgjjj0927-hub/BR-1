@@ -144,6 +144,13 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         import keyboards as _kb
         await mirror_bot.send_message(message.chat.id, text, reply_markup=_kb.admin_markup, parse_mode="MarkdownV2")
 
+    @dp.message_handler(commands=['test'])
+    async def mirror_cmd_test(message: types.Message):
+        if message.from_user.id not in config.ADMINS:
+            return
+        import main as _main
+        await _main._run_test_session(message.from_user.id, mirror_bot)
+
     # ─── /addtargetwl, /rmtargetwl, /listtargetwl ────────────────────────────
     @dp.message_handler(commands=['addtargetwl'])
     async def mirror_addtargetwl(message: types.Message):

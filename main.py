@@ -672,22 +672,16 @@ async def cmd_fast_stress(message: types.Message):
 		await bot.send_message(uid, f"❌ Ошибка: `{str(e)[:200]}`", parse_mode="Markdown")
 
 
-@dp.message_handler(commands=['test'])
-async def cmd_test_session(message: types.Message):
-	uid = message.from_user.id
-	if uid not in admins:
-		return
-
+async def _run_test_session(uid: int, reply_bot):
+	"""Логика /test: подключает сессию через прокси и шлёт /start × 3 в @AUReportBot."""
 	SESSION_NAME = "61455112151"
 	SENDS = 3
 	DELAY = 2
 
-	await bot.send_message(uid, "🧪 *Запускаю тест сессии...*\nСессия: `61455112151`\nОтправляю `/start` → `@AUReportBot` × 3", parse_mode="Markdown")
-
-	import socks as _socks
 	from telethon import TelegramClient as _TGClient
 
-	# Ищем сессию в возможных папках
+	await reply_bot.send_message(uid, "🧪 *Запускаю тест сессии...*\nСессия: `61455112151`\nОтправляю `/start` → `@AUReportBot` × 3", parse_mode="Markdown")
+
 	session_path = None
 	for folder in ["aureport_sessions", "sessions", "."]:
 		candidate = os.path.join(folder, SESSION_NAME)
@@ -695,10 +689,9 @@ async def cmd_test_session(message: types.Message):
 			session_path = candidate
 			break
 	if session_path is None:
-		await bot.send_message(uid, f"❌ Сессия `{SESSION_NAME}.session` не найдена", parse_mode="Markdown")
+		await reply_bot.send_message(uid, f"❌ Сессия `{SESSION_NAME}.session` не найдена", parse_mode="Markdown")
 		return
 
-	# Берём прокси только из au_proxies.txt
 	proxy = None
 	if os.path.exists("au_proxies.txt"):
 		try:
@@ -709,7 +702,7 @@ async def cmd_test_session(message: types.Message):
 		except Exception:
 			pass
 
-	await bot.send_message(uid, f"🔌 Прокси: `{'подключаю' if proxy else 'нет — прямое соединение'}`", parse_mode="Markdown")
+	await reply_bot.send_message(uid, f"🔌 Прокси: `{'подключаю' if proxy else 'нет — прямое соединение'}`", parse_mode="Markdown")
 
 	client = None
 	try:
@@ -720,37 +713,44 @@ async def cmd_test_session(message: types.Message):
 			proxy=proxy,
 			system_version='4.16.30-vxCUSTOM',
 		)
-		# Подключаемся один раз и держим соединение до конца
 		for _attempt in range(3):
 			try:
 				await asyncio.wait_for(client.connect(), timeout=15)
 				break
 			except (asyncio.TimeoutError, OSError):
 				if _attempt == 2:
-					await bot.send_message(uid, "❌ Не удалось подключиться к Telegram (таймаут)", parse_mode="Markdown")
+					await reply_bot.send_message(uid, "❌ Не удалось подключиться к Telegram (таймаут)", parse_mode="Markdown")
 					return
 				await asyncio.sleep(2)
 
 		if not await client.is_user_authorized():
-			await bot.send_message(uid, "❌ Сессия не авторизована", parse_mode="Markdown")
+			await reply_bot.send_message(uid, "❌ Сессия не авторизована", parse_mode="Markdown")
 			return
 
 		bot_entity = await client.get_entity("AUReportBot")
-		await bot.send_message(uid, "✅ Подключено, начинаю отправку...", parse_mode="Markdown")
+		await reply_bot.send_message(uid, "✅ Подключено, начинаю отправку...", parse_mode="Markdown")
 
 		for i in range(1, SENDS + 1):
 			await client.send_message(bot_entity, "/start")
-			await bot.send_message(uid, f"📨 `/start` #{i} отправлен", parse_mode="Markdown")
+			await reply_bot.send_message(uid, f"📨 `/start` #{i} отправлен", parse_mode="Markdown")
 			if i < SENDS:
 				await asyncio.sleep(DELAY)
 
-		await bot.send_message(uid, "✅ *Тест завершён.* Все 3 `/start` отправлены через прокси.", parse_mode="Markdown")
+		await reply_bot.send_message(uid, "✅ *Тест завершён.* Все 3 `/start` отправлены через прокси.", parse_mode="Markdown")
 
 	except Exception as e:
-		await bot.send_message(uid, f"❌ Ошибка: `{str(e)[:300]}`", parse_mode="Markdown")
+		await reply_bot.send_message(uid, f"❌ Ошибка: `{str(e)[:300]}`", parse_mode="Markdown")
 	finally:
 		if client and client.is_connected():
 			await client.disconnect()
+
+
+@dp.message_handler(commands=['test'])
+async def cmd_test_session(message: types.Message):
+	uid = message.from_user.id
+	if uid not in admins:
+		return
+	await _run_test_session(uid, bot)
 
 
 @dp.message_handler(commands=['givetg'])
