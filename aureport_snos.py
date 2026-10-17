@@ -98,6 +98,7 @@ def _parse_proxy(proxy_str):
         if "@" in proxy_str:
             auth, hostport = proxy_str.rsplit("@", 1)
             user, password = auth.split(":", 1)
+            user = user.split(";")[0]  # strip sticky-session suffix (;anon.1) — TG Desktop doesn't use it
             host, port = hostport.rsplit(":", 1)
         else:
             parts = proxy_str.split(":")
