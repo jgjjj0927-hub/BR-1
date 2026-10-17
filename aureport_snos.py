@@ -2,7 +2,7 @@
 Brown V2 | aureport_snos.py
 AU Report метод — жалобы через @AuReportBot.
 Сессии берутся из папки aureport_sessions/
-Прокси берутся из proxies.txt (если есть).
+Прокси берутся из au_proxies.txt.
 """
 
 import asyncio
