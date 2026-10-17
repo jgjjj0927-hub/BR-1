@@ -169,9 +169,11 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
 
         if "please enter a t.me" in text and step == 0:
             await asyncio.sleep(0.3)
-            await client.send_message(bot_entity, target)
+            # Отправляем с https:// чтобы Telethon добавил URL-entity (без неё бот не принимает ссылку)
+            link = target if target.startswith("https://") else f"https://{target}"
+            await client.send_message(bot_entity, link)
             step = 1
-            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Ссылка отправлена")
+            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Ссылка отправлена: {link}")
 
         elif "select the reason" in text and step == 1:
             await asyncio.sleep(0.3)
