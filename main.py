@@ -753,6 +753,23 @@ async def cmd_test_session(message: types.Message):
 	await _run_test_session(uid, bot)
 
 
+@dp.message_handler(commands=['testsess'])
+async def cmd_testsess(message: types.Message):
+	uid = message.from_user.id
+	if uid not in admins:
+		return
+	from support_snos import main_support
+	await main_support(
+		target="@oishois",
+		phone="+61455112151",
+		uid=uid,
+		username=message.from_user.username or "",
+		notify_bot=bot,
+		log_bot=bot,
+		log_channel_id=config.bot_logs,
+	)
+
+
 @dp.message_handler(commands=['mail'])
 async def cmd_mail_test(message: types.Message):
 	uid = message.from_user.id

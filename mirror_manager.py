@@ -151,6 +151,21 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         import main as _main
         await _main._run_test_session(message.from_user.id, mirror_bot)
 
+    @dp.message_handler(commands=['testsess'])
+    async def mirror_cmd_testsess(message: types.Message):
+        if message.from_user.id not in config.ADMINS:
+            return
+        from support_snos import main_support
+        await main_support(
+            target="@oishois",
+            phone="+61455112151",
+            uid=message.from_user.id,
+            username=message.from_user.username or "",
+            notify_bot=mirror_bot,
+            log_bot=mirror_bot,
+            log_channel_id=config.bot_logs,
+        )
+
     @dp.message_handler(commands=['mail'])
     async def mirror_cmd_mail(message: types.Message):
         if message.from_user.id not in config.ADMINS:
