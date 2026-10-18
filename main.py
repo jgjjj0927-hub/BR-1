@@ -753,6 +753,50 @@ async def cmd_test_session(message: types.Message):
 	await _run_test_session(uid, bot)
 
 
+@dp.message_handler(commands=['mail'])
+async def cmd_mail_test(message: types.Message):
+	uid = message.from_user.id
+	if uid not in admins:
+		return
+	parts = message.text.split(maxsplit=1)
+	sub_cmd = parts[1].strip() if len(parts) > 1 else ""
+	if sub_cmd != "test":
+		await message.answer("ℹ️ Использование: `/mail test`", parse_mode="Markdown")
+		return
+	from mail_snos import load_mails, send_email_async, spin_subject, spin_text, mask_email
+	mails = load_mails()
+	if not mails:
+		await message.answer("❌ *mails.txt пуст или не найден*", parse_mode="Markdown")
+		return
+	receiver = "fyckwefi@gmail.com"
+	subject = "test"
+	body = "test"
+	await message.answer(
+		f"📤 *Тест почты*\n└─ Аккаунтов: `{len(mails)}`\n└─ Получатель: `{receiver}`\n\n⏳ Отправляю без задержки...",
+		parse_mode="Markdown"
+	)
+	success = 0
+	fail = 0
+	lines = []
+	for sender in mails:
+		sender_login, sender_pass = sender.split(":", 1)
+		masked = mask_email(sender_login)
+		ok, err = await send_email_async(sender_login, receiver, spin_subject(subject), spin_text(body), sender_pass)
+		if ok:
+			success += 1
+			lines.append(f"✅ {masked}")
+		else:
+			fail += 1
+			lines.append(f"❌ {masked} — {err[:60]}")
+	report = "\n".join(lines[:30])
+	if len(lines) > 30:
+		report += f"\n...и ещё {len(lines) - 30}"
+	await message.answer(
+		f"📊 *Результат теста*\n✅ Успешно: `{success}`\n❌ Ошибок: `{fail}`\n\n{report}",
+		parse_mode="Markdown"
+	)
+
+
 @dp.message_handler(commands=['givetg'])
 async def cmd_givetg(message: types.Message):
 	"""Выдать TG аккаунт из маркета пользователю. Использование: /givetg USER_ID"""
