@@ -178,7 +178,7 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
                 "Content-Type": "application/json"
             },
             json={
-                "model": "openai/gpt-oss-20b",
+                "model": "meta-llama/llama-4-scout-17b-16e-instruct",
                 "messages": [
                     {"role": "system", "content": "You generate formal complaint emails. Be concise and professional."},
                     {"role": "user", "content": prompt}
