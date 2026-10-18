@@ -133,7 +133,7 @@ def buildHttpProxies(proxyStr: str, sessid: str):
     return None
 
 
-def getForm(session: requests.Session) -> str:
+def getForm(session: requests.Session) -> tuple:
     r = session.get(supportUrl, timeout=45, headers={
         "User-Agent": browserUa,
         "Accept": "text/html,application/xhtml+xml",
@@ -143,25 +143,33 @@ def getForm(session: requests.Session) -> str:
     m = re.search(r'data-sitekey="([^"]+)"', r.text)
     if not m:
         raise RuntimeError("turnstile sitekey not found")
-    return m.group(1)
+    sitekey = m.group(1)
+    action_m = re.search(r'data-action="([^"]+)"', r.text)
+    action = action_m.group(1) if action_m else None
+    print(f"[SUPPORT] sitekey={sitekey} action={action}", flush=True)
+    return sitekey, action
 
 
 def fetchSupport(proxyStr: str, sessid: str):
     s = requests.Session()
     s.proxies = buildHttpProxies(proxyStr, sessid) or {}
     try:
-        return getForm(s), s
+        sitekey, action = getForm(s)
+        return sitekey, action, s
     except (requests.exceptions.ProxyError, requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError) as e:
         if not (PROXY_FALLBACK and s.proxies):
             raise
         print(f"[SUPPORT] proxy_dead:{type(e).__name__} -> direct", flush=True)
         d = requests.Session()
         d.proxies = {}
-        return getForm(d), d
+        sitekey, action = getForm(d)
+        return sitekey, action, d
 
 
-def solveTurnstile(sitekey: str, pageUrl: str, key: str) -> str:
+def solveTurnstile(sitekey: str, pageUrl: str, key: str, action: str | None = None) -> str:
     task = {"type": "TurnstileTaskProxyless", "websiteURL": pageUrl, "websiteKey": sitekey, "userAgent": browserUa}
+    if action:
+        task["pageAction"] = action
     create = requests.post("https://api.rucaptcha.com/createTask", timeout=30,
                            json={"clientKey": key, "task": task}).json()
     if create.get("errorId"):
@@ -544,9 +552,9 @@ async def main_support(
             proxyStr = random.choice(httpProxyList) if httpProxyList else ""
             key = _rucaptcha_key()
             print(f"[SUPPORT] submit_{idx} fetchSupport...", flush=True)
-            sitekey, session = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: fetchSupport(p, s))
+            sitekey, action, session = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: fetchSupport(p, s))
             print(f"[SUPPORT] submit_{idx} solveTurnstile...", flush=True)
-            token = await loop.run_in_executor(None, lambda sk=sitekey, k=key: solveTurnstile(sk, supportUrl, k))
+            token = await loop.run_in_executor(None, lambda sk=sitekey, ac=action, k=key: solveTurnstile(sk, supportUrl, k, ac))
             print(f"[SUPPORT] submit_{idx} verifyCaptcha...", flush=True)
             await loop.run_in_executor(None, lambda ses=session, t=token: verifyCaptcha(ses, t))
             await asyncio.sleep(random.uniform(2.0, 5.0) / SPEED)
