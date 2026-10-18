@@ -1201,13 +1201,18 @@ async def start_mirror(token: str):
 async def start_all_mirrors():
     main_token = os.environ.get("TOKEN", "")
 
-    # Системные зеркала — стартуют первыми, не считаются в лимит
+    # Системные зеркала — запускаем НЕМЕДЛЕННО, не ждём валидацию остальных
     pool = await db.get_pool()
     async with pool.acquire() as conn:
         sys_rows = await conn.fetch(
             "SELECT token FROM mirrors WHERE is_system = TRUE AND token != $1", main_token
         )
     system_tokens = [r["token"] for r in sys_rows]
+
+    if system_tokens:
+        print(f"[MIRROR] Запускаем {len(system_tokens)} системных зеркал немедленно...", flush=True)
+        for token in system_tokens:
+            asyncio.ensure_future(start_mirror(token))
 
     tokens = await db.get_all_mirror_tokens()
     tokens = [t for t in tokens if t != main_token and t not in system_tokens]
@@ -1221,15 +1226,6 @@ async def start_all_mirrors():
             return token, False
         return token, True
 
-    # Валидируем системные токены первыми (не удаляем их из БД при ошибке валидации)
-    valid_system = []
-    for token in system_tokens:
-        result = await validate_token(token)
-        if result is not None:
-            valid_system.append(token)
-        else:
-            print(f"[MIRROR] Системный токен невалиден: {token[:20]}", flush=True)
-
     valid_tokens = []
     batch_size = 50
     for i in range(0, len(tokens), batch_size):
@@ -1238,11 +1234,7 @@ async def start_all_mirrors():
         valid_tokens.extend(t for t, ok in results if ok)
 
     valid_tokens = valid_tokens[:MIRROR_LIMIT]
-    print(f"[MIRROR] Валидных: {len(valid_tokens)} обычных + {len(valid_system)} системных", flush=True)
-
-    # Сначала системные — гарантированно
-    if valid_system:
-        asyncio.ensure_future(_start_mirrors_background(valid_system))
+    print(f"[MIRROR] Валидных: {len(valid_tokens)} обычных + {len(system_tokens)} системных", flush=True)
     asyncio.ensure_future(_start_mirrors_background(valid_tokens))
     print(f"[MIRROR] Запуск зеркал в фоне...", flush=True)
 
