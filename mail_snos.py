@@ -143,8 +143,17 @@ def spin_subject(subject: str) -> str:
 def load_mails(file_path="mails.txt"):
     if not Path(file_path).exists():
         return []
+    result = []
     with open(file_path, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f if ":" in line]
+        for line in f:
+            line = line.strip()
+            if not line or ":" not in line:
+                continue
+            parts = line.split(":")
+            # formats: email:pass  or  email:pass:smtp.host
+            email, password = parts[0], parts[1]
+            result.append(f"{email}:{password}")
+    return result
 
 
 def mask_email(email):
