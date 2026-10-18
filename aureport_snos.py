@@ -83,33 +83,42 @@ def _load_proxies():
 
 
 def _parse_proxy(proxy_str):
-    """Парсит строку proxy в формат Telethon: (type, host, port, True, user, pass)"""
+    """Парсит строку proxy в формат Telethon dict (rdns=True — DNS через прокси)."""
     try:
-        import socks
+        import re
         proxy_str = proxy_str.strip()
-        proxy_type = socks.HTTP
-        if proxy_str.startswith("socks5://"):
-            proxy_type = socks.SOCKS5
-            proxy_str = proxy_str[len("socks5://"):]
-        elif proxy_str.startswith("http://"):
-            proxy_str = proxy_str[len("http://"):]
-        # без префикса — HTTP (мобильные прокси)
+        proxy_type = "http"
+        m = re.match(r'^(http|https|socks4|socks5)://', proxy_str, re.IGNORECASE)
+        if m:
+            proxy_type = m.group(1).lower()
+            if proxy_type == "https":
+                proxy_type = "http"
+            proxy_str = proxy_str[m.end():]
 
-        if "@" in proxy_str:
-            auth, hostport = proxy_str.rsplit("@", 1)
-            user, password = auth.split(":", 1)
-            user = user.split(";")[0]  # strip sticky-session suffix (;anon.1) — TG Desktop doesn't use it
-            host, port = hostport.rsplit(":", 1)
+        username = password = ip = port = None
+        m = re.match(r'^([^:]+):([^@]+)@([^:]+):(\d+)$', proxy_str)
+        if m:
+            username, password, ip, port = m.groups()
         else:
             parts = proxy_str.split(":")
             if len(parts) == 4:
-                host, port, user, password = parts
+                ip, port, username, password = parts
+            elif len(parts) == 2:
+                ip, port = parts
             else:
-                host, port = parts[0], parts[1]
-                user, password = None, None
-        if user and password:
-            return (proxy_type, host, int(port), True, user, password)
-        return (proxy_type, host, int(port))
+                return None
+
+        if username:
+            username = username.split(";")[0]  # strip sticky-session suffix (;anon.1)
+
+        return {
+            "proxy_type": proxy_type,
+            "addr": ip,
+            "port": int(port),
+            "username": username,
+            "password": password,
+            "rdns": True,
+        }
     except Exception:
         return None
 
@@ -170,8 +179,12 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
 
         if "please enter a t.me" in text and step == 0:
             await asyncio.sleep(0.3)
-            # Отправляем с https:// чтобы Telethon добавил URL-entity (без неё бот не принимает ссылку)
-            link = target if target.startswith("https://") else f"https://{target}"
+            # Шлём t.me/... без https:// — именно так принимает бот
+            link = target
+            if link.startswith("https://"):
+                link = link[len("https://"):]
+            elif link.startswith("http://"):
+                link = link[len("http://"):]
             await client.send_message(bot_entity, link)
             step = 1
             logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Ссылка отправлена: {link}")
@@ -218,7 +231,7 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
             step = 6
             logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Email отправлен ({session_email}), жду код...")
 
-        elif ("sent a" in text and "code" in text or "verification code" in text) and step == 6:
+        elif "verification code" in text and step == 6:
             code = await _wait_for_code_file(session_email, timeout=180)
             if code:
                 await asyncio.sleep(0.5)
@@ -249,7 +262,7 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
     logger.info(f"[AUREPORT] [{session_name}] [{report_num}] /start отправлен")
 
     try:
-        await asyncio.wait_for(done.wait(), timeout=120)
+        await asyncio.wait_for(done.wait(), timeout=700)
     except asyncio.TimeoutError:
         logger.warning(f"[AUREPORT] [{session_name}] [{report_num}] ⏳ Таймаут")
 
