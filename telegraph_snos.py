@@ -208,7 +208,7 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
             return subject, body
 
     except Exception as e:
-        logger.error(f"[TELEGRAPH] Groq error: {e}")
+        print(f"[TELEGRAPH] Groq error: {e}", flush=True)
         return fallback_subject, fallback_body
     finally:
         await session.close()
