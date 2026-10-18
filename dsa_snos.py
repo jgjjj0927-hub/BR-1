@@ -339,11 +339,24 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
             """, token)
             await asyncio.sleep(1)
 
+            # Закрываем алерт-попап если он перекрывает кнопку
+            try:
+                await page.evaluate("""
+                    () => {
+                        const popup = document.querySelector('.popup-container.alert-popup-container, .aj_popup');
+                        if (popup) popup.remove();
+                        document.querySelectorAll('.popup-overlay, .modal-overlay').forEach(el => el.remove());
+                    }
+                """)
+                await asyncio.sleep(0.5)
+            except Exception:
+                pass
+
             btn = await page.query_selector(".js-report-start-btn")
             if btn:
                 try:
                     async with page.expect_popup(timeout=8000) as popup_info:
-                        await btn.click()
+                        await btn.click(force=True)
                     oauth_page = await popup_info.value
                     await oauth_page.wait_for_load_state("domcontentloaded", timeout=10000)
                     await asyncio.sleep(1)
@@ -359,7 +372,7 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
                             continue
                 except Exception as e:
                     logger.warning(f"[DSA] popup: {e}")
-                    await btn.click()
+                    await btn.click(force=True)
                     await asyncio.sleep(2)
 
             if not await _wait_element(page, ".cd-comment-input", timeout=40):
