@@ -537,9 +537,18 @@ async def main_support(
                 name=legalName, email=email
             ))
 
-            sitekey, session = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: fetchSupport(p, s))
-            token = await loop.run_in_executor(None, lambda: solveTurnstile(sitekey, key))
-            await loop.run_in_executor(None, lambda: verifyCaptcha(session, token))
+            ok, status, reason = False, 0, "not_attempted"
+            for captcha_attempt in range(3):
+                try:
+                    sitekey, session = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: fetchSupport(p, s))
+                    token = await loop.run_in_executor(None, lambda: solveTurnstile(sitekey, key))
+                    await loop.run_in_executor(None, lambda: verifyCaptcha(session, token))
+                    break
+                except RuntimeError as ce:
+                    print(f"[SUPPORT] captcha attempt {captcha_attempt+1} failed: {ce}", flush=True)
+                    if captcha_attempt == 2:
+                        raise
+                    await asyncio.sleep(2)
             await asyncio.sleep(random.uniform(5.0, 15.0) / SPEED)
 
             ok, status, reason = await loop.run_in_executor(
