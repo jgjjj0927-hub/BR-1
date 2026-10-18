@@ -133,74 +133,61 @@ def buildHttpProxies(proxyStr: str, sessid: str):
     return None
 
 
-def getForm(session):
-    r = session.get(supportUrl, timeout=45, headers={
-        "User-Agent": browserUa,
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9",
-    })
-    r.raise_for_status()
-    m = re.search(r'data-sitekey="([^"]+)"', r.text)
-    if not m:
-        raise RuntimeError("turnstile sitekey not found")
-    return m.group(1)
+def _playwright_get_token_and_cookies() -> tuple[str, list[dict]]:
+    """
+    Открывает telegram.org/support в headless Chromium локально,
+    ждёт Turnstile токен и возвращает (token, cookies).
+    Токен привязан к IP этого сервера — верификация пройдёт.
+    """
+    from playwright.sync_api import sync_playwright
+    import os
+    pw_exec = os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium/chrome")
+    if not os.path.exists(pw_exec):
+        # fallback: пусть playwright сам найдёт
+        pw_exec = None
+
+    with sync_playwright() as pw:
+        launch_kwargs = {
+            "headless": True,
+            "args": ["--no-sandbox", "--disable-dev-shm-usage"],
+        }
+        if pw_exec:
+            launch_kwargs["executable_path"] = pw_exec
+        browser = pw.chromium.launch(**launch_kwargs)
+        ctx = browser.new_context(user_agent=browserUa)
+        page = ctx.new_page()
+        page.goto(supportUrl, timeout=30000)
+
+        # Ждём пока Turnstile отрендерит скрытый input с токеном (до 90 сек)
+        token = page.evaluate("""() => new Promise((resolve, reject) => {
+            const deadline = Date.now() + 90000;
+            const check = () => {
+                const el = document.querySelector('[name="cf-turnstile-response"]');
+                if (el && el.value) return resolve(el.value);
+                if (Date.now() > deadline) return reject('timeout');
+                setTimeout(check, 500);
+            };
+            check();
+        })""")
+
+        cookies = ctx.cookies()
+        browser.close()
+
+    if not token:
+        raise RuntimeError("playwright: turnstile token empty")
+    return token, cookies
 
 
-def fetchSupport(proxyStr: str, sessid: str):
+def _cookies_to_requests(cookies: list[dict]) -> dict:
+    return {c["name"]: c["value"] for c in cookies}
+
+
+def fetchAndSolve() -> tuple[str, requests.Session]:
+    """Получает токен и куки через Playwright, возвращает (token, requests.Session с куками)."""
+    token, pw_cookies = _playwright_get_token_and_cookies()
     s = requests.Session()
-    s.proxies = buildHttpProxies(proxyStr, sessid) or {}
-    try:
-        return getForm(s), s
-    except (requests.exceptions.ProxyError, requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError):
-        if not (PROXY_FALLBACK and s.proxies):
-            raise
-        d = requests.Session()
-        d.proxies = {}
-        return getForm(d), d
-
-
-def solveTurnstile(sitekey: str, key: str) -> str:
-    task = {"type": "TurnstileTaskProxyless", "websiteURL": supportUrl, "websiteKey": sitekey}
-    create = requests.post("https://api.anti-captcha.com/createTask", timeout=30,
-                           json={"clientKey": key, "task": task}).json()
-    if create.get("errorId"):
-        raise RuntimeError(f"anticaptcha create: {create.get('errorCode') or create}")
-    taskId = create["taskId"]
-    for _ in range(60):
-        time.sleep(3)
-        res = requests.post("https://api.anti-captcha.com/getTaskResult", timeout=30,
-                            json={"clientKey": key, "taskId": taskId}).json()
-        if res.get("errorId"):
-            raise RuntimeError(f"anticaptcha poll: {res.get('errorCode') or res}")
-        if res.get("status") == "ready":
-            return res["solution"]["token"]
-    raise RuntimeError("anticaptcha timeout")
-
-
-def verifyCaptcha(session, token: str):
-    headers = {
-        "User-Agent": browserUa,
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "X-Requested-With": "XMLHttpRequest",
-        "Origin": "https://telegram.org",
-        "Referer": supportUrl,
-    }
-    for _ in range(20):
-        r = session.post(captchaUrl, data={"token": token}, headers=headers, timeout=30)
-        try:
-            j = r.json()
-        except Exception:
-            raise RuntimeError(f"captcha_bad_response:{r.status_code}")
-        if j.get("error"):
-            raise RuntimeError(f"captcha_error:{j['error']}")
-        if j.get("pending"):
-            time.sleep(0.3)
-            continue
-        if j.get("ok"):
-            return True
-        raise RuntimeError(f"captcha_unexpected:{j}")
-    raise RuntimeError("captcha_pending_timeout")
+    s.cookies.update(_cookies_to_requests(pw_cookies))
+    return token, s
 
 
 def detectSuccess(status: int, body: str, url: str):
@@ -452,14 +439,6 @@ async def main_support(
     log_bot / log_channel_id — для лога в канал (опционально).
     quick=True — пропускает этапы 1-3, только сабмиты (для тестирования).
     """
-    key = _anticaptcha_key()
-    if not key:
-        if notify_bot:
-            await notify_bot.send_message(
-                uid, "❌ *ANTICAPTCHA\\_KEY не задан в конфиге!*", parse_mode="Markdown"
-            )
-        return False
-
     httpProxyList = _load_proxies_from_file()
     total = max(1, SUBMISSIONS)
 
@@ -540,27 +519,16 @@ async def main_support(
         if pb:
             await pb.set_active(stage_key)
         try:
-            sessid = secrets.token_hex(8)
             legalName, email = pickIdentity()
-            proxyStr = random.choice(httpProxyList) if httpProxyList else ""
             message_text = defaultText.format_map(SafeDict(
                 handle=ctx["handle"], id=ctx["id"], phone=phone, target=ctx["target"],
                 name=legalName, email=email
             ))
 
-            ok, status, reason = False, 0, "not_attempted"
-            for captcha_attempt in range(3):
-                try:
-                    sitekey, session = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: fetchSupport(p, s))
-                    token = await loop.run_in_executor(None, lambda: solveTurnstile(sitekey, key))
-                    await loop.run_in_executor(None, lambda: verifyCaptcha(session, token))
-                    break
-                except RuntimeError as ce:
-                    print(f"[SUPPORT] captcha attempt {captcha_attempt+1} failed: {ce}", flush=True)
-                    if captcha_attempt == 2:
-                        raise
-                    await asyncio.sleep(2)
-            await asyncio.sleep(random.uniform(5.0, 15.0) / SPEED)
+            print(f"[SUPPORT] submit_{idx} playwright...", flush=True)
+            token, session = await loop.run_in_executor(None, fetchAndSolve)
+            print(f"[SUPPORT] submit_{idx} token ok, submitting...", flush=True)
+            await asyncio.sleep(random.uniform(2.0, 5.0) / SPEED)
 
             ok, status, reason = await loop.run_in_executor(
                 None, lambda: submitFinal(session, message_text, phone, legalName, email)
