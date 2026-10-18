@@ -116,7 +116,7 @@ async def generate_complaint_text(reason: str, sub_reason: str, message_text: st
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": "qwen/qwen3.6-27b",
+                    "model": "llama-3.3-70b-versatile",
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_content}
@@ -301,6 +301,7 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
             headless=True,
+            executable_path="/opt/pw-browsers/chromium",
             args=["--no-sandbox", "--disable-setuid-sandbox",
                   "--disable-blink-features=AutomationControlled",
                   "--disable-infobars", "--window-size=1920,1080"]
@@ -439,9 +440,20 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
 
         except Exception as e:
             import traceback
+            tb = traceback.format_exc()
             print(f"[DSA] ошибка в репорте: {e}", flush=True)
-            print(f"[DSA] traceback: {traceback.format_exc()}", flush=True)
+            print(f"[DSA] traceback: {tb}", flush=True)
             logger.error(f"[DSA] ошибка: {e}")
+            try:
+                err_short = str(e)[:300]
+                if main_bot:
+                    await main_bot.send_message(
+                        bot_logs,
+                        f"🇪🇺 *DSA ERROR*\n`{err_short}`",
+                        parse_mode="Markdown"
+                    )
+            except Exception:
+                pass
             return False
         finally:
             await browser.close()
