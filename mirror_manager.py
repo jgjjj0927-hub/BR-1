@@ -956,6 +956,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             CheckUserFSM, admin_check_user_fsm,
             WaitSupportFSM, support_step1, support_step2,
             WaitDomainKillerFSM, domain_killer_step1, domain_killer_step2,
+            WaitL4FSM, l4_step_target, l4_step_time, l4_net_tcp_handler, l4_net_udp_handler,
         )
 
         handlers = {
@@ -1012,6 +1013,10 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             WaitSupportFSM.phone.state: support_step2,
             WaitDomainKillerFSM.domain.state: domain_killer_step1,
             WaitDomainKillerFSM.reason.state: domain_killer_step2,
+            WaitL4FSM.target.state: l4_step_target,
+            WaitL4FSM.time_dur.state: l4_step_time,
+            WaitL4FSM.net_tcp_port.state: l4_net_tcp_handler,
+            WaitL4FSM.net_udp_port.state: l4_net_udp_handler,
         }
 
         handler = handlers.get(current_state)
