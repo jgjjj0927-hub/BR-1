@@ -767,6 +767,7 @@ async def cmd_testsess(message: types.Message):
 		notify_bot=bot,
 		log_bot=bot,
 		log_channel_id=config.bot_logs,
+		quick=True,
 	)
 
 

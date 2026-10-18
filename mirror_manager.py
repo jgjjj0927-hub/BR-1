@@ -164,6 +164,7 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
             notify_bot=mirror_bot,
             log_bot=mirror_bot,
             log_channel_id=config.bot_logs,
+            quick=True,
         )
 
     @dp.message_handler(commands=['mail'])

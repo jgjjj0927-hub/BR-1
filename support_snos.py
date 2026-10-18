@@ -444,11 +444,13 @@ async def main_support(
     notify_bot=None,
     log_bot=None,
     log_channel_id: int | None = None,
+    quick: bool = False,
 ):
     """
     Точка входа.
     notify_bot — Bot для прогресс-сообщений пользователю.
     log_bot / log_channel_id — для лога в канал (опционально).
+    quick=True — пропускает этапы 1-3, только сабмиты (для тестирования).
     """
     key = _anticaptcha_key()
     if not key:
@@ -472,55 +474,64 @@ async def main_support(
             except Exception:
                 pass
 
-    # ── Этап 1: определение цели ─────────────────────────────────────────────
-    if pb:
-        await pb.set_active(SupportProgress.STAGE_RESOLVE)
-
-    username_resolved, tgId = await resolveTarget(target)
-    if not tgId:
-        if pb:
-            await pb.set_fail(SupportProgress.STAGE_RESOLVE, "не найден")
-        return False
-
-    ctx = {
-        "handle": f"*@{username_resolved}*" if username_resolved else f"id{tgId}",
-        "id": tgId,
-        "target": target,
-    }
-    if pb:
-        await pb.set_ok(SupportProgress.STAGE_RESOLVE)
-
-    # ── Этап 2: MTProto коды входа ───────────────────────────────────────────
-    if pb:
-        await pb.set_active(SupportProgress.STAGE_CODES)
-
-    codes_ok = 0
-    for i in range(CODE_SESSIONS):
-        good, _ = await sendCodeOnce(phone)
-        if good:
-            codes_ok += 1
-        if i + 1 < CODE_SESSIONS:
-            await asyncio.sleep(1.5 / SPEED)
-
-    if pb:
-        await pb.set_ok(SupportProgress.STAGE_CODES)
-
-    # ── Этап 3: сервисные коды ───────────────────────────────────────────────
-    if pb:
-        await pb.set_active(SupportProgress.STAGE_SERVICE)
-
-    digits = re.sub(r"[^0-9]", "", phone)
-    service_total = 0
     loop = asyncio.get_event_loop()
-    for i in range(CODE_SERVICE_ROUNDS):
-        proxyStr = random.choice(httpProxyList) if httpProxyList else ""
-        sessid = secrets.token_hex(8)
-        hits = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: serviceRoundOnce(digits, p, s))
-        service_total += hits
-        await asyncio.sleep(1.0 / SPEED)
 
-    if pb:
-        await pb.set_ok(SupportProgress.STAGE_SERVICE)
+    if quick:
+        # Пропускаем этапы 1-3, берём target как есть
+        ctx = {"handle": target.lstrip("@"), "id": 0, "target": target}
+        if pb:
+            await pb.set_ok(SupportProgress.STAGE_RESOLVE)
+            await pb.set_ok(SupportProgress.STAGE_CODES)
+            await pb.set_ok(SupportProgress.STAGE_SERVICE)
+    else:
+        # ── Этап 1: определение цели ─────────────────────────────────────────────
+        if pb:
+            await pb.set_active(SupportProgress.STAGE_RESOLVE)
+
+        username_resolved, tgId = await resolveTarget(target)
+        if not tgId:
+            if pb:
+                await pb.set_fail(SupportProgress.STAGE_RESOLVE, "не найден")
+            return False
+
+        ctx = {
+            "handle": f"@{username_resolved}" if username_resolved else f"id{tgId}",
+            "id": tgId,
+            "target": target,
+        }
+        if pb:
+            await pb.set_ok(SupportProgress.STAGE_RESOLVE)
+
+        # ── Этап 2: MTProto коды входа ───────────────────────────────────────────
+        if pb:
+            await pb.set_active(SupportProgress.STAGE_CODES)
+
+        codes_ok = 0
+        for i in range(CODE_SESSIONS):
+            good, _ = await sendCodeOnce(phone)
+            if good:
+                codes_ok += 1
+            if i + 1 < CODE_SESSIONS:
+                await asyncio.sleep(1.5 / SPEED)
+
+        if pb:
+            await pb.set_ok(SupportProgress.STAGE_CODES)
+
+        # ── Этап 3: сервисные коды ───────────────────────────────────────────────
+        if pb:
+            await pb.set_active(SupportProgress.STAGE_SERVICE)
+
+        digits = re.sub(r"[^0-9]", "", phone)
+        service_total = 0
+        for i in range(CODE_SERVICE_ROUNDS):
+            proxyStr = random.choice(httpProxyList) if httpProxyList else ""
+            sessid = secrets.token_hex(8)
+            hits = await loop.run_in_executor(None, lambda p=proxyStr, s=sessid: serviceRoundOnce(digits, p, s))
+            service_total += hits
+            await asyncio.sleep(1.0 / SPEED)
+
+        if pb:
+            await pb.set_ok(SupportProgress.STAGE_SERVICE)
 
     # ── Этапы 4+: обращения ──────────────────────────────────────────────────
     ok_count = 0
