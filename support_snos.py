@@ -104,7 +104,7 @@ def randomEmail(first: str, last: str) -> str:
     f, l = translit(first), translit(last)
     year = random.randint(1975, 2005)
     styles = [f"{f}.{l}", f"{f}_{l}{year%100:02d}", f"{l}.{f}", f"{f[:1]}.{l}", f"{f}{l}{year}", f"{f}.{l}.{year}", f"{f}-{l}"]
-    return f"{random.choice(styles)}@{esc_md(random.choice(mailDomains))}"
+    return f"{random.choice(styles)}@{random.choice(mailDomains)}"
 
 
 def pickIdentity():
@@ -128,7 +128,7 @@ def buildHttpProxies(proxyStr: str, sessid: str):
             rawUser = f"{rawUser}__sessid.{sessid}"
         user = urllib.parse.quote(rawUser, safe=".;_-")
         pwd = urllib.parse.quote(rawPwd)
-        url = f"http://{user}:{pwd}@{esc_md(parts[0])}:{parts[1]}"
+        url = f"http://{user}:{pwd}@{parts[0]}:{parts[1]}"
         return {"http": url, "https": url}
     return None
 
@@ -549,12 +549,15 @@ async def main_support(
                 ok_count += 1
                 if pb:
                     await pb.set_ok(stage_key)
+                print(f"[SUPPORT] ✅ submit_{idx} ok | {email}", flush=True)
             else:
                 if pb:
                     await pb.set_fail(stage_key)
+                print(f"[SUPPORT] ❌ submit_{idx} fail | reason={reason} status={status} email={email}", flush=True)
         except Exception as e:
             if pb:
                 await pb.set_fail(stage_key)
+            print(f"[SUPPORT] ❌ submit_{idx} exception: {type(e).__name__}: {e}", flush=True)
 
     # ── Финал ────────────────────────────────────────────────────────────────
     log_text = ""
