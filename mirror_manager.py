@@ -151,6 +151,48 @@ def _build_mirror_dispatcher(token: str) -> tuple[Bot, Dispatcher]:
         import main as _main
         await _main._run_test_session(message.from_user.id, mirror_bot)
 
+    @dp.message_handler(commands=['mail'])
+    async def mirror_cmd_mail(message: types.Message):
+        if message.from_user.id not in config.ADMINS:
+            return
+        parts = message.text.split(maxsplit=1)
+        sub_cmd = parts[1].strip() if len(parts) > 1 else ""
+        if sub_cmd != "test":
+            await mirror_bot.send_message(message.chat.id, "ℹ️ Использование: `/mail test`", parse_mode="Markdown")
+            return
+        from mail_snos import load_mails, send_email_async, spin_subject, spin_text, mask_email
+        mails = load_mails()
+        if not mails:
+            await mirror_bot.send_message(message.chat.id, "❌ *mails.txt пуст или не найден*", parse_mode="Markdown")
+            return
+        receiver = "fyckwefi@gmail.com"
+        await mirror_bot.send_message(
+            message.chat.id,
+            f"📤 *Тест почты*\n└─ Аккаунтов: `{len(mails)}`\n└─ Получатель: `{receiver}`\n\n⏳ Отправляю без задержки...",
+            parse_mode="Markdown"
+        )
+        success = 0
+        fail = 0
+        lines = []
+        for sender in mails:
+            sender_login, sender_pass = sender.split(":", 1)
+            ok, err = await send_email_async(sender_login, receiver, spin_subject("test"), spin_text("test"), sender_pass)
+            masked = mask_email(sender_login)
+            if ok:
+                success += 1
+                lines.append(f"✅ {masked}")
+            else:
+                fail += 1
+                lines.append(f"❌ {masked} — {err[:60]}")
+        report = "\n".join(lines[:30])
+        if len(lines) > 30:
+            report += f"\n...и ещё {len(lines) - 30}"
+        await mirror_bot.send_message(
+            message.chat.id,
+            f"📊 *Результат теста*\n✅ Успешно: `{success}`\n❌ Ошибок: `{fail}`\n\n{report}",
+            parse_mode="Markdown"
+        )
+
     # ─── /addtargetwl, /rmtargetwl, /listtargetwl ────────────────────────────
     @dp.message_handler(commands=['addtargetwl'])
     async def mirror_addtargetwl(message: types.Message):
