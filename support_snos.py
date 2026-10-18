@@ -84,8 +84,8 @@ def _load_proxies_from_file() -> list[str]:
         return []
 
 
-def _rucaptcha_key() -> str:
-    return _cfg.RUCAPTCHA_KEY
+def _anticaptcha_key() -> str:
+    return _cfg.ANTICAPTCHA_KEY
 
 
 def translit(value: str) -> str:
@@ -160,21 +160,21 @@ def fetchSupport(proxyStr: str, sessid: str):
 
 
 def solveTurnstile(sitekey: str, key: str) -> str:
-    task = {"type": "TurnstileTaskProxyless", "websiteURL": supportUrl, "websiteKey": sitekey, "userAgent": browserUa}
-    create = requests.post("https://api.rucaptcha.com/createTask", timeout=30,
+    task = {"type": "AntiTurnstileTaskProxyless", "websiteURL": supportUrl, "websiteKey": sitekey}
+    create = requests.post("https://api.anti-captcha.com/createTask", timeout=30,
                            json={"clientKey": key, "task": task}).json()
     if create.get("errorId"):
-        raise RuntimeError(f"rucaptcha create: {create.get('errorCode') or create}")
+        raise RuntimeError(f"anticaptcha create: {create.get('errorCode') or create}")
     taskId = create["taskId"]
     for _ in range(60):
-        time.sleep(5)
-        res = requests.post("https://api.rucaptcha.com/getTaskResult", timeout=30,
+        time.sleep(3)
+        res = requests.post("https://api.anti-captcha.com/getTaskResult", timeout=30,
                             json={"clientKey": key, "taskId": taskId}).json()
         if res.get("errorId"):
-            raise RuntimeError(f"rucaptcha poll: {res.get('errorCode') or res}")
+            raise RuntimeError(f"anticaptcha poll: {res.get('errorCode') or res}")
         if res.get("status") == "ready":
             return res["solution"]["token"]
-    raise RuntimeError("rucaptcha timeout")
+    raise RuntimeError("anticaptcha timeout")
 
 
 def verifyCaptcha(session, token: str):
@@ -450,11 +450,11 @@ async def main_support(
     notify_bot — Bot для прогресс-сообщений пользователю.
     log_bot / log_channel_id — для лога в канал (опционально).
     """
-    key = _rucaptcha_key()
+    key = _anticaptcha_key()
     if not key:
         if notify_bot:
             await notify_bot.send_message(
-                uid, "❌ *RUCAPTCHA\\_KEY не задан в конфиге!*", parse_mode="Markdown"
+                uid, "❌ *ANTICAPTCHA\\_KEY не задан в конфиге!*", parse_mode="Markdown"
             )
         return False
 
