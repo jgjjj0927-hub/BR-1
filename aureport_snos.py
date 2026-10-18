@@ -65,6 +65,8 @@ def set_bot_aureport(b):
 LOG_FOLDER = "logs"
 os.makedirs(LOG_FOLDER, exist_ok=True)
 
+_aureport_lock = asyncio.Lock()   # очередь: один запуск за раз
+
 
 def _get_sessions():
     files = [f for f in os.listdir(AUREPORT_DIR) if f.endswith(".session")]
@@ -294,6 +296,23 @@ async def _single_session_flow(session_path: str, target: str, session_email: st
 
 
 async def main_aureport(target_link: str, user: int, username: str, silent: bool = False, notify_bot=None):
+    _notify = notify_bot or bot
+
+    if _aureport_lock.locked():
+        if not silent:
+            try:
+                await _notify.send_message(
+                    user,
+                    "⏳ *AU Report в очереди...*\nДругой отчёт сейчас выполняется\\. Ваш запрос будет обработан автоматически после завершения\\.",
+                    parse_mode="Markdown")
+            except Exception:
+                pass
+
+    async with _aureport_lock:
+        await _main_aureport_inner(target_link, user, username, silent, notify_bot)
+
+
+async def _main_aureport_inner(target_link: str, user: int, username: str, silent: bool = False, notify_bot=None):
     _notify = notify_bot or bot
     sessions = _get_sessions()
     if not sessions:
