@@ -142,6 +142,7 @@ async def fetch_telegraph_text(url: str) -> tuple[str, int]:
 
 # ─── Groq генерация ───────────────────────────────────────────────────────────
 async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[str, str]:
+    print(f"[TELEGRAPH] generate_telegraph_text START", flush=True)
     fallback_subject = f"ToS Violation Report"
     fallback_body = (
         f"Dear Telegram Support,\n\n"
