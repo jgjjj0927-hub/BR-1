@@ -97,7 +97,9 @@ async def fetch_telegraph_text(url: str) -> tuple[str, int]:
 
         api_url = f"https://api.telegra.ph/getPage/{path}?return_content=true"
 
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector()
+        session = aiohttp.ClientSession(connector=connector)
+        try:
             async with session.get(
                 api_url,
                 timeout=aiohttp.ClientTimeout(total=10),
@@ -106,6 +108,9 @@ async def fetch_telegraph_text(url: str) -> tuple[str, int]:
                 if resp.status != 200:
                     return "", resp.status
                 data = await resp.json(content_type=None)
+        finally:
+            await session.close()
+            await connector.close()
 
         if not data.get("ok"):
             return "", 404
@@ -162,46 +167,50 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
         f"No labels, no formatting, just the text."
     )
 
+    connector = aiohttp.TCPConnector()
+    session = aiohttp.ClientSession(connector=connector)
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {GROQ_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "meta-llama/llama-4-scout-17b-16e-instruct",
-                    "messages": [
-                        {"role": "system", "content": "You generate formal complaint emails. Be concise and professional."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "max_tokens": 300,
-                    "temperature": 0.7,
-                },
-                timeout=aiohttp.ClientTimeout(total=20)
-            ) as resp:
-                data = await resp.json(content_type=None)
-                if "choices" not in data:
-                    return fallback_subject, fallback_body
+        async with session.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+                "messages": [
+                    {"role": "system", "content": "You generate formal complaint emails. Be concise and professional."},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": 300,
+                "temperature": 0.7,
+            },
+            timeout=aiohttp.ClientTimeout(total=20)
+        ) as resp:
+            data = await resp.json(content_type=None)
+            if "choices" not in data:
+                return fallback_subject, fallback_body
 
-                content = data["choices"][0]["message"]["content"].strip()
-                print(f"[TELEGRAPH] Groq raw: {content[:200]}", flush=True)
+            content = data["choices"][0]["message"]["content"].strip()
+            print(f"[TELEGRAPH] Groq raw: {content[:200]}", flush=True)
 
-                lines = content.strip().split("\n")
-                subject = lines[0].strip()[:100] if lines else fallback_subject
-                body = "\n".join(lines[1:]).strip()[:600] if len(lines) > 1 else fallback_body
+            lines = content.strip().split("\n")
+            subject = lines[0].strip()[:100] if lines else fallback_subject
+            body = "\n".join(lines[1:]).strip()[:600] if len(lines) > 1 else fallback_body
 
-                if not subject:
-                    subject = fallback_subject
-                if not body:
-                    body = fallback_body
+            if not subject:
+                subject = fallback_subject
+            if not body:
+                body = fallback_body
 
-                return subject, body
+            return subject, body
 
     except Exception as e:
         logger.error(f"[TELEGRAPH] Groq error: {e}")
         return fallback_subject, fallback_body
+    finally:
+        await session.close()
+        await connector.close()
 
 
 # ─── Отправка одного письма через relay ───────────────────────────────────────
@@ -327,6 +336,7 @@ async def main_telegraph_snos(
         f"👤 {_log_uid} (*@{_log_uname}*)"
     )
 
+    _notify = notify_bot or bot
     try:
         await _notify.send_message(
             user_id, caption,
@@ -334,7 +344,7 @@ async def main_telegraph_snos(
             reply_markup=keyboards.main_menu,
             disable_web_page_preview=True
         )
-        await (main_bot or bot).send_message(
+        await _notify.send_message(
             bot_logs, caption_log,
             parse_mode="Markdown",
             disable_web_page_preview=True
