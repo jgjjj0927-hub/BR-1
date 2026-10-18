@@ -160,7 +160,7 @@ def fetchSupport(proxyStr: str, sessid: str):
 
 
 def solveTurnstile(sitekey: str, key: str) -> str:
-    task = {"type": "AntiTurnstileTaskProxyless", "websiteURL": supportUrl, "websiteKey": sitekey}
+    task = {"type": "TurnstileTaskProxyless", "websiteURL": supportUrl, "websiteKey": sitekey}
     create = requests.post("https://api.anti-captcha.com/createTask", timeout=30,
                            json={"clientKey": key, "task": task}).json()
     if create.get("errorId"):
