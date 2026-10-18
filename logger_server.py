@@ -994,7 +994,7 @@ async def logger_hit(token: str, request: Request):
         row = await conn.fetchrow("SELECT owner_id, bot_token FROM logger_links WHERE token=$1", token)
 
     if not row:
-        return RedirectResponse("https://t.me/Brrown_V2bot")
+        return RedirectResponse("https://br-v2.com")
 
     owner_id = row["owner_id"]
     effective_bot_token = row["bot_token"] or BOT_TOKEN
@@ -1041,7 +1041,7 @@ async def logger_hit(token: str, request: Request):
     except Exception as e:
         log.warning(f"logger notify failed: {e}")
 
-    return RedirectResponse("https://t.me/Brrown_V2bot")
+    return RedirectResponse("https://br-v2.com")
 
 
 def _ym_verify_sign(form_data: dict, secret: str) -> bool:
