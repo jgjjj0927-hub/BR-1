@@ -4227,6 +4227,7 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 					parse_mode="MarkdownV2", reply_markup=panel_back_markup
 				)
 			except Exception as e:
+				logger.error(f"[LOGGER] Ошибка логгера: {e}")
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=t('logger_server_err', _user_lang),
 					parse_mode="MarkdownV2", reply_markup=panel_back_markup)
