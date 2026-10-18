@@ -190,6 +190,7 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
         ) as resp:
             data = await resp.json(content_type=None)
             if "choices" not in data:
+                print(f"[TELEGRAPH] Groq no choices: {str(data)[:400]}", flush=True)
                 return fallback_subject, fallback_body
 
             content = (data["choices"][0]["message"]["content"] or "").strip()
