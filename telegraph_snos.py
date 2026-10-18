@@ -357,7 +357,7 @@ async def main_telegraph_snos(
             reply_markup=keyboards.main_menu,
             disable_web_page_preview=True
         )
-        await _notify.send_message(
+        await (bot or _notify).send_message(
             bot_logs, caption_log,
             parse_mode="Markdown",
             disable_web_page_preview=True
