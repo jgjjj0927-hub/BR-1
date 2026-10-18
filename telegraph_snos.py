@@ -185,6 +185,7 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
                 ],
                 "max_tokens": 300,
                 "temperature": 0.7,
+                "reasoning_effort": "none",
             },
             timeout=aiohttp.ClientTimeout(total=20)
         ) as resp:
