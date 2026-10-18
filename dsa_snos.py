@@ -301,7 +301,6 @@ async def _run_single_report(target_link: str, reason_radio: str, sub_reason_rad
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
             headless=True,
-            executable_path="/opt/pw-browsers/chromium",
             args=["--no-sandbox", "--disable-setuid-sandbox",
                   "--disable-blink-features=AutomationControlled",
                   "--disable-infobars", "--window-size=1920,1080"]
