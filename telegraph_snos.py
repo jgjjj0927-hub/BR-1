@@ -178,7 +178,7 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
                 "Content-Type": "application/json"
             },
             json={
-                "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+                "model": "openai/gpt-oss-20b",
                 "messages": [
                     {"role": "system", "content": "You generate formal complaint emails. Be concise and professional."},
                     {"role": "user", "content": prompt}
@@ -193,10 +193,18 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
                 print(f"[TELEGRAPH] Groq no choices: {str(data)[:400]}", flush=True)
                 return fallback_subject, fallback_body
 
-            content = (data["choices"][0]["message"]["content"] or "").strip()
-            print(f"[TELEGRAPH] Groq raw: {content[:200]}", flush=True)
+            msg = data["choices"][0]["message"]
+            content = (msg.get("content") or "").strip()
+            # openai/gpt-oss-20b puts output in `reasoning` when content is empty
             if not content:
-                print(f"[TELEGRAPH] Groq empty, full resp: {str(data)[:400]}", flush=True)
+                content = (msg.get("reasoning") or "").strip()
+                print(f"[TELEGRAPH] Groq using reasoning field: {content[:100]}", flush=True)
+            else:
+                print(f"[TELEGRAPH] Groq raw: {content[:200]}", flush=True)
+
+            if not content:
+                print(f"[TELEGRAPH] Groq both empty, data: {str(data)[:300]}", flush=True)
+                return fallback_subject, fallback_body
 
             lines = content.strip().split("\n")
             subject = lines[0].strip()[:100] if lines else fallback_subject
