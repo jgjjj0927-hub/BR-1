@@ -5161,7 +5161,7 @@ async def dsa_step1(message: types.Message, state: FSMContext):
 
 	await _bot.send_message(uid,
 		f'🇪🇺 *DSA Report*\n\n'
-		f'*Цель:* {raw}\n\n'
+		f'*Цель:* `{raw}`\n\n'
 		f'*Выберите причину жалобы:*',
 		parse_mode="Markdown",
 		reply_markup=keyboards.dsa_reason_markup)
