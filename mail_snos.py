@@ -160,26 +160,77 @@ def generate_log_filename():
 
 # ─── Отправка одного письма через relay ──────────────────────────────────────
 
-async def send_email_async(sender_email, receiver_email, subject, body, password):
-    """Отправляет письмо через PythonAnywhere relay по HTTP."""
+async def _send_via_relay(sender_email, receiver_email, subject, body, password) -> tuple[bool, str]:
+    payload = {
+        "token": RELAY_TOKEN,
+        "sender": sender_email,
+        "password": password,
+        "receiver": receiver_email,
+        "subject": subject,
+        "body": body,
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(RELAY_URL, json=payload, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+            if resp.content_type != "application/json":
+                return False, f"relay bad response: {resp.status}"
+            data = await resp.json()
+            if data.get("ok"):
+                return True, ""
+            return False, data.get("error", "relay error")
+
+
+async def _send_via_smtp(sender_email, receiver_email, subject, body, password) -> tuple[bool, str]:
+    import smtplib
+    import ssl
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    domain = sender_email.split("@")[-1].lower()
+    smtp_map = {
+        "gmail.com":    ("smtp.gmail.com", 587),
+        "yahoo.com":    ("smtp.mail.yahoo.com", 587),
+        "outlook.com":  ("smtp.office365.com", 587),
+        "hotmail.com":  ("smtp.office365.com", 587),
+        "mail.ru":      ("smtp.mail.ru", 587),
+        "yandex.ru":    ("smtp.yandex.ru", 587),
+        "icloud.com":   ("smtp.mail.me.com", 587),
+    }
+    host, port = smtp_map.get(domain, ("smtp.gmail.com", 587))
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = sender_email
+    msg["To"] = receiver_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+
     try:
-        payload = {
-            "token": RELAY_TOKEN,
-            "sender": sender_email,
-            "password": password,
-            "receiver": receiver_email,
-            "subject": subject,
-            "body": body,
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(RELAY_URL, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                data = await resp.json()
-                if data.get("ok"):
-                    return True, ""
-                else:
-                    return False, data.get("error", "unknown error")
+        loop = asyncio.get_event_loop()
+        def _do_send():
+            ctx = ssl.create_default_context()
+            with smtplib.SMTP(host, port, timeout=20) as s:
+                s.ehlo()
+                s.starttls(context=ctx)
+                s.login(sender_email, password)
+                s.sendmail(sender_email, receiver_email, msg.as_string())
+        await loop.run_in_executor(None, _do_send)
+        return True, ""
     except Exception as e:
         return False, str(e)
+
+
+async def send_email_async(sender_email, receiver_email, subject, body, password):
+    """Отправляет письмо: сначала через relay, при сбое — прямо по SMTP."""
+    try:
+        ok, err = await _send_via_relay(sender_email, receiver_email, subject, body, password)
+        if ok:
+            return True, ""
+    except Exception as e:
+        err = str(e)
+    # relay недоступен — прямой SMTP
+    try:
+        return await _send_via_smtp(sender_email, receiver_email, subject, body, password)
+    except Exception as e:
+        return False, f"smtp: {e}"
 
 
 # ─── Массовая отправка ────────────────────────────────────────────────────────
