@@ -313,37 +313,44 @@ def _get_sessions():
 
 
 def _parse_proxy_str(line: str):
-    """Парсит строку прокси в tuple для Telethon. Возвращает tuple или None."""
+    """Парсит строку прокси в dict для Telethon (rdns=True — DNS через прокси)."""
     try:
+        import re as _re
         line = line.strip()
         if not line:
             return None
-        proxy_type = socks.SOCKS5
-        if line.startswith("http://"):
-            proxy_type = socks.HTTP
-            line = line[len("http://"):]
-        elif line.startswith("socks5://"):
-            line = line[len("socks5://"):]
-        elif line.startswith("socks4://"):
-            proxy_type = socks.SOCKS4
-            line = line[len("socks4://"):]
-        else:
-            # без префикса — определяем по содержимому, дефолт HTTP для мобильных
-            proxy_type = socks.HTTP
+        proxy_type = "socks5"
+        m = _re.match(r'^(http|https|socks4|socks5)://', line, _re.IGNORECASE)
+        if m:
+            proxy_type = m.group(1).lower()
+            if proxy_type == "https":
+                proxy_type = "http"
+            line = line[m.end():]
 
-        if "@" in line:
-            auth, hostport = line.rsplit("@", 1)
-            u, p = auth.split(":", 1)
-            h, pt = hostport.rsplit(":", 1)
-            return (proxy_type, h, int(pt), True, u, p)
+        username = password = ip = port = None
+        m = _re.match(r'^([^:]+):([^@]+)@([^:]+):(\d+)$', line)
+        if m:
+            username, password, ip, port = m.groups()
         else:
             parts = line.split(":")
             if len(parts) == 4:
-                h, pt, u, p = parts
-                return (proxy_type, h, int(pt), True, u, p)
+                ip, port, username, password = parts
             elif len(parts) == 2:
-                h, pt = parts
-                return (proxy_type, h, int(pt))
+                ip, port = parts
+            else:
+                return None
+
+        if username:
+            username = username.split(";")[0]  # strip sticky-session suffix
+
+        return {
+            "proxy_type": proxy_type,
+            "addr": ip,
+            "port": int(port),
+            "username": username,
+            "password": password,
+            "rdns": True,
+        }
     except Exception:
         pass
     return None
@@ -358,9 +365,8 @@ def _get_all_proxies() -> list:
     password = os.environ.get("TIDA_PROXY_PASS", "")
 
     if host and port:
-        if user and password:
-            return [(socks.SOCKS5, host, int(port), True, user, password)]
-        return [(socks.SOCKS5, host, int(port))]
+        return [{"proxy_type": "socks5", "addr": host, "port": int(port),
+                 "username": user or None, "password": password or None, "rdns": True}]
 
     # Приоритет 2: proxies.txt / proxy_input.txt
     for fname in ["proxies.txt", "proxy_input.txt"]:
@@ -478,8 +484,8 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
             step = 6
             logger.info(f"[TIDA] [{session_name}] [{report_num}] Email отправлен ({session_email}), жду код...")
 
-        elif ("sent a" in text and "code" in text or "verification code" in text) and step == 6:
-            code = await _wait_for_code_file(session_email, timeout=180)
+        elif "verification code" in text and step == 6:
+            code = await _wait_for_code_file(session_email, timeout=360)
             if code:
                 await asyncio.sleep(0.5)
                 await client.send_message(bot_entity, code)
@@ -514,7 +520,7 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
     logger.info(f"[TIDA] [{session_name}] [{report_num}] /start отправлен")
 
     try:
-        await asyncio.wait_for(done.wait(), timeout=120)
+        await asyncio.wait_for(done.wait(), timeout=700)
     except asyncio.TimeoutError:
         logger.warning(f"[TIDA] [{session_name}] [{report_num}] ⏳ Таймаут")
 
