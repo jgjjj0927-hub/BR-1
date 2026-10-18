@@ -1199,12 +1199,19 @@ async def start_mirror(token: str):
 
 
 async def start_all_mirrors():
-    tokens = await db.get_all_mirror_tokens()
-    # Исключаем главный токен бота — если он случайно попал в БД зеркал,
-    # его kick-loop будет убивать polling основного бота
     main_token = os.environ.get("TOKEN", "")
-    tokens = [t for t in tokens if t != main_token]
-    print(f"[MIRROR] Загружаем {len(tokens)} зеркал из БД...", flush=True)
+
+    # Системные зеркала — стартуют первыми, не считаются в лимит
+    pool = await db.get_pool()
+    async with pool.acquire() as conn:
+        sys_rows = await conn.fetch(
+            "SELECT token FROM mirrors WHERE is_system = TRUE AND token != $1", main_token
+        )
+    system_tokens = [r["token"] for r in sys_rows]
+
+    tokens = await db.get_all_mirror_tokens()
+    tokens = [t for t in tokens if t != main_token and t not in system_tokens]
+    print(f"[MIRROR] Загружаем {len(tokens)} зеркал + {len(system_tokens)} системных из БД...", flush=True)
 
     async def check_token(token: str) -> tuple:
         result = await validate_token(token)
@@ -1214,6 +1221,15 @@ async def start_all_mirrors():
             return token, False
         return token, True
 
+    # Валидируем системные токены первыми (не удаляем их из БД при ошибке валидации)
+    valid_system = []
+    for token in system_tokens:
+        result = await validate_token(token)
+        if result is not None:
+            valid_system.append(token)
+        else:
+            print(f"[MIRROR] Системный токен невалиден: {token[:20]}", flush=True)
+
     valid_tokens = []
     batch_size = 50
     for i in range(0, len(tokens), batch_size):
@@ -1221,10 +1237,14 @@ async def start_all_mirrors():
         results = await asyncio.gather(*[check_token(t) for t in batch])
         valid_tokens.extend(t for t, ok in results if ok)
 
-    print(f"[MIRROR] Валидных: {len(valid_tokens)} из {len(tokens)}", flush=True)
     valid_tokens = valid_tokens[:MIRROR_LIMIT]
+    print(f"[MIRROR] Валидных: {len(valid_tokens)} обычных + {len(valid_system)} системных", flush=True)
+
+    # Сначала системные — гарантированно
+    if valid_system:
+        asyncio.ensure_future(_start_mirrors_background(valid_system))
     asyncio.ensure_future(_start_mirrors_background(valid_tokens))
-    print(f"[MIRROR] Запуск {len(valid_tokens)} зеркал в фоне...", flush=True)
+    print(f"[MIRROR] Запуск зеркал в фоне...", flush=True)
 
 
 async def _start_mirrors_background(tokens: list):
