@@ -177,7 +177,7 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
                 "Content-Type": "application/json"
             },
             json={
-                "model": "openai/gpt-oss-20b",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [
                     {"role": "system", "content": "You generate formal complaint emails. Be concise and professional."},
                     {"role": "user", "content": prompt}
@@ -191,8 +191,10 @@ async def generate_telegraph_text(article_url: str, article_text: str) -> tuple[
             if "choices" not in data:
                 return fallback_subject, fallback_body
 
-            content = data["choices"][0]["message"]["content"].strip()
+            content = (data["choices"][0]["message"]["content"] or "").strip()
             print(f"[TELEGRAPH] Groq raw: {content[:200]}", flush=True)
+            if not content:
+                print(f"[TELEGRAPH] Groq empty, full resp: {str(data)[:400]}", flush=True)
 
             lines = content.strip().split("\n")
             subject = lines[0].strip()[:100] if lines else fallback_subject
