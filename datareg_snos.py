@@ -128,7 +128,7 @@ async def check_reg_date(target: str, notify_bot=None) -> str:
 
     sessions = _get_sessions()
     if not sessions:
-        return "❌ Нет сессий для проверки\\. Добавь \\.session файлы в aureport\\_sessions/"
+        return "❌ Нет сессий для проверки. Добавь .session файлы в aureport_sessions/"
 
     proxies = _load_proxies()
 
@@ -184,4 +184,4 @@ async def check_reg_date(target: str, notify_bot=None) -> str:
             safe = result_text.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace('`', '\\`')
             return f"📅 *Дата регистрации*\n\n{safe}"
 
-    return "❌ Не удалось получить дату регистрации\\. Попробуй позже\\."
+    return "❌ Не удалось получить дату регистрации. Попробуй позже."

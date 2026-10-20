@@ -5092,27 +5092,30 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 @dp.message_handler(state=WaitDataRegFSM.target)
 async def datareg_step1(message: types.Message, state: FSMContext):
 	uid = message.from_user.id
-	raw = message.text.strip()
+	raw = (message.text or "").strip()
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 	await state.finish()
 
+	if not raw:
+		await _bot.send_message(uid, "❌ Введи @username или числовой ID.", reply_markup=main_menu)
+		return
+
 	if uid not in admins:
 		last_used_datareg[uid] = now_msk()
 
-	raw_display = raw.replace('_', '\\_')
-	await _bot.send_message(uid,
-		f'📅 *Проверяю дату регистрации* `{raw_display}`*...*\n*└─ Это может занять несколько секунд*',
-		parse_mode="Markdown")
-
 	try:
+		raw_display = raw.replace('_', '\\_')
+		await _bot.send_message(uid,
+			f'📅 *Проверяю дату регистрации* {raw_display}*...*\n*└─ Это может занять несколько секунд*',
+			parse_mode="Markdown")
 		result = await check_reg_date(raw, notify_bot=_bot)
 		await _bot.send_message(uid, result, parse_mode="Markdown", reply_markup=main_menu)
 	except Exception as e:
 		print(f"[DATAREG] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
-		await _bot.send_message(uid, f'❌ *Ошибка Data Reg:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
+		await _bot.send_message(uid, f'❌ Ошибка Data Reg: {str(e)[:100]}', reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
