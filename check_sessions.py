@@ -214,10 +214,28 @@ async def main():
 
     # Спрашиваем об удалении
     print(f"\nНевалидных сессий: {invalid_count} (+ {error_count} ошибок соединения)")
-    print("Удалить все невалидные? (y/n/s - выбрать конкретные): ", end="", flush=True)
+    print("Удалить все невалидные? (y/n/s - выбрать конкретные)\n  y = только invalid/banned, e = + ошибки/таймауты, s = выбрать вручную: ", end="", flush=True)
     choice = input().strip().lower()
 
     if choice == "y":
+        deleted = 0
+        for path, folder, filename, status, info in bad_list:
+            if status == "error":
+                continue
+            session_file = path + ".session"
+            journal_file = path + ".session-journal"
+            try:
+                if os.path.exists(session_file):
+                    os.remove(session_file)
+                    deleted += 1
+                if os.path.exists(journal_file):
+                    os.remove(journal_file)
+                print(f"  🗑 Удалено: {folder}/{filename} ({status}: {info})")
+            except Exception as e:
+                print(f"  ⚠️  Ошибка удаления {filename}: {e}")
+        print(f"\nУдалено сессий: {deleted}")
+
+    elif choice == "e":
         deleted = 0
         for path, folder, filename, status, info in bad_list:
             session_file = path + ".session"
