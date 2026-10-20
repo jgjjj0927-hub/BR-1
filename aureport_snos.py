@@ -237,13 +237,24 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
                 except Exception as _e:
                     # TypeNotFoundError — Telethon не может распарсить ответ (устаревший TL),
                     # но сообщение с кодом уже доставлено в Telegram.
-                    # Сырые байты ошибки содержат текст ответа бота — ищем "Thank you" прямо там.
+                    # "Thank you" может прийти в том же пакете или отдельным — проверяем оба варианта.
                     _err_str = str(_e)
                     if "thank you for your report" in _err_str.lower() or "report has been submitted" in _err_str.lower():
                         success = True
                         logger.info(f"[AUREPORT] [{session_name}] [{report_num}] ✅ Успешно (из байт ошибки TL)!")
                     else:
-                        logger.warning(f"[AUREPORT] [{session_name}] [{report_num}] Ошибка парсинга ответа (неизвестный результат): {_e!r}")
+                        # "Thank you" не пришёл вместе — ждём отдельный пакет и поллим историю
+                        logger.warning(f"[AUREPORT] [{session_name}] [{report_num}] Ошибка ответа, Thank You не найден, поллинг через 5с...")
+                        await asyncio.sleep(5)
+                        try:
+                            await client.get_messages(bot_entity, limit=3)
+                        except Exception as _pe:
+                            _pe_str = str(_pe)
+                            if "thank you for your report" in _pe_str.lower() or "report has been submitted" in _pe_str.lower():
+                                success = True
+                                logger.info(f"[AUREPORT] [{session_name}] [{report_num}] ✅ Успешно (поллинг байты)!")
+                            else:
+                                logger.warning(f"[AUREPORT] [{session_name}] [{report_num}] Поллинг: Thank You не найден: {_pe!r}")
                     step = 7
                     done.set()
             else:
