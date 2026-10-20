@@ -185,6 +185,11 @@ _T = {
             '*└─ Введите @username или ссылку на цель:*\n\n'
             '*@username* или https://t.me/username'
         ),
+        'datareg_prompt': (
+            '📅 *Data Reg*\n\n'
+            '*└─ Введите @username или числовой ID:*\n\n'
+            '*@username* или 123456789'
+        ),
         'tida_prompt': (
             '🟣 *TIDA*\n\n'
             '*└─ Отправьте ссылку на цель:*\n\n'
@@ -258,6 +263,7 @@ _T = {
         # ─── Методы (обычный раздел) ──────────────────────────────────────────
         'btn_aureport_method': '🇦🇺 AU Report',
         'btn_tida_method': '🟣 TIDA',
+        'btn_datareg_method': '📅 Data Reg',
         'btn_code_method': '📱 Спам кодами',
         'btn_logger_method': '🔗 Логгер',
 
@@ -791,6 +797,11 @@ _T = {
             '*└─ Enter @username or target link:*\n\n'
             '*@username* or https://t.me/username'
         ),
+        'datareg_prompt': (
+            '📅 *Data Reg*\n\n'
+            '*└─ Enter @username or numeric ID:*\n\n'
+            '*@username* or 123456789'
+        ),
         'tida_prompt': (
             '🟣 *TIDA*\n\n'
             '*└─ Send the target link:*\n\n'
@@ -864,6 +875,7 @@ _T = {
         # ─── Methods (regular section) ────────────────────────────────────────
         'btn_aureport_method': '🇦🇺 AU Report',
         'btn_tida_method': '🟣 TIDA',
+        'btn_datareg_method': '📅 Data Reg',
         'btn_code_method': '📱 Code Spam',
         'btn_logger_method': '🔗 Logger',
 

@@ -28,6 +28,7 @@ import tg_market as _tgm_admin
 from channel_snos import main_channel_snos, set_bot_channel, CHANNEL_REASON_LABELS
 from aureport_snos import main_aureport, set_bot_aureport
 import aureport_snos
+from datareg_snos import check_reg_date, set_bot_datareg
 from tida_snos import main_tida, set_bot_tida
 from bank_snos import process_bank_report, set_bot_bank
 from code_snos import main_code_snos, set_bot_code
@@ -142,6 +143,7 @@ last_used_l4 = {}
 last_used_channel = {}
 last_used_aureport = {}
 last_used_tida = {}
+last_used_datareg = {}
 last_used_bank = {}
 last_used_dsa = {}
 last_used_telegraph = {}
@@ -384,6 +386,9 @@ class WaitChannelFSM(StatesGroup):
 
 class WaitAuReportFSM(StatesGroup):
 	link = State()
+
+class WaitDataRegFSM(StatesGroup):
+	target = State()
 
 class WaitTidaFSM(StatesGroup):
 	link = State()
@@ -3917,6 +3922,24 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				parse_mode="Markdown", reply_markup=panel_back_markup
 			)
 
+		# ─── Data Reg ─────────────────────────────────────────────────────────
+		elif d == "datareg_method":
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if sub_expired():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_subscribe', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			if uid not in admins and uid not in no_kd and uid in last_used_datareg and (now_msk() - last_used_datareg[uid]) < timedelta(minutes=5):
+				rem = timedelta(minutes=5) - (now_msk() - last_used_datareg[uid])
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
+					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=panel_back_markup); return
+			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitDataRegFSM.target.state)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption=t('datareg_prompt', _user_lang),
+				parse_mode="Markdown", reply_markup=panel_back_markup
+			)
+
 		# ─── TIDA ─────────────────────────────────────────────────────────────
 		elif d == "tida_method":
 			if bot_off():
@@ -5059,6 +5082,37 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 	except Exception as e:
 		print(f"[AUREPORT] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
 		await _bot.send_message(uid, f'❌ *Ошибка AU Report:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
+	finally:
+		if _is_mirror_bot:
+			try:
+				s = await _bot.get_session(); await s.close()
+			except Exception: pass
+
+
+@dp.message_handler(state=WaitDataRegFSM.target)
+async def datareg_step1(message: types.Message, state: FSMContext):
+	uid = message.from_user.id
+	raw = message.text.strip()
+	fsm_data = await state.get_data()
+	_bot_token = fsm_data.get('_bot_token')
+	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
+	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
+	await state.finish()
+
+	if uid not in admins:
+		last_used_datareg[uid] = now_msk()
+
+	raw_display = raw.replace('_', '\\_')
+	await _bot.send_message(uid,
+		f'📅 *Проверяю дату регистрации* `{raw_display}`*...*\n*└─ Это может занять несколько секунд*',
+		parse_mode="Markdown")
+
+	try:
+		result = await check_reg_date(raw, notify_bot=_bot)
+		await _bot.send_message(uid, result, parse_mode="Markdown", reply_markup=main_menu)
+	except Exception as e:
+		print(f"[DATAREG] КРИТИЧЕСКАЯ ОШИБКА: {e}", flush=True)
+		await _bot.send_message(uid, f'❌ *Ошибка Data Reg:* {str(e)[:100]}', parse_mode="Markdown", reply_markup=main_menu)
 	finally:
 		if _is_mirror_bot:
 			try:
@@ -7190,6 +7244,7 @@ async def on_startup(dp):
 	set_bot_stress(bot)
 	set_bot_channel(bot)
 	set_bot_aureport(bot)
+	set_bot_datareg(bot)
 	set_bot_tida(bot)
 	set_bot_bank(bot)
 	set_bot_code(bot)
