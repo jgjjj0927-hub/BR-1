@@ -171,14 +171,7 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
 
         logger.info(f"[AUREPORT] [{session_name}] [{report_num}] 📨 step={step} | {text[:120]!r}")
 
-        # Повторяем /start пока не достигли _START_REPEATS
-        if "australian online safety act" in text and step == 0 and start_sent < _START_REPEATS:
-            await asyncio.sleep(_START_DELAY)
-            await client.send_message(bot_entity, "/start")
-            start_sent += 1
-            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] /start повтор #{start_sent}")
-            return
-
+        # Запрос ссылки проверяем первым — бот может включить его в то же сообщение с disclaimer
         if "please enter a t.me" in text and step == 0:
             await asyncio.sleep(0.3)
             # Шлём t.me/... без https:// — именно так принимает бот
