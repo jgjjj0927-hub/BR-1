@@ -106,16 +106,34 @@ async def _create_client(session_path: str, proxy=None):
 
 def _parse_whenjoinedbot_response(text: str):
     """
-    Парсит ответ @WhenJoinedBot.
-    Возвращает (account_id, date_from, date_to) или None.
+    Парсит ответ @WhenJoinedBot (EN и RU форматы).
+    Возвращает (account_id, username_or_none, date_from, date_to) или None.
     """
-    # "Аккаунт с идентификатором 8871068832"
-    m_id = re.search(r'идентификатором\s+(\d+)', text)
-    # "Зарегистрировался в период с 01.05.2026 по 20.10.2026"
-    m_dates = re.search(r'с\s+([\d.]+)\s+по\s+([\d.]+)', text)
-    if m_id and m_dates:
-        return m_id.group(1), m_dates.group(1), m_dates.group(2)
-    # Fallback: просто вернуть весь текст
+    username = None
+
+    # EN: "User @tarismit with ID 8904492648"
+    m_user_en = re.search(r'User\s+(@\S+)\s+with ID\s+(\d+)', text, re.IGNORECASE)
+    # EN: "Registered between 2026-05-01 and 2026-10-20"
+    m_dates_en = re.search(r'Registered between\s+([\d\-]+)\s+and\s+([\d\-]+)', text, re.IGNORECASE)
+
+    if m_user_en and m_dates_en:
+        username = m_user_en.group(1)
+        acc_id = m_user_en.group(2)
+        date_from = m_dates_en.group(1)
+        date_to = m_dates_en.group(2)
+        return acc_id, username, date_from, date_to
+
+    # EN без юзернейма: "User with ID 8904492648"
+    m_id_en = re.search(r'with ID\s+(\d+)', text, re.IGNORECASE)
+    if m_id_en and m_dates_en:
+        return m_id_en.group(1), None, m_dates_en.group(1), m_dates_en.group(2)
+
+    # RU: "идентификатором 8871068832" + "с 01.05.2026 по 20.10.2026"
+    m_id_ru = re.search(r'идентификатором\s+(\d+)', text)
+    m_dates_ru = re.search(r'с\s+([\d.]+)\s+по\s+([\d.]+)', text)
+    if m_id_ru and m_dates_ru:
+        return m_id_ru.group(1), None, m_dates_ru.group(1), m_dates_ru.group(2)
+
     return None
 
 
@@ -174,14 +192,17 @@ async def check_reg_date(target: str, notify_bot=None) -> str:
         if result_text:
             parsed = _parse_whenjoinedbot_response(result_text)
             if parsed:
-                acc_id, date_from, date_to = parsed
+                acc_id, uname, date_from, date_to = parsed
+                uname_line = f"👤 *Username:* {uname}\n" if uname else ""
                 return (
                     f"📅 *Дата регистрации*\n\n"
-                    f"🆔 *Аккаунт:* `{acc_id}`\n"
+                    f"{uname_line}"
+                    f"🆔 *ID:* `{acc_id}`\n"
                     f"📆 *Зарегистрирован:* с *{date_from}* по *{date_to}*"
                 )
-            # Ответ пришёл но в неизвестном формате — отдаём как есть
-            safe = result_text.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace('`', '\\`')
+            # Ответ пришёл но в неизвестном формате — отдаём первые 2 строки
+            first_lines = "\n".join(result_text.splitlines()[:3]).strip()
+            safe = first_lines.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace('`', '\\`')
             return f"📅 *Дата регистрации*\n\n{safe}"
 
     return "❌ Не удалось получить дату регистрации. Попробуй позже."
