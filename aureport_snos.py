@@ -309,17 +309,24 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
                 pass
 
     async with _aureport_lock:
-        await _main_aureport_inner(target_link, user, username, silent, notify_bot)
+        pending = await _main_aureport_inner(target_link, user, username, silent, notify_bot)
+
+    # Lock released — send result notifications now
+    if pending:
+        for coro in pending:
+            try:
+                await coro
+            except Exception:
+                pass
 
 
 async def _main_aureport_inner(target_link: str, user: int, username: str, silent: bool = False, notify_bot=None):
     _notify = notify_bot or bot
     sessions = _get_sessions()
     if not sessions:
-        await _notify.send_message(user,
+        return [_notify.send_message(user,
             "❌ *Нет сессий для AU Report!*\n*Положи .session файлы в папку* aureport_sessions/",
-            parse_mode="Markdown", reply_markup=keyboards.main_menu)
-        return
+            parse_mode="Markdown", reply_markup=keyboards.main_menu)]
 
     # Нормализуем target
     target = target_link.strip()
@@ -406,14 +413,11 @@ async def _main_aureport_inner(target_link: str, user: int, username: str, silen
     if not real_result:
         logger.warning(f"[AUREPORT] ❌ Все {total} аккаунтов не смогли отправить жалобу")
         if not silent:
-            try:
-                await _notify.send_message(
-                    user,
-                    f"🇦🇺 *AU Report*\n\n❌ *Не удалось отправить жалобу ни с одного аккаунта\\!*\n🎯 *Цель:* {target.replace('_', chr(92)+'_')}",
-                    parse_mode="Markdown", reply_markup=keyboards.main_menu)
-            except Exception as e:
-                logger.error(f"[AUREPORT] Ошибка отправки ошибки пользователю: {e}")
-        return (0, total)
+            return [_notify.send_message(
+                user,
+                f"🇦🇺 *AU Report*\n\n❌ *Не удалось отправить жалобу ни с одного аккаунта\\!*\n🎯 *Цель:* {target.replace('_', chr(92)+'_')}",
+                parse_mode="Markdown", reply_markup=keyboards.main_menu)]
+        return []
 
     successful = total
 
@@ -447,20 +451,23 @@ async def _main_aureport_inner(target_link: str, user: int, username: str, silen
     )
 
     if not silent:
-        try:
-            await _notify.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
-        except Exception as e:
-            logger.error(f"[AUREPORT] Ошибка отправки результата пользователю: {e}")
+        _log_bot = main_bot or bot
 
-        for attempt in range(3):
+        async def _send_results():
             try:
-                _log_bot = main_bot or bot
-                if _log_bot:
-                    await _log_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
-                    break
+                await _notify.send_message(user, caption_user, parse_mode="Markdown", reply_markup=keyboards.main_menu)
             except Exception as e:
-                logger.error(f"[AUREPORT] Ошибка отправки лога (попытка {attempt+1}): {e}")
-                if attempt < 2:
-                    await asyncio.sleep(2)
+                logger.error(f"[AUREPORT] Ошибка отправки результата пользователю: {e}")
+            for attempt in range(3):
+                try:
+                    if _log_bot:
+                        await _log_bot.send_message(bot_logs, caption_log, parse_mode="Markdown")
+                        break
+                except Exception as e:
+                    logger.error(f"[AUREPORT] Ошибка отправки лога (попытка {attempt+1}): {e}")
+                    if attempt < 2:
+                        await asyncio.sleep(2)
 
-    return (successful, total)
+        return [_send_results()]
+
+    return []
