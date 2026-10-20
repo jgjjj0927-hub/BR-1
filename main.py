@@ -3893,8 +3893,24 @@ async def handle_callback(call: types.CallbackQuery, bot_instance, dp_instance, 
 				rem = timedelta(minutes=30) - (now_msk() - last_used_aureport[uid])
 				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id,
 					caption=t('err_wait', _user_lang, m=rem.seconds//60, s=rem.seconds%60), parse_mode="Markdown", reply_markup=panel_back_markup); return
+			_ar_reason_markup = types.InlineKeyboardMarkup(row_width=2)
+			_ar_reason_markup.add(
+				types.InlineKeyboardButton("💊 ПАВ", callback_data="aureport_reason_pav"),
+				types.InlineKeyboardButton("🔞 Child", callback_data="aureport_reason_child"),
+			)
+			_ar_reason_markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data="back_to_panel"))
+			await bot_instance.edit_message_caption(
+				call.message.chat.id, call.message.message_id,
+				caption="🇦🇺 *AU Report — выбери причину жалобы:*",
+				parse_mode="Markdown", reply_markup=_ar_reason_markup
+			)
+
+		elif d in ("aureport_reason_pav", "aureport_reason_child"):
+			if bot_off():
+				await bot_instance.edit_message_caption(call.message.chat.id, call.message.message_id, caption=t('err_bot_off', _user_lang), parse_mode="MarkdownV2", reply_markup=panel_back_markup); return
+			_ar_reason = "pav" if d == "aureport_reason_pav" else "child"
 			await dp_instance.current_state(chat=uid, user=uid).set_state(WaitAuReportFSM.link.state)
-			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token)
+			await dp_instance.current_state(user=uid).update_data(_bot_token=_instance_token, _aureport_reason=_ar_reason)
 			await bot_instance.edit_message_caption(
 				call.message.chat.id, call.message.message_id,
 				caption=t('aureport_prompt', _user_lang),
@@ -5009,6 +5025,7 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 	raw = message.text.strip()
 	fsm_data = await state.get_data()
 	_bot_token = fsm_data.get('_bot_token')
+	_aureport_reason = fsm_data.get('_aureport_reason', 'pav')
 	_is_mirror_bot = bool(_bot_token and _bot_token != config.TOKEN)
 	_bot = Bot(token=_bot_token) if _is_mirror_bot else bot
 
@@ -5021,13 +5038,14 @@ async def aureport_step1(message: types.Message, state: FSMContext):
 	if uid not in admins:
 		last_used_aureport[uid] = now_msk()
 
+	_reason_label = "💊 ПАВ" if _aureport_reason == "pav" else "🔞 Child"
 	raw_display = raw.replace('_', '\\_')
 	await _bot.send_message(uid,
-		f'🇦🇺 *Запускаю AU Report на* {raw_display}*...*\n*└─ Это может занять некоторое время*',
+		f'🇦🇺 *Запускаю AU Report на* {raw_display}*...*\n{_reason_label}\n*└─ Это может занять некоторое время*',
 		parse_mode="Markdown")
 
 	try:
-		await main_aureport(raw, uid, username, notify_bot=_bot)
+		await main_aureport(raw, uid, username, notify_bot=_bot, reason=_aureport_reason)
 		try: await db.log_attack(uid, raw, "aureport")
 		except Exception as e: print(f"[HISTORY] aureport log error: {e}", flush=True)
 		# Предлагаем мониторинг

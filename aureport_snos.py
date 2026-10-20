@@ -156,7 +156,7 @@ _START_REPEATS = 3   # сколько раз слать /start при ответ
 _START_DELAY  = 2.0  # секунды между повторными /start
 
 
-async def _send_one_report(client, bot_entity, session_email: str, target: str, report_num: int) -> bool:
+async def _send_one_report(client, bot_entity, session_email: str, target: str, report_num: int, reason: str = "pav") -> bool:
     done = asyncio.Event()
     step = 0
     success = False
@@ -186,9 +186,13 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
 
         elif "select the reason" in text and step == 1:
             await asyncio.sleep(0.3)
-            await client.send_message(bot_entity, "Drug-related material")
-            step = 2
-            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Причина отправлена")
+            if reason == "child":
+                await client.send_message(bot_entity, "Child sexual exploitation material")
+                step = 4  # Child: нет шагов с описанием и документами → сразу к confirm
+            else:
+                await client.send_message(bot_entity, "Drug-related material")
+                step = 2
+            logger.info(f"[AUREPORT] [{session_name}] [{report_num}] Причина отправлена (reason={reason})")
 
         elif "why the content is illegal" in text and step == 2:
             await asyncio.sleep(0.3)
@@ -289,7 +293,7 @@ async def _send_one_report(client, bot_entity, session_email: str, target: str, 
     return success
 
 
-async def _single_session_flow(session_path: str, target: str, session_email: str, proxy=None) -> bool:
+async def _single_session_flow(session_path: str, target: str, session_email: str, proxy=None, reason: str = "pav") -> bool:
     session_name = os.path.basename(session_path)
     client = await _create_client(session_path, proxy)
     if not client:
@@ -299,7 +303,7 @@ async def _single_session_flow(session_path: str, target: str, session_email: st
         bot_entity = await client.get_entity("AuReportBot")
         logger.info(f"[AUREPORT] [{session_name}] Бот найден | email: {session_email}")
 
-        success1 = await _send_one_report(client, bot_entity, session_email, target, 1)
+        success1 = await _send_one_report(client, bot_entity, session_email, target, 1, reason)
 
         return success1
     except Exception as e:
@@ -312,7 +316,7 @@ async def _single_session_flow(session_path: str, target: str, session_email: st
             pass
 
 
-async def main_aureport(target_link: str, user: int, username: str, silent: bool = False, notify_bot=None):
+async def main_aureport(target_link: str, user: int, username: str, silent: bool = False, notify_bot=None, reason: str = "pav"):
     _notify = notify_bot or bot
 
     if _aureport_lock.locked():
@@ -326,7 +330,7 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
                 pass
 
     async with _aureport_lock:
-        pending = await _main_aureport_inner(target_link, user, username, silent, notify_bot)
+        pending = await _main_aureport_inner(target_link, user, username, silent, notify_bot, reason)
 
     # Lock released — send result notifications now
     if pending:
@@ -337,7 +341,7 @@ async def main_aureport(target_link: str, user: int, username: str, silent: bool
                 pass
 
 
-async def _main_aureport_inner(target_link: str, user: int, username: str, silent: bool = False, notify_bot=None):
+async def _main_aureport_inner(target_link: str, user: int, username: str, silent: bool = False, notify_bot=None, reason: str = "pav"):
     _notify = notify_bot or bot
     sessions = _get_sessions()
     if not sessions:
@@ -401,7 +405,7 @@ async def _main_aureport_inner(target_link: str, user: int, username: str, silen
         cur_email_idx = email_idx + attempt
         session_email = f"au{cur_email_idx:04d}@{MAIL_DOMAIN}"
         logger.info(f"[AUREPORT] Попытка {attempt + 1}/{total} | сессия: {os.path.basename(session_path)} | email: {session_email}")
-        real_result = await _single_session_flow(session_path, target, session_email, proxy)
+        real_result = await _single_session_flow(session_path, target, session_email, proxy, reason)
         if real_result:
             # Обновляем email счётчик до следующего после последнего использованного
             try:
@@ -443,6 +447,7 @@ async def _main_aureport_inner(target_link: str, user: int, username: str, silen
     now_str = now_msk().strftime("%d.%m.%Y %H:%M:%S")
 
     target_escaped = target.replace('_', '\\_')
+    reason_label = "💊 ПАВ" if reason == "pav" else "🔞 Child"
     caption_user = (
         f"🇦🇺 *AU Report завершён!*\n\n"
         f"🎯 *Цель:* {target_escaped}\n"
@@ -461,6 +466,7 @@ async def _main_aureport_inner(target_link: str, user: int, username: str, silen
     caption_log = (
         f"🇦🇺 *AU Report*\n\n"
         f"🎯 *Цель:* {target_escaped}\n"
+        f"{reason_label} *Причина:* {'ПАВ' if reason == 'pav' else 'Child'}\n"
         f"👤 *Пользователь:* {_log_uid} (*@{_log_uname}*)\n"
         f"🕐 *Время:* {now_str}\n\n"
         f"🟢 *Успешно: {successful}*\n"
