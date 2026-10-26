@@ -17,10 +17,10 @@ from pydantic import BaseModel
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://botuser:botpass123@localhost/botdb")
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "changeme-set-in-service")
 BOT_TOKEN = os.getenv("TOKEN", "")
-NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,8701067595").split(",") if x.strip()]
+NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8224529588").split(",") if x.strip()]
 
 BOT_TOKEN = os.getenv("TOKEN", "")
-NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8316051968,8701067595").split(",") if x.strip()]
+NOTIFY_ADMINS = [int(x) for x in os.getenv("ADMINS", "8224529588").split(",") if x.strip()]
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
