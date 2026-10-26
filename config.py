@@ -5,11 +5,11 @@ CRYPTO = os.environ.get("CRYPTO", "no")
 ADMINS = list(map(int, os.environ.get("ADMINS", "8224529588").split(",")))
 
 bot_logs = int(os.environ.get("BOT_LOGS", "8224529588"))
-bot_channel_link = os.environ.get("CHANNEL_LINK", "https://t.me/+3u8scLryHxdmNDUy")
-bot_channel2_link = os.environ.get("CHANNEL2_LINK", "https://t.me/+3u8scLryHxdmNDUy")
+bot_channel_link = os.environ.get("CHANNEL_LINK", "https://t.me/brv2op")
+bot_channel2_link = os.environ.get("CHANNEL2_LINK", "https://t.me/xxxxx33hz")
 bot_admin = os.environ.get("BOT_ADMIN", "@soft_bladeee")
-channel_id = os.environ.get("CHANNEL_ID", "-1002847743793")
-channel2_id = os.environ.get("CHANNEL2_ID", "-1002847743793")
+channel_id = os.environ.get("CHANNEL_ID", "-1004489653566")
+channel2_id = os.environ.get("CHANNEL2_ID", "-1004337279021")
 NO_KD = list(map(int, os.environ.get("NO_KD", "8312194811").split(",")))
 
 # ─── AU Report / TIDA ────────────────────────────────────────────────────────
