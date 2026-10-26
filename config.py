@@ -1,16 +1,16 @@
 import os
 
-TOKEN = os.environ.get("TOKEN", "")
-CRYPTO = os.environ.get("CRYPTO", "")
-ADMINS = list(map(int, os.environ.get("ADMINS", "8316051968,60693380,8701067595").split(",")))
+TOKEN = os.environ.get("TOKEN", "8870553187:AAHDDpqsXzkUo7aqacrX_y1DbnTIEa121ug")
+CRYPTO = os.environ.get("CRYPTO", "no")
+ADMINS = list(map(int, os.environ.get("ADMINS", "8224529588").split(",")))
 
-bot_logs = int(os.environ.get("BOT_LOGS", "8316051968"))
+bot_logs = int(os.environ.get("BOT_LOGS", "8224529588"))
 bot_channel_link = os.environ.get("CHANNEL_LINK", "https://t.me/+3u8scLryHxdmNDUy")
 bot_channel2_link = os.environ.get("CHANNEL2_LINK", "https://t.me/+3u8scLryHxdmNDUy")
-bot_admin = os.environ.get("BOT_ADMIN", "@KoTik2k8")
+bot_admin = os.environ.get("BOT_ADMIN", "@soft_bladeee")
 channel_id = os.environ.get("CHANNEL_ID", "-1002847743793")
 channel2_id = os.environ.get("CHANNEL2_ID", "-1002847743793")
-NO_KD = list(map(int, os.environ.get("NO_KD", "1403537093,831219481,8312194811").split(",")))
+NO_KD = list(map(int, os.environ.get("NO_KD", "8312194811").split(",")))
 
 # ─── AU Report / TIDA ────────────────────────────────────────────────────────
 # API для сессий aureport_sessions/ и tida_sessions/
