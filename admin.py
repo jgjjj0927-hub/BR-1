@@ -220,4 +220,108 @@ def register_admin_handlers(dp: Dispatcher):
             result = "Подписка снята."
 
         elif operation == "premium_remove":
-            with connect_db() as conn
+            with connect_db() as conn:
+                conn.execute(
+                    "UPDATE admin_users SET premium_until = NULL WHERE user_id = ?",
+                    (target_id,),
+                )
+            result = "Премиум снят."
+
+        elif operation == "ban":
+            with connect_db() as conn:
+                conn.execute(
+                    "UPDATE admin_users SET banned = 1 WHERE user_id = ?",
+                    (target_id,),
+                )
+            result = "Пользователь отмечен как заблокированный в базе админки."
+
+        elif operation == "unban":
+            with connect_db() as conn:
+                conn.execute(
+                    "UPDATE admin_users SET banned = 0 WHERE user_id = ?",
+                    (target_id,),
+                )
+            result = "Блокировка в базе админки снята."
+
+        else:
+            result = "Неизвестная операция."
+
+        await state.finish()
+        await message.answer(f"✅ {result}")
+
+    @dp.message_handler(state=AdminStates.amount)
+    async def receive_amount(message: types.Message, state):
+        if not admin_allowed(message.from_user.id):
+            await state.finish()
+            return
+
+        try:
+            amount = int(message.text.strip())
+            if amount <= 0:
+                raise ValueError
+        except (ValueError, AttributeError):
+            await message.answer("❌ Введи целое число больше нуля.")
+            return
+
+        data = await state.get_data()
+        operation = data["operation"]
+        target_id = data["target_id"]
+        ensure_user(target_id)
+
+        with connect_db() as conn:
+            if operation in ("subscription_add", "premium_add"):
+                column = (
+                    "subscription_until"
+                    if operation == "subscription_add"
+                    else "premium_until"
+                )
+
+                row = conn.execute(
+                    f"SELECT {column} FROM admin_users WHERE user_id = ?",
+                    (target_id,),
+                ).fetchone()
+
+                current_value = row[column]
+                now = datetime.utcnow()
+
+                if current_value:
+                    try:
+                        existing = datetime.fromisoformat(current_value)
+                        if existing > now:
+                            now = existing
+                    except ValueError:
+                        pass
+
+                until = (now + timedelta(days=amount)).isoformat(timespec="seconds")
+                conn.execute(
+                    f"UPDATE admin_users SET {column} = ? WHERE user_id = ?",
+                    (until, target_id),
+                )
+                result = f"Доступ выдан до {until} UTC."
+
+            elif operation == "reports_add":
+                conn.execute(
+                    "UPDATE admin_users SET reports = reports + ? WHERE user_id = ?",
+                    (amount, target_id),
+                )
+                result = f"Добавлено репортов: {amount}."
+
+            elif operation == "reports_remove":
+                conn.execute(
+                    """UPDATE admin_users
+                       SET reports = MAX(0, reports - ?)
+                       WHERE user_id = ?""",
+                    (amount, target_id),
+                )
+                result = f"Убрано репортов: {amount}."
+
+            else:
+                result = "Неизвестная операция."
+
+        await state.finish()
+        await message.answer(f"✅ {result}")
+
+    @dp.message_handler(commands=["admin_cancel"], state="*")
+    async def cancel_admin(message: types.Message, state):
+        await state.finish()
+        await message.answer("Действие отменено.")
