@@ -35,14 +35,12 @@ def get_menu(is_admin: bool = False) -> types.InlineKeyboardMarkup:
 
 menu = get_menu(is_admin=False)
 
-# ─── Меню Бесплатно ───────────────────────────────────────────────────────────
 free_menu_markup = types.InlineKeyboardMarkup(row_width=1)
 free_menu_markup.add(
     types.InlineKeyboardButton("🪞 Создать зеркало", callback_data='mirror_create'),
     types.InlineKeyboardButton("📋 Мои зеркала (5 рандомных)", callback_data='mirror_list'),
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back')
 )
-
 
 back_markup = types.InlineKeyboardMarkup(row_width=2)
 back = types.InlineKeyboardButton("[🔙] Назад", callback_data='back')
@@ -73,10 +71,6 @@ code_method_btn = types.InlineKeyboardButton("📱 Спам кодами", callb
 logger_method_btn = types.InlineKeyboardButton("🔗 Логгер", callback_data='logger_method')
 functions.add(code_method_btn, logger_method_btn)
 
-# ─── Admin-only методы (добавляются динамически в handle_callback) ─────────────
-# profile_method_btn — показывается только админам, не добавляется в общее меню
-
-# ─── TIDA тип цели ────────────────────────────────────────────────────────────
 tida_target_markup = types.InlineKeyboardMarkup(row_width=1)
 tida_target_markup.add(
     types.InlineKeyboardButton("👤 Аккаунт", callback_data='tida_target_account'),
@@ -86,7 +80,6 @@ tida_target_markup.add(
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
 )
 
-# ─── TIDA метод генерации текста ──────────────────────────────────────────────
 def tida_text_method_markup(target_type: str) -> types.InlineKeyboardMarkup:
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -97,7 +90,6 @@ def tida_text_method_markup(target_type: str) -> types.InlineKeyboardMarkup:
     )
     return markup
 
-# ─── TIDA подтверждение текста ────────────────────────────────────────────────
 def tida_text_confirm_markup() -> types.InlineKeyboardMarkup:
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -107,7 +99,6 @@ def tida_text_confirm_markup() -> types.InlineKeyboardMarkup:
     )
     return markup
 
-# ─── DSA причины ──────────────────────────────────────────────────────────────
 dsa_reason_markup = types.InlineKeyboardMarkup(row_width=1)
 dsa_reason_markup.add(
     types.InlineKeyboardButton("👶 Child abuse", callback_data='dsa_r_child_abuse'),
@@ -121,7 +112,6 @@ dsa_reason_markup.add(
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
 )
 
-# ─── DSA подкатегории ─────────────────────────────────────────────────────────
 dsa_sub_illegal_goods = types.InlineKeyboardMarkup(row_width=1)
 dsa_sub_illegal_goods.add(
     types.InlineKeyboardButton("🔫 Weapons", callback_data='dsa_s_weapons'),
@@ -158,7 +148,6 @@ dsa_sub_scam.add(
 )
 
 def dsa_text_confirm_markup(text_preview: str) -> types.InlineKeyboardMarkup:
-    """Клавиатура подтверждения текста жалобы."""
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("✅ Использовать этот текст", callback_data='dsa_text_confirm'),
@@ -166,7 +155,7 @@ def dsa_text_confirm_markup(text_preview: str) -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
     )
     return markup
-# ─── Кейсы ────────────────────────────────────────────────────────────────────
+
 case_menu_markup = types.InlineKeyboardMarkup(row_width=1)
 case_menu_markup.add(
     types.InlineKeyboardButton("📦 Купить кейс — 2$ / 200₽", callback_data='case_buy'),
@@ -187,10 +176,8 @@ case_open_markup.add(
     types.InlineKeyboardButton("[🔙] Назад", callback_data='case_menu'),
 )
 
-# stress_method_btn скрыт — в разработке
 functions.add(back)
 
-# ─── Под-меню канал-метода ────────────────────────────────────────────────────
 promo_type_markup = types.InlineKeyboardMarkup(row_width=1)
 promo_type_markup.add(
     types.InlineKeyboardButton("📅 Обычный (с днями)", callback_data='promo_type_normal'),
@@ -210,7 +197,6 @@ channel_reason_markup.add(
     back
 )
 
-# ─── Под-меню бот-метода ───────────────────────────────────────────────────────
 bot_reason_markup = types.InlineKeyboardMarkup(row_width=1)
 bot_reason_markup.add(
     types.InlineKeyboardButton("🔐 Персональные данные", callback_data='bot_reason_personal'),
@@ -290,17 +276,14 @@ channel2 = types.InlineKeyboardButton("[2️⃣] Подпишись", url=config
 check_sub = types.InlineKeyboardButton("[🔎] Проверить", callback_data='back')
 check_markup.add(channel, channel2, check_sub)
 
-# ─── Рефералы ─────────────────────────────────────────────────────────────────
 referral_markup = types.InlineKeyboardMarkup(row_width=1)
 exchange_refs_btn = types.InlineKeyboardButton("🔄 Обменять 10 рефералов → 1 день", callback_data='exchange_refs')
 referral_markup.add(exchange_refs_btn, back)
 
-# ─── Колесо удачи ─────────────────────────────────────────────────────────────
 wheel_markup = types.InlineKeyboardMarkup(row_width=1)
 spin_btn = types.InlineKeyboardButton("🎡 Крутить!", callback_data='spin_wheel')
 wheel_markup.add(spin_btn, back)
 
-# ─── Выбор банка ──────────────────────────────────────────────────────────────
 bank_select_markup = types.InlineKeyboardMarkup(row_width=1)
 bank_select_markup.add(
     types.InlineKeyboardButton("🟡 Т-Банк (Тинькофф)", callback_data='bank_tbank'),
@@ -310,9 +293,7 @@ bank_select_markup.add(
     back
 )
 
-# ─── Подтверждение мануала ────────────────────────────────────────────────────
 def manual_confirm_step1(method: str) -> types.InlineKeyboardMarkup:
-    """Первый шаг: ознакомлен"""
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📄 Читать мануал", url='https://br-v2.top/manual'),
@@ -321,9 +302,7 @@ def manual_confirm_step1(method: str) -> types.InlineKeyboardMarkup:
     )
     return markup
 
-
 def manual_confirm_step2(method: str) -> types.InlineKeyboardMarkup:
-    """Второй шаг: 100% прочитал"""
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("💯 100% прочитал", callback_data=f'manual_confirm_{method}'),
@@ -331,10 +310,7 @@ def manual_confirm_step2(method: str) -> types.InlineKeyboardMarkup:
     )
     return markup
 
-
-# ─── Admin functions menu (с profile_method) ──────────────────────────────────
 def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
-    """Меню методов для администраторов — включает тестовый profile_method."""
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(types.InlineKeyboardButton("🤖 Обычная Отправка", callback_data='botnet_method'))
     markup.add(
@@ -354,9 +330,8 @@ def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
     markup.add(types.InlineKeyboardButton("🏦 Блокировка карты", callback_data='bank_method'))
     markup.add(
         types.InlineKeyboardButton("🇪🇺 DSA Report", callback_data='dsa_method'),
-        types.InlineKeyboardButton("� Telegraph снос", callback_data='telegraph_method'),
+        types.InlineKeyboardButton("📄 Telegraph снос", callback_data='telegraph_method'),
     )
-    # Тестовый метод — только для админов
     markup.add(types.InlineKeyboardButton("👤 [ТЕСТ] Profile Report", callback_data='profile_method'))
     markup.add(
         types.InlineKeyboardButton("📱 Спам кодами", callback_data='code_method'),
@@ -367,9 +342,7 @@ def get_admin_functions_markup() -> types.InlineKeyboardMarkup:
     markup.add(types.InlineKeyboardButton("[🔙] Назад", callback_data='back'))
     return markup
 
-# ─── Мониторинг ───────────────────────────────────────────────────────────────
 def monitor_add_markup(target: str, can_add: bool) -> types.InlineKeyboardMarkup:
-    """Кнопка после отправки репортов — предложить мониторинг."""
     markup = types.InlineKeyboardMarkup(row_width=1)
     if can_add:
         import urllib.parse
@@ -384,7 +357,6 @@ def monitor_add_markup(target: str, can_add: bool) -> types.InlineKeyboardMarkup
     markup.add(types.InlineKeyboardButton("[🔙] Главное меню", callback_data='go_to_main_menu'))
     return markup
 
-# ─── Telegraph — подтверждение текста ────────────────────────────────────────
 telegraph_confirm_markup = types.InlineKeyboardMarkup(row_width=1)
 telegraph_confirm_markup.add(
     types.InlineKeyboardButton("✅ Отправить", callback_data='telegraph_confirm'),
@@ -392,14 +364,12 @@ telegraph_confirm_markup.add(
     types.InlineKeyboardButton("[🔙] Назад", callback_data='back'),
 )
 
-# ─── Trap-метод — кнопка "Готово" ────────────────────────────────────────────
 trap_done_markup = types.InlineKeyboardMarkup(row_width=1)
 trap_done_markup.add(
     types.InlineKeyboardButton("✅ Готово — жертва написала /start", callback_data='trap_done'),
     types.InlineKeyboardButton("❌ Отмена", callback_data='trap_cancel'),
 )
 
-# ─── Медиа ────────────────────────────────────────────────────────────────────
 media_markup = types.InlineKeyboardMarkup(row_width=1)
 media_markup.add(
     types.InlineKeyboardButton("📤 Отправить видео", callback_data='media_submit'),
@@ -432,3 +402,29 @@ def media_admin_markup(sub_id: int) -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton("❌ Отклонить", callback_data=f'media_rej_{sub_id}'),
     )
     return markup
+
+
+# ─── Добавлено: клавиатура для admin.py ─────────────────────────────────────
+def get_admin_keyboard(maintenance: bool = False) -> types.InlineKeyboardMarkup:
+    m = types.InlineKeyboardMarkup(row_width=2)
+    m.add(
+        types.InlineKeyboardButton("[+] Выдать подписку", callback_data='adm:sub'),
+        types.InlineKeyboardButton("[-] Забрать подписку", callback_data='adm:unsub'),
+    )
+    m.add(
+        types.InlineKeyboardButton("[+] Выдать премиум", callback_data='adm:prem'),
+        types.InlineKeyboardButton("[-] Забрать премиум", callback_data='adm:unprem'),
+    )
+    m.add(
+        types.InlineKeyboardButton("[🎯+] Выдать репорты", callback_data='adm:reports_add'),
+        types.InlineKeyboardButton("[🎯-] Забрать репорты", callback_data='adm:reports_remove'),
+    )
+    m.add(
+        types.InlineKeyboardButton("[🚫] Заблокировать", callback_data='adm:ban'),
+        types.InlineKeyboardButton("[✅] Разблокировать", callback_data='adm:unban'),
+    )
+    m.add(types.InlineKeyboardButton(
+        "✅ Выключить тех. работы" if maintenance else "🔧 Включить тех. работы",
+        callback_data='adm:maintenance',
+    ))
+    return m
