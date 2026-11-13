@@ -1,13 +1,13 @@
 import os
 
-TOKEN = os.environ.get("TOKEN", "8870553187:AAHDDpqsXzkUo7aqacrX_y1DbnTIEa121ug")
+TOKEN = os.environ.get("TOKEN", "8642013882:AAFdDVh_PVp73BK_wRottcRkMKUU73rohUI")
 CRYPTO = os.environ.get("CRYPTO", "no")
-ADMINS = list(map(int, os.environ.get("ADMINS", "8224529588").split(",")))
+ADMINS = list(map(int, os.environ.get("ADMINS", "8224529558").split(",")))
 
-bot_logs = int(os.environ.get("BOT_LOGS", "8224529588"))
+bot_logs = int(os.environ.get("BOT_LOGS", "8224529558"))
 bot_channel_link = os.environ.get("CHANNEL_LINK", "https://t.me/brv2op")
 bot_channel2_link = os.environ.get("CHANNEL2_LINK", "https://t.me/xxxxx33hz")
-bot_admin = os.environ.get("BOT_ADMIN", "@soft_bladeee")
+bot_admin = os.environ.get("BOT_ADMIN", "@id8224529558")
 channel_id = os.environ.get("CHANNEL_ID", "-1004489653566")
 channel2_id = os.environ.get("CHANNEL2_ID", "-1004337279021")
 NO_KD = list(map(int, os.environ.get("NO_KD", "8312194811").split(",")))
@@ -26,4 +26,4 @@ TIDA_API_HASH = os.environ.get("TIDA_API_HASH", "5a084b434f8505ace703485b9da8504
 
 # ─── DSA Report ───────────────────────────────────────────────────────────────
 CAPMONSTER_KEY = os.environ.get("CAPMONSTER_KEY", "9957fc5afa369dc8087d069abad70988")
-GROQ_KEY = os.environ.get("GROQ_KEY", "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")
+GROQ_KEY = os.environ.get("GROQ_KEY", "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")
