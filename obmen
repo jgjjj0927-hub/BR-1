@@ -1,1 +1,2 @@
-postgresql://neondb_owner:npg_bMBWVkw2IH0P@ep-weathered-bonus-be9hwrfj-pooler.c-9.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+# ─── Database ─────────────────────────────────────────────────────────────────
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://neondb_owner:npg_bMBWVkw2IH0P@ep-weathered-bonus-be9hwrfj-pooler.c-9.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
