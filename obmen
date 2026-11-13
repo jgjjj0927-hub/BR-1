@@ -1,0 +1,157 @@
+Бот запускается...
+Updates were skipped successfully.
+DATABASE_URL = НЕ УСТАНОВЛЕНА
+ОШИБКА БД при старте: [Errno 11003] getaddrinfo failed
+Бот запущен.
+Task exception was never retrieved
+future: <Task finished name='Task-9' coro=<start_all_mirrors() done, defined at C:\Users\User\BR-1\mirror_manager.py:492> exception=gaierror(11003, 'getaddrinfo failed')>
+Traceback (most recent call last):
+  File "C:\Users\User\BR-1\mirror_manager.py", line 493, in start_all_mirrors
+    tokens = await db.get_all_mirror_tokens()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\BR-1\db.py", line 536, in get_all_mirror_tokens
+    pool = await get_pool()
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\User\BR-1\db.py", line 26, in get_pool
+    _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\pool.py", line 403, in _async__init__
+    await self._initialize()
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\pool.py", line 430, in _initialize
+    await first_ch.connect()
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\pool.py", line 128, in connect
+    self._con = await self._pool._get_new_connection()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\pool.py", line 502, in _get_new_connection
+    con = await connection.connect(
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\connection.py", line 2329, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\connect_utils.py", line 1017, in _connect
+    raise last_error or exceptions.TargetServerAttributeNotMatched(
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\connect_utils.py", line 991, in _connect
+    conn = await _connect_addr(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\connect_utils.py", line 828, in _connect_addr
+    return await __connect_addr(params, True, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\connect_utils.py", line 873, in __connect_addr
+    tr, pr = await connector
+             ^^^^^^^^^^^^^^^
+  File "C:\Users\User\BR-1\venv\Lib\site-packages\asyncpg\connect_utils.py", line 744, in _create_ssl_connection
+    tr, pr = await loop.create_connection(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 1034, in create_connection
+    infos = await self._ensure_resolved(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 1405, in _ensure_resolved
+    return await loop.getaddrinfo(host, port, family=family, type=type,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 864, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 961, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11003] getaddrinfo failed
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
