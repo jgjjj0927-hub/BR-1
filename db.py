@@ -11,7 +11,7 @@ from datetime import datetime
 # На сервере (Render) задаётся через Environment Variables
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql://postgres:Alishka2010@@db.oaisjipniprzcyugxndj.supabase.co:5432/postgres"
+    "postgresql://neondb_owner:npg_bMBWVkw2IH0P@ep-weathered-bonus-be9hwrfj-pooler.c-9.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 )
 
 _pool: asyncpg.Pool = None
